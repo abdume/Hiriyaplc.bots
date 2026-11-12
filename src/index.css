@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+/* Custom scrollbars for spreadsheet tables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f3f5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Material Design elevation shadows */
+.mat-shadow-1 {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+}
+
+.mat-shadow-2 {
+  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+}
+
+.mat-shadow-3 {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+}
+
+/* Geometric Drawer Header Pattern */
+.drawer-geometric-bg {
+  background: linear-gradient(135deg, #FF6F00 0%, #FF8F00 35%, #0D47A1 70%, #1565C0 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.drawer-geometric-bg::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 140px;
+  height: 140px;
+  background: rgba(255, 255, 255, 0.12);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.drawer-geometric-bg::after {
+  content: '';
+  position: absolute;
+  bottom: -40px;
+  left: -20px;
+  width: 180px;
+  height: 180px;
+  background: rgba(255, 179, 0, 0.2);
+  transform: rotate(25deg);
+  pointer-events: none;
+}
+
+/* Number cell highlight styling (Table Notes signature #E65100 bold) */
+.cell-amount-highlight {
+  color: #E65100;
+  font-weight: 700;
+  font-family: 'Roboto Mono', monospace, tabular-nums;
+}
+
+/* Freeze left column & header */
+.sticky-first-col {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.sticky-table-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Print styling for PDF Report Generation */
+@media print {
+  body {
+    background-color: #FFFFFF !important;
+    color: #1E293B !important;
+  }
+
+  /* Hide app navigation and modal backdrop during print */
+  .no-print,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Unconstrain report modal for clean multi-page PDF generation */
+  .print-full-report {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+  }
+
+  .print-bg-dark {
+    background-color: #0D47A1 !important;
+    color: #FFFFFF !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+

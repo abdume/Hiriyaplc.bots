@@ -1,0 +1,2189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TableBot - Telegram Bot Manager &amp; Cloud Database</title>
+  <meta name="description" content="Mobile-first Table Notes inspired Telegram Bot Manager &amp; Live Cloud Database with Supabase multi-device sync, spreadsheet data editor, and daily/weekly/monthly reports." />
+  <meta property="og:title" content="TableBot - Telegram Bot Manager &amp; Cloud Database" />
+  <meta property="og:description" content="Mobile-first Table Notes inspired Telegram Bot Manager &amp; Live Cloud Database with Supabase multi-device sync." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --blue-dark: #0D47A1;
+      --blue-mid: #1565C0;
+      --blue-primary: #1976D2;
+      --bg-app: #F4F6F9;
+      --surface: #FFFFFF;
+      --orange-accent: #E65100;
+      --green-accent: #2E7D32;
+      --text-main: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-app);
+      color: var(--text-main);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    button, input, select, textarea { font-family: inherit; }
+    button { cursor: pointer; border: none; background: none; color: inherit; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .hidden { display: none !important; }
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Top App Bar */
+    .app-header {
+      position: sticky; top: 0; z-index: 40;
+      background: var(--blue-dark); color: #fff;
+      box-shadow: 0 2px 8px rgba(13,71,161,0.22);
+    }
+    .header-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 0 16px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .header-left, .header-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .icon-btn {
+      width: 36px; height: 36px; border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #fff; transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,0.14); }
+    .pill-badge {
+      font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.2); color: #fff;
+    }
+    .sync-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(10, 42, 102, 0.55); padding: 3px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; color: #DBEAFE;
+    }
+    .sync-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+    .dot-synced { background: #34D399; }
+    .dot-syncing { background: #FBBF24; animation: pulse 1.2s infinite; }
+    .dot-error { background: #F87171; }
+    .dot-local { background: #93C5FD; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .header-action-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 11px; border-radius: 8px;
+      background: rgba(21,101,192,0.9); border: 1px solid rgba(147,197,253,0.4);
+      color: #fff; font-size: 12px; font-weight: 700; transition: background 0.15s;
+    }
+    .header-action-btn:hover { background: #1976D2; }
+    .header-select {
+      background: var(--blue-mid); color: #fff; font-size: 12px; font-weight: 600;
+      padding: 6px 8px; border-radius: 6px; border: none; outline: none; cursor: pointer;
+    }
+    .search-bar-wrap {
+      background: var(--blue-mid); padding: 8px 16px; border-top: 1px solid rgba(255,255,255,0.18);
+    }
+    .search-input-box {
+      max-width: 1168px; margin: 0 auto;
+      background: #fff; border-radius: 8px; padding: 6px 12px;
+      display: flex; align-items: center; gap: 8px; color: var(--text-main);
+    }
+    .search-input-box input {
+      width: 100%; border: none; outline: none; font-size: 13px; background: transparent;
+    }
+
+    /* Folder Tabs Bar */
+    .folders-bar {
+      background: var(--blue-mid); padding: 8px 16px;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .folders-bar::-webkit-scrollbar { display: none; }
+    .folders-inner {
+      max-width: 1168px; margin: 0 auto;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .folder-tab {
+      padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+      white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(13,71,161,0.55); color: #DBEAFE; transition: all 0.15s;
+    }
+    .folder-tab:hover { background: rgba(13,71,161,0.8); }
+    .folder-tab.active { background: #fff; color: var(--blue-dark); box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+    .folder-count {
+      font-size: 10px; padding: 1px 6px; border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+    }
+    .folder-tab.active .folder-count { background: #DBEAFE; color: var(--blue-dark); }
+
+    /* Dashboard Grid */
+    .dashboard-main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 100px; }
+    .grid-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; font-size: 12px;
+    }
+    .grid-meta-title { font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bot-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+    }
+    @media (min-width: 900px) { .bot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+    @media (max-width: 560px) { .bot-grid { grid-template-columns: 1fr; } }
+
+    .bot-card {
+      background: var(--surface); border-radius: 12px; padding: 16px;
+      border: 1px solid #E8EDF3;
+      box-shadow: 0 2px 6px rgba(15,23,42,0.06);
+      display: flex; flex-direction: column; justify-content: space-between;
+      cursor: pointer; position: relative; transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .bot-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(13,71,161,0.12); }
+    .bot-card-title { font-size: 16px; font-weight: 700; color: var(--blue-dark); margin-bottom: 4px; }
+    .bot-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .status-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      text-transform: uppercase;
+    }
+    .chip-online { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
+    .chip-sim { background: #EFF6FF; color: var(--blue-mid); border: 1px solid #BFDBFE; }
+    .chip-folder { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; text-transform: none; }
+    .chip-user { background: #F8FAFC; color: #475569; border: 1px solid #E2E8F0; font-family: monospace; text-transform: none; }
+    .card-footer {
+      margin-top: 14px; padding-top: 10px; border-top: 1px solid #F1F5F9;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 11px; color: #94A3B8;
+    }
+    .quick-table-btn {
+      width: 32px; height: 32px; border-radius: 999px;
+      background: #EFF6FF; color: var(--blue-primary);
+      display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .bot-card:hover .quick-table-btn { background: var(--blue-primary); color: #fff; }
+
+    /* Context Dropdown Menu */
+    .dropdown-menu {
+      position: absolute; right: 0; top: 32px; width: 184px; z-index: 60;
+      background: #fff; border-radius: 12px; border: 1px solid var(--border);
+      box-shadow: 0 12px 28px rgba(15,23,42,0.18); padding: 4px 0;
+    }
+    .dropdown-item {
+      width: 100%; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #334155;
+      display: flex; align-items: center; gap: 8px; text-align: left;
+    }
+    .dropdown-item:hover { background: #EFF6FF; color: var(--blue-dark); }
+    .dropdown-item.danger { color: #DC2626; }
+    .dropdown-item.danger:hover { background: #FEF2F2; }
+
+    /* FABs */
+    .fab-stack {
+      position: fixed; bottom: 24px; right: 24px; z-index: 35;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .fab-secondary {
+      width: 48px; height: 48px; border-radius: 999px;
+      background: #fff; color: var(--blue-mid); border: 1px solid var(--border);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+      display: flex; align-items: center; justify-content: center; transition: transform 0.15s;
+    }
+    .fab-primary {
+      width: 56px; height: 56px; border-radius: 999px;
+      background: var(--blue-primary); color: #fff;
+      box-shadow: 0 6px 18px rgba(25,118,210,0.4);
+      display: flex; align-items: center; justify-content: center; transition: transform 0.15s, background 0.15s;
+    }
+    .fab-secondary:hover, .fab-primary:hover { transform: scale(1.06); }
+    .fab-primary:hover { background: var(--blue-mid); }
+
+    /* Drawer */
+    .drawer-backdrop {
+      position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.55);
+      display: flex;
+    }
+    .drawer-panel {
+      width: 310px; max-width: 85vw; height: 100%; background: #fff;
+      display: flex; flex-direction: column; box-shadow: 8px 0 30px rgba(0,0,0,0.25);
+    }
+    .drawer-banner {
+      background: linear-gradient(135deg, #FF6F00 0%, #FFB300 32%, #1976D2 68%, #0D47A1 100%);
+      padding: 20px; min-height: 164px; color: #fff; position: relative;
+      display: flex; flex-direction: column; justify-content: flex-end;
+    }
+    .drawer-avatar {
+      width: 60px; height: 60px; border-radius: 999px; background: #fff;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--blue-dark); margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .drawer-nav { flex: 1; overflow-y: auto; padding: 8px 0; }
+    .drawer-item {
+      width: 100%; padding: 11px 18px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 13.5px; font-weight: 500; color: #334155; text-align: left;
+    }
+    .drawer-item:hover { background: #EFF6FF; color: var(--blue-dark); }
+    .drawer-item-left { display: flex; align-items: center; gap: 14px; }
+
+    /* Spreadsheet Table View */
+    .table-wrap { flex: 1; overflow: auto; background: #fff; padding-bottom: 110px; }
+    .sheet-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
+    .sheet-table th {
+      position: sticky; top: 0; z-index: 20; background: #F8FAFC;
+      border-right: 1px solid #CBD5E1; border-bottom: 2px solid #CBD5E1;
+      padding: 10px 12px; text-align: left; font-weight: 700; color: #1E293B; cursor: pointer;
+    }
+    .sheet-table th:hover { background: #EFF6FF; }
+    .sheet-table th.frozen-col, .sheet-table td.frozen-col {
+      position: sticky; left: 0; z-index: 25; background: #F1F5F9;
+      width: 54px; min-width: 54px; max-width: 54px; text-align: center;
+      border-right: 1px solid #CBD5E1;
+    }
+    .sheet-table th.frozen-col { z-index: 30; }
+    .sheet-table td {
+      border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
+      padding: 8px 12px; vertical-align: middle;
+    }
+    .sheet-table tr:nth-child(even) td:not(.frozen-col) { background: #FAFBFC; }
+    .sheet-table tr:hover td:not(.frozen-col) { background: #EFF6FF; }
+    .sheet-table tr.selected td:not(.frozen-col) { background: #DBEAFE; }
+    .cell-amount { color: var(--orange-accent); font-weight: 700; font-family: ui-monospace, monospace; }
+    .cell-edit-input {
+      width: 100%; padding: 6px 8px; border: 2px solid var(--blue-primary);
+      border-radius: 4px; outline: none; font-size: 13px; background: #fff;
+    }
+    .add-row-bar {
+      padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .add-row-btn {
+      width: 36px; height: 36px; border-radius: 6px;
+      background: var(--blue-primary); color: #fff;
+      display: inline-flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 5px rgba(25,118,210,0.3);
+    }
+    .add-row-btn:hover { background: var(--blue-mid); }
+
+    /* Sticky Summary Footer & Bottom Toolbar */
+    .sigma-footer {
+      position: fixed; bottom: 56px; left: 0; right: 0; z-index: 35;
+      background: var(--blue-dark); color: #fff;
+      padding: 9px 16px; border-top: 1px solid #1E3A8A;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      overflow-x: auto; font-size: 13px; font-weight: 600;
+    }
+    .bottom-toolbar {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 56px; z-index: 40;
+      background: #fff; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-around;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+    }
+    .toolbar-btn {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px; font-size: 10.5px; font-weight: 600; color: #475569; padding: 4px 10px;
+    }
+    .toolbar-btn:hover { color: var(--blue-primary); }
+    .toolbar-tester-circle {
+      width: 30px; height: 30px; border-radius: 999px;
+      background: #DBEAFE; color: var(--blue-primary);
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Modals */
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 80;
+      background: rgba(15,23,42,0.58); backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center; padding: 12px;
+    }
+    .modal-card {
+      background: #fff; width: 100%; max-width: 540px; max-height: 92vh;
+      border-radius: 16px; overflow: hidden; display: flex; flex-direction: column;
+      box-shadow: 0 24px 48px rgba(15,23,42,0.28);
+    }
+    .modal-card.wide { max-width: 980px; }
+    .modal-card.narrow { max-width: 400px; }
+    .modal-header {
+      background: var(--blue-dark); color: #fff; padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    }
+    .modal-body { flex: 1; overflow-y: auto; padding: 18px; background: #fff; }
+    .modal-body.tinted { background: var(--bg-app); }
+    .field-label {
+      display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 5px;
+    }
+    .form-input, .form-select, .form-textarea {
+      width: 100%; padding: 9px 12px; border: 1px solid #CBD5E1; border-radius: 10px;
+      font-size: 13px; outline: none; background: #fff; color: var(--text-main);
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--blue-primary); box-shadow: 0 0 0 3px rgba(25,118,210,0.12);
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 15px; border-radius: 10px; font-size: 12.5px; font-weight: 700;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--blue-primary); color: #fff; }
+    .btn-primary:hover { background: var(--blue-mid); }
+    .btn-dark-blue { background: var(--blue-dark); color: #fff; }
+    .btn-green { background: #059669; color: #fff; }
+    .btn-green:hover { background: #047857; }
+    .btn-red { background: #DC2626; color: #fff; }
+    .btn-red:hover { background: #B91C1C; }
+    .btn-outline { background: #fff; color: #334155; border: 1px solid #CBD5E1; }
+    .btn-outline:hover { background: #F8FAFC; }
+    .btn-pill { border-radius: 999px; background: #fff; color: var(--blue-dark); padding: 6px 18px; }
+
+    /* Column Props Type Grid & Slider */
+    .type-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .type-btn {
+      padding: 10px 6px; border-radius: 12px; border: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      font-size: 11px; color: #475569;
+    }
+    .type-btn.selected { border-color: var(--blue-primary); background: #EFF6FF; color: var(--blue-dark); font-weight: 700; }
+    .type-circle {
+      width: 34px; height: 34px; border-radius: 999px; background: #F1F5F9;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .type-btn.selected .type-circle { background: var(--blue-primary); color: #fff; }
+    .green-slider { flex: 1; accent-color: var(--green-accent); cursor: pointer; }
+
+    /* Reports Dashboard */
+    .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+    @media (min-width: 768px) { .kpi-grid { grid-template-columns: repeat(4, 1fr); } }
+    .kpi-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .kpi-val { font-size: 21px; font-weight: 800; font-family: ui-monospace, monospace; margin-top: 4px; }
+    .report-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .report-table th { background: #F1F5F9; padding: 10px; text-align: left; font-weight: 700; color: #334155; border-bottom: 1px solid #CBD5E1; }
+    .report-table td { padding: 10px; border-bottom: 1px solid #F1F5F9; }
+    .report-table tr:hover td { background: #F8FAFC; }
+
+    /* Toast */
+    .toast {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 100;
+      background: #0F172A; color: #fff; padding: 9px 18px; border-radius: 999px;
+      font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.28);
+    }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff !important; }
+      .modal-backdrop { position: static; background: #fff; padding: 0; }
+      .modal-card { max-width: 100% !important; max-height: none !important; box-shadow: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="drawer-root"></div>
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var STORAGE_BOTS = 'tablebot_data_bots';
+    var STORAGE_SB_URL = 'tablebot_supabase_url';
+    var STORAGE_SB_KEY = 'tablebot_supabase_anon_key';
+    var STORAGE_SB_EMAIL = 'tablebot_user_email';
+
+    var SQL_SETUP_SCRIPT =
+      '-- Run this in your Supabase SQL Editor:\n' +
+      'create table if not exists user_bots (\n' +
+      '  id text primary key,\n' +
+      '  user_id uuid references auth.users not null,\n' +
+      '  bot_data jsonb not null,\n' +
+      '  updated_at timestamptz default now()\n' +
+      ');\n\n' +
+      'alter table user_bots enable row level security;\n\n' +
+      'create policy "Users manage own bots" on user_bots\n' +
+      '  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);';
+
+    // Crisp inline SVG icons (zero external network dependency)
+    var ICONS = {
+      menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+      back: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+      search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+      sort: '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
+      dotsV: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+      dotsH: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+      plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+      minus: '<path d="M5 12h14"/>',
+      grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+      table: '<path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/>',
+      folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+      chart: '<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+      pie: '<path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+      edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+      copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+      trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+      csv: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/>',
+      bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+      cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+      key: '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>',
+      download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+      code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+      settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>',
+      share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+      help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/>',
+      logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+      user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+      close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+      sliders: '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/>',
+      filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+      send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+      print: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+      pdf: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/>',
+      check: '<polyline points="20 6 9 17 4 12"/>',
+      chevronDown: '<path d="m6 9 6 6 6-6"/>',
+      refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
+    };
+
+    function icon(name, size) {
+      var s = size || 18;
+      var path = ICONS[name] || '';
+      return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg>';
+    }
+
+    var INITIAL_BOTS = [
+      {
+        id: 'bot_ledger_1',
+        name: 'Customer Accounts & Ledger',
+        description: 'Track paid customers, item quality/quantity, paid amounts & remaining balance',
+        folder: 'Customer Ledger',
+        telegramToken: '',
+        botUsername: '@CustomerAccountsBot',
+        botStatus: 'simulator',
+        isFavorite: true,
+        updatedAt: new Date().toISOString(),
+        columns: [
+          { id: 'col_cname', name: 'Customer Name', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_quality', name: 'Quality / Quantity', type: 'text', widthMultiplier: 1.3, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_total', name: 'Total Amount', type: 'amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_paid', name: 'Paid Amount', type: 'amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#2E7D32', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_balance', name: 'Remaining Balance', type: 'amount', widthMultiplier: 1.2, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_status', name: 'Payment Status', type: 'text', widthMultiplier: 1.0, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'center', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_date', name: 'Transaction Date', type: 'date', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
+        ],
+        rows: [
+          { id: 'ledger_r1', col_cname: 'Alexander Wright (@alex_w)', col_quality: '10x Grade-A Specialty Coffee', col_total: 450, col_paid: 450, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-12 09:15' },
+          { id: 'ledger_r2', col_cname: 'Sophia Miller (@sophiam)', col_quality: '5x Enterprise Cloud Seats', col_total: 1250, col_paid: 800, col_balance: 450, col_status: 'Partial ($450 due)', col_date: '2026-11-12 08:30' },
+          { id: 'ledger_r3', col_cname: 'Daniel Chen (@chendan)', col_quality: '25x Premium Cotton Fabric', col_total: 875, col_paid: 875, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-11 15:40' },
+          { id: 'ledger_r4', col_cname: 'Elena Rostova (@elena_r)', col_quality: '2x 4K Studio Monitors (Refurb)', col_total: 920, col_paid: 500, col_balance: 420, col_status: 'Partial ($420 due)', col_date: '2026-11-10 11:20' },
+          { id: 'ledger_r5', col_cname: 'Marcus Vance (@marcus_v)', col_quality: '50x Stainless Steel Fittings', col_total: 620, col_paid: 620, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-09 14:10' },
+          { id: 'ledger_r6', col_cname: 'Sarah Connor (@s_connor)', col_quality: '1x Custom Telegram Bot Suite', col_total: 1500, col_paid: 750, col_balance: 750, col_status: 'Partial ($750 due)', col_date: '2026-11-06 17:00' },
+          { id: 'ledger_r7', col_cname: 'David Kim (@dkim)', col_quality: '15x High-Grade Copper Wire Rolls', col_total: 1100, col_paid: 1100, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-03 10:45' },
+          { id: 'ledger_r8', col_cname: 'Amira Hassan (@amira_h)', col_quality: '8x Heavy-Duty Cargo Straps', col_total: 320, col_paid: 100, col_balance: 220, col_status: 'Partial ($220 due)', col_date: '2026-11-01 13:30' }
+        ]
+      },
+      {
+        id: 'bot_sales_2',
+        name: 'SalesTracker_Bot',
+        description: 'Instant Telegram checkout, invoice receipts & sums',
+        folder: 'Sales & Orders',
+        telegramToken: '',
+        botUsername: '@StoreCheckoutBot',
+        botStatus: 'simulator',
+        isFavorite: true,
+        updatedAt: new Date(Date.now() - 2700000).toISOString(),
+        columns: [
+          { id: 'col_buyer', name: 'Customer / Chat', type: 'text', widthMultiplier: 1.3, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_item', name: 'Order Item', type: 'text', widthMultiplier: 1.2, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_amount', name: 'Amount Paid', type: 'amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_verified', name: 'Verified', type: 'checkbox', widthMultiplier: 0.8, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'center', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_state', name: 'Fulfillment', type: 'text', widthMultiplier: 1.0, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'center', color: '#1565C0', bgColor: '#FFFFFF' }, includeInGraph: true }
+        ],
+        rows: [
+          { id: 'row_s1', col_buyer: '1092834 @johndoe', col_item: 'Pro Subscription (Annual)', col_amount: 120, col_verified: true, col_state: 'Activated' },
+          { id: 'row_s2', col_buyer: '9920182 @elenak', col_item: 'API Access Token Pack', col_amount: 49.99, col_verified: true, col_state: 'Delivered' },
+          { id: 'row_s3', col_buyer: '4459102 @mark_dev', col_item: 'Custom Bot Setup Plugin', col_amount: 250, col_verified: true, col_state: 'In Progress' },
+          { id: 'row_s4', col_buyer: '6102938 @lisa_w', col_item: 'Starter Tier Upgrade', col_amount: 19, col_verified: false, col_state: 'Pending' }
+        ]
+      },
+      {
+        id: 'bot_crypto_1',
+        name: 'CryptoAlert Bot',
+        description: 'Telegram price threshold monitor & user trigger alerts',
+        folder: 'Crypto Alerts',
+        telegramToken: '',
+        botUsername: '@CryptoAlert_LiveBot',
+        botStatus: 'simulator',
+        isFavorite: true,
+        updatedAt: new Date(Date.now() - 900000).toISOString(),
+        columns: [
+          { id: 'col_user', name: 'User ID / Name', type: 'text', widthMultiplier: 1.3, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_pair', name: 'Token / Pair', type: 'text', widthMultiplier: 0.9, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_target', name: 'Alert Target', type: 'amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_status', name: 'Status', type: 'text', widthMultiplier: 1.0, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'center', color: '#2E7D32', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_date', name: 'Date / Time', type: 'date', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
+        ],
+        rows: [
+          { id: 'row_1', col_user: '7482918 @crypto_whale', col_pair: 'BTC / USD', col_target: 95500, col_status: 'Triggered', col_date: '2026-11-12 09:30' },
+          { id: 'row_2', col_user: '9128342 @sarah_eth', col_pair: 'ETH / USD', col_target: 3450.5, col_status: 'Monitoring', col_date: '2026-11-12 08:45' },
+          { id: 'row_3', col_user: '5561234 @alex_trader', col_pair: 'SOL / USD', col_target: 210, col_status: 'Monitoring', col_date: '2026-11-12 07:15' },
+          { id: 'row_4', col_user: '8839201 @maria_defi', col_pair: 'BNB / USD', col_target: 640, col_status: 'Triggered', col_date: '2026-11-11 22:10' }
+        ]
+      },
+      {
+        id: 'bot_support_3',
+        name: 'SupportHelper_Bot',
+        description: 'Helpdesk ticket manager & auto response dispatcher',
+        folder: 'Support Tickets',
+        telegramToken: '',
+        botUsername: '@SupportHelper_Bot',
+        botStatus: 'simulator',
+        isFavorite: false,
+        updatedAt: new Date(Date.now() - 7200000).toISOString(),
+        columns: [
+          { id: 'col_tid', name: 'Ticket #', type: 'text', widthMultiplier: 0.8, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'center', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_user', name: 'Telegram User', type: 'text', widthMultiplier: 1.2, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_inquiry', name: 'Inquiry / Command', type: 'text', widthMultiplier: 1.6, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_score', name: 'Priority / Score', type: 'number', widthMultiplier: 0.9, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_status', name: 'Status', type: 'text', widthMultiplier: 1.0, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'center', color: '#2E7D32', bgColor: '#FFFFFF' }, includeInGraph: true }
+        ],
+        rows: [
+          { id: 'row_h1', col_tid: '#1042', col_user: '8910293 @dev_sam', col_inquiry: '/reset_token - Credentials expired', col_score: 9, col_status: 'Resolved' },
+          { id: 'row_h2', col_tid: '#1043', col_user: '6719283 @anna_ui', col_inquiry: '/help - How to export CSV reports?', col_score: 4, col_status: 'Replied' },
+          { id: 'row_h3', col_tid: '#1044', col_user: '3391029 @chen_b', col_inquiry: '/billing - Invoice query for order #992', col_score: 7, col_status: 'Open' }
+        ]
+      }
+    ];
+
+    function loadBots() {
+      try {
+        var raw = localStorage.getItem(STORAGE_BOTS);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+      return JSON.parse(JSON.stringify(INITIAL_BOTS));
+    }
+
+    function loadSupabaseConfig() {
+      var url = localStorage.getItem(STORAGE_SB_URL) || '';
+      var key = localStorage.getItem(STORAGE_SB_KEY) || '';
+      var email = localStorage.getItem(STORAGE_SB_EMAIL) || 'umery1969@gmail.com';
+      return { url: url, anonKey: key, userEmail: email, isConnected: Boolean(url && key) };
+    }
+
+    var state = {
+      bots: loadBots(),
+      activeBotId: null,
+      supabaseConfig: loadSupabaseConfig(),
+      syncStatus: 'local',
+      sbClient: null,
+      sbUnsub: null,
+      // Dashboard filters
+      searchOpen: false,
+      searchQuery: '',
+      filterType: 'all',
+      selectedFolder: 'all',
+      sortOrder: 'recent',
+      activeCardMenuId: null,
+      // Table view UI
+      tableSearchOpen: false,
+      tableSearchQuery: '',
+      selectedRowIds: {},
+      editingCell: null,
+      editingTitle: false,
+      showMoreMenu: false,
+      // Drawer & Modals
+      drawerOpen: false,
+      modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help', data: ... }
+      toastTimer: null
+    };
+    state.syncStatus = state.supabaseConfig.isConnected ? 'syncing' : 'local';
+
+    function esc(v) {
+      return String(v === undefined || v === null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function saveBotsLocal() {
+      try { localStorage.setItem(STORAGE_BOTS, JSON.stringify(state.bots)); } catch (e) {}
+    }
+
+    function showToast(msg) {
+      var el = document.getElementById('toast-root');
+      if (!el) return;
+      el.innerHTML = '<div class="toast"><span class="sync-dot dot-synced"></span><span>' + esc(msg) + '</span></div>';
+      clearTimeout(state.toastTimer);
+      state.toastTimer = setTimeout(function () { el.innerHTML = ''; }, 3000);
+    }
+
+    function timeAgo(dateStr) {
+      try {
+        var mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return mins + 'm ago';
+        var hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        return Math.floor(hrs / 24) + 'd ago';
+      } catch (e) { return 'Recently'; }
+    }
+
+    function formatCell(val, col) {
+      if (val === undefined || val === null || val === '') return '—';
+      if (col.type === 'amount' || col.type === 'number') {
+        var num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+        if (isNaN(num)) return String(val);
+        var sym = col.currency && col.currency !== 'None' ? col.currency : '';
+        var dec = col.decimals !== undefined ? col.decimals : 2;
+        var numStr = col.thousandSeparator
+          ? num.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+          : num.toFixed(dec);
+        return sym + numStr;
+      }
+      return String(val);
+    }
+
+    function getActiveBot() {
+      return state.bots.find(function (b) { return b.id === state.activeBotId; }) || null;
+    }
+
+    function getAllFolders() {
+      var map = {};
+      state.bots.forEach(function (b) { map[b.folder || 'General'] = true; });
+      return Object.keys(map);
+    }
+
+    // Supabase Cloud Helpers (UMD global window.supabase)
+    function getSbClient() {
+      if (state.sbClient) return state.sbClient;
+      var cfg = state.supabaseConfig;
+      if (cfg.url && cfg.anonKey && window.supabase && window.supabase.createClient) {
+        try {
+          state.sbClient = window.supabase.createClient(cfg.url, cfg.anonKey, {
+            auth: { persistSession: true, autoRefreshToken: true }
+          });
+          return state.sbClient;
+        } catch (e) { return null; }
+      }
+      return null;
+    }
+
+    async function pushBotToSupabase(bot) {
+      if (!state.supabaseConfig.isConnected) return;
+      var client = getSbClient();
+      if (!client) return;
+      state.syncStatus = 'syncing';
+      renderHeaderSyncOnly();
+      try {
+        var userRes = await client.auth.getUser();
+        var uid = userRes && userRes.data && userRes.data.user && userRes.data.user.id;
+        if (!uid) { state.syncStatus = 'error'; renderHeaderSyncOnly(); return; }
+        var res = await client.from('user_bots').upsert({
+          id: bot.id, user_id: uid, bot_data: bot, updated_at: new Date().toISOString()
+        });
+        state.syncStatus = res.error ? 'error' : 'synced';
+      } catch (e) { state.syncStatus = 'error'; }
+      renderHeaderSyncOnly();
+    }
+
+    async function initSupabaseCloud() {
+      if (!state.supabaseConfig.isConnected) {
+        state.syncStatus = 'local';
+        renderApp();
+        return;
+      }
+      var client = getSbClient();
+      if (!client) { state.syncStatus = 'local'; renderApp(); return; }
+      state.syncStatus = 'syncing';
+      renderApp();
+      try {
+        var res = await client.from('user_bots').select('bot_data').order('updated_at', { ascending: false });
+        if (!res.error && res.data && res.data.length > 0) {
+          state.bots = res.data.map(function (r) { return r.bot_data; });
+          saveBotsLocal();
+        } else {
+          for (var i = 0; i < state.bots.length; i++) await pushBotToSupabase(state.bots[i]);
+        }
+        state.syncStatus = 'synced';
+        if (state.sbUnsub) state.sbUnsub();
+        var ch = client.channel('user_bots_realtime').on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'user_bots' },
+          function (payload) {
+            if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new && payload.new.bot_data) {
+              var up = payload.new.bot_data;
+              var idx = state.bots.findIndex(function (b) { return b.id === up.id; });
+              if (idx >= 0) state.bots[idx] = up; else state.bots.unshift(up);
+              saveBotsLocal();
+              showToast('Real-time sync: ' + up.name);
+              renderApp();
+            } else if (payload.eventType === 'DELETE' && payload.old && payload.old.id) {
+              state.bots = state.bots.filter(function (b) { return b.id !== payload.old.id; });
+              saveBotsLocal();
+              renderApp();
+            }
+          }
+        ).subscribe();
+        state.sbUnsub = function () { client.removeChannel(ch); };
+      } catch (e) {
+        state.syncStatus = 'error';
+      }
+      renderApp();
+    }
+
+    function renderHeaderSyncOnly() {
+      var pill = document.getElementById('sync-pill-badge');
+      if (!pill) return;
+      var cls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : state.syncStatus === 'error' ? 'dot-error' : 'dot-local';
+      var txt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'error' ? 'Sync Error' : 'Local';
+      pill.innerHTML = '<span class="sync-dot ' + cls + '"></span><span>' + txt + '</span>';
+    }
+
+    function updateBot(updated) {
+      state.bots = state.bots.map(function (b) { return b.id === updated.id ? updated : b; });
+      saveBotsLocal();
+      pushBotToSupabase(updated);
+    }
+
+    // Instant Bot Creation (+ New Bot & Quick Blank Table)
+    function createInstantBot(isBlank) {
+      var names = {};
+      state.bots.forEach(function (b) { names[b.name] = true; });
+      var botName;
+      if (isBlank) {
+        botName = 'Blank Table ' + (state.bots.length + 1);
+        if (names[botName]) botName = 'Blank Table ' + String(Date.now()).slice(-4);
+      } else {
+        botName = 'New Bot';
+        if (names[botName]) {
+          var c = 2;
+          while (names['New Bot ' + c]) c++;
+          botName = 'New Bot ' + c;
+        }
+      }
+      var id = Date.now();
+      var newBot = {
+        id: 'bot_' + id,
+        name: botName,
+        description: isBlank ? 'Quick-created blank spreadsheet table' : 'Telegram Bot & Live Table',
+        folder: 'General',
+        telegramToken: '',
+        botStatus: 'simulator',
+        isFavorite: false,
+        updatedAt: new Date().toISOString(),
+        columns: [
+          { id: 'col_uid_' + id, name: 'User ID', type: 'text', widthMultiplier: 1.0, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_uname_' + id, name: 'Username', type: 'text', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_msg_' + id, name: 'Message', type: 'text', widthMultiplier: 1.5, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_amt_' + id, name: 'Amount', type: 'amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true }
+        ],
+        rows: []
+      };
+      state.bots.unshift(newBot);
+      saveBotsLocal();
+      pushBotToSupabase(newBot);
+      state.activeBotId = newBot.id;
+      state.selectedRowIds = {};
+      state.editingCell = null;
+      showToast('Created "' + botName + '" — tap headers or settings to customize');
+      renderApp();
+    }
+
+    async function deleteBot(botId) {
+      var target = state.bots.find(function (b) { return b.id === botId; });
+      if (!target) return;
+      if (!confirm('Are you sure you want to delete "' + target.name + '"?')) return;
+      state.bots = state.bots.filter(function (b) { return b.id !== botId; });
+      if (state.activeBotId === botId) state.activeBotId = null;
+      saveBotsLocal();
+      if (state.supabaseConfig.isConnected) {
+        var client = getSbClient();
+        if (client) { try { await client.from('user_bots').delete().eq('id', botId); } catch (e) {} }
+      }
+      showToast('Deleted "' + target.name + '"');
+      renderApp();
+    }
+
+    function duplicateBot(botId) {
+      var t = state.bots.find(function (b) { return b.id === botId; });
+      if (!t) return;
+      var copy = JSON.parse(JSON.stringify(t));
+      copy.id = 'bot_' + Date.now();
+      copy.name = t.name + ' (Copy)';
+      copy.updatedAt = new Date().toISOString();
+      state.bots.unshift(copy);
+      saveBotsLocal();
+      pushBotToSupabase(copy);
+      showToast('Duplicated "' + t.name + '"');
+      renderApp();
+    }
+
+    function exportBotCsv(bot) {
+      var headers = bot.columns.map(function (c) { return '"' + c.name.replace(/"/g, '""') + '"'; }).join(',');
+      var rows = bot.rows.map(function (r) {
+        return bot.columns.map(function (c) {
+          var v = r[c.id];
+          return '"' + String(v !== undefined && v !== null ? v : '').replace(/"/g, '""') + '"';
+        }).join(',');
+      }).join('\n');
+      downloadBlob(headers + '\n' + rows, bot.name.replace(/\s+/g, '_') + '_data.csv', 'text/csv;charset=utf-8;');
+      showToast('Exported ' + bot.name + ' to CSV');
+    }
+
+    function exportJsonBackup() {
+      downloadBlob(JSON.stringify(state.bots, null, 2), 'TableBot_Backup_' + new Date().toISOString().slice(0, 10) + '.json', 'application/json');
+      showToast('Downloaded full bots JSON backup');
+    }
+
+    function downloadBlob(content, filename, mime) {
+      var blob = new Blob([content], { type: mime });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Dashboard View
+    function renderDashboard() {
+      var folders = getAllFolders();
+      var q = state.searchQuery.toLowerCase();
+      var filtered = state.bots.filter(function (b) {
+        var f = b.folder || 'General';
+        if (state.selectedFolder !== 'all' && f !== state.selectedFolder) return false;
+        if (q && b.name.toLowerCase().indexOf(q) === -1 && (b.description || '').toLowerCase().indexOf(q) === -1 && f.toLowerCase().indexOf(q) === -1) return false;
+        if (state.filterType === 'favorites') return !!b.isFavorite;
+        if (state.filterType === 'online') return b.botStatus === 'online';
+        if (state.filterType === 'simulator') return b.botStatus === 'simulator';
+        return true;
+      }).sort(function (a, b) {
+        if (state.sortOrder === 'name') return a.name.localeCompare(b.name);
+        if (state.sortOrder === 'rows') return b.rows.length - a.rows.length;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+
+      var dotCls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : state.syncStatus === 'error' ? 'dot-error' : 'dot-local';
+      var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'error' ? 'Sync Error' : 'Local';
+
+      var html = '<header class="app-header"><div class="header-inner">' +
+        '<div class="header-left">' +
+          '<button class="icon-btn" id="btn-open-drawer" aria-label="Menu">' + icon('menu', 22) + '</button>' +
+          '<span style="font-weight:700;font-size:18px;letter-spacing:-0.01em">All Bots</span>' +
+          '<span class="pill-badge">' + filtered.length + '</span>' +
+          '<div id="sync-pill-badge" class="sync-pill"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></div>' +
+        '</div>' +
+        '<div class="header-right">' +
+          '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly & Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
+          '<button class="icon-btn" id="btn-dash-search" title="Search bots">' + icon('search', 20) + '</button>' +
+          '<button class="icon-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')" style="width:auto;padding:0 8px;gap:4px;font-size:11px;font-weight:700;">' + icon('sort', 18) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
+          '<select id="sel-dash-filter" class="header-select">' +
+            '<option value="all"' + (state.filterType === 'all' ? ' selected' : '') + '>All</option>' +
+            '<option value="online"' + (state.filterType === 'online' ? ' selected' : '') + '>Online</option>' +
+            '<option value="simulator"' + (state.filterType === 'simulator' ? ' selected' : '') + '>Simulator</option>' +
+            '<option value="favorites"' + (state.filterType === 'favorites' ? ' selected' : '') + '>Favorites</option>' +
+          '</select>' +
+        '</div></div>';
+
+      if (state.searchOpen) {
+        html += '<div class="search-bar-wrap"><div class="search-input-box">' +
+          '<span style="color:#94A3B8">' + icon('search', 16) + '</span>' +
+          '<input id="inp-dash-search" type="text" placeholder="Search bot name, folder, or description..." value="' + esc(state.searchQuery) + '" />' +
+          (state.searchQuery ? '<button id="btn-clear-dash-search" style="font-weight:700;color:#64748B;">✕</button>' : '') +
+        '</div></div>';
+      }
+
+      html += '<div class="folders-bar"><div class="folders-inner">' +
+        '<span style="font-size:11px;font-weight:700;color:#BFDBFE;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;margin-right:4px;flex-shrink:0;">' +
+        '<span style="color:#FCD34D">' + icon('folder', 13) + '</span>Folders:</span>' +
+        '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">All Folders <span class="folder-count">' + state.bots.length + '</span></button>';
+
+      folders.forEach(function (f) {
+        var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
+        html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + ' <span class="folder-count">' + cnt + '</span></button>';
+      });
+      html += '</div></div></header>';
+
+      html += '<main class="dashboard-main"><div class="grid-meta"><span class="grid-meta-title">' +
+        (state.filterType === 'all' ? 'All Bot Tables' : state.filterType.toUpperCase() + ' Bot Tables') + ' (' + filtered.length + ')' +
+        '</span><span style="color:#94A3B8">Tap a card to open spreadsheet</span></div>';
+
+      if (filtered.length === 0) {
+        html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:40px auto;border:1px solid #E2E8F0;">' +
+          '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1976D2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
+          '<h3 style="font-weight:700;font-size:17px;margin-bottom:6px;">No bot tables found</h3>' +
+          '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Create a new Telegram bot table or clear your search filter.</p>' +
+          '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
+      } else {
+        html += '<div class="bot-grid">';
+        filtered.forEach(function (b) {
+          var stCls = b.botStatus === 'online' ? 'chip-online' : 'chip-sim';
+          var stTxt = b.botStatus === 'online' ? 'ONLINE' : 'SIMULATOR';
+          html += '<div class="bot-card" data-open-bot="' + esc(b.id) + '">' +
+            '<div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;">' +
+              '<div style="min-width:0;flex:1;">' +
+                '<div class="bot-card-title truncate">' + esc(b.name) + '</div>' +
+                '<div class="bot-card-desc">' + esc(b.description || 'Telegram Bot Table') + '</div>' +
+              '</div>' +
+              '<button class="icon-btn" style="color:#94A3B8;width:30px;height:30px;" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 17) + '</button>';
+
+          if (state.activeCardMenuId === b.id) {
+            html += '<div class="dropdown-menu" data-stop-card="1">' +
+              '<button class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename / Settings</span></button>' +
+              '<button class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
+              '<button class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
+              '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
+              '<button class="dropdown-item danger" data-menu-action="del" data-bot-id="' + esc(b.id) + '">' + icon('trash', 14) + '<span>Delete Table</span></button>' +
+            '</div>';
+          }
+
+          html += '</div><div class="badges-row">' +
+            '<span class="status-chip ' + stCls + '"><span style="width:6px;height:6px;border-radius:999px;background:currentColor;"></span>' + stTxt + '</span>' +
+            (b.folder ? '<span class="status-chip chip-folder">' + icon('folder', 11) + ' ' + esc(b.folder) + '</span>' : '') +
+            (b.botUsername ? '<span class="status-chip chip-user">' + esc(b.botUsername) + '</span>' : '') +
+          '</div></div>' +
+          '<div class="card-footer">' +
+            '<span><strong>' + b.rows.length + '</strong> rows &nbsp;·&nbsp; <strong>' + b.columns.length + '</strong> cols &nbsp;·&nbsp; ' + timeAgo(b.updatedAt) + '</span>' +
+            '<span class="quick-table-btn" title="Open Table">' + icon('table', 16) + '</span>' +
+          '</div></div>';
+        });
+        html += '</div>';
+      }
+
+      html += '</main><div class="fab-stack">' +
+        '<button class="fab-secondary" id="fab-blank-bot" title="Quick-create Blank Bot Table">' + icon('grid', 21) + '</button>' +
+        '<button class="fab-primary" id="fab-new-bot" title="Create New Bot">' + icon('plus', 26) + '</button>' +
+      '</div>';
+
+      document.getElementById('app').innerHTML = html;
+      bindDashboardEvents();
+    }
+
+    function bindDashboardEvents() {
+      var drawerBtn = document.getElementById('btn-open-drawer');
+      if (drawerBtn) drawerBtn.onclick = function () { state.drawerOpen = true; renderDrawer(); };
+      var repBtn = document.getElementById('btn-dash-reports');
+      if (repBtn) repBtn.onclick = function () { openModal('reports'); };
+      var sBtn = document.getElementById('btn-dash-search');
+      if (sBtn) sBtn.onclick = function () {
+        state.searchOpen = !state.searchOpen; renderDashboard();
+        var inp = document.getElementById('inp-dash-search'); if (inp) inp.focus();
+      };
+      var sInp = document.getElementById('inp-dash-search');
+      if (sInp) sInp.oninput = function (e) {
+        var pos = e.target.selectionStart;
+        state.searchQuery = e.target.value; renderDashboard();
+        var el = document.getElementById('inp-dash-search');
+        if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+      };
+      var clrBtn = document.getElementById('btn-clear-dash-search');
+      if (clrBtn) clrBtn.onclick = function () { state.searchQuery = ''; renderDashboard(); };
+      var sortBtn = document.getElementById('btn-dash-sort');
+      if (sortBtn) sortBtn.onclick = function () {
+        state.sortOrder = state.sortOrder === 'recent' ? 'name' : state.sortOrder === 'name' ? 'rows' : 'recent';
+        renderDashboard();
+      };
+      var filterSel = document.getElementById('sel-dash-filter');
+      if (filterSel) filterSel.onchange = function (e) { state.filterType = e.target.value; renderDashboard(); };
+
+      document.querySelectorAll('.folder-tab').forEach(function (btn) {
+        btn.onclick = function () { state.selectedFolder = btn.getAttribute('data-folder'); renderDashboard(); };
+      });
+      document.querySelectorAll('[data-open-bot]').forEach(function (card) {
+        card.onclick = function () {
+          state.activeCardMenuId = null;
+          state.activeBotId = card.getAttribute('data-open-bot');
+          state.selectedRowIds = {};
+          state.editingCell = null;
+          state.tableSearchQuery = '';
+          renderApp();
+        };
+      });
+      document.querySelectorAll('[data-card-menu]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          e.stopPropagation();
+          var id = btn.getAttribute('data-card-menu');
+          state.activeCardMenuId = state.activeCardMenuId === id ? null : id;
+          renderDashboard();
+        };
+      });
+      document.querySelectorAll('[data-stop-card]').forEach(function (m) {
+        m.onclick = function (e) { e.stopPropagation(); };
+      });
+      document.querySelectorAll('[data-menu-action]').forEach(function (item) {
+        item.onclick = function (e) {
+          e.stopPropagation();
+          var act = item.getAttribute('data-menu-action');
+          var bid = item.getAttribute('data-bot-id');
+          state.activeCardMenuId = null;
+          if (act === 'rename') { var b = state.bots.find(function (x) { return x.id === bid; }); if (b) openModal('settings', { bot: b }); }
+          else if (act === 'dup') duplicateBot(bid);
+          else if (act === 'csv') { var b2 = state.bots.find(function (x) { return x.id === bid; }); if (b2) exportBotCsv(b2); }
+          else if (act === 'del') deleteBot(bid);
+        };
+      });
+
+      var fabNew = document.getElementById('fab-new-bot');
+      if (fabNew) fabNew.onclick = function () { createInstantBot(false); };
+      var emptyCreate = document.getElementById('btn-empty-create');
+      if (emptyCreate) emptyCreate.onclick = function () { createInstantBot(false); };
+      var fabBlank = document.getElementById('fab-blank-bot');
+      if (fabBlank) fabBlank.onclick = function () { createInstantBot(true); };
+    }
+
+    // Spreadsheet Table View
+    function renderTableView(bot) {
+      var colSums = {};
+      bot.columns.forEach(function (c) {
+        if (c.type === 'amount' || c.type === 'number') {
+          var s = 0;
+          bot.rows.forEach(function (r) {
+            var v = r[c.id];
+            var n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, ''));
+            if (!isNaN(n)) s += n;
+          });
+          colSums[c.id] = s;
+        }
+      });
+
+      var q = state.tableSearchQuery.toLowerCase();
+      var visibleRows = bot.rows.filter(function (r) {
+        if (!q) return true;
+        return bot.columns.some(function (c) {
+          return r[c.id] !== undefined && r[c.id] !== null && String(r[c.id]).toLowerCase().indexOf(q) !== -1;
+        });
+      });
+
+      var selCount = Object.keys(state.selectedRowIds).filter(function (k) { return state.selectedRowIds[k]; }).length;
+      var statusBg = bot.botStatus === 'online' ? 'background:#10B981;color:#fff;' : 'background:#60A5FA;color:#0F172A;';
+
+      var html = '<div style="min-height:100vh;display:flex;flex-direction:column;">' +
+        '<header class="app-header"><div class="header-inner">' +
+          '<div class="header-left">' +
+            '<button class="icon-btn" id="btn-table-back" title="Back to All Bots">' + icon('back', 22) + '</button>' +
+            '<div style="min-width:0;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                (state.editingTitle
+                  ? '<input id="inp-title-edit" type="text" value="' + esc(bot.name) + '" style="background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:16px;padding:2px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.5);outline:none;max-width:220px;" />'
+                  : '<button id="btn-edit-title" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:16px;color:#fff;padding:2px 6px;border-radius:6px;" title="Click to rename bot"><span class="truncate" style="max-width:220px;">' + esc(bot.name) + '</span><span style="opacity:0.75">' + icon('edit', 13) + '</span></button>'
+                ) +
+                '<span class="pill-badge" style="' + statusBg + 'font-size:10px;text-transform:uppercase;">' + esc(bot.botStatus) + '</span>' +
+              '</div>' +
+              '<div style="font-size:11px;color:#BFDBFE;">' + bot.rows.length + ' records &middot; Tap any header to edit properties</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="header-right">' +
+            (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 10px;font-size:11.5px;">' + icon('trash', 14) + '<span>Delete (' + selCount + ')</span></button>' : '') +
+            '<button class="header-action-btn" id="btn-table-reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
+            '<button class="icon-btn" id="btn-table-search" title="Search rows">' + icon('search', 20) + '</button>' +
+            '<button class="icon-btn" id="btn-table-add-col" title="Add Column">' + icon('plus', 20) + '</button>' +
+            '<button class="icon-btn" id="btn-table-settings" title="Bot Settings">' + icon('settings', 19) + '</button>' +
+          '</div></div>';
+
+      if (state.tableSearchOpen) {
+        html += '<div class="search-bar-wrap"><div class="search-input-box">' +
+          '<span style="color:#94A3B8">' + icon('search', 16) + '</span>' +
+          '<input id="inp-table-search" type="text" placeholder="Filter row values..." value="' + esc(state.tableSearchQuery) + '" />' +
+          (state.tableSearchQuery ? '<button id="btn-clear-table-search" style="font-weight:700;color:#64748B;">✕</button>' : '') +
+        '</div></div>';
+      }
+      html += '</header>';
+
+      html += '<div class="table-wrap"><table class="sheet-table"><thead><tr>' +
+        '<th class="frozen-col"><input type="checkbox" id="chk-select-all" ' + (visibleRows.length > 0 && selCount === visibleRows.length ? 'checked' : '') + ' /></th>';
+
+      bot.columns.forEach(function (col) {
+        var minW = Math.round(130 * (col.widthMultiplier || 1));
+        html += '<th data-edit-col="' + esc(col.id) + '" style="min-width:' + minW + 'px;" title="Tap to Edit Column Properties">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
+            '<span class="truncate">' + esc(col.name) + '</span>' +
+            '<span style="font-size:10px;font-family:monospace;text-transform:uppercase;background:#E2E8F0;color:#475569;padding:1px 5px;border-radius:4px;">' + esc(col.type) + '</span>' +
+          '</div></th>';
+      });
+      html += '</tr></thead><tbody>';
+
+      visibleRows.forEach(function (row, idx) {
+        var isSel = !!state.selectedRowIds[row.id];
+        html += '<tr class="' + (isSel ? 'selected' : '') + '">' +
+          '<td class="frozen-col"><div style="display:flex;align-items:center;justify-content:center;gap:4px;">' +
+            '<input type="checkbox" class="chk-row" data-row-id="' + esc(row.id) + '" ' + (isSel ? 'checked' : '') + ' />' +
+            '<span class="mono" style="font-size:11px;color:#64748B;">' + (idx + 1) + '</span>' +
+          '</div></td>';
+
+        bot.columns.forEach(function (col) {
+          var val = row[col.id];
+          var isEd = state.editingCell && state.editingCell.rowId === row.id && state.editingCell.colId === col.id;
+          var st = col.style || {};
+          var bg = !isEd && st.bgColor && st.bgColor !== '#FFFFFF' ? 'background:' + st.bgColor + ';' : '';
+          var align = 'text-align:' + (st.align || 'left') + ';';
+
+          if (col.type === 'checkbox') {
+            html += '<td style="text-align:center;' + bg + '"><input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' /></td>';
+          } else if (isEd) {
+            var itype = (col.type === 'amount' || col.type === 'number') ? 'number' : 'text';
+            html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(val !== undefined && val !== null ? val : '') + '" /></td>';
+          } else {
+            var isAmt = col.type === 'amount';
+            var color = isAmt ? '#E65100' : (st.color || '#1E293B');
+            var fw = (st.bold || isAmt) ? '700' : '400';
+            var fs = st.italic ? 'italic' : 'normal';
+            html += '<td class="cell-clickable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" style="cursor:text;' + align + bg + '">' +
+              '<span class="' + (isAmt ? 'cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col)) + '</span></td>';
+          }
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+
+      html += '<div class="add-row-bar">' +
+        '<button class="add-row-btn" id="btn-add-row" title="Append Row">' + icon('plus', 20) + '</button>' +
+        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows displayed</span>' +
+      '</div></div>';
+
+      // Sticky Sigma Summary Footer
+      var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number'; });
+      html += '<footer class="sigma-footer">' +
+        '<span style="color:#FCD34D;font-weight:800;white-space:nowrap;">Σ Live Totals:</span>' +
+        '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">';
+      if (numCols.length === 0) {
+        html += '<span style="color:#BFDBFE;font-size:12px;">No numeric columns</span>';
+      } else {
+        numCols.forEach(function (c) {
+          var sym = c.currency && c.currency !== 'None' ? c.currency : '$';
+          var tot = colSums[c.id] || 0;
+          html += '<div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">' +
+            '<span style="color:#BFDBFE;font-size:12px;font-weight:400;">' + esc(c.name) + ':</span>' +
+            '<span class="mono" style="color:#FCD34D;font-weight:800;">' + esc(sym) + tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>';
+        });
+      }
+      html += '</div></footer>';
+
+      // Bottom 5-icon Toolbar
+      html += '<div class="bottom-toolbar">' +
+        '<button class="toolbar-btn" id="tb-cols">' + icon('sliders', 19) + '<span>Columns</span></button>' +
+        '<button class="toolbar-btn" id="tb-filter">' + icon('filter', 19) + '<span>Filter</span></button>' +
+        '<button class="toolbar-btn" id="tb-tester" style="color:#1976D2;font-weight:700;"><div class="toolbar-tester-circle">' + icon('send', 15) + '</div><span>Tester</span></button>' +
+        '<button class="toolbar-btn" id="tb-export">' + icon('share', 19) + '<span>Export</span></button>' +
+        '<div style="position:relative;"><button class="toolbar-btn" id="tb-more">' + icon('dotsH', 19) + '<span>More</span></button>';
+
+      if (state.showMoreMenu) {
+        html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:215px;">' +
+          '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
+          '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
+          '<button class="dropdown-item" id="more-pivot">' + icon('pie', 15) + '<span>Pivot Summary Graph</span></button>' +
+          '<button class="dropdown-item danger" id="more-clear">' + icon('trash', 15) + '<span>Clear All Rows</span></button>' +
+        '</div>';
+      }
+      html += '</div></div></div>';
+
+      document.getElementById('app').innerHTML = html;
+      bindTableEvents(bot, visibleRows);
+    }
+
+    function bindTableEvents(bot, visibleRows) {
+      document.getElementById('btn-table-back').onclick = function () { state.activeBotId = null; state.showMoreMenu = false; renderApp(); };
+      document.getElementById('btn-table-reports').onclick = function () { openModal('reports'); };
+      document.getElementById('btn-table-settings').onclick = function () { openModal('settings', { bot: bot }); };
+      document.getElementById('btn-table-search').onclick = function () {
+        state.tableSearchOpen = !state.tableSearchOpen; renderTableView(bot);
+        var i = document.getElementById('inp-table-search'); if (i) i.focus();
+      };
+      var tInp = document.getElementById('inp-table-search');
+      if (tInp) tInp.oninput = function (e) {
+        var pos = e.target.selectionStart; state.tableSearchQuery = e.target.value; renderTableView(bot);
+        var el = document.getElementById('inp-table-search'); if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+      };
+      var tClr = document.getElementById('btn-clear-table-search');
+      if (tClr) tClr.onclick = function () { state.tableSearchQuery = ''; renderTableView(bot); };
+
+      var editTitleBtn = document.getElementById('btn-edit-title');
+      if (editTitleBtn) editTitleBtn.onclick = function () {
+        state.editingTitle = true; renderTableView(bot);
+        var ti = document.getElementById('inp-title-edit'); if (ti) { ti.focus(); ti.select(); }
+      };
+      var titleInp = document.getElementById('inp-title-edit');
+      if (titleInp) {
+        var saveTitle = function () {
+          var v = titleInp.value.trim();
+          state.editingTitle = false;
+          if (v && v !== bot.name) {
+            bot.name = v; bot.updatedAt = new Date().toISOString(); updateBot(bot);
+          }
+          renderTableView(bot);
+        };
+        titleInp.onblur = saveTitle;
+        titleInp.onkeydown = function (e) {
+          if (e.key === 'Enter') saveTitle();
+          else if (e.key === 'Escape') { state.editingTitle = false; renderTableView(bot); }
+        };
+      }
+
+      var addColFn = function () {
+        var colName = 'Column ' + (bot.columns.length + 1);
+        bot.columns.push({
+          id: 'col_' + Date.now(), name: colName, type: 'text', widthMultiplier: 1.0,
+          currency: 'None', thousandSeparator: false, decimals: 0,
+          style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' },
+          includeInGraph: true
+        });
+        bot.updatedAt = new Date().toISOString();
+        updateBot(bot);
+        showToast('Added "' + colName + '" — tap header to edit');
+        renderTableView(bot);
+      };
+      document.getElementById('btn-table-add-col').onclick = addColFn;
+      document.getElementById('tb-cols').onclick = addColFn;
+
+      document.getElementById('btn-add-row').onclick = function () {
+        var nr = { id: 'row_' + Date.now() };
+        bot.columns.forEach(function (c) {
+          if (c.type === 'amount' || c.type === 'number') nr[c.id] = 0;
+          else if (c.type === 'checkbox') nr[c.id] = false;
+          else if (c.type === 'date') nr[c.id] = new Date().toISOString().slice(0, 16).replace('T', ' ');
+          else nr[c.id] = '';
+        });
+        bot.rows.push(nr);
+        bot.updatedAt = new Date().toISOString();
+        updateBot(bot);
+        renderTableView(bot);
+      };
+
+      var delBtn = document.getElementById('btn-del-rows');
+      if (delBtn) delBtn.onclick = function () {
+        bot.rows = bot.rows.filter(function (r) { return !state.selectedRowIds[r.id]; });
+        state.selectedRowIds = {};
+        bot.updatedAt = new Date().toISOString();
+        updateBot(bot);
+        renderTableView(bot);
+      };
+
+      document.getElementById('chk-select-all').onchange = function (e) {
+        state.selectedRowIds = {};
+        if (e.target.checked) visibleRows.forEach(function (r) { state.selectedRowIds[r.id] = true; });
+        renderTableView(bot);
+      };
+      document.querySelectorAll('.chk-row').forEach(function (chk) {
+        chk.onchange = function () {
+          state.selectedRowIds[chk.getAttribute('data-row-id')] = chk.checked;
+          renderTableView(bot);
+        };
+      });
+      document.querySelectorAll('.chk-cell').forEach(function (chk) {
+        chk.onchange = function () {
+          var rid = chk.getAttribute('data-row-id'), cid = chk.getAttribute('data-col-id');
+          bot.rows.forEach(function (r) { if (r.id === rid) r[cid] = chk.checked; });
+          bot.updatedAt = new Date().toISOString();
+          updateBot(bot);
+          renderTableView(bot);
+        };
+      });
+
+      document.querySelectorAll('[data-edit-col]').forEach(function (th) {
+        th.onclick = function () {
+          var cid = th.getAttribute('data-edit-col');
+          var col = bot.columns.find(function (c) { return c.id === cid; });
+          if (col) openModal('column', { bot: bot, column: col });
+        };
+      });
+
+      document.querySelectorAll('.cell-clickable').forEach(function (td) {
+        td.onclick = function () {
+          state.editingCell = { rowId: td.getAttribute('data-row-id'), colId: td.getAttribute('data-col-id') };
+          renderTableView(bot);
+          var ci = document.getElementById('active-cell-input'); if (ci) { ci.focus(); ci.select(); }
+        };
+      });
+
+      var activeInp = document.getElementById('active-cell-input');
+      if (activeInp && state.editingCell) {
+        var commitCell = function () {
+          var ed = state.editingCell;
+          if (!ed) return;
+          var col = bot.columns.find(function (c) { return c.id === ed.colId; });
+          var raw = activeInp.value;
+          var parsed = raw;
+          if (col && (col.type === 'amount' || col.type === 'number')) {
+            var num = parseFloat(raw.replace(/[^0-9.-]/g, ''));
+            parsed = isNaN(num) ? 0 : num;
+          }
+          bot.rows.forEach(function (r) { if (r.id === ed.rowId) r[ed.colId] = parsed; });
+          bot.updatedAt = new Date().toISOString();
+          state.editingCell = null;
+          updateBot(bot);
+          renderTableView(bot);
+        };
+        activeInp.onblur = commitCell;
+        activeInp.onkeydown = function (e) {
+          if (e.key === 'Enter') commitCell();
+          else if (e.key === 'Escape') { state.editingCell = null; renderTableView(bot); }
+        };
+      }
+
+      document.getElementById('tb-filter').onclick = function () { openModal('filter', { bot: bot }); };
+      document.getElementById('tb-tester').onclick = function () { openModal('telegram', { bot: bot, tab: 'simulator' }); };
+      document.getElementById('tb-export').onclick = function () { exportBotCsv(bot); };
+      document.getElementById('tb-more').onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
+      if (state.showMoreMenu) {
+        document.getElementById('more-settings').onclick = function () { state.showMoreMenu = false; openModal('settings', { bot: bot }); };
+        document.getElementById('more-reports').onclick = function () { state.showMoreMenu = false; openModal('reports'); };
+        document.getElementById('more-pivot').onclick = function () { state.showMoreMenu = false; openModal('pivot', { bot: bot }); };
+        document.getElementById('more-clear').onclick = function () {
+          state.showMoreMenu = false;
+          if (confirm('Clear all data rows in this bot table?')) {
+            bot.rows = []; bot.updatedAt = new Date().toISOString(); updateBot(bot);
+          }
+          renderTableView(bot);
+        };
+      }
+    }
+
+    // Navigation Drawer
+    function renderDrawer() {
+      var root = document.getElementById('drawer-root');
+      if (!state.drawerOpen) { root.innerHTML = ''; return; }
+      var cfg = state.supabaseConfig;
+      root.innerHTML = '<div class="drawer-backdrop" id="drawer-bg">' +
+        '<div class="drawer-panel" id="drawer-panel">' +
+          '<div class="drawer-banner">' +
+            '<button class="icon-btn" id="drawer-close" style="position:absolute;top:12px;right:12px;">' + icon('close', 20) + '</button>' +
+            '<div class="drawer-avatar">' + icon('user', 30) + '</div>' +
+            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#FDE68A;margin-bottom:2px;">' +
+              (cfg.isConnected ? 'Cloud Sync Active' : 'Local Storage Mode') + '</div>' +
+            '<div style="font-size:11px;opacity:0.85;">Signed In as</div>' +
+            '<div class="truncate" style="font-weight:700;font-size:14px;">' + esc(cfg.userEmail || 'umery1969@gmail.com') + '</div>' +
+          '</div>' +
+          '<div class="drawer-nav">' +
+            '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>Manage Bots</span></span></button>' +
+            '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#E65100;padding:4px;border-radius:6px;display:inline-flex;">' + icon('chart', 16) + '</span><span><div><div style="font-weight:700;">Daily, Weekly &amp; Monthly Reports</div><div style="font-size:11px;color:#64748B;">Customer ledger, paid &amp; balances</div></div></span></span><span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;font-size:10px;">NEW</span></button>' +
+            '<button class="drawer-item" data-nav="supabase"><span class="drawer-item-left"><span style="color:#1976D2">' + icon('cloud', 19) + '</span><span>Cloud Sync / Supabase</span></span>' +
+              (cfg.isConnected ? '<span class="sync-dot dot-synced"></span>' : '<span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:999px;">Offline</span>') + '</button>' +
+            '<button class="drawer-item" data-nav="telegram"><span class="drawer-item-left"><span style="color:#0288D1">' + icon('key', 19) + '</span><span>Connect Telegram Token</span></span></button>' +
+            '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="color:#0F766E">' + icon('download', 19) + '</span><span>Backup Bots (JSON)</span></span></button>' +
+            '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>Export Standalone HTML</span></span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
+            '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>Bot Settings</span></span></button>' +
+            '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>Share App</span></span></button>' +
+            '<button class="drawer-item" data-nav="help"><span class="drawer-item-left"><span style="color:#64748B">' + icon('help', 19) + '</span><span>Help &amp; Setup Guide</span></span></button>' +
+          '</div>' +
+          '<div style="padding:14px;border-top:1px solid #E2E8F0;background:#F8FAFC;">' +
+            '<button class="btn btn-outline" id="drawer-signout" style="width:100%;">' + icon('logout', 16) + '<span>' + (cfg.isConnected ? 'Sign Out / Disconnect' : 'Switch User / Reset') + '</span></button>' +
+          '</div>' +
+        '</div></div>';
+
+      document.getElementById('drawer-bg').onclick = function () { state.drawerOpen = false; renderDrawer(); };
+      document.getElementById('drawer-panel').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('drawer-close').onclick = function () { state.drawerOpen = false; renderDrawer(); };
+      document.getElementById('drawer-signout').onclick = function () {
+        localStorage.removeItem(STORAGE_SB_URL); localStorage.removeItem(STORAGE_SB_KEY);
+        localStorage.setItem(STORAGE_SB_EMAIL, 'local-user@tablebot.app');
+        state.supabaseConfig = loadSupabaseConfig(); state.sbClient = null; state.syncStatus = 'local';
+        state.drawerOpen = false; renderDrawer(); renderApp();
+        showToast('Signed out. Local Storage mode active.');
+      };
+      document.querySelectorAll('[data-nav]').forEach(function (btn) {
+        btn.onclick = function () {
+          var v = btn.getAttribute('data-nav');
+          state.drawerOpen = false; renderDrawer();
+          if (v === 'all_bots') { state.activeBotId = null; renderApp(); }
+          else if (v === 'reports') openModal('reports');
+          else if (v === 'supabase') openModal('supabase');
+          else if (v === 'telegram') openModal('telegram', { bot: getActiveBot() || state.bots[0], tab: 'token' });
+          else if (v === 'backup') exportJsonBackup();
+          else if (v === 'export_html') exportStandaloneHtml();
+          else if (v === 'settings') { var t = getActiveBot() || state.bots[0]; if (t) openModal('settings', { bot: t }); }
+          else if (v === 'share') {
+            if (navigator.clipboard) navigator.clipboard.writeText(window.location.href).catch(function () {});
+            showToast('App link copied to clipboard!');
+          } else if (v === 'help') openModal('help');
+        };
+      });
+    }
+
+    function renderApp() {
+      var bot = getActiveBot();
+      if (bot) renderTableView(bot);
+      else renderDashboard();
+    }
+
+    function openModal(type, extra) {
+      state.modal = Object.assign({ type: type }, extra || {});
+      renderModal();
+    }
+
+    function closeModal() {
+      state.modal = null;
+      renderModal();
+    }
+
+    function renderModal() {
+      var root = document.getElementById('modal-root');
+      if (!state.modal) { root.innerHTML = ''; return; }
+      var m = state.modal;
+      if (m.type === 'column') renderColumnModal(m);
+      else if (m.type === 'settings') renderBotSettingsModal(m);
+      else if (m.type === 'filter') renderFilterModal(m);
+      else if (m.type === 'pivot') renderPivotModal(m);
+      else if (m.type === 'help') renderHelpModal();
+      else if (m.type === 'reports') renderReportsModal(m);
+      else if (m.type === 'telegram') renderTelegramModal(m);
+      else if (m.type === 'supabase') renderSupabaseModal(m);
+    }
+
+    function renderColumnModal(m) {
+      var bot = m.bot;
+      var origCol = m.column;
+      if (!m.draft) m.draft = JSON.parse(JSON.stringify(origCol));
+      var d = m.draft;
+      var st = d.style || (d.style = { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' });
+
+      var types = [
+        { t: 'text', l: 'Text (TT)' }, { t: 'amount', l: 'Amount ($)' },
+        { t: 'date', l: 'Date' }, { t: 'image', l: 'Image' },
+        { t: 'formula', l: 'Formula (Σ)' }, { t: 'number', l: 'Number' },
+        { t: 'button', l: 'Button' }, { t: 'checkbox', l: 'Checkbox' }
+      ];
+      var sym = d.currency && d.currency !== 'None' ? d.currency : '';
+      var dec = d.decimals !== undefined ? d.decimals : 2;
+      var prevNum = 1000000;
+      var prevStr = sym + (d.thousandSeparator ? prevNum.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : prevNum.toFixed(dec));
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
+        '<header class="modal-header">' +
+          '<div style="display:flex;align-items:center;gap:10px;"><button class="icon-btn" id="col-back">' + icon('back', 20) + '</button><h2 style="font-size:16px;font-weight:700;">Edit Column Properties</h2></div>' +
+          '<button class="btn btn-pill" id="col-save">Save</button>' +
+        '</header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:18px;">' +
+          '<div><label class="field-label">Column / Command Name</label>' +
+            '<div style="position:relative;display:flex;align-items:center;">' +
+              '<input id="col-name" class="form-input" value="' + esc(d.name) + '" style="padding-right:34px;" />' +
+              '<button id="col-clr-name" style="position:absolute;right:10px;color:#94A3B8;font-weight:700;">✕</button>' +
+            '</div></div>' +
+          '<div><label class="field-label">Feature / Type Selector</label><div class="type-grid">';
+      types.forEach(function (it) {
+        html += '<button type="button" class="type-btn ' + (d.type === it.t ? 'selected' : '') + '" data-ctype="' + it.t + '">' +
+          '<div class="type-circle">' + icon(it.t === 'amount' ? 'chart' : it.t === 'checkbox' ? 'check' : 'sliders', 16) + '</div>' +
+          '<span>' + it.l + '</span></button>';
+      });
+      html += '</div></div>' +
+          '<div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label class="field-label" style="margin:0;">Column Width (' + (d.widthMultiplier || 1).toFixed(1) + 'x)</label>' +
+            '<span class="mono" style="font-size:12px;font-weight:700;color:#2E7D32;">' + Math.round(130 * (d.widthMultiplier || 1)) + 'px</span></div>' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<button type="button" id="w-minus" class="btn btn-outline" style="width:34px;height:34px;padding:0;border-radius:999px;">' + icon('minus', 15) + '</button>' +
+              '<input id="w-slider" type="range" min="0.5" max="3.0" step="0.1" value="' + (d.widthMultiplier || 1) + '" class="green-slider" />' +
+              '<button type="button" id="w-plus" class="btn btn-outline" style="width:34px;height:34px;padding:0;border-radius:999px;">' + icon('plus', 15) + '</button>' +
+            '</div></div>';
+
+      if (d.type === 'amount' || d.type === 'number') {
+        html += '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">Number &amp; Currency Formatting</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+            '<div><span style="font-size:11px;color:#64748B;display:block;margin-bottom:4px;">Currency</span><div style="display:flex;gap:4px;flex-wrap:wrap;">';
+        ['$', '£', '€', 'ETB', 'None'].forEach(function (s) {
+          html += '<button type="button" data-curr="' + s + '" class="btn ' + (d.currency === s ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 8px;font-size:11px;">' + s + '</button>';
+        });
+        html += '</div></div><div><span style="font-size:11px;color:#64748B;display:block;margin-bottom:4px;">Decimals</span><div style="display:flex;gap:4px;">';
+        [0, 2, 3].forEach(function (dc) {
+          html += '<button type="button" data-dec="' + dc + '" class="btn ' + (dec === dc ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 8px;font-size:11px;">' + (dc === 0 ? '0' : dc === 2 ? '0.01' : '0.001') + '</button>';
+        });
+        html += '</div></div></div>' +
+          '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;"><input type="checkbox" id="col-tsep" ' + (d.thousandSeparator ? 'checked' : '') + ' /> Thousand separator (,) e.g. 1,000.00</label></div>';
+      }
+
+      html += '<div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label class="field-label" style="margin:0;">Text Styles Toolbar</label>' +
+          '<button type="button" id="st-reset" style="font-size:11.5px;color:#64748B;font-weight:600;">Reset</button></div>' +
+          '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#F1F5F9;border-radius:10px;border:1px solid #E2E8F0;flex-wrap:wrap;">' +
+            '<button type="button" id="st-bold" class="btn ' + (st.bold ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 10px;font-weight:900;">B</button>' +
+            '<button type="button" id="st-italic" class="btn ' + (st.italic ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 10px;font-style:italic;">I</button>' +
+            '<button type="button" data-align="left" class="btn ' + (st.align === 'left' ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 9px;">L</button>' +
+            '<button type="button" data-align="center" class="btn ' + (st.align === 'center' ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 9px;">C</button>' +
+            '<button type="button" data-align="right" class="btn ' + (st.align === 'right' ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 9px;">R</button>' +
+            '<label style="font-size:11px;display:inline-flex;align-items:center;gap:4px;margin-left:6px;">Text <input type="color" id="st-color" value="' + esc(st.color || '#1E293B') + '" /></label>' +
+            '<label style="font-size:11px;display:inline-flex;align-items:center;gap:4px;">Fill <input type="color" id="st-bg" value="' + esc(st.bgColor || '#FFFFFF') + '" /></label>' +
+          '</div>' +
+          '<div style="margin-top:8px;padding:10px;border:1px dashed #CBD5E1;border-radius:10px;background:#F8FAFC;text-align:center;">' +
+            '<div style="font-size:10px;color:#94A3B8;text-transform:uppercase;margin-bottom:4px;">Live Cell Preview</div>' +
+            '<span class="mono" style="display:inline-block;padding:6px 14px;border-radius:6px;background:' + esc(st.bgColor || '#fff') + ';color:' + esc(st.color || '#1E293B') + ';font-weight:' + (st.bold ? 700 : 400) + ';font-style:' + (st.italic ? 'italic' : 'normal') + ';font-size:15px;">' + esc(prevStr) + '</span>' +
+          '</div></div>' +
+          '<div style="border-top:1px solid #E2E8F0;padding-top:12px;display:flex;flex-direction:column;gap:10px;">' +
+            '<button type="button" id="col-open-pivot" class="btn" style="background:#EFF6FF;color:#0D47A1;width:100%;">' + icon('pie', 15) + '<span>Open Pivot Summary Graph</span></button>' +
+            '<label style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;cursor:pointer;">' +
+              '<div><div style="font-size:12px;font-weight:700;">Summary on Graph</div><div style="font-size:11px;color:#64748B;">Include this column in pivot analytics</div></div>' +
+              '<input type="checkbox" id="col-inc-graph" ' + (d.includeInGraph !== false ? 'checked' : '') + ' />' +
+            '</label>' +
+          '</div></div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('col-back').onclick = closeModal;
+      document.getElementById('col-name').oninput = function (e) { d.name = e.target.value; };
+      document.getElementById('col-clr-name').onclick = function () { d.name = ''; renderColumnModal(m); };
+      document.querySelectorAll('[data-ctype]').forEach(function (b) {
+        b.onclick = function () {
+          d.type = b.getAttribute('data-ctype');
+          if (d.type === 'amount') { st.bold = true; st.color = '#E65100'; st.align = 'right'; }
+          renderColumnModal(m);
+        };
+      });
+      document.getElementById('w-minus').onclick = function () { d.widthMultiplier = Math.max(0.5, Number(((d.widthMultiplier || 1) - 0.1).toFixed(1))); renderColumnModal(m); };
+      document.getElementById('w-plus').onclick = function () { d.widthMultiplier = Math.min(3.0, Number(((d.widthMultiplier || 1) + 0.1).toFixed(1))); renderColumnModal(m); };
+      document.getElementById('w-slider').oninput = function (e) { d.widthMultiplier = parseFloat(e.target.value); renderColumnModal(m); };
+      document.querySelectorAll('[data-curr]').forEach(function (b) { b.onclick = function () { d.currency = b.getAttribute('data-curr'); renderColumnModal(m); }; });
+      document.querySelectorAll('[data-dec]').forEach(function (b) { b.onclick = function () { d.decimals = parseInt(b.getAttribute('data-dec'), 10); renderColumnModal(m); }; });
+      var tsep = document.getElementById('col-tsep');
+      if (tsep) tsep.onchange = function (e) { d.thousandSeparator = e.target.checked; renderColumnModal(m); };
+      document.getElementById('st-bold').onclick = function () { st.bold = !st.bold; renderColumnModal(m); };
+      document.getElementById('st-italic').onclick = function () { st.italic = !st.italic; renderColumnModal(m); };
+      document.querySelectorAll('[data-align]').forEach(function (b) { b.onclick = function () { st.align = b.getAttribute('data-align'); renderColumnModal(m); }; });
+      document.getElementById('st-color').oninput = function (e) { st.color = e.target.value; renderColumnModal(m); };
+      document.getElementById('st-bg').oninput = function (e) { st.bgColor = e.target.value; renderColumnModal(m); };
+      document.getElementById('st-reset').onclick = function () {
+        st.bold = d.type === 'amount'; st.italic = false;
+        st.align = (d.type === 'amount' || d.type === 'number') ? 'right' : 'left';
+        st.color = d.type === 'amount' ? '#E65100' : '#1E293B'; st.bgColor = '#FFFFFF';
+        renderColumnModal(m);
+      };
+      document.getElementById('col-inc-graph').onchange = function (e) { d.includeInGraph = e.target.checked; };
+      document.getElementById('col-open-pivot').onclick = function () { openModal('pivot', { bot: bot, colId: origCol.id }); };
+      document.getElementById('col-save').onclick = function () {
+        d.name = (d.name || '').trim() || 'Untitled Column';
+        bot.columns = bot.columns.map(function (c) { return c.id === origCol.id ? d : c; });
+        bot.updatedAt = new Date().toISOString();
+        updateBot(bot); closeModal(); renderApp();
+        showToast('Updated properties for "' + d.name + '"');
+      };
+    }
+
+    function renderBotSettingsModal(m) {
+      var bot = m.bot;
+      var folders = getAllFolders();
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:440px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('bot', 20) + '<h2 style="font-size:16px;font-weight:700;">Bot Settings &amp; Properties</h2></div>' +
+          '<button class="icon-btn" id="set-close">' + icon('close', 18) + '</button></header>' +
+        '<form id="set-form" class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
+          '<div><label class="field-label">Bot / Table Name</label><input id="set-name" class="form-input" value="' + esc(bot.name) + '" required /></div>' +
+          '<div><label class="field-label">Folder</label><input id="set-folder" list="dl-folders" class="form-input" value="' + esc(bot.folder || 'General') + '" /><datalist id="dl-folders">' + folders.map(function (f) { return '<option value="' + esc(f) + '">'; }).join('') + '</datalist></div>' +
+          '<div><label class="field-label">Description</label><input id="set-desc" class="form-input" value="' + esc(bot.description || '') + '" /></div>' +
+          '<div><label class="field-label">Telegram Bot Token (@BotFather)</label><input id="set-tok" type="password" class="form-input mono" placeholder="Optional: paste @BotFather token" value="' + esc(bot.telegramToken || '') + '" /></div>' +
+          '<div style="display:flex;gap:8px;padding-top:6px;">' +
+            '<button type="button" id="set-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+            '<button type="submit" class="btn btn-dark-blue" style="flex:1;">Save Settings</button>' +
+          '</div></form></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('set-close').onclick = closeModal;
+      document.getElementById('set-cancel').onclick = closeModal;
+      document.getElementById('set-form').onsubmit = function (e) {
+        e.preventDefault();
+        bot.name = document.getElementById('set-name').value.trim() || 'New Bot';
+        bot.folder = document.getElementById('set-folder').value.trim() || 'General';
+        bot.description = document.getElementById('set-desc').value.trim();
+        bot.telegramToken = document.getElementById('set-tok').value.trim();
+        bot.botStatus = bot.telegramToken ? (bot.botStatus === 'online' ? 'online' : 'simulator') : 'simulator';
+        bot.updatedAt = new Date().toISOString();
+        updateBot(bot); closeModal(); renderApp();
+        showToast('Saved settings for "' + bot.name + '"');
+      };
+    }
+
+    function renderFilterModal(m) {
+      var bot = m.bot;
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('filter', 18) + '<h2 style="font-size:15px;font-weight:700;">Filter Spreadsheet Rows</h2></div>' +
+          '<button class="icon-btn" id="flt-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
+          '<div><label class="field-label">Select Column</label><select id="flt-col" class="form-select">' +
+            bot.columns.map(function (c) { return '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>'; }).join('') + '</select></div>' +
+          '<div><label class="field-label">Condition</label><select id="flt-cond" class="form-select">' +
+            '<option value="contains">Contains text</option><option value="equals">Exact match</option><option value="greater">Greater than (&gt;)</option><option value="less">Less than (&lt;)</option></select></div>' +
+          '<div><label class="field-label">Filter Value</label><input id="flt-val" class="form-input" placeholder="e.g. BTC, Paid, 100" /></div>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button type="button" id="flt-reset" class="btn btn-outline" style="flex:1;">Reset All</button>' +
+            '<button type="button" id="flt-apply" class="btn btn-dark-blue" style="flex:1;">Apply Filter</button>' +
+          '</div></div></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('flt-close').onclick = closeModal;
+      document.getElementById('flt-reset').onclick = function () { state.tableSearchQuery = ''; closeModal(); renderApp(); showToast('Filter reset to all rows'); };
+      document.getElementById('flt-apply').onclick = function () {
+        var cid = document.getElementById('flt-col').value;
+        var cond = document.getElementById('flt-cond').value;
+        var val = document.getElementById('flt-val').value.trim();
+        if (!val) { closeModal(); return; }
+        var q = val.toLowerCase();
+        bot.rows = bot.rows.filter(function (r) {
+          var cell = r[cid]; if (cell === undefined || cell === null) return false;
+          var s = String(cell).toLowerCase();
+          if (cond === 'contains') return s.indexOf(q) !== -1;
+          if (cond === 'equals') return s === q;
+          var n1 = parseFloat(s.replace(/[^0-9.-]/g, '')), n2 = parseFloat(q);
+          if (cond === 'greater') return !isNaN(n1) && !isNaN(n2) && n1 > n2;
+          if (cond === 'less') return !isNaN(n1) && !isNaN(n2) && n1 < n2;
+          return true;
+        });
+        bot.updatedAt = new Date().toISOString();
+        updateBot(bot); closeModal(); renderApp();
+      };
+    }
+
+    function renderPivotModal(m) {
+      var bot = m.bot || state.bots[0];
+      if (!bot) { closeModal(); return; }
+      var colId = m.colId || (bot.columns[0] && bot.columns[0].id);
+      var chartType = m.chartType || 'bar';
+      var col = bot.columns.find(function (c) { return c.id === colId; }) || bot.columns[0];
+      var freqs = {}, total = 0, numSum = 0, numCnt = 0;
+      bot.rows.forEach(function (r) {
+        total++;
+        var raw = r[col.id];
+        var key = (raw === undefined || raw === null || raw === '') ? '(Blank)' : String(raw);
+        var num = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
+        if (!isNaN(num)) { numSum += num; numCnt++; }
+        if (!freqs[key]) freqs[key] = { count: 0, sum: 0 };
+        freqs[key].count++;
+        if (!isNaN(num)) freqs[key].sum += num;
+      });
+      var keys = Object.keys(freqs).sort(function (a, b) { return freqs[b].count - freqs[a].count; }).slice(0, 8);
+      var maxC = Math.max.apply(null, keys.map(function (k) { return freqs[k].count; }).concat([1]));
+      var palette = ['#0D47A1', '#1976D2', '#0288D1', '#0097A7', '#2E7D32', '#E65100', '#D81B60', '#5E35B1'];
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('pie', 20) + '<div><h2 style="font-size:15px;font-weight:700;">Pivot Summary Analytics</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(bot.name) + '</div></div></div>' +
+          '<button class="icon-btn" id="piv-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">' +
+          '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">' +
+            '<div style="flex:1;min-width:180px;"><label class="field-label">Summarize Column</label><select id="piv-col" class="form-select">' +
+              bot.columns.map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === col.id ? ' selected' : '') + '>' + esc(c.name) + ' (' + c.type + ')</option>'; }).join('') +
+            '</select></div>' +
+            '<div style="display:flex;background:#F1F5F9;padding:3px;border-radius:10px;">' +
+              '<button id="piv-bar" class="btn ' + (chartType === 'bar' ? 'btn-primary' : '') + '" style="padding:6px 12px;font-size:12px;">Bar</button>' +
+              '<button id="piv-pie" class="btn ' + (chartType === 'pie' ? 'btn-primary' : '') + '" style="padding:6px 12px;font-size:12px;">Pie</button>' +
+            '</div></div>' +
+          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">' +
+            '<div style="padding:10px;background:#EFF6FF;border-radius:10px;"><div style="font-size:10px;color:#64748B;font-weight:700;text-transform:uppercase;">Total Rows</div><div style="font-size:17px;font-weight:800;color:#0D47A1;">' + total + '</div></div>' +
+            '<div style="padding:10px;background:#ECFDF5;border-radius:10px;"><div style="font-size:10px;color:#64748B;font-weight:700;text-transform:uppercase;">Distinct</div><div style="font-size:17px;font-weight:800;color:#2E7D32;">' + Object.keys(freqs).length + '</div></div>' +
+            '<div style="padding:10px;background:#FFFBEB;border-radius:10px;"><div style="font-size:10px;color:#64748B;font-weight:700;text-transform:uppercase;">Column Sum</div><div class="mono" style="font-size:17px;font-weight:800;color:#E65100;">' + (numCnt > 0 ? numSum.toFixed(2) : '—') + '</div></div>' +
+          '</div>' +
+          '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:14px;padding:14px;">' +
+            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;margin-bottom:12px;">Distribution for "' + esc(col.name) + '"</div>';
+
+      if (chartType === 'bar') {
+        html += '<div style="display:flex;flex-direction:column;gap:10px;">';
+        keys.forEach(function (k, i) {
+          var cnt = freqs[k].count;
+          var pct = Math.round((cnt / (total || 1)) * 100);
+          var w = Math.round((cnt / maxC) * 100);
+          html += '<div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;"><span class="truncate" style="max-width:220px;">' + esc(k) + '</span><span class="mono" style="color:#64748B;">' + cnt + ' (' + pct + '%)</span></div>' +
+            '<div style="height:10px;background:#E2E8F0;border-radius:999px;overflow:hidden;"><div style="height:100%;width:' + w + '%;background:' + palette[i % palette.length] + ';border-radius:999px;"></div></div></div>';
+        });
+        html += '</div>';
+      } else {
+        var acc = 0;
+        html += '<div style="display:flex;flex-direction:column;align-items:center;"><svg viewBox="0 0 100 100" style="width:150px;height:150px;transform:rotate(-90deg);">';
+        keys.forEach(function (k, i) {
+          var p = freqs[k].count / (total || 1);
+          html += '<circle cx="50" cy="50" r="40" fill="transparent" stroke="' + palette[i % palette.length] + '" stroke-width="20" stroke-dasharray="' + (p * 100) + ' ' + (100 - p * 100) + '" stroke-dashoffset="' + (-acc * 100) + '" pathLength="100"/>';
+          acc += p;
+        });
+        html += '</svg><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;margin-top:12px;">';
+        keys.forEach(function (k, i) {
+          html += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;" class="truncate"><span style="width:10px;height:10px;border-radius:999px;background:' + palette[i % palette.length] + ';flex-shrink:0;"></span><span class="truncate">' + esc(k) + '</span><span class="mono" style="color:#94A3B8;">(' + freqs[k].count + ')</span></div>';
+        });
+        html += '</div></div>';
+      }
+      html += '</div></div></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('piv-close').onclick = closeModal;
+      document.getElementById('piv-col').onchange = function (e) { m.colId = e.target.value; renderPivotModal(m); };
+      document.getElementById('piv-bar').onclick = function () { m.chartType = 'bar'; renderPivotModal(m); };
+      document.getElementById('piv-pie').onclick = function () { m.chartType = 'pie'; renderPivotModal(m); };
+    }
+
+    function renderHelpModal() {
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('help', 20) + '<h2 style="font-size:16px;font-weight:700;">Setup &amp; User Guide</h2></div>' +
+          '<button class="icon-btn" id="hlp-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;font-size:12.5px;line-height:1.5;">' +
+          '<div style="padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;"><div style="font-weight:700;color:#0D47A1;margin-bottom:6px;">1. How to get a Telegram Bot Token</div><ol style="padding-left:18px;color:#334155;"><li>Open Telegram and search for <strong>@BotFather</strong>.</li><li>Send <code>/newbot</code>, choose a display name &amp; username ending in <code>bot</code>.</li><li>Paste the HTTP API token into Telegram Bot API settings inside TableBot.</li></ol></div>' +
+          '<div style="padding:14px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;"><div style="font-weight:700;color:#2E7D32;margin-bottom:6px;">2. Setting up Supabase Cloud Sync</div><ol style="padding-left:18px;color:#334155;"><li>Create a project at <strong>supabase.com</strong> and copy Project URL + anon public key.</li><li>Run the RLS SQL script inside Supabase SQL Editor (available in Cloud Sync modal).</li><li>Sign in to sync across phone and desktop in real time.</li></ol></div>' +
+          '<div style="padding:14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;"><div style="font-weight:700;color:#E65100;margin-bottom:6px;">3. Standalone Single-File Mode</div><p style="color:#334155;">This app runs 100% locally in Chrome (<code>file://</code>) and on GitHub Pages with no build step. Your edits persist automatically in browser storage.</p></div>' +
+          '<button id="hlp-ok" class="btn btn-dark-blue" style="width:100%;">Got it, Let\'s Build!</button>' +
+        '</div></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('hlp-close').onclick = closeModal;
+      document.getElementById('hlp-ok').onclick = closeModal;
+    }
+
+    function buildReportItems() {
+      var items = [];
+      state.bots.forEach(function (bot) {
+        var folderName = bot.folder || 'General';
+        var findCol = function (preds) {
+          return bot.columns.find(function (c) {
+            var n = c.name.toLowerCase();
+            return preds.some(function (p) { return n.indexOf(p) !== -1 || c.id === p || c.type === p; });
+          });
+        };
+        var cnameCol = findCol(['customer', 'user', 'buyer', 'col_cname', 'col_user', 'col_buyer']);
+        var qualCol = findCol(['quality', 'quantity', 'item', 'pair', 'col_quality', 'col_item']);
+        var totCol = findCol(['total', 'col_total']);
+        var paidCol = findCol(['paid', 'amount', 'col_paid', 'col_amount']);
+        var balCol = findCol(['balance', 'col_balance']);
+        var dateCol = findCol(['date', 'time']);
+
+        bot.rows.forEach(function (row) {
+          var cname = cnameCol ? String(row[cnameCol.id] || '') : 'Unknown Customer';
+          var qual = qualCol ? String(row[qualCol.id] || '') : 'Standard Item';
+          var num = function (col) {
+            if (!col || row[col.id] === undefined) return 0;
+            return parseFloat(String(row[col.id]).replace(/[^0-9.-]/g, '')) || 0;
+          };
+          var totVal = num(totCol);
+          var paidVal = num(paidCol);
+          var balVal = balCol && row[balCol.id] !== undefined ? num(balCol) : (totVal > 0 ? Math.max(0, totVal - paidVal) : 0);
+          if (totVal <= 0 && !balCol) totVal = paidVal;
+          var st = balVal > 0 && paidVal > 0 ? 'Partial' : balVal > 0 ? 'Unpaid' : 'Paid in Full';
+          var dt = dateCol && row[dateCol.id] ? String(row[dateCol.id]) : '2026-11-12 10:00';
+          items.push({ id: row.id, botName: bot.name, folder: folderName, customerName: cname, qualityOrQuantity: qual, totalAmount: totVal, paidAmount: paidVal, remainingBalance: balVal, status: st, date: dt });
+        });
+      });
+      return items;
+    }
+
+    function exportReportCsv(period, folder, items, met) {
+      var dStr = new Date().toISOString().slice(0, 10);
+      var lines = [
+        '"TableBot - Executive Financial & Customer Report"',
+        '"Period:","' + period.toUpperCase() + ' REPORT"',
+        '"Generated:","' + dStr + ' ' + new Date().toLocaleTimeString() + '"',
+        '"Folder:","' + (folder === 'all' ? 'All Folders' : folder) + '"',
+        '"Total Invoiced:","$' + met.totalInvoiced.toFixed(2) + '"',
+        '"Total Paid:","$' + met.totalPaid.toFixed(2) + '"',
+        '"Remaining Balance:","$' + met.totalRemaining.toFixed(2) + '"',
+        '',
+        '"#","Customer Name","Folder","Quality / Quantity","Total Amount ($)","Paid Amount ($)","Remaining Balance ($)","Payment Status","Date"'
+      ];
+      items.forEach(function (it, i) {
+        lines.push([i + 1, '"' + it.customerName.replace(/"/g, '""') + '"', '"' + it.folder + '"', '"' + it.qualityOrQuantity.replace(/"/g, '""') + '"', it.totalAmount.toFixed(2), it.paidAmount.toFixed(2), it.remainingBalance.toFixed(2), '"' + it.status + '"', '"' + it.date + '"'].join(','));
+      });
+      lines.push('');
+      lines.push(['"TOTALS"', '""', '""', '"' + items.length + ' records"', '"' + met.totalInvoiced.toFixed(2) + '"', '"' + met.totalPaid.toFixed(2) + '"', '"' + met.totalRemaining.toFixed(2) + '"', '""', '""'].join(','));
+      downloadBlob(lines.join('\n'), 'TableBot_' + period + '_Report_' + dStr + '.csv', 'text/csv;charset=utf-8;');
+      showToast('Downloaded CSV report');
+    }
+
+    function exportReportPdfHtml(period, folder, items, met) {
+      var dStr = new Date().toISOString().slice(0, 10);
+      var rowsHtml = items.map(function (it, i) {
+        return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td><strong>' + esc(it.customerName) + '</strong></td><td>' + esc(it.folder) + '</td><td>' + esc(it.qualityOrQuantity) + '</td>' +
+          '<td style="text-align:right;">$' + it.totalAmount.toFixed(2) + '</td><td style="text-align:right;color:#2E7D32;">$' + it.paidAmount.toFixed(2) + '</td>' +
+          '<td style="text-align:right;font-weight:700;color:' + (it.remainingBalance > 0 ? '#E65100' : '#2E7D32') + ';">$' + it.remainingBalance.toFixed(2) + '</td>' +
+          '<td style="text-align:center;">' + esc(it.status) + '</td><td>' + esc(it.date) + '</td></tr>';
+      }).join('');
+      var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + period.toUpperCase() + ' Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px;}th,td{border:1px solid #CBD5E1;padding:8px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
+        '<body onload="window.print()"><div class="np" style="background:#0D47A1;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;"><span>Print / Save as PDF</span><button onclick="window.print()" style="background:#fff;color:#0D47A1;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button></div>' +
+        '<h1>' + period.toUpperCase() + ' FINANCIAL &amp; CUSTOMER REPORT</h1><p>Folder: <strong>' + esc(folder === 'all' ? 'All Folders' : folder) + '</strong> &middot; Date: ' + dStr + '</p>' +
+        '<p style="margin-top:8px;"><strong>Invoiced:</strong> $' + met.totalInvoiced.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#2E7D32;">Paid:</strong> $' + met.totalPaid.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#E65100;">Remaining:</strong> $' + met.totalRemaining.toFixed(2) + '</p>' +
+        '<table><thead><tr><th>#</th><th>Customer</th><th>Folder</th><th>Quality / Quantity</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></body></html>';
+      downloadBlob(doc, 'TableBot_' + period + '_Report_Summary_' + dStr + '.html', 'text/html');
+      showToast('Downloaded printable PDF/HTML report');
+    }
+
+    function renderReportsModal(m) {
+      if (!m.period) m.period = 'daily';
+      if (!m.folder) m.folder = 'all';
+      if (!m.status) m.status = 'all';
+      if (m.search === undefined) m.search = '';
+      if (m.menuOpen === undefined) m.menuOpen = false;
+
+      var folders = getAllFolders();
+      var allItems = buildReportItems();
+      var refNow = new Date('2026-11-12T12:00:00');
+      var filtered = allItems.filter(function (it) {
+        if (m.folder !== 'all' && it.folder !== m.folder) return false;
+        if (m.search.trim()) {
+          var q = m.search.toLowerCase();
+          if (it.customerName.toLowerCase().indexOf(q) === -1 && it.qualityOrQuantity.toLowerCase().indexOf(q) === -1 && it.folder.toLowerCase().indexOf(q) === -1) return false;
+        }
+        if (m.status === 'paid' && it.remainingBalance > 0) return false;
+        if (m.status === 'remaining' && it.remainingBalance <= 0) return false;
+        var dt = new Date(it.date);
+        if (isNaN(dt.getTime())) return true;
+        if (m.period === 'daily') return dt.toISOString().slice(0, 10) === '2026-11-12' || it.date.indexOf('2026-11-12') !== -1;
+        if (m.period === 'weekly') { var diff = (refNow.getTime() - dt.getTime()) / 86400000; return diff >= -1 && diff <= 7; }
+        return dt.getMonth() === refNow.getMonth() && dt.getFullYear() === refNow.getFullYear();
+      });
+
+      var met = { totalInvoiced: 0, totalPaid: 0, totalRemaining: 0, paidCount: 0, balCount: 0 };
+      filtered.forEach(function (it) {
+        met.totalInvoiced += it.totalAmount; met.totalPaid += it.paidAmount; met.totalRemaining += it.remainingBalance;
+        if (it.remainingBalance <= 0.01) met.paidCount++; else met.balCount++;
+      });
+      met.rate = met.totalInvoiced > 0 ? (met.totalPaid / met.totalInvoiced) * 100 : 100;
+
+      var trends = m.period === 'daily'
+        ? [{ l: '08 AM', p: 800, b: 450 }, { l: '10 AM', p: 450, b: 0 }, { l: '12 PM', p: 620, b: 120 }, { l: '03 PM', p: 350, b: 0 }, { l: '06 PM', p: 920, b: 200 }]
+        : m.period === 'weekly'
+        ? [{ l: 'Mon', p: 620, b: 0 }, { l: 'Tue', p: 920, b: 420 }, { l: 'Wed', p: 875, b: 0 }, { l: 'Thu', p: 1250, b: 450 }, { l: 'Fri', p: 750, b: 750 }, { l: 'Sat', p: 450, b: 0 }, { l: 'Sun', p: 280, b: 220 }]
+        : [{ l: 'Week 1', p: 1420, b: 220 }, { l: 'Week 2', p: 1850, b: 750 }, { l: 'Week 3', p: 1795, b: 420 }, { l: 'Week 4', p: 1250, b: 450 }];
+      var maxBar = Math.max.apply(null, trends.map(function (t) { return t.p + t.b; }).concat([1]));
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
+        '<header class="modal-header no-print">' +
+          '<div style="display:flex;align-items:center;gap:10px;">' + icon('chart', 22) + '<div><div style="display:flex;align-items:center;gap:8px;"><h2 style="font-size:16px;font-weight:700;">Financial &amp; Customer Reports</h2><span class="pill-badge" style="text-transform:uppercase;">' + esc(m.period) + '</span></div>' +
+          '<div style="font-size:11px;color:#BFDBFE;">Paid Customers &middot; Quality &amp; Quantity &middot; Amounts &middot; Remaining Balance</div></div></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;position:relative;">' +
+            '<button id="rep-dl-toggle" class="btn btn-green" style="font-size:12px;">' + icon('download', 15) + '<span>Download PDF/CSV Report</span>' + icon('chevronDown', 13) + '</button>' +
+            (m.menuOpen ? '<div class="dropdown-menu" style="top:42px;width:240px;">' +
+              '<button class="dropdown-item" id="rep-dl-pdf">' + icon('pdf', 15) + '<span>Download PDF Report</span></button>' +
+              '<button class="dropdown-item" id="rep-dl-csv">' + icon('csv', 15) + '<span>Download CSV Report</span></button>' +
+              '<button class="dropdown-item" id="rep-print">' + icon('print', 15) + '<span>Print / Save as PDF</span></button>' +
+              '<button class="dropdown-item" id="rep-copy">' + icon('copy', 15) + '<span>Copy Summary for Telegram</span></button>' +
+            '</div>' : '') +
+            '<button class="icon-btn" id="rep-close">' + icon('close', 20) + '</button>' +
+          '</div></header>' +
+        '<div class="no-print" style="background:#1565C0;padding:10px 18px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;color:#fff;">' +
+          '<div style="display:flex;background:rgba(13,71,161,0.7);padding:3px;border-radius:10px;gap:3px;">' +
+            '<button class="btn" data-rper="daily" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'daily' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Daily Report</button>' +
+            '<button class="btn" data-rper="weekly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'weekly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Weekly Report</button>' +
+            '<button class="btn" data-rper="monthly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'monthly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Monthly Report</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<select id="rep-folder" class="header-select"><option value="all">All Folders (' + folders.length + ')</option>' +
+              folders.map(function (f) { return '<option value="' + esc(f) + '"' + (m.folder === f ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('') +
+            '</select>' +
+            '<select id="rep-status" class="header-select">' +
+              '<option value="all"' + (m.status === 'all' ? ' selected' : '') + '>All Statuses</option>' +
+              '<option value="paid"' + (m.status === 'paid' ? ' selected' : '') + '>Fully Paid</option>' +
+              '<option value="remaining"' + (m.status === 'remaining' ? ' selected' : '') + '>Remaining Balance Due</option>' +
+            '</select>' +
+          '</div></div>' +
+        '<div class="modal-body tinted" style="display:flex;flex-direction:column;gap:16px;">' +
+          '<div class="no-print" style="background:#fff;border:1px solid #A7F3D0;border-radius:14px;padding:14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">' +
+            '<div><div style="font-weight:700;font-size:13.5px;">Download ' + m.period.toUpperCase() + ' Summary Report</div><div style="font-size:11.5px;color:#64748B;">Export ' + filtered.length + ' customers, items, paid amounts &amp; remaining balances.</div></div>' +
+            '<div style="display:flex;gap:8px;"><button id="ban-pdf" class="btn btn-red" style="font-size:11.5px;">' + icon('pdf', 14) + '<span>Download PDF</span></button>' +
+              '<button id="ban-csv" class="btn btn-green" style="font-size:11.5px;">' + icon('csv', 14) + '<span>Download CSV</span></button>' +
+              '<button id="ban-print" class="btn btn-outline" style="font-size:11.5px;color:#0D47A1;">' + icon('print', 14) + '<span>Print</span></button></div>' +
+          '</div>' +
+          '<div class="kpi-grid" style="margin-bottom:0;">' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Total Invoiced</div><div class="kpi-val">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">' + filtered.length + ' orders / entries</div></div>' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Paid Amount</div><div class="kpi-val" style="color:#2E7D32;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:10.5px;color:#64748B;margin-top:4px;">Collection: ' + met.rate.toFixed(1) + '%</div></div>' +
+            '<div class="kpi-card" style="border-color:#FDBA74;background:#FFFBEB;"><div class="field-label" style="margin:0;color:#E65100;">Remaining Balance</div><div class="kpi-val" style="color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#9A3412;margin-top:4px;">' + met.balCount + ' customers owe balance</div></div>' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Settled Accounts</div><div class="kpi-val" style="color:#0D47A1;">' + met.paidCount + ' <span style="font-size:12px;color:#94A3B8;font-weight:500;">/ ' + filtered.length + '</span></div><div style="font-size:11px;color:#047857;margin-top:4px;">' + Math.round((met.paidCount / (filtered.length || 1)) * 100) + '% fully settled</div></div>' +
+          '</div>' +
+          '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:16px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
+              '<div><div style="font-weight:700;font-size:13.5px;">Paid vs Remaining Balance Trend</div><div style="font-size:11px;color:#64748B;">Visual comparison across ' + m.period + ' intervals</div></div>' +
+              '<div style="display:flex;gap:12px;font-size:11.5px;font-weight:600;"><span><span style="display:inline-block;width:10px;height:10px;background:#2E7D32;border-radius:2px;margin-right:4px;"></span>Paid</span><span><span style="display:inline-block;width:10px;height:10px;background:#E65100;border-radius:2px;margin-right:4px;"></span>Remaining</span></div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:flex-end;gap:10px;height:125px;padding-top:10px;border-bottom:1px solid #F1F5F9;">';
+      trends.forEach(function (t) {
+        var ph = Math.round((t.p / maxBar) * 95), bh = Math.round((t.b / maxBar) * 95);
+        html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;" title="Paid: $' + t.p + ' | Due: $' + t.b + '">' +
+          '<div style="width:100%;max-width:40px;height:100px;background:#F8FAFC;display:flex;flex-direction:column;justify-content:flex-end;border-radius:4px 4px 0 0;overflow:hidden;">' +
+            '<div style="width:100%;height:' + bh + '%;background:#E65100;"></div>' +
+            '<div style="width:100%;height:' + ph + '%;background:#2E7D32;"></div>' +
+          '</div><span style="font-size:11px;color:#64748B;font-weight:600;">' + t.l + '</span></div>';
+      });
+      html += '</div></div>' +
+          '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;">' +
+            '<div style="padding:12px 16px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+              '<div><div style="font-weight:700;font-size:13.5px;color:#0D47A1;">Customer Ledger &amp; Remaining Balance</div><div style="font-size:11px;color:#64748B;">Showing ' + filtered.length + ' records</div></div>' +
+              '<input id="rep-search" class="form-input" style="width:220px;padding:6px 10px;font-size:12px;" placeholder="Search customer or item..." value="' + esc(m.search) + '" />' +
+            '</div>' +
+            '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>#</th><th>Paid Customer Name</th><th>Quality / Quantity</th><th style="text-align:right;">Total</th><th style="text-align:right;">Paid</th><th style="text-align:right;color:#E65100;">Remaining Balance</th><th style="text-align:center;">Status</th><th>Date</th><th class="no-print" style="text-align:center;">Action</th></tr></thead><tbody>';
+
+      if (filtered.length === 0) {
+        html += '<tr><td colspan="9" style="text-align:center;padding:28px;color:#94A3B8;">No customer ledger records match the current filter.</td></tr>';
+      } else {
+        filtered.forEach(function (it, idx) {
+          var hasBal = it.remainingBalance > 0.01;
+          var badgeStyle = !hasBal ? 'background:#DCFCE7;color:#166534;' : it.paidAmount > 0 ? 'background:#FEF3C7;color:#92400E;' : 'background:#FEE2E2;color:#991B1B;';
+          html += '<tr><td class="mono" style="color:#94A3B8;">' + (idx + 1) + '</td>' +
+            '<td><div style="font-weight:700;">' + esc(it.customerName) + '</div><div style="font-size:10px;color:#94A3B8;">Folder: ' + esc(it.folder) + '</div></td>' +
+            '<td><span style="background:#F1F5F9;padding:2px 7px;border-radius:6px;">' + esc(it.qualityOrQuantity) + '</span></td>' +
+            '<td class="mono" style="text-align:right;font-weight:600;">$' + it.totalAmount.toFixed(2) + '</td>' +
+            '<td class="mono" style="text-align:right;font-weight:700;color:#2E7D32;">$' + it.paidAmount.toFixed(2) + '</td>' +
+            '<td class="mono" style="text-align:right;font-weight:700;color:' + (hasBal ? '#E65100' : '#2E7D32') + ';">$' + it.remainingBalance.toFixed(2) + '</td>' +
+            '<td style="text-align:center;"><span style="' + badgeStyle + 'padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">' + esc(it.status) + '</span></td>' +
+            '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + esc(it.date) + '</td>' +
+            '<td class="no-print" style="text-align:center;">' + (hasBal ? '<button class="btn btn-primary rep-remind" data-cust="' + esc(it.customerName) + '" data-bal="' + it.remainingBalance.toFixed(2) + '" style="padding:4px 9px;font-size:11px;">' + icon('send', 11) + '<span>Remind</span></button>' : '—') + '</td></tr>';
+        });
+      }
+      html += '</tbody></table></div>' +
+        '<div style="background:#0D47A1;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px;">' +
+          '<span style="color:#FCD34D;font-weight:800;">Σ Period Totals (' + filtered.length + ' customers)</span>' +
+          '<div class="mono" style="display:flex;gap:18px;font-weight:700;"><span>Total: $' + met.totalInvoiced.toFixed(2) + '</span><span style="color:#6EE7B7;">Paid: $' + met.totalPaid.toFixed(2) + '</span><span style="color:#FCD34D;">Balance: $' + met.totalRemaining.toFixed(2) + '</span></div>' +
+        '</div></div></div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('rep-close').onclick = closeModal;
+      document.getElementById('rep-dl-toggle').onclick = function (e) { e.stopPropagation(); m.menuOpen = !m.menuOpen; renderReportsModal(m); };
+      if (m.menuOpen) {
+        document.getElementById('rep-dl-pdf').onclick = function () { m.menuOpen = false; exportReportPdfHtml(m.period, m.folder, filtered, met); renderReportsModal(m); };
+        document.getElementById('rep-dl-csv').onclick = function () { m.menuOpen = false; exportReportCsv(m.period, m.folder, filtered, met); renderReportsModal(m); };
+        document.getElementById('rep-print').onclick = function () { m.menuOpen = false; window.print(); };
+        document.getElementById('rep-copy').onclick = function () {
+          m.menuOpen = false;
+          var txt = 'TableBot ' + m.period.toUpperCase() + ' REPORT\nInvoiced: $' + met.totalInvoiced.toFixed(2) + '\nPaid: $' + met.totalPaid.toFixed(2) + '\nRemaining: $' + met.totalRemaining.toFixed(2);
+          if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(function () {});
+          showToast('Report summary copied for Telegram'); renderReportsModal(m);
+        };
+      }
+      document.getElementById('ban-pdf').onclick = function () { exportReportPdfHtml(m.period, m.folder, filtered, met); };
+      document.getElementById('ban-csv').onclick = function () { exportReportCsv(m.period, m.folder, filtered, met); };
+      document.getElementById('ban-print').onclick = function () { window.print(); };
+      document.querySelectorAll('[data-rper]').forEach(function (b) { b.onclick = function () { m.period = b.getAttribute('data-rper'); renderReportsModal(m); }; });
+      document.getElementById('rep-folder').onchange = function (e) { m.folder = e.target.value; renderReportsModal(m); };
+      document.getElementById('rep-status').onchange = function (e) { m.status = e.target.value; renderReportsModal(m); };
+      var rs = document.getElementById('rep-search');
+      rs.oninput = function (e) {
+        var pos = e.target.selectionStart; m.search = e.target.value; renderReportsModal(m);
+        var el = document.getElementById('rep-search'); if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+      };
+      document.querySelectorAll('.rep-remind').forEach(function (b) {
+        b.onclick = function () {
+          var cn = b.getAttribute('data-cust'), bl = b.getAttribute('data-bal');
+          openModal('telegram', { bot: getActiveBot() || state.bots[0], tab: 'broadcast', prefill: 'Payment reminder for ' + cn + ': Remaining balance $' + bl });
+        };
+      });
+    }
+
+    function renderTelegramModal(m) {
+      var bot = m.bot || state.bots[0];
+      if (!bot) { closeModal(); return; }
+      if (!m.tab) m.tab = 'token';
+      if (!m.chat) m.chat = [
+        { s: 'user', t: '/start', tm: '10:00' },
+        { s: 'bot', t: 'Welcome to <b>' + esc(bot.name) + '</b>! Live database logging is active.', tm: '10:00' }
+      ];
+      if (!m.logs) m.logs = [];
+      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B' : '#ECFDF5;color:#065F46') + ';">' + esc(m.statusMsg) + '</div>' : '';
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('bot', 20) + '<div><h2 style="font-size:15px;font-weight:700;">' + esc(bot.name) + ' &middot; Telegram API</h2><div style="font-size:11px;color:#BFDBFE;">Official REST API &amp; Live Simulator</div></div></div>' +
+          '<button class="icon-btn" id="tg-close">' + icon('close', 18) + '</button></header>' +
+        '<div style="display:flex;border-bottom:1px solid #E2E8F0;background:#F8FAFC;font-size:12px;font-weight:700;">' +
+          '<button data-tgtab="token" style="flex:1;padding:11px;border-bottom:2px solid ' + (m.tab === 'token' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Bot Token</button>' +
+          '<button data-tgtab="simulator" style="flex:1;padding:11px;border-bottom:2px solid ' + (m.tab === 'simulator' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Test Simulator</button>' +
+          '<button data-tgtab="broadcast" style="flex:1;padding:11px;border-bottom:2px solid ' + (m.tab === 'broadcast' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Broadcast</button>' +
+        '</div>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + msgNote;
+
+      if (m.tab === 'token') {
+        html += '<div><label class="field-label">Telegram Bot API Token (@BotFather)</label><input id="tg-tok" type="password" class="form-input mono" placeholder="123456789:ABCdef..." value="' + esc(bot.telegramToken || '') + '" />' +
+          '<div style="font-size:11px;color:#64748B;margin-top:4px;">Search <strong>@BotFather</strong> in Telegram, send <code>/newbot</code>, and paste the token here.</div></div>' +
+          '<div style="display:flex;gap:8px;"><button id="tg-verify" class="btn btn-primary" style="flex:1;">Connect &amp; Verify Bot</button>' +
+          '<button id="tg-sync" class="btn btn-green">Sync Messages</button></div>' +
+          (bot.botUsername ? '<div style="padding:12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:10px;font-weight:700;color:#0D47A1;">LINKED BOT</div><div style="font-weight:700;">' + esc(bot.botUsername) + '</div></div><span class="status-chip chip-online">ONLINE</span></div>' : '');
+      } else if (m.tab === 'simulator') {
+        html += '<div style="padding:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:12px;color:#92400E;">Type a command below to simulate a Telegram user message and automatically append a row into your table.</div>' +
+          '<div style="height:200px;background:#0F172A;border-radius:12px;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">' +
+            m.chat.map(function (c) {
+              return '<div style="max-width:85%;padding:7px 11px;border-radius:10px;font-size:12px;' + (c.s === 'user' ? 'align-self:flex-end;background:#1976D2;color:#fff;' : 'align-self:flex-start;background:#1E293B;color:#F1F5F9;border:1px solid #334155;') + '">' + c.t + '<div style="font-size:9px;opacity:0.65;text-align:right;margin-top:2px;">' + c.tm + '</div></div>';
+            }).join('') + '</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + ['/start', '/help', '/donate 50.00', '/order 89.99', '/alert BTC 98000'].map(function (cmd) {
+            return '<button type="button" class="tg-preset btn btn-outline" style="padding:4px 8px;font-size:11px;font-family:monospace;" data-cmd="' + cmd + '">' + cmd + '</button>';
+          }).join('') + '</div>' +
+          '<div style="display:flex;gap:8px;"><input id="tg-sim-inp" class="form-input" value="' + esc(m.simCmd || '/donate 35.00') + '" /><button id="tg-sim-send" class="btn btn-dark-blue">' + icon('send', 14) + '<span>Send</span></button></div>';
+      } else {
+        html += '<div><label class="field-label">Message Content (HTML supported)</label><textarea id="tg-bmsg" rows="4" class="form-textarea" placeholder="Enter broadcast message...">' + esc(m.prefill || '') + '</textarea></div>' +
+          '<button id="tg-bsend" class="btn btn-dark-blue" style="width:100%;">' + icon('send', 14) + '<span>Send Broadcast Message</span></button>' +
+          (m.logs.length ? '<div style="padding:10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;font-size:11px;font-family:monospace;">' + m.logs.map(esc).join('<br>') + '</div>' : '');
+      }
+      html += '</div></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('tg-close').onclick = closeModal;
+      document.querySelectorAll('[data-tgtab]').forEach(function (b) { b.onclick = function () { m.tab = b.getAttribute('data-tgtab'); m.statusMsg = null; renderTelegramModal(m); }; });
+
+      if (m.tab === 'token') {
+        document.getElementById('tg-verify').onclick = async function () {
+          var tk = document.getElementById('tg-tok').value.trim();
+          if (!tk) { m.statusType = 'error'; m.statusMsg = 'Please enter a token.'; renderTelegramModal(m); return; }
+          try {
+            var res = await fetch('https://api.telegram.org/bot' + tk + '/getMe');
+            var data = await res.json();
+            if (data.ok && data.result) {
+              bot.telegramToken = tk; bot.botUsername = '@' + data.result.username; bot.botStatus = 'online'; bot.updatedAt = new Date().toISOString();
+              updateBot(bot); renderApp();
+              m.statusType = 'success'; m.statusMsg = 'Connected to @' + data.result.username + '!';
+            } else { m.statusType = 'error'; m.statusMsg = data.description || 'Invalid token'; }
+          } catch (e) { m.statusType = 'error'; m.statusMsg = 'Network error reaching Telegram API'; }
+          renderTelegramModal(m);
+        };
+        document.getElementById('tg-sync').onclick = async function () {
+          if (!bot.telegramToken) { m.statusType = 'error'; m.statusMsg = 'Connect a valid token first, or use Test Simulator.'; renderTelegramModal(m); return; }
+          try {
+            var res = await fetch('https://api.telegram.org/bot' + bot.telegramToken + '/getUpdates?timeout=5');
+            var data = await res.json();
+            if (data.ok && Array.isArray(data.result) && data.result.length) {
+              data.result.forEach(function (u) {
+                if (!u.message) return;
+                var txt = u.message.text || '[Media]';
+                var amtM = txt.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
+                var nr = { id: 'tg_' + u.update_id };
+                bot.columns.forEach(function (c) {
+                  if (c.type === 'amount' || c.type === 'number') nr[c.id] = amtM ? parseFloat(amtM[1]) : 10;
+                  else if (c.type === 'date') nr[c.id] = new Date(u.message.date * 1000).toISOString().slice(0, 16).replace('T', ' ');
+                  else if (c.name.toLowerCase().indexOf('user') !== -1) nr[c.id] = String(u.message.from ? u.message.from.id : u.message.chat.id);
+                  else nr[c.id] = txt;
+                });
+                bot.rows.unshift(nr);
+              });
+              bot.updatedAt = new Date().toISOString(); updateBot(bot); renderApp();
+              m.statusType = 'success'; m.statusMsg = 'Synced ' + data.result.length + ' updates into table!';
+            } else { m.statusType = 'success'; m.statusMsg = 'No new incoming updates.'; }
+          } catch (e) { m.statusType = 'error'; m.statusMsg = 'Failed to fetch Telegram updates.'; }
+          renderTelegramModal(m);
+        };
+      } else if (m.tab === 'simulator') {
+        document.querySelectorAll('.tg-preset').forEach(function (b) { b.onclick = function () { m.simCmd = b.getAttribute('data-cmd'); renderTelegramModal(m); }; });
+        var simRun = function () {
+          var cmd = document.getElementById('tg-sim-inp').value.trim();
+          if (!cmd) return;
+          var amtM = cmd.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
+          var amt = amtM ? parseFloat(amtM[1]) : 25.00;
+          var uid = Math.floor(1000000 + Math.random() * 9000000) + ' @alex_tester';
+          var nowT = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          var reply = 'Received: "<i>' + esc(cmd) + '</i>"<br>Logged into <b>' + esc(bot.name) + '</b> ($' + amt.toFixed(2) + ').';
+          m.chat.push({ s: 'user', t: esc(cmd), tm: nowT }, { s: 'bot', t: reply, tm: nowT });
+          var nr = { id: 'sim_' + Date.now() };
+          bot.columns.forEach(function (c) {
+            if (c.type === 'amount' || c.type === 'number') nr[c.id] = amt;
+            else if (c.type === 'date') nr[c.id] = new Date().toISOString().slice(0, 16).replace('T', ' ');
+            else if (c.type === 'checkbox') nr[c.id] = true;
+            else if (c.name.toLowerCase().indexOf('user') !== -1 || c.name.toLowerCase().indexOf('customer') !== -1) nr[c.id] = uid;
+            else if (c.name.toLowerCase().indexOf('status') !== -1) nr[c.id] = 'Logged';
+            else nr[c.id] = cmd;
+          });
+          bot.rows.unshift(nr); bot.updatedAt = new Date().toISOString();
+          updateBot(bot); renderApp();
+          m.simCmd = ''; renderTelegramModal(m);
+        };
+        document.getElementById('tg-sim-send').onclick = simRun;
+        document.getElementById('tg-sim-inp').onkeydown = function (e) { if (e.key === 'Enter') simRun(); };
+      } else {
+        document.getElementById('tg-bsend').onclick = async function () {
+          var txt = document.getElementById('tg-bmsg').value.trim();
+          if (!txt) return;
+          m.logs.unshift((bot.telegramToken ? '[API] ' : '[SIMULATOR] ') + 'Broadcast sent: "' + txt + '"');
+          m.prefill = ''; m.statusType = 'success'; m.statusMsg = 'Broadcast message dispatched!';
+          renderTelegramModal(m);
+        };
+      }
+    }
+
+    function renderSupabaseModal(m) {
+      var cfg = state.supabaseConfig;
+      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B' : '#ECFDF5;color:#065F46') + ';">' + esc(m.statusMsg) + '</div>' : '';
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('cloud', 20) + '<div><h2 style="font-size:15px;font-weight:700;">Supabase Cloud Sync &amp; RLS</h2><div style="font-size:11px;color:#BFDBFE;">Multi-Device Real-Time Synchronization</div></div></div>' +
+          '<button class="icon-btn" id="sb-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + msgNote +
+          '<div><label class="field-label">Supabase Project URL</label><input id="sb-url" class="form-input mono" placeholder="https://xyz.supabase.co" value="' + esc(cfg.url) + '" /></div>' +
+          '<div><label class="field-label">Supabase Anon Public Key</label><input id="sb-key" type="password" class="form-input mono" placeholder="eyJhbGciOi..." value="' + esc(cfg.anonKey) + '" /></div>' +
+          '<button id="sb-test" class="btn btn-primary" style="width:100%;">Save &amp; Test Cloud Connection</button>' +
+          '<div style="background:#0F172A;color:#E2E8F0;padding:12px;border-radius:12px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:11.5px;font-weight:700;">SQL Database Setup Script</span>' +
+            '<button id="sb-copy-sql" class="btn btn-green" style="padding:4px 10px;font-size:11px;">Copy SQL Setup Script</button></div>' +
+            '<pre class="mono" style="font-size:10.5px;color:#94A3B8;overflow-x:auto;max-height:90px;">' + esc(SQL_SETUP_SCRIPT) + '</pre>' +
+          '</div>' +
+          '<div style="border-top:1px solid #E2E8F0;padding-top:12px;display:flex;flex-direction:column;gap:10px;">' +
+            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">User Authentication &amp; Session</div>' +
+            '<input id="sb-email" type="email" class="form-input" value="' + esc(cfg.userEmail) + '" placeholder="Email address" />' +
+            '<input id="sb-pass" type="password" class="form-input" placeholder="Password" />' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+              '<button id="sb-signin" class="btn btn-dark-blue" style="flex:1;">Sign In</button>' +
+              '<button id="sb-signup" class="btn btn-primary" style="flex:1;">Sign Up</button>' +
+              '<button id="sb-offline" class="btn btn-outline">Continue Offline</button>' +
+            '</div></div></div></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('sb-close').onclick = closeModal;
+      document.getElementById('sb-copy-sql').onclick = function () {
+        if (navigator.clipboard) navigator.clipboard.writeText(SQL_SETUP_SCRIPT).catch(function () {});
+        showToast('SQL Setup Script copied!');
+      };
+      var saveCfg = function (u, k, em) {
+        if (u) localStorage.setItem(STORAGE_SB_URL, u); else localStorage.removeItem(STORAGE_SB_URL);
+        if (k) localStorage.setItem(STORAGE_SB_KEY, k); else localStorage.removeItem(STORAGE_SB_KEY);
+        if (em) localStorage.setItem(STORAGE_SB_EMAIL, em);
+        state.supabaseConfig = loadSupabaseConfig(); state.sbClient = null;
+      };
+      document.getElementById('sb-test').onclick = async function () {
+        var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim(), em = document.getElementById('sb-email').value.trim();
+        if (!u || !k) { m.statusType = 'error'; m.statusMsg = 'Enter both URL and Anon Key.'; renderSupabaseModal(m); return; }
+        if (!window.supabase || !window.supabase.createClient) { m.statusType = 'error'; m.statusMsg = 'Supabase SDK unavailable offline.'; renderSupabaseModal(m); return; }
+        try {
+          var tc = window.supabase.createClient(u, k);
+          var res = await tc.from('user_bots').select('id').limit(1);
+          if (res.error && res.error.code !== 'PGRST116' && res.error.code !== '42P01') {
+            m.statusType = 'error'; m.statusMsg = res.error.message;
+          } else {
+            saveCfg(u, k, em); initSupabaseCloud();
+            m.statusType = 'success'; m.statusMsg = 'Connected to Supabase Cloud!';
+          }
+        } catch (e) { m.statusType = 'error'; m.statusMsg = 'Connection failed'; }
+        renderSupabaseModal(m);
+      };
+      var doAuth = async function (isUp) {
+        var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim();
+        var em = document.getElementById('sb-email').value.trim(), pw = document.getElementById('sb-pass').value;
+        saveCfg(u, k, em);
+        var client = getSbClient();
+        if (!client) { m.statusType = 'error'; m.statusMsg = 'Configure valid Supabase URL and Key first.'; renderSupabaseModal(m); return; }
+        try {
+          var res = isUp ? await client.auth.signUp({ email: em, password: pw }) : await client.auth.signInWithPassword({ email: em, password: pw });
+          if (res.error) throw res.error;
+          m.statusType = 'success'; m.statusMsg = isUp ? 'Account created!' : 'Signed in as ' + em;
+          initSupabaseCloud();
+        } catch (err) { m.statusType = 'error'; m.statusMsg = err.message || 'Auth error'; }
+        renderSupabaseModal(m);
+      };
+      document.getElementById('sb-signin').onclick = function () { doAuth(false); };
+      document.getElementById('sb-signup').onclick = function () { doAuth(true); };
+      document.getElementById('sb-offline').onclick = function () {
+        saveCfg('', '', document.getElementById('sb-email').value.trim() || 'offline-user@local.app');
+        state.syncStatus = 'local'; closeModal(); renderApp(); showToast('Operating in Local Storage Mode');
+      };
+    }
+
+    function exportStandaloneHtml() {
+      var snapshot = '<!doctype html>\n' + document.documentElement.outerHTML;
+      downloadBlob(snapshot, 'TableBot_Standalone_' + new Date().toISOString().slice(0, 10) + '.html', 'text/html;charset=utf-8');
+      showToast('Exported Standalone Single-File HTML');
+    }
+
+    // Close floating menus on backdrop clicks
+    document.addEventListener('click', function () {
+      var dirty = false;
+      if (state.activeCardMenuId) { state.activeCardMenuId = null; dirty = true; }
+      if (state.showMoreMenu) { state.showMoreMenu = false; dirty = true; }
+      if (dirty) renderApp();
+    });
+
+    // Boot Application
+    renderApp();
+    if (state.supabaseConfig.isConnected) initSupabaseCloud();
+  })();
+  </script>
+</body>
+</html>

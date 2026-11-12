@@ -1,0 +1,6 @@
+{
+  "name": "TableBot - Telegram Bot Manager & Cloud Database",
+  "description": "Mobile-first Table Notes inspired Telegram Bot Manager & Live Cloud Database with Supabase multi-device sync, spreadsheet data editor, and broadcast messaging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
