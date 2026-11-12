@@ -571,6 +571,21 @@
     }
 
     function loadSupabaseConfig() {
+      try {
+        var qs = new URLSearchParams(window.location.search || '');
+        var hashQs = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+        var linkUrl = qs.get('sb_url') || hashQs.get('sb_url');
+        var linkKey = qs.get('sb_key') || hashQs.get('sb_key');
+        var linkEmail = qs.get('sb_email') || hashQs.get('sb_email');
+        if (linkUrl && linkKey) {
+          localStorage.setItem(STORAGE_SB_URL, linkUrl.trim());
+          localStorage.setItem(STORAGE_SB_KEY, linkKey.trim());
+          if (linkEmail) localStorage.setItem(STORAGE_SB_EMAIL, linkEmail.trim());
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      } catch (e) {}
       var url = localStorage.getItem(STORAGE_SB_URL) || '';
       var key = localStorage.getItem(STORAGE_SB_KEY) || '';
       var email = localStorage.getItem(STORAGE_SB_EMAIL) || 'umery1969@gmail.com';
@@ -878,9 +893,10 @@
           '<button class="icon-btn" id="btn-open-drawer" aria-label="Menu">' + icon('menu', 22) + '</button>' +
           '<span style="font-weight:700;font-size:18px;letter-spacing:-0.01em">All Bots</span>' +
           '<span class="pill-badge">' + filtered.length + '</span>' +
-          '<div id="sync-pill-badge" class="sync-pill"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></div>' +
+          '<button id="sync-pill-badge" class="sync-pill" title="Connect or manage Supabase account" style="cursor:pointer;border:1px solid rgba(255,255,255,0.2);"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></button>' +
         '</div>' +
         '<div class="header-right">' +
+          '<button class="header-action-btn" id="btn-dash-supabase" title="Connect Supabase Account &amp; Cloud Sync"><span style="color:' + (state.supabaseConfig.isConnected ? '#6EE7B7' : '#93C5FD') + '">' + icon('cloud', 15) + '</span><span>' + (state.supabaseConfig.isConnected ? 'Supabase' : 'Connect Supabase') + '</span></button>' +
           '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly & Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
           '<button class="icon-btn" id="btn-dash-search" title="Search bots">' + icon('search', 20) + '</button>' +
           '<button class="icon-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')" style="width:auto;padding:0 8px;gap:4px;font-size:11px;font-weight:700;">' + icon('sort', 18) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
@@ -969,6 +985,10 @@
     function bindDashboardEvents() {
       var drawerBtn = document.getElementById('btn-open-drawer');
       if (drawerBtn) drawerBtn.onclick = function () { state.drawerOpen = true; renderDrawer(); };
+      var syncPillBtn = document.getElementById('sync-pill-badge');
+      if (syncPillBtn) syncPillBtn.onclick = function () { openModal('supabase'); };
+      var sbHdrBtn = document.getElementById('btn-dash-supabase');
+      if (sbHdrBtn) sbHdrBtn.onclick = function () { openModal('supabase'); };
       var repBtn = document.getElementById('btn-dash-reports');
       if (repBtn) repBtn.onclick = function () { openModal('reports'); };
       var sBtn = document.getElementById('btn-dash-search');
@@ -2090,34 +2110,75 @@
       }
     }
 
+    function extractSupabaseRef(url) {
+      var match = String(url || '').match(/https?:\/\/([a-z0-9-]+)\.supabase\.co/i);
+      return match ? match[1] : '';
+    }
+
+    function buildSupabaseShareLink(url, key, email) {
+      var base = window.location.href.split('?')[0].split('#')[0];
+      var params = new URLSearchParams();
+      params.set('sb_url', url.trim());
+      params.set('sb_key', key.trim());
+      if (email) params.set('sb_email', email.trim());
+      return base + '?' + params.toString();
+    }
+
     function renderSupabaseModal(m) {
       var cfg = state.supabaseConfig;
-      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B' : '#ECFDF5;color:#065F46') + ';">' + esc(m.statusMsg) + '</div>' : '';
+      var ref = extractSupabaseRef(m.draftUrl !== undefined ? m.draftUrl : cfg.url);
+      var dashBase = ref ? ('https://supabase.com/dashboard/project/' + ref) : 'https://supabase.com/dashboard';
+      var apiLink = ref ? (dashBase + '/settings/api') : 'https://supabase.com/dashboard';
+      var sqlLink = ref ? (dashBase + '/sql/new') : 'https://supabase.com/dashboard';
+      var authUsersLink = ref ? (dashBase + '/auth/users') : 'https://supabase.com/dashboard';
+
+      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B;border:1px solid #FECACA;' : '#ECFDF5;color:#065F46;border:1px solid #A7F3D0;') + '">' + esc(m.statusMsg) + '</div>' : '';
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('cloud', 20) + '<div><h2 style="font-size:15px;font-weight:700;">Supabase Cloud Sync &amp; RLS</h2><div style="font-size:11px;color:#BFDBFE;">Multi-Device Real-Time Synchronization</div></div></div>' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('cloud', 20) + '<div><h2 style="font-size:15px;font-weight:700;">Connect Supabase Account &amp; Cloud Sync</h2><div style="font-size:11px;color:#BFDBFE;">Link your Supabase project &amp; sync across devices</div></div></div>' +
           '<button class="icon-btn" id="sb-close">' + icon('close', 18) + '</button></header>' +
         '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + msgNote +
-          '<div><label class="field-label">Supabase Project URL</label><input id="sb-url" class="form-input mono" placeholder="https://xyz.supabase.co" value="' + esc(cfg.url) + '" /></div>' +
-          '<div><label class="field-label">Supabase Anon Public Key</label><input id="sb-key" type="password" class="form-input mono" placeholder="eyJhbGciOi..." value="' + esc(cfg.anonKey) + '" /></div>' +
-          '<button id="sb-test" class="btn btn-primary" style="width:100%;">Save &amp; Test Cloud Connection</button>' +
+          '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+              '<span style="font-size:11.5px;font-weight:700;color:#0D47A1;">Supabase Account &amp; Dashboard Links</span>' +
+              '<a href="' + esc(dashBase) + '" target="_blank" rel="noopener noreferrer" class="btn btn-dark-blue" style="padding:5px 10px;font-size:11px;text-decoration:none;">Open Supabase Account &rarr;</a>' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">' +
+              '<a href="' + esc(apiLink) + '" target="_blank" rel="noopener noreferrer" style="color:#1565C0;font-weight:700;background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #BFDBFE;text-decoration:none;">1. Project URL &amp; API Key</a>' +
+              '<a href="' + esc(sqlLink) + '" target="_blank" rel="noopener noreferrer" style="color:#1565C0;font-weight:700;background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #BFDBFE;text-decoration:none;">2. SQL Editor</a>' +
+              '<a href="' + esc(authUsersLink) + '" target="_blank" rel="noopener noreferrer" style="color:#1565C0;font-weight:700;background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #BFDBFE;text-decoration:none;">3. Auth Users</a>' +
+            '</div>' +
+          '</div>' +
+          '<div><label class="field-label">Paste Account Sync Link (Optional)</label>' +
+            '<div style="display:flex;gap:6px;"><input id="sb-link-paste" class="form-input mono" style="font-size:11.5px;" placeholder="Paste ?sb_url=...&amp;sb_key=... link from another device" />' +
+            '<button id="sb-apply-link" class="btn btn-outline" style="white-space:nowrap;">Apply Link</button></div></div>' +
+          '<div><label class="field-label">Supabase Project URL</label><input id="sb-url" class="form-input mono" placeholder="https://xyzcompany.supabase.co" value="' + esc(m.draftUrl !== undefined ? m.draftUrl : cfg.url) + '" /></div>' +
+          '<div><label class="field-label">Supabase Anon Public Key</label><input id="sb-key" type="password" class="form-input mono" placeholder="eyJhbGciOi..." value="' + esc(m.draftKey !== undefined ? m.draftKey : cfg.anonKey) + '" /></div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button id="sb-test" class="btn btn-primary" style="flex:1;">Save &amp; Connect Supabase</button>' +
+            '<button id="sb-copy-link" class="btn btn-outline" title="Copy shareable Supabase sync link for another device">' + icon('share', 14) + '<span>Copy Account Link</span></button>' +
+          '</div>' +
           '<div style="background:#0F172A;color:#E2E8F0;padding:12px;border-radius:12px;">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:11.5px;font-weight:700;">SQL Database Setup Script</span>' +
             '<button id="sb-copy-sql" class="btn btn-green" style="padding:4px 10px;font-size:11px;">Copy SQL Setup Script</button></div>' +
             '<pre class="mono" style="font-size:10.5px;color:#94A3B8;overflow-x:auto;max-height:90px;">' + esc(SQL_SETUP_SCRIPT) + '</pre>' +
           '</div>' +
           '<div style="border-top:1px solid #E2E8F0;padding-top:12px;display:flex;flex-direction:column;gap:10px;">' +
-            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">User Authentication &amp; Session</div>' +
-            '<input id="sb-email" type="email" class="form-input" value="' + esc(cfg.userEmail) + '" placeholder="Email address" />' +
-            '<input id="sb-pass" type="password" class="form-input" placeholder="Password" />' +
+            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">Supabase Account Authentication</div>' +
+            '<input id="sb-email" type="email" class="form-input" value="' + esc(m.draftEmail !== undefined ? m.draftEmail : cfg.userEmail) + '" placeholder="Email address" />' +
+            '<input id="sb-pass" type="password" class="form-input" placeholder="Password (leave blank for Magic Link)" />' +
             '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
               '<button id="sb-signin" class="btn btn-dark-blue" style="flex:1;">Sign In</button>' +
               '<button id="sb-signup" class="btn btn-primary" style="flex:1;">Sign Up</button>' +
-              '<button id="sb-offline" class="btn btn-outline">Continue Offline</button>' +
+              '<button id="sb-magic" class="btn btn-green" title="Send passwordless login link to email">Magic Link</button>' +
+              '<button id="sb-offline" class="btn btn-outline">Local Mode</button>' +
             '</div></div></div></div></div>';
       document.getElementById('modal-root').innerHTML = html;
       document.getElementById('m-bg').onclick = closeModal;
       document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('sb-close').onclick = closeModal;
+      document.getElementById('sb-url').oninput = function (e) { m.draftUrl = e.target.value; };
+      document.getElementById('sb-key').oninput = function (e) { m.draftKey = e.target.value; };
+      document.getElementById('sb-email').oninput = function (e) { m.draftEmail = e.target.value; };
       document.getElementById('sb-copy-sql').onclick = function () {
         if (navigator.clipboard) navigator.clipboard.writeText(SQL_SETUP_SCRIPT).catch(function () {});
         showToast('SQL Setup Script copied!');
@@ -2127,6 +2188,32 @@
         if (k) localStorage.setItem(STORAGE_SB_KEY, k); else localStorage.removeItem(STORAGE_SB_KEY);
         if (em) localStorage.setItem(STORAGE_SB_EMAIL, em);
         state.supabaseConfig = loadSupabaseConfig(); state.sbClient = null;
+      };
+      document.getElementById('sb-apply-link').onclick = function () {
+        var raw = document.getElementById('sb-link-paste').value.trim();
+        if (!raw) return;
+        try {
+          var qPart = raw.indexOf('?') !== -1 ? raw.split('?')[1].split('#')[0] : raw;
+          var p = new URLSearchParams(qPart);
+          var lu = p.get('sb_url'), lk = p.get('sb_key'), le = p.get('sb_email');
+          if (!lu || !lk) { m.statusType = 'error'; m.statusMsg = 'Invalid link: missing sb_url or sb_key parameters.'; renderSupabaseModal(m); return; }
+          m.draftUrl = lu; m.draftKey = lk; if (le) m.draftEmail = le;
+          saveCfg(lu, lk, le || cfg.userEmail);
+          initSupabaseCloud();
+          m.statusType = 'success'; m.statusMsg = 'Account link applied & connected to Supabase!';
+        } catch (e) {
+          m.statusType = 'error'; m.statusMsg = 'Could not parse Supabase account link.';
+        }
+        renderSupabaseModal(m);
+      };
+      document.getElementById('sb-copy-link').onclick = function () {
+        var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim(), em = document.getElementById('sb-email').value.trim();
+        if (!u || !k) { m.statusType = 'error'; m.statusMsg = 'Enter Supabase URL and Anon Key before copying account link.'; renderSupabaseModal(m); return; }
+        var shareUrl = buildSupabaseShareLink(u, k, em);
+        if (navigator.clipboard) navigator.clipboard.writeText(shareUrl).catch(function () {});
+        showToast('Copied Supabase account sync link!');
+        m.statusType = 'success'; m.statusMsg = 'Account sync link copied to clipboard! Open it on any device to auto-connect.';
+        renderSupabaseModal(m);
       };
       document.getElementById('sb-test').onclick = async function () {
         var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim(), em = document.getElementById('sb-email').value.trim();
@@ -2144,22 +2231,29 @@
         } catch (e) { m.statusType = 'error'; m.statusMsg = 'Connection failed'; }
         renderSupabaseModal(m);
       };
-      var doAuth = async function (isUp) {
+      var doAuth = async function (mode) {
         var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim();
         var em = document.getElementById('sb-email').value.trim(), pw = document.getElementById('sb-pass').value;
         saveCfg(u, k, em);
         var client = getSbClient();
         if (!client) { m.statusType = 'error'; m.statusMsg = 'Configure valid Supabase URL and Key first.'; renderSupabaseModal(m); return; }
         try {
-          var res = isUp ? await client.auth.signUp({ email: em, password: pw }) : await client.auth.signInWithPassword({ email: em, password: pw });
-          if (res.error) throw res.error;
-          m.statusType = 'success'; m.statusMsg = isUp ? 'Account created!' : 'Signed in as ' + em;
-          initSupabaseCloud();
+          if (mode === 'magic') {
+            var mres = await client.auth.signInWithOtp({ email: em, options: { emailRedirectTo: window.location.href.split('#')[0] } });
+            if (mres.error) throw mres.error;
+            m.statusType = 'success'; m.statusMsg = 'Magic login link sent to ' + em + '! Check your inbox.';
+          } else {
+            var res = mode === 'up' ? await client.auth.signUp({ email: em, password: pw }) : await client.auth.signInWithPassword({ email: em, password: pw });
+            if (res.error) throw res.error;
+            m.statusType = 'success'; m.statusMsg = mode === 'up' ? 'Account created! Check email or sign in.' : 'Signed in as ' + em;
+            initSupabaseCloud();
+          }
         } catch (err) { m.statusType = 'error'; m.statusMsg = err.message || 'Auth error'; }
         renderSupabaseModal(m);
       };
-      document.getElementById('sb-signin').onclick = function () { doAuth(false); };
-      document.getElementById('sb-signup').onclick = function () { doAuth(true); };
+      document.getElementById('sb-signin').onclick = function () { doAuth('in'); };
+      document.getElementById('sb-signup').onclick = function () { doAuth('up'); };
+      document.getElementById('sb-magic').onclick = function () { doAuth('magic'); };
       document.getElementById('sb-offline').onclick = function () {
         saveCfg('', '', document.getElementById('sb-email').value.trim() || 'offline-user@local.app');
         state.syncStatus = 'local'; closeModal(); renderApp(); showToast('Operating in Local Storage Mode');
