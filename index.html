@@ -267,6 +267,29 @@
       box-shadow: 0 2px 5px rgba(25,118,210,0.3);
     }
     .add-row-btn:hover { background: var(--blue-mid); }
+    .sheet-table tfoot tr.table-sum-row td {
+      background: #EFF6FF; border-top: 2px solid #0D47A1; border-bottom: 2px solid #93C5FD;
+      font-weight: 800; color: #0D47A1; padding: 10px 12px; font-size: 12.5px;
+    }
+    .sheet-table tfoot tr.table-sum-row td.frozen-col {
+      background: #DBEAFE; color: #0D47A1; font-weight: 900;
+    }
+    .add-folder-pill {
+      padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 800;
+      white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
+      background: #F59E0B; color: #fff; border: 1px solid rgba(255,255,255,0.35);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.16); transition: background 0.15s, transform 0.15s;
+    }
+    .add-folder-pill:hover { background: #D97706; transform: translateY(-1px); }
+    .report-folder-card {
+      background: #fff; border: 1px solid #CBD5E1; border-radius: 14px; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+    }
+    .report-folder-head {
+      background: linear-gradient(90deg, #EFF6FF 0%, #F8FAFC 100%);
+      border-bottom: 1px solid #CBD5E1; padding: 11px 16px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    }
 
     /* Sticky Summary Footer & Bottom Toolbar */
     .sigma-footer {
@@ -438,6 +461,7 @@
     var STORAGE_FOLDER_HISTORY = 'tablebot_folder_history';
     var STORAGE_DELETED_VAULT = 'tablebot_deleted_vault';
     var STORAGE_FOLDER_MANIFEST = 'tablebot_folder_manifest';
+    var STORAGE_CUSTOM_FOLDERS = 'tablebot_custom_folders';
 
     var SQL_SETUP_SCRIPT =
       '-- Run this in your Supabase SQL Editor:\n' +
@@ -709,6 +733,7 @@
       folderHistory: loadJsonStorage(STORAGE_FOLDER_HISTORY, []),
       deletedVault: loadJsonStorage(STORAGE_DELETED_VAULT, []),
       folderManifest: loadJsonStorage(STORAGE_FOLDER_MANIFEST, {}),
+      customFolders: loadJsonStorage(STORAGE_CUSTOM_FOLDERS, []),
       // Dashboard filters
       searchOpen: false,
       searchQuery: '',
@@ -1217,17 +1242,113 @@
       return count;
     }
 
-    function formatCell(val, col) {
+    function parseNumSafe(val) {
+      if (typeof val === 'number') return isFinite(val) ? val : NaN;
+      if (val === undefined || val === null || val === '' || typeof val === 'boolean') return NaN;
+      var s = String(val).replace(/[^0-9.-]/g, '');
+      if (!s || s === '-' || s === '.' || s === '-.') return NaN;
+      var n = parseFloat(s);
+      return isFinite(n) ? n : NaN;
+    }
+
+    function evalSafeArithmetic(expr) {
+      if (!expr) return NaN;
+      var cleaned = String(expr).replace(/,/g, '').replace(/%/g, '/100').trim();
+      if (!cleaned || !/^[0-9+\-*/().\s]+$/.test(cleaned)) return NaN;
+      try {
+        var res = (new Function('"use strict"; return (' + cleaned + ');'))();
+        return (typeof res === 'number' && isFinite(res)) ? res : NaN;
+      } catch (e) {
+        return NaN;
+      }
+    }
+
+    function evalFormulaCell(row, col, bot, depth) {
+      var d = depth || 0;
+      if (d > 4) return NaN;
+      var raw = row ? row[col.id] : undefined;
+      var rawStr = (raw !== undefined && raw !== null) ? String(raw).trim() : '';
+      var expr = '';
+      if (rawStr.charAt(0) === '=') {
+        expr = rawStr.slice(1).trim();
+      } else if (col && col.formulaExpr && String(col.formulaExpr).trim()) {
+        expr = String(col.formulaExpr).trim().replace(/^=/, '').trim();
+      } else {
+        return parseNumSafe(raw);
+      }
+      if (!expr) return NaN;
+      var upper = expr.toUpperCase();
+      if (upper === 'SUM_ALL' || upper === 'SUM(*)' || upper === 'SUM(ALL)') {
+        var rowTotal = 0, anyVal = false;
+        if (bot && bot.columns) {
+          bot.columns.forEach(function (oc) {
+            if (oc.id !== col.id && (oc.type === 'amount' || oc.type === 'number')) {
+              var v = parseNumSafe(row[oc.id]);
+              if (!isNaN(v)) { rowTotal += v; anyVal = true; }
+            }
+          });
+        }
+        return anyVal ? rowTotal : 0;
+      }
+      var resolved = expr;
+      if (bot && bot.columns) {
+        var colsSorted = bot.columns.slice().sort(function (a, b) {
+          return String(b.name || '').length - String(a.name || '').length;
+        });
+        colsSorted.forEach(function (oc) {
+          if (oc.id === col.id || !oc.name) return;
+          var escName = oc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          var valNum = getRowColNumeric(row, oc, bot, d + 1);
+          var repVal = isNaN(valNum) ? '0' : String(valNum);
+          resolved = resolved.replace(new RegExp('\\{' + escName + '\\}', 'gi'), repVal);
+          resolved = resolved.replace(new RegExp('(^|[^A-Za-z0-9_])' + escName + '(?=$|[^A-Za-z0-9_])', 'gi'), '$1' + repVal);
+        });
+      }
+      resolved = resolved.replace(/SUM\s*\(([^()]+)\)/gi, function (_, inner) {
+        var parts = inner.split(/[,;]/);
+        var s = 0;
+        parts.forEach(function (p) {
+          var v = evalSafeArithmetic(p);
+          if (!isNaN(v)) s += v;
+        });
+        return String(s);
+      });
+      return evalSafeArithmetic(resolved);
+    }
+
+    function getRowColNumeric(row, col, bot, depth) {
+      if (!row || !col) return NaN;
+      if (col.type === 'formula') return evalFormulaCell(row, col, bot, depth || 0);
+      if (col.type === 'amount' || col.type === 'number') return parseNumSafe(row[col.id]);
+      return NaN;
+    }
+
+    function formatNumericValue(num, col) {
+      var sym = col && col.currency && col.currency !== 'None' ? col.currency : '';
+      var dec = (col && col.decimals !== undefined) ? col.decimals : (col && (col.type === 'amount' || col.type === 'formula') ? 2 : 0);
+      var numStr = (col && col.thousandSeparator)
+        ? num.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
+        : num.toFixed(dec);
+      return sym + numStr;
+    }
+
+    function formatCell(val, col, row, bot) {
+      if (col && col.type === 'formula') {
+        if (row && bot) {
+          var fnum = evalFormulaCell(row, col, bot, 0);
+          if (!isNaN(fnum)) return formatNumericValue(fnum, col);
+        } else {
+          var pnum = parseNumSafe(val);
+          if (!isNaN(pnum)) return formatNumericValue(pnum, col);
+        }
+        if (val === undefined || val === null || val === '') return '—';
+        return String(val);
+      }
       if (val === undefined || val === null || val === '') return '—';
       if (col.type === 'amount' || col.type === 'number') {
-        var num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+        var num = parseNumSafe(val);
         if (isNaN(num)) return String(val);
-        var sym = col.currency && col.currency !== 'None' ? col.currency : '';
-        var dec = col.decimals !== undefined ? col.decimals : 2;
-        var numStr = col.thousandSeparator
-          ? num.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })
-          : num.toFixed(dec);
-        return sym + numStr;
+        return formatNumericValue(num, col);
       }
       return String(val);
     }
@@ -1236,10 +1357,66 @@
       return state.bots.find(function (b) { return b.id === state.activeBotId; }) || null;
     }
 
+    function saveCustomFolders() {
+      try { localStorage.setItem(STORAGE_CUSTOM_FOLDERS, JSON.stringify(state.customFolders)); } catch (e) {}
+    }
+
     function getAllFolders() {
       var map = {};
+      (state.customFolders || []).forEach(function (f) {
+        var clean = String(f || '').trim();
+        if (clean) map[clean] = true;
+      });
       state.bots.forEach(function (b) { map[b.folder || 'General'] = true; });
       return Object.keys(map);
+    }
+
+    function createCustomFolder(folderName, withStarterTable) {
+      if (!guardWriteAction('Add Folder')) return false;
+      var clean = String(folderName || '').trim();
+      if (!clean) { showToast('Please enter a folder name'); return false; }
+      var existing = getAllFolders().find(function (f) { return f.toLowerCase() === clean.toLowerCase(); });
+      if (existing) clean = existing;
+      if (state.customFolders.indexOf(clean) === -1) {
+        state.customFolders.push(clean);
+        saveCustomFolders();
+      }
+      state.selectedFolder = clean;
+      if (withStarterTable) {
+        var id = Date.now();
+        var actor = getCurrentActor();
+        var starterBot = {
+          id: 'bot_' + id,
+          name: clean + ' Table',
+          description: 'Live folder table inside "' + clean + '"',
+          folder: clean,
+          telegramToken: '',
+          webhookUrl: '',
+          webhookSecret: '',
+          webhookActive: false,
+          botStatus: 'simulator',
+          isFavorite: false,
+          createdBy: actor,
+          lastEditedBy: actor,
+          updatedAt: new Date().toISOString(),
+          columns: [
+            { id: 'col_name_' + id, name: 'Name / User', type: 'text', widthMultiplier: 1.2, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
+            { id: 'col_item_' + id, name: 'Item / Detail', type: 'text', widthMultiplier: 1.3, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
+            { id: 'col_qty_' + id, name: 'Quantity', type: 'number', widthMultiplier: 0.9, currency: 'None', thousandSeparator: true, decimals: 0, style: { bold: true, italic: false, align: 'right', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
+            { id: 'col_amt_' + id, name: 'Amount', type: 'amount', widthMultiplier: 1.0, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
+            { id: 'col_formula_' + id, name: 'Total Formula', type: 'formula', formulaExpr: 'Quantity * Amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#6D28D9', bgColor: '#FFFFFF' }, includeInGraph: true },
+            { id: 'col_date_' + id, name: 'Date', type: 'date', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
+          ],
+          rows: []
+        };
+        state.bots.unshift(starterBot);
+        saveBotsLocal();
+        recordFolderSnapshot(starterBot, 'CREATED', 'Created folder "' + clean + '" with starter table "' + starterBot.name + '"', true);
+        pushBotToSupabase(starterBot);
+      }
+      recordAudit('ADD', null, 'Added folder "' + clean + '"' + (withStarterTable ? ' with starter table' : ''));
+      showToast('Folder "' + clean + '" ready!');
+      return true;
     }
 
     // Supabase Cloud Helpers (UMD global window.supabase)
@@ -1947,6 +2124,7 @@
         var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
         html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + ' <span class="folder-count">' + cnt + '</span></button>';
       });
+      html += '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Create a new folder (e.g. Folder B)">' + icon('plus', 13) + '<span>Add Folder</span></button>';
       html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>History &amp; Restore</span>' +
         ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
       '</button>';
@@ -2096,9 +2274,11 @@
       var filterSel = document.getElementById('sel-dash-filter');
       if (filterSel) filterSel.onchange = function (e) { state.filterType = e.target.value; renderDashboard(); };
 
-      document.querySelectorAll('.folder-tab').forEach(function (btn) {
+      document.querySelectorAll('.folder-tab[data-folder]').forEach(function (btn) {
         btn.onclick = function () { state.selectedFolder = btn.getAttribute('data-folder'); renderDashboard(); };
       });
+      var addFldBtn = document.getElementById('btn-add-folder');
+      if (addFldBtn) addFldBtn.onclick = function () { openModal('add_folder'); };
       document.querySelectorAll('[data-open-bot]').forEach(function (card) {
         card.onclick = function () {
           state.activeCardMenuId = null;
@@ -2150,25 +2330,24 @@
 
     // Spreadsheet Table View
     function renderTableView(bot) {
-      var colSums = {};
-      bot.columns.forEach(function (c) {
-        if (c.type === 'amount' || c.type === 'number') {
-          var s = 0;
-          bot.rows.forEach(function (r) {
-            var v = r[c.id];
-            var n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.-]/g, ''));
-            if (!isNaN(n)) s += n;
-          });
-          colSums[c.id] = s;
-        }
-      });
-
       var q = state.tableSearchQuery.toLowerCase();
       var visibleRows = bot.rows.filter(function (r) {
         if (!q) return true;
         return bot.columns.some(function (c) {
           return r[c.id] !== undefined && r[c.id] !== null && String(r[c.id]).toLowerCase().indexOf(q) !== -1;
         });
+      });
+
+      var colSums = {};
+      bot.columns.forEach(function (c) {
+        if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
+          var s = 0;
+          visibleRows.forEach(function (r) {
+            var n = getRowColNumeric(r, c, bot, 0);
+            if (!isNaN(n)) s += n;
+          });
+          colSums[c.id] = s;
+        }
       });
 
       var selCount = Object.keys(state.selectedRowIds).filter(function (k) { return state.selectedRowIds[k]; }).length;
@@ -2187,7 +2366,7 @@
                 '<span class="pill-badge" style="' + statusBg + 'font-size:10px;text-transform:uppercase;">' + esc(bot.botStatus) + '</span>' +
                 (bot.webhookActive ? '<span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;" title="' + esc(bot.webhookUrl || '') + '">WEBHOOK PUSH</span>' : '') +
               '</div>' +
-              '<div style="font-size:11px;color:#BFDBFE;">' + bot.rows.length + ' records &middot; ' + esc(getCurrentActor()) + '</div>' +
+              '<div style="font-size:11px;color:#BFDBFE;">' + esc(bot.folder || 'General') + ' &middot; ' + bot.rows.length + ' records &middot; ' + esc(getCurrentActor()) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="header-right">' +
@@ -2217,7 +2396,7 @@
         html += '<th data-edit-col="' + esc(col.id) + '" style="min-width:' + minW + 'px;" title="Tap to Edit Column Properties">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
             '<span class="truncate">' + esc(col.name) + '</span>' +
-            '<span style="font-size:10px;font-family:monospace;text-transform:uppercase;background:#E2E8F0;color:#475569;padding:1px 5px;border-radius:4px;">' + esc(col.type) + '</span>' +
+            '<span style="font-size:10px;font-family:monospace;text-transform:uppercase;background:' + (col.type === 'formula' ? '#EDE9FE;color:#5B21B6;' : '#E2E8F0;color:#475569;') + 'padding:1px 5px;border-radius:4px;">' + esc(col.type) + '</span>' +
           '</div></th>';
       });
       html += '<th id="th-add-col" style="min-width:124px;background:#EFF6FF;color:#0D47A1;cursor:pointer;text-align:center;" title="Click to add a new column"><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">' + icon('plus', 13) + '<span>Add Column</span></span></th>';
@@ -2236,26 +2415,51 @@
           var isEd = state.editingCell && state.editingCell.rowId === row.id && state.editingCell.colId === col.id;
           var st = col.style || {};
           var bg = !isEd && st.bgColor && st.bgColor !== '#FFFFFF' ? 'background:' + st.bgColor + ';' : '';
-          var align = 'text-align:' + (st.align || 'left') + ';';
+          var align = 'text-align:' + (st.align || (col.type === 'formula' || col.type === 'number' || col.type === 'amount' ? 'right' : 'left')) + ';';
 
           if (col.type === 'checkbox') {
             html += '<td style="text-align:center;' + bg + '"><input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' /></td>';
           } else if (isEd) {
             var itype = (col.type === 'amount' || col.type === 'number') ? 'number' : 'text';
-            html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(val !== undefined && val !== null ? val : '') + '" /></td>';
+            html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(val !== undefined && val !== null ? val : '') + '" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" /></td>';
           } else {
             var isAmt = col.type === 'amount';
-            var color = isAmt ? '#E65100' : (st.color || '#1E293B');
-            var fw = (st.bold || isAmt) ? '700' : '400';
+            var isFrm = col.type === 'formula';
+            var isNum = col.type === 'number';
+            var color = isAmt ? '#E65100' : isFrm ? '#6D28D9' : isNum ? '#0D47A1' : (st.color || '#1E293B');
+            var fw = (st.bold || isAmt || isFrm) ? '700' : '400';
             var fs = st.italic ? 'italic' : 'normal';
-            html += '<td class="cell-clickable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" style="cursor:text;' + align + bg + '">' +
-              '<span class="' + (isAmt ? 'cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col)) + '</span></td>';
+            var titleTip = isFrm && col.formulaExpr ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to override cell)"' : '';
+            html += '<td class="cell-clickable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
+              '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col, row, bot)) + '</span></td>';
           }
         });
         html += '<td style="background:#F8FAFC;"></td>';
         html += '</tr>';
       });
-      html += '</tbody></table>';
+      html += '</tbody>';
+
+      // Last Row Down Sum Row (Number, Formula & Amount column totals directly under the rows)
+      var labelPlaced = false;
+      html += '<tfoot><tr class="table-sum-row"><td class="frozen-col" title="Last Row Sum (Σ)">Σ</td>';
+      bot.columns.forEach(function (col) {
+        if (col.type === 'amount' || col.type === 'number' || col.type === 'formula') {
+          var sumVal = colSums[col.id] || 0;
+          var formattedSum = formatNumericValue(sumVal, col);
+          var badgeCol = col.type === 'amount' ? '#E65100' : col.type === 'formula' ? '#6D28D9' : '#0D47A1';
+          var tag = col.type === 'formula' ? 'Σ Formula' : col.type === 'amount' ? 'Σ Amount' : 'Σ Number';
+          html += '<td style="text-align:right;">' +
+            '<div style="font-size:9.5px;text-transform:uppercase;color:#64748B;font-weight:700;">' + tag + '</div>' +
+            '<div class="mono" style="font-size:13px;font-weight:800;color:' + badgeCol + ';">' + esc(formattedSum) + '</div>' +
+          '</td>';
+        } else if (!labelPlaced) {
+          labelPlaced = true;
+          html += '<td style="color:#0D47A1;font-size:12px;">Σ Last Row Sum (' + visibleRows.length + ' rows)</td>';
+        } else {
+          html += '<td></td>';
+        }
+      });
+      html += '<td></td></tr></tfoot></table>';
 
       html += '<div class="add-row-bar" style="flex-wrap:wrap;gap:10px;">' +
         '<button class="add-row-btn" id="btn-add-row" title="Append Row">' + icon('plus', 20) + '</button>' +
@@ -2264,19 +2468,18 @@
       '</div></div>';
 
       // Sticky Sigma Summary Footer
-      var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number'; });
+      var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; });
       html += '<footer class="sigma-footer">' +
-        '<span style="color:#FCD34D;font-weight:800;white-space:nowrap;">Σ Live Totals:</span>' +
+        '<span style="color:#FCD34D;font-weight:800;white-space:nowrap;">Σ Live Totals (Num / Formula / Amt):</span>' +
         '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">';
       if (numCols.length === 0) {
-        html += '<span style="color:#BFDBFE;font-size:12px;">No numeric columns</span>';
+        html += '<span style="color:#BFDBFE;font-size:12px;">No numeric/formula columns</span>';
       } else {
         numCols.forEach(function (c) {
-          var sym = c.currency && c.currency !== 'None' ? c.currency : '$';
           var tot = colSums[c.id] || 0;
           html += '<div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">' +
             '<span style="color:#BFDBFE;font-size:12px;font-weight:400;">' + esc(c.name) + ':</span>' +
-            '<span class="mono" style="color:#FCD34D;font-weight:800;">' + esc(sym) + tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span></div>';
+            '<span class="mono" style="color:#FCD34D;font-weight:800;">' + esc(formatNumericValue(tot, c)) + '</span></div>';
         });
       }
       html += '</div></footer>';
@@ -2371,15 +2574,17 @@
 
       document.getElementById('btn-add-row').onclick = function () {
         if (!guardWriteAction('Add Row')) return;
-        var nr = { id: 'row_' + Date.now(), _actor: getCurrentActor() };
+        var nowIso = new Date().toISOString();
+        var nr = { id: 'row_' + Date.now(), _actor: getCurrentActor(), _createdAt: nowIso, _updatedAt: nowIso };
         bot.columns.forEach(function (c) {
           if (c.type === 'amount' || c.type === 'number') nr[c.id] = 0;
+          else if (c.type === 'formula') nr[c.id] = '';
           else if (c.type === 'checkbox') nr[c.id] = false;
-          else if (c.type === 'date') nr[c.id] = new Date().toISOString().slice(0, 16).replace('T', ' ');
+          else if (c.type === 'date') nr[c.id] = toLocalDateTimeStr(nowIso);
           else nr[c.id] = '';
         });
         bot.rows.push(nr);
-        bot.updatedAt = new Date().toISOString();
+        bot.updatedAt = nowIso;
         updateBot(bot, 'ADD', 'Added new row #' + bot.rows.length);
         renderTableView(bot);
       };
@@ -2449,14 +2654,16 @@
             parsed = isNaN(num) ? 0 : num;
           }
           var oldVal = '';
+          var nowIso = new Date().toISOString();
           bot.rows.forEach(function (r) {
             if (r.id === ed.rowId) {
               oldVal = r[ed.colId];
               r[ed.colId] = parsed;
               r._actor = getCurrentActor();
+              r._updatedAt = nowIso;
             }
           });
-          bot.updatedAt = new Date().toISOString();
+          bot.updatedAt = nowIso;
           if (String(oldVal) !== String(parsed)) {
             updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"');
           }
@@ -2610,6 +2817,60 @@
       else if (m.type === 'import_excel') renderImportExcelModal(m);
       else if (m.type === 'backup') renderBackupModal(m);
       else if (m.type === 'file_history') renderFileHistoryModal(m);
+      else if (m.type === 'add_folder') renderAddFolderModal(m);
+    }
+
+    function renderAddFolderModal(m) {
+      var folders = getAllFolders();
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:460px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('folder', 20) + '<h2 style="font-size:16px;font-weight:700;">Add &amp; Manage Folders</h2></div>' +
+          '<button class="icon-btn" id="af-close">' + icon('close', 18) + '</button></header>' +
+        '<form id="af-form" class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
+          '<div><label class="field-label">New Folder Name</label>' +
+            '<input id="af-name" class="form-input" placeholder="e.g. Folder B, Orders, Expenses..." value="' + esc(m.name || '') + '" required autofocus />' +
+            '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
+              ['Folder B', 'Folder C', 'Inventory', 'Expenses'].map(function (sug) {
+                return '<button type="button" class="btn btn-outline af-sug" data-sug="' + esc(sug) + '" style="padding:3px 9px;font-size:11px;">+ ' + esc(sug) + '</button>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+          '<label style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;color:#0D47A1;">' +
+            '<input type="checkbox" id="af-starter" checked /> Create a starter table inside this folder (with Number, Formula &amp; Amount columns)' +
+          '</label>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button type="button" id="af-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+            '<button type="submit" class="btn btn-primary" style="flex:1.4;">' + icon('plus', 15) + '<span>Create Folder</span></button>' +
+          '</div>' +
+          '<div style="border-top:1px solid #E2E8F0;padding-top:12px;">' +
+            '<div class="field-label" style="margin-bottom:6px;">Existing Folders (' + folders.length + ') — Tap to open</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+              folders.map(function (f) {
+                var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
+                return '<button type="button" class="btn btn-outline af-pick" data-f="' + esc(f) + '" style="padding:5px 10px;font-size:11.5px;">' + icon('folder', 12) + '<span>' + esc(f) + ' (' + cnt + ')</span></button>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+        '</form></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('af-close').onclick = closeModal;
+      document.getElementById('af-cancel').onclick = closeModal;
+      document.querySelectorAll('.af-sug').forEach(function (b) {
+        b.onclick = function () { document.getElementById('af-name').value = b.getAttribute('data-sug'); };
+      });
+      document.querySelectorAll('.af-pick').forEach(function (b) {
+        b.onclick = function () { state.selectedFolder = b.getAttribute('data-f'); closeModal(); renderApp(); };
+      });
+      document.getElementById('af-form').onsubmit = function (e) {
+        e.preventDefault();
+        var fname = document.getElementById('af-name').value;
+        var withStarter = document.getElementById('af-starter').checked;
+        if (createCustomFolder(fname, withStarter)) {
+          closeModal();
+          renderApp();
+        }
+      };
     }
 
     function renderColumnModal(m) {
@@ -2656,7 +2917,22 @@
               '<button type="button" id="w-plus" class="btn btn-outline" style="width:34px;height:34px;padding:0;border-radius:999px;">' + icon('plus', 15) + '</button>' +
             '</div></div>';
 
-      if (d.type === 'amount' || d.type === 'number') {
+      if (d.type === 'formula') {
+        var colChips = bot.columns.filter(function (c) { return c.id !== origCol.id; }).map(function (c) {
+          return '<button type="button" class="btn btn-outline col-fchip" data-cname="' + esc(c.name) + '" style="padding:3px 8px;font-size:10.5px;">+ ' + esc(c.name) + '</button>';
+        }).join('');
+        html += '<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">' +
+          '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#5B21B6;">Formula Expression (Σ Row Calculation)</div>' +
+          '<input id="col-formula-expr" class="form-input mono" placeholder="e.g. Total Amount - Paid Amount or SUM_ALL" value="' + esc(d.formulaExpr || '') + '" style="font-size:12px;" />' +
+          '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+            '<button type="button" class="btn btn-outline col-fpreset" data-fexpr="SUM_ALL" style="padding:3px 8px;font-size:10.5px;">SUM_ALL (Number + Amount)</button>' +
+            colChips +
+          '</div>' +
+          '<div style="font-size:11px;color:#6D28D9;">Tip: Enter <code>ColumnA - ColumnB</code>, <code>Quantity * Amount</code>, or type <code>=100+50</code> directly inside any cell.</div>' +
+        '</div>';
+      }
+
+      if (d.type === 'amount' || d.type === 'number' || d.type === 'formula') {
         html += '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;">' +
           '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">Number &amp; Currency Formatting</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
@@ -2705,6 +2981,20 @@
         b.onclick = function () {
           d.type = b.getAttribute('data-ctype');
           if (d.type === 'amount') { st.bold = true; st.color = '#E65100'; st.align = 'right'; }
+          else if (d.type === 'formula') { st.bold = true; st.color = '#6D28D9'; st.align = 'right'; if (d.decimals === undefined) d.decimals = 2; }
+          else if (d.type === 'number') { st.align = 'right'; }
+          renderColumnModal(m);
+        };
+      });
+      var fExprInp = document.getElementById('col-formula-expr');
+      if (fExprInp) fExprInp.oninput = function (e) { d.formulaExpr = e.target.value; };
+      document.querySelectorAll('.col-fpreset').forEach(function (b) {
+        b.onclick = function () { d.formulaExpr = b.getAttribute('data-fexpr'); renderColumnModal(m); };
+      });
+      document.querySelectorAll('.col-fchip').forEach(function (b) {
+        b.onclick = function () {
+          var cname = b.getAttribute('data-cname');
+          d.formulaExpr = (d.formulaExpr ? d.formulaExpr + ' + ' : '') + cname;
           renderColumnModal(m);
         };
       });
@@ -2911,83 +3201,156 @@
       document.getElementById('hlp-ok').onclick = closeModal;
     }
 
+    function getLocalYmd(dateObj) {
+      var d = dateObj instanceof Date ? dateObj : new Date(dateObj || Date.now());
+      if (isNaN(d.getTime())) d = new Date();
+      var y = d.getFullYear();
+      var mo = String(d.getMonth() + 1).padStart(2, '0');
+      var da = String(d.getDate()).padStart(2, '0');
+      return y + '-' + mo + '-' + da;
+    }
+
+    function toLocalDateTimeStr(input) {
+      var d = input instanceof Date ? input : new Date(input || Date.now());
+      if (isNaN(d.getTime())) d = new Date();
+      var hh = String(d.getHours()).padStart(2, '0');
+      var mm = String(d.getMinutes()).padStart(2, '0');
+      return getLocalYmd(d) + ' ' + hh + ':' + mm;
+    }
+
     function buildReportItems() {
       var items = [];
       state.bots.forEach(function (bot) {
         var folderName = bot.folder || 'General';
         var findCol = function (preds) {
           return bot.columns.find(function (c) {
-            var n = c.name.toLowerCase();
+            var n = (c.name || '').toLowerCase();
             return preds.some(function (p) { return n.indexOf(p) !== -1 || c.id === p || c.type === p; });
           });
         };
-        var cnameCol = findCol(['customer', 'user', 'buyer', 'col_cname', 'col_user', 'col_buyer']);
-        var qualCol = findCol(['quality', 'quantity', 'item', 'pair', 'col_quality', 'col_item']);
-        var totCol = findCol(['total', 'col_total']);
-        var paidCol = findCol(['paid', 'amount', 'col_paid', 'col_amount']);
-        var balCol = findCol(['balance', 'col_balance']);
+        var textCols = bot.columns.filter(function (c) { return c.type === 'text' || !c.type; });
+        var cnameCol = findCol(['customer', 'user', 'name', 'client', 'buyer', 'col_cname', 'col_user', 'col_buyer']) || textCols[0];
+        var qualCol = findCol(['quality', 'quantity', 'item', 'message', 'pair', 'inquiry', 'product', 'col_quality', 'col_item']) || (textCols[1] && textCols[1].id !== (cnameCol && cnameCol.id) ? textCols[1] : null);
+        var totCol = findCol(['total', 'formula', 'col_total']);
+        var paidCol = findCol(['paid', 'amount', 'price', 'target', 'col_paid', 'col_amount']);
+        var balCol = findCol(['balance', 'remaining', 'due', 'col_balance']);
         var dateCol = findCol(['date', 'time']);
 
-        bot.rows.forEach(function (row) {
-          var cname = cnameCol ? String(row[cnameCol.id] || '') : 'Unknown Customer';
-          var qual = qualCol ? String(row[qualCol.id] || '') : 'Standard Item';
-          var num = function (col) {
-            if (!col || row[col.id] === undefined) return 0;
-            return parseFloat(String(row[col.id]).replace(/[^0-9.-]/g, '')) || 0;
+        bot.rows.forEach(function (row, idx) {
+          var cname = cnameCol && row[cnameCol.id] !== undefined && row[cnameCol.id] !== '' ? String(row[cnameCol.id]) : (bot.name + ' #' + (idx + 1));
+          var qual = qualCol && row[qualCol.id] !== undefined && row[qualCol.id] !== '' ? String(row[qualCol.id]) : '';
+          if (!qual) {
+            var extras = [];
+            bot.columns.forEach(function (c) {
+              if ((!cnameCol || c.id !== cnameCol.id) && c.type !== 'date' && row[c.id] !== undefined && row[c.id] !== '') {
+                extras.push(c.name + ': ' + formatCell(row[c.id], c, row, bot));
+              }
+            });
+            qual = extras.slice(0, 2).join(' · ') || 'Table Record';
+          }
+          var colNum = function (col) {
+            if (!col) return 0;
+            var n = getRowColNumeric(row, col, bot, 0);
+            return isNaN(n) ? 0 : n;
           };
-          var totVal = num(totCol);
-          var paidVal = num(paidCol);
-          var balVal = balCol && row[balCol.id] !== undefined ? num(balCol) : (totVal > 0 ? Math.max(0, totVal - paidVal) : 0);
-          if (totVal <= 0 && !balCol) totVal = paidVal;
-          var st = balVal > 0 && paidVal > 0 ? 'Partial' : balVal > 0 ? 'Unpaid' : 'Paid in Full';
-          var dt = dateCol && row[dateCol.id] ? String(row[dateCol.id]) : '2026-11-12 10:00';
-          items.push({ id: row.id, botName: bot.name, folder: folderName, customerName: cname, qualityOrQuantity: qual, totalAmount: totVal, paidAmount: paidVal, remainingBalance: balVal, status: st, date: dt });
+          var rowNumFormulaSum = 0;
+          bot.columns.forEach(function (c) {
+            if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
+              var v = getRowColNumeric(row, c, bot, 0);
+              if (!isNaN(v)) rowNumFormulaSum += v;
+            }
+          });
+          var totVal = colNum(totCol);
+          var paidVal = colNum(paidCol);
+          var balVal = balCol && row[balCol.id] !== undefined ? colNum(balCol) : (totVal > 0 && paidCol && (!totCol || totCol.id !== paidCol.id) ? Math.max(0, totVal - paidVal) : 0);
+          if (totVal <= 0 && !balCol) totVal = paidVal > 0 ? paidVal : rowNumFormulaSum;
+          if (paidVal <= 0 && totVal > 0 && !balCol) paidVal = totVal;
+          var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
+          var rawDate = dateCol && row[dateCol.id] ? String(row[dateCol.id]).trim() : '';
+          var dt = rawDate || toLocalDateTimeStr(row._updatedAt || row._createdAt || bot.updatedAt || new Date());
+          items.push({
+            id: row.id,
+            botId: bot.id,
+            botName: bot.name,
+            folder: folderName,
+            customerName: cname,
+            qualityOrQuantity: qual,
+            totalAmount: totVal,
+            paidAmount: paidVal,
+            remainingBalance: balVal,
+            numFormulaSum: rowNumFormulaSum,
+            status: st,
+            date: dt,
+            rawUpdatedAt: row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString()
+          });
         });
       });
       return items;
     }
 
     function exportReportCsv(period, folder, items, met) {
-      var dStr = new Date().toISOString().slice(0, 10);
+      var dStr = getLocalYmd(new Date());
       var lines = [
-        '"TableBot - Executive Financial & Customer Report"',
+        '"TableBot - Real-Time Financial & Folder Report"',
         '"Period:","' + period.toUpperCase() + ' REPORT"',
-        '"Generated:","' + dStr + ' ' + new Date().toLocaleTimeString() + '"',
-        '"Folder:","' + (folder === 'all' ? 'All Folders' : folder) + '"',
-        '"Total Invoiced:","$' + met.totalInvoiced.toFixed(2) + '"',
+        '"Generated (Real-Time):","' + toLocalDateTimeStr(new Date()) + '"',
+        '"Folder Filter:","' + (folder === 'all' ? 'All Folders' : folder) + '"',
+        '"Total Invoiced / Amount:","$' + met.totalInvoiced.toFixed(2) + '"',
         '"Total Paid:","$' + met.totalPaid.toFixed(2) + '"',
         '"Remaining Balance:","$' + met.totalRemaining.toFixed(2) + '"',
-        '',
-        '"#","Customer Name","Folder","Quality / Quantity","Total Amount ($)","Paid Amount ($)","Remaining Balance ($)","Payment Status","Date"'
+        ''
       ];
-      items.forEach(function (it, i) {
-        lines.push([i + 1, '"' + it.customerName.replace(/"/g, '""') + '"', '"' + it.folder + '"', '"' + it.qualityOrQuantity.replace(/"/g, '""') + '"', it.totalAmount.toFixed(2), it.paidAmount.toFixed(2), it.remainingBalance.toFixed(2), '"' + it.status + '"', '"' + it.date + '"'].join(','));
+      var fNames = folder === 'all' ? getAllFolders() : [folder];
+      fNames.forEach(function (fn) {
+        var fItems = items.filter(function (it) { return it.folder === fn; });
+        var fTot = 0, fPaid = 0, fRem = 0;
+        fItems.forEach(function (it) { fTot += it.totalAmount; fPaid += it.paidAmount; fRem += it.remainingBalance; });
+        lines.push('"FOLDER: ' + fn.replace(/"/g, '""') + ' (' + fItems.length + ' rows)"');
+        lines.push('"#","Table / Bot","Customer / Record","Detail / Item","Total ($)","Paid ($)","Remaining ($)","Status","Date"');
+        if (fItems.length === 0) {
+          lines.push('"—","No rows in this folder yet"');
+        } else {
+          fItems.forEach(function (it, i) {
+            lines.push([i + 1, '"' + it.botName.replace(/"/g, '""') + '"', '"' + it.customerName.replace(/"/g, '""') + '"', '"' + it.qualityOrQuantity.replace(/"/g, '""') + '"', it.totalAmount.toFixed(2), it.paidAmount.toFixed(2), it.remainingBalance.toFixed(2), '"' + it.status + '"', '"' + it.date + '"'].join(','));
+          });
+        }
+        lines.push(['"FOLDER SUBTOTAL: ' + fn.replace(/"/g, '""') + '"', '""', '""', '"' + fItems.length + ' rows"', '"' + fTot.toFixed(2) + '"', '"' + fPaid.toFixed(2) + '"', '"' + fRem.toFixed(2) + '"', '""', '""'].join(','));
+        lines.push('');
       });
-      lines.push('');
-      lines.push(['"TOTALS"', '""', '""', '"' + items.length + ' records"', '"' + met.totalInvoiced.toFixed(2) + '"', '"' + met.totalPaid.toFixed(2) + '"', '"' + met.totalRemaining.toFixed(2) + '"', '""', '""'].join(','));
-      downloadBlob(lines.join('\n'), 'TableBot_' + period + '_Report_' + dStr + '.csv', 'text/csv;charset=utf-8;');
-      showToast('Downloaded CSV report');
+      lines.push(['"GRAND TOTALS"', '""', '""', '"' + items.length + ' records"', '"' + met.totalInvoiced.toFixed(2) + '"', '"' + met.totalPaid.toFixed(2) + '"', '"' + met.totalRemaining.toFixed(2) + '"', '""', '""'].join(','));
+      downloadBlob(lines.join('\n'), 'TableBot_' + period + '_Folder_Report_' + dStr + '.csv', 'text/csv;charset=utf-8;');
+      showToast('Downloaded CSV Folder Report');
     }
 
     function exportReportPdfHtml(period, folder, items, met) {
-      var dStr = new Date().toISOString().slice(0, 10);
-      var rowsHtml = items.map(function (it, i) {
-        return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td><strong>' + esc(it.customerName) + '</strong></td><td>' + esc(it.folder) + '</td><td>' + esc(it.qualityOrQuantity) + '</td>' +
-          '<td style="text-align:right;">$' + it.totalAmount.toFixed(2) + '</td><td style="text-align:right;color:#2E7D32;">$' + it.paidAmount.toFixed(2) + '</td>' +
-          '<td style="text-align:right;font-weight:700;color:' + (it.remainingBalance > 0 ? '#E65100' : '#2E7D32') + ';">$' + it.remainingBalance.toFixed(2) + '</td>' +
-          '<td style="text-align:center;">' + esc(it.status) + '</td><td>' + esc(it.date) + '</td></tr>';
+      var dStr = getLocalYmd(new Date());
+      var fNames = folder === 'all' ? getAllFolders() : [folder];
+      var sectionsHtml = fNames.map(function (fn) {
+        var fItems = items.filter(function (it) { return it.folder === fn; });
+        var fTot = 0, fPaid = 0, fRem = 0;
+        fItems.forEach(function (it) { fTot += it.totalAmount; fPaid += it.paidAmount; fRem += it.remainingBalance; });
+        var rowsHtml = fItems.length === 0
+          ? '<tr><td colspan="8" style="text-align:center;color:#64748B;">No rows in folder "' + esc(fn) + '" yet.</td></tr>'
+          : fItems.map(function (it, i) {
+              return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td>' + esc(it.botName) + '</td><td><strong>' + esc(it.customerName) + '</strong></td><td>' + esc(it.qualityOrQuantity) + '</td>' +
+                '<td style="text-align:right;">$' + it.totalAmount.toFixed(2) + '</td><td style="text-align:right;color:#2E7D32;">$' + it.paidAmount.toFixed(2) + '</td>' +
+                '<td style="text-align:right;font-weight:700;color:' + (it.remainingBalance > 0 ? '#E65100' : '#2E7D32') + ';">$' + it.remainingBalance.toFixed(2) + '</td>' +
+                '<td>' + esc(it.date) + '</td></tr>';
+            }).join('');
+        return '<h2 style="margin-top:20px;color:#0D47A1;border-bottom:2px solid #0D47A1;padding-bottom:4px;">Folder: ' + esc(fn) + ' (' + fItems.length + ' rows) — Total: $' + fTot.toFixed(2) + ' | Paid: $' + fPaid.toFixed(2) + ' | Remaining: $' + fRem.toFixed(2) + '</h2>' +
+          '<table><thead><tr><th>#</th><th>Table</th><th>Customer / Record</th><th>Detail</th><th>Total</th><th>Paid</th><th>Balance</th><th>Date</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>';
       }).join('');
-      var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + period.toUpperCase() + ' Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:16px;}th,td{border:1px solid #CBD5E1;padding:8px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
+      var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + period.toUpperCase() + ' Folder Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}h2{font-size:14px;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}th,td{border:1px solid #CBD5E1;padding:7px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
         '<body onload="window.print()"><div class="np" style="background:#0D47A1;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;"><span>Print / Save as PDF</span><button onclick="window.print()" style="background:#fff;color:#0D47A1;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button></div>' +
-        '<h1>' + period.toUpperCase() + ' FINANCIAL &amp; CUSTOMER REPORT</h1><p>Folder: <strong>' + esc(folder === 'all' ? 'All Folders' : folder) + '</strong> &middot; Date: ' + dStr + '</p>' +
-        '<p style="margin-top:8px;"><strong>Invoiced:</strong> $' + met.totalInvoiced.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#2E7D32;">Paid:</strong> $' + met.totalPaid.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#E65100;">Remaining:</strong> $' + met.totalRemaining.toFixed(2) + '</p>' +
-        '<table><thead><tr><th>#</th><th>Customer</th><th>Folder</th><th>Quality / Quantity</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></body></html>';
-      downloadBlob(doc, 'TableBot_' + period + '_Report_Summary_' + dStr + '.html', 'text/html');
-      showToast('Downloaded printable PDF/HTML report');
+        '<h1>' + period.toUpperCase() + ' REAL-TIME FOLDER REPORT</h1><p>Folder Scope: <strong>' + esc(folder === 'all' ? 'All Folders' : folder) + '</strong> &middot; Real-Time: ' + toLocalDateTimeStr(new Date()) + '</p>' +
+        '<p style="margin-top:8px;"><strong>Grand Total:</strong> $' + met.totalInvoiced.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#2E7D32;">Paid:</strong> $' + met.totalPaid.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#E65100;">Remaining:</strong> $' + met.totalRemaining.toFixed(2) + '</p>' +
+        sectionsHtml + '</body></html>';
+      downloadBlob(doc, 'TableBot_' + period + '_Folder_Report_' + dStr + '.html', 'text/html');
+      showToast('Downloaded printable PDF/HTML folder report');
     }
 
     function renderReportsModal(m) {
-      if (!m.period) m.period = 'daily';
+      if (!m.period) m.period = 'all';
       if (!m.folder) m.folder = 'all';
       if (!m.status) m.status = 'all';
       if (m.search === undefined) m.search = '';
@@ -2995,18 +3358,21 @@
 
       var folders = getAllFolders();
       var allItems = buildReportItems();
-      var refNow = new Date('2026-11-12T12:00:00');
+      var refNow = new Date();
+      var todayYmd = getLocalYmd(refNow);
       var filtered = allItems.filter(function (it) {
         if (m.folder !== 'all' && it.folder !== m.folder) return false;
         if (m.search.trim()) {
           var q = m.search.toLowerCase();
-          if (it.customerName.toLowerCase().indexOf(q) === -1 && it.qualityOrQuantity.toLowerCase().indexOf(q) === -1 && it.folder.toLowerCase().indexOf(q) === -1) return false;
+          if (it.customerName.toLowerCase().indexOf(q) === -1 && it.qualityOrQuantity.toLowerCase().indexOf(q) === -1 && it.folder.toLowerCase().indexOf(q) === -1 && it.botName.toLowerCase().indexOf(q) === -1) return false;
         }
-        if (m.status === 'paid' && it.remainingBalance > 0) return false;
-        if (m.status === 'remaining' && it.remainingBalance <= 0) return false;
-        var dt = new Date(it.date);
+        if (m.status === 'paid' && it.remainingBalance > 0.01) return false;
+        if (m.status === 'remaining' && it.remainingBalance <= 0.01) return false;
+        if (m.period === 'all') return true;
+        var dt = new Date(it.date.indexOf(' ') !== -1 && it.date.indexOf('T') === -1 ? it.date.replace(' ', 'T') : it.date);
+        if (isNaN(dt.getTime())) dt = new Date(it.rawUpdatedAt);
         if (isNaN(dt.getTime())) return true;
-        if (m.period === 'daily') return dt.toISOString().slice(0, 10) === '2026-11-12' || it.date.indexOf('2026-11-12') !== -1;
+        if (m.period === 'daily') return getLocalYmd(dt) === todayYmd || it.date.indexOf(todayYmd) !== -1;
         if (m.period === 'weekly') { var diff = (refNow.getTime() - dt.getTime()) / 86400000; return diff >= -1 && diff <= 7; }
         return dt.getMonth() === refNow.getMonth() && dt.getFullYear() === refNow.getFullYear();
       });
@@ -3018,18 +3384,52 @@
       });
       met.rate = met.totalInvoiced > 0 ? (met.totalPaid / met.totalInvoiced) * 100 : 100;
 
-      var trends = m.period === 'daily'
-        ? [{ l: '08 AM', p: 800, b: 450 }, { l: '10 AM', p: 450, b: 0 }, { l: '12 PM', p: 620, b: 120 }, { l: '03 PM', p: 350, b: 0 }, { l: '06 PM', p: 920, b: 200 }]
-        : m.period === 'weekly'
-        ? [{ l: 'Mon', p: 620, b: 0 }, { l: 'Tue', p: 920, b: 420 }, { l: 'Wed', p: 875, b: 0 }, { l: 'Thu', p: 1250, b: 450 }, { l: 'Fri', p: 750, b: 750 }, { l: 'Sat', p: 450, b: 0 }, { l: 'Sun', p: 280, b: 220 }]
-        : [{ l: 'Week 1', p: 1420, b: 220 }, { l: 'Week 2', p: 1850, b: 750 }, { l: 'Week 3', p: 1795, b: 420 }, { l: 'Week 4', p: 1250, b: 450 }];
+      // Dynamic Real-Time Trend Chart computed from filtered folder data
+      var foldersToShow = m.folder === 'all' ? folders : [m.folder];
+      var trends = [];
+      if (m.period === 'all' || m.folder === 'all') {
+        trends = foldersToShow.slice(0, 8).map(function (fn) {
+          var fp = 0, fb = 0;
+          filtered.forEach(function (it) { if (it.folder === fn) { fp += it.paidAmount; fb += it.remainingBalance; } });
+          return { l: fn.length > 12 ? fn.slice(0, 11) + '…' : fn, p: fp, b: fb };
+        });
+      } else if (m.period === 'daily') {
+        var hBuckets = [{ l: 'Morning', p: 0, b: 0 }, { l: 'Afternoon', p: 0, b: 0 }, { l: 'Evening', p: 0, b: 0 }];
+        filtered.forEach(function (it) {
+          var hr = new Date(it.date.replace(' ', 'T')).getHours();
+          var idx = isNaN(hr) ? 1 : (hr < 12 ? 0 : hr < 17 ? 1 : 2);
+          hBuckets[idx].p += it.paidAmount; hBuckets[idx].b += it.remainingBalance;
+        });
+        trends = hBuckets;
+      } else if (m.period === 'weekly') {
+        var wDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        var wMap = {}; wDays.forEach(function (d) { wMap[d] = { l: d, p: 0, b: 0 }; });
+        filtered.forEach(function (it) {
+          var d = new Date(it.date.replace(' ', 'T'));
+          var key = isNaN(d.getTime()) ? wDays[refNow.getDay()] : wDays[d.getDay()];
+          wMap[key].p += it.paidAmount; wMap[key].b += it.remainingBalance;
+        });
+        trends = wDays.map(function (d) { return wMap[d]; });
+      } else {
+        var wkB = [{ l: 'Wk 1', p: 0, b: 0 }, { l: 'Wk 2', p: 0, b: 0 }, { l: 'Wk 3', p: 0, b: 0 }, { l: 'Wk 4+', p: 0, b: 0 }];
+        filtered.forEach(function (it) {
+          var d = new Date(it.date.replace(' ', 'T'));
+          var dom = isNaN(d.getTime()) ? refNow.getDate() : d.getDate();
+          var idx = dom <= 7 ? 0 : dom <= 14 ? 1 : dom <= 21 ? 2 : 3;
+          wkB[idx].p += it.paidAmount; wkB[idx].b += it.remainingBalance;
+        });
+        trends = wkB;
+      }
+      if (trends.length === 0) trends = [{ l: 'No Data', p: 0, b: 0 }];
       var maxBar = Math.max.apply(null, trends.map(function (t) { return t.p + t.b; }).concat([1]));
+      var liveTimeStr = refNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
         '<header class="modal-header no-print">' +
-          '<div style="display:flex;align-items:center;gap:10px;">' + icon('chart', 22) + '<div><div style="display:flex;align-items:center;gap:8px;"><h2 style="font-size:16px;font-weight:700;">Financial &amp; Customer Reports</h2><span class="pill-badge" style="text-transform:uppercase;">' + esc(m.period) + '</span></div>' +
-          '<div style="font-size:11px;color:#BFDBFE;">Paid Customers &middot; Quality &amp; Quantity &middot; Amounts &middot; Remaining Balance</div></div></div>' +
+          '<div style="display:flex;align-items:center;gap:10px;">' + icon('chart', 22) + '<div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h2 style="font-size:16px;font-weight:700;">Real-Time Folder &amp; Financial Reports</h2><span class="pill-badge" style="text-transform:uppercase;">' + (m.period === 'all' ? 'LIVE ALL' : esc(m.period)) + '</span><span class="pill-badge" style="background:#10B981;color:#fff;">Live ' + esc(liveTimeStr) + '</span></div>' +
+          '<div style="font-size:11px;color:#BFDBFE;">Real-Time Folder Totals &middot; All Folders &amp; Data Shown Below Each Folder</div></div></div>' +
           '<div style="display:flex;align-items:center;gap:8px;position:relative;">' +
+            '<button id="rep-refresh-live" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;padding:6px 10px;font-size:11.5px;" title="Refresh real-time folder totals">' + icon('refresh', 14) + '<span>Live Sync</span></button>' +
             '<button id="rep-dl-toggle" class="btn btn-green" style="font-size:12px;">' + icon('download', 15) + '<span>Download PDF/CSV Report</span>' + icon('chevronDown', 13) + '</button>' +
             (m.menuOpen ? '<div class="dropdown-menu" style="top:42px;width:240px;">' +
               '<button class="dropdown-item" id="rep-dl-pdf">' + icon('pdf', 15) + '<span>Download PDF Report</span></button>' +
@@ -3040,8 +3440,9 @@
             '<button class="icon-btn" id="rep-close">' + icon('close', 20) + '</button>' +
           '</div></header>' +
         '<div class="no-print" style="background:#1565C0;padding:10px 18px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;color:#fff;">' +
-          '<div style="display:flex;background:rgba(13,71,161,0.7);padding:3px;border-radius:10px;gap:3px;">' +
-            '<button class="btn" data-rper="daily" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'daily' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Daily Report</button>' +
+          '<div style="display:flex;background:rgba(13,71,161,0.7);padding:3px;border-radius:10px;gap:3px;flex-wrap:wrap;">' +
+            '<button class="btn" data-rper="all" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'all' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Live All Folders</button>' +
+            '<button class="btn" data-rper="daily" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'daily' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Daily (Today)</button>' +
             '<button class="btn" data-rper="weekly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'weekly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Weekly Report</button>' +
             '<button class="btn" data-rper="monthly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'monthly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Monthly Report</button>' +
           '</div>' +
@@ -3056,67 +3457,99 @@
             '</select>' +
           '</div></div>' +
         '<div class="modal-body tinted" style="display:flex;flex-direction:column;gap:16px;">' +
-          '<div class="no-print" style="background:#fff;border:1px solid #A7F3D0;border-radius:14px;padding:14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">' +
-            '<div><div style="font-weight:700;font-size:13.5px;">Download ' + m.period.toUpperCase() + ' Summary Report</div><div style="font-size:11.5px;color:#64748B;">Export ' + filtered.length + ' customers, items, paid amounts &amp; remaining balances.</div></div>' +
-            '<div style="display:flex;gap:8px;"><button id="ban-pdf" class="btn btn-red" style="font-size:11.5px;">' + icon('pdf', 14) + '<span>Download PDF</span></button>' +
-              '<button id="ban-csv" class="btn btn-green" style="font-size:11.5px;">' + icon('csv', 14) + '<span>Download CSV</span></button>' +
-              '<button id="ban-print" class="btn btn-outline" style="font-size:11.5px;color:#0D47A1;">' + icon('print', 14) + '<span>Print</span></button></div>' +
+          '<div class="no-print" style="background:#fff;border:1px solid #A7F3D0;border-radius:14px;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">' +
+            '<div><div style="font-weight:700;font-size:13.5px;">Real-Time ' + (m.folder === 'all' ? 'All Folders' : esc(m.folder)) + ' Report (' + esc(todayYmd) + ' ' + esc(liveTimeStr) + ')</div><div style="font-size:11.5px;color:#64748B;">Showing ' + foldersToShow.length + ' folder(s) &middot; ' + filtered.length + ' live records across tables.</div></div>' +
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+              '<input id="rep-search" class="form-input" style="width:200px;padding:6px 10px;font-size:12px;" placeholder="Search folder, customer, item..." value="' + esc(m.search) + '" />' +
+              '<button id="ban-pdf" class="btn btn-red" style="font-size:11.5px;">' + icon('pdf', 14) + '<span>PDF</span></button>' +
+              '<button id="ban-csv" class="btn btn-green" style="font-size:11.5px;">' + icon('csv', 14) + '<span>CSV</span></button>' +
+              '<button id="ban-print" class="btn btn-outline" style="font-size:11.5px;color:#0D47A1;">' + icon('print', 14) + '<span>Print</span></button>' +
+            '</div>' +
           '</div>' +
           '<div class="kpi-grid" style="margin-bottom:0;">' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Total Invoiced</div><div class="kpi-val">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">' + filtered.length + ' orders / entries</div></div>' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Total Invoiced / Amt</div><div class="kpi-val">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">' + filtered.length + ' entries across ' + foldersToShow.length + ' folder(s)</div></div>' +
             '<div class="kpi-card"><div class="field-label" style="margin:0;">Paid Amount</div><div class="kpi-val" style="color:#2E7D32;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:10.5px;color:#64748B;margin-top:4px;">Collection: ' + met.rate.toFixed(1) + '%</div></div>' +
-            '<div class="kpi-card" style="border-color:#FDBA74;background:#FFFBEB;"><div class="field-label" style="margin:0;color:#E65100;">Remaining Balance</div><div class="kpi-val" style="color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#9A3412;margin-top:4px;">' + met.balCount + ' customers owe balance</div></div>' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Settled Accounts</div><div class="kpi-val" style="color:#0D47A1;">' + met.paidCount + ' <span style="font-size:12px;color:#94A3B8;font-weight:500;">/ ' + filtered.length + '</span></div><div style="font-size:11px;color:#047857;margin-top:4px;">' + Math.round((met.paidCount / (filtered.length || 1)) * 100) + '% fully settled</div></div>' +
+            '<div class="kpi-card" style="border-color:#FDBA74;background:#FFFBEB;"><div class="field-label" style="margin:0;color:#E65100;">Remaining Balance</div><div class="kpi-val" style="color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#9A3412;margin-top:4px;">' + met.balCount + ' accounts owe balance</div></div>' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Active Folders</div><div class="kpi-val" style="color:#0D47A1;">' + foldersToShow.length + ' <span style="font-size:12px;color:#94A3B8;font-weight:500;">(' + met.paidCount + ' paid)</span></div><div style="font-size:11px;color:#047857;margin-top:4px;">Live data per folder below</div></div>' +
           '</div>' +
           '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:16px;">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
-              '<div><div style="font-weight:700;font-size:13.5px;">Paid vs Remaining Balance Trend</div><div style="font-size:11px;color:#64748B;">Visual comparison across ' + m.period + ' intervals</div></div>' +
-              '<div style="display:flex;gap:12px;font-size:11.5px;font-weight:600;"><span><span style="display:inline-block;width:10px;height:10px;background:#2E7D32;border-radius:2px;margin-right:4px;"></span>Paid</span><span><span style="display:inline-block;width:10px;height:10px;background:#E65100;border-radius:2px;margin-right:4px;"></span>Remaining</span></div>' +
+              '<div><div style="font-weight:700;font-size:13.5px;">Live Folder &amp; Payment Comparison</div><div style="font-size:11px;color:#64748B;">Computed in real time from ' + (m.folder === 'all' ? 'all folders' : esc(m.folder)) + '</div></div>' +
+              '<div style="display:flex;gap:12px;font-size:11.5px;font-weight:600;"><span><span style="display:inline-block;width:10px;height:10px;background:#2E7D32;border-radius:2px;margin-right:4px;"></span>Paid / Amount</span><span><span style="display:inline-block;width:10px;height:10px;background:#E65100;border-radius:2px;margin-right:4px;"></span>Remaining</span></div>' +
             '</div>' +
             '<div style="display:flex;align-items:flex-end;gap:10px;height:125px;padding-top:10px;border-bottom:1px solid #F1F5F9;">';
       trends.forEach(function (t) {
         var ph = Math.round((t.p / maxBar) * 95), bh = Math.round((t.b / maxBar) * 95);
-        html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;" title="Paid: $' + t.p + ' | Due: $' + t.b + '">' +
-          '<div style="width:100%;max-width:40px;height:100px;background:#F8FAFC;display:flex;flex-direction:column;justify-content:flex-end;border-radius:4px 4px 0 0;overflow:hidden;">' +
+        html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;" title="' + esc(t.l) + ' — Paid: $' + t.p.toFixed(2) + ' | Due: $' + t.b.toFixed(2) + '">' +
+          '<div style="width:100%;max-width:44px;height:100px;background:#F8FAFC;display:flex;flex-direction:column;justify-content:flex-end;border-radius:4px 4px 0 0;overflow:hidden;">' +
             '<div style="width:100%;height:' + bh + '%;background:#E65100;"></div>' +
             '<div style="width:100%;height:' + ph + '%;background:#2E7D32;"></div>' +
-          '</div><span style="font-size:11px;color:#64748B;font-weight:600;">' + t.l + '</span></div>';
+          '</div><span style="font-size:10.5px;color:#64748B;font-weight:600;text-align:center;" class="truncate">' + esc(t.l) + '</span></div>';
       });
-      html += '</div></div>' +
-          '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;">' +
-            '<div style="padding:12px 16px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
-              '<div><div style="font-weight:700;font-size:13.5px;color:#0D47A1;">Customer Ledger &amp; Remaining Balance</div><div style="font-size:11px;color:#64748B;">Showing ' + filtered.length + ' records</div></div>' +
-              '<input id="rep-search" class="form-input" style="width:220px;padding:6px 10px;font-size:12px;" placeholder="Search customer or item..." value="' + esc(m.search) + '" />' +
-            '</div>' +
-            '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>#</th><th>Paid Customer Name</th><th>Quality / Quantity</th><th style="text-align:right;">Total</th><th style="text-align:right;">Paid</th><th style="text-align:right;color:#E65100;">Remaining Balance</th><th style="text-align:center;">Status</th><th>Date</th><th class="no-print" style="text-align:center;">Action</th></tr></thead><tbody>';
+      html += '</div></div>';
 
-      if (filtered.length === 0) {
-        html += '<tr><td colspan="9" style="text-align:center;padding:28px;color:#94A3B8;">No customer ledger records match the current filter.</td></tr>';
-      } else {
-        filtered.forEach(function (it, idx) {
-          var hasBal = it.remainingBalance > 0.01;
-          var badgeStyle = !hasBal ? 'background:#DCFCE7;color:#166534;' : it.paidAmount > 0 ? 'background:#FEF3C7;color:#92400E;' : 'background:#FEE2E2;color:#991B1B;';
-          html += '<tr><td class="mono" style="color:#94A3B8;">' + (idx + 1) + '</td>' +
-            '<td><div style="font-weight:700;">' + esc(it.customerName) + '</div><div style="font-size:10px;color:#94A3B8;">Folder: ' + esc(it.folder) + '</div></td>' +
-            '<td><span style="background:#F1F5F9;padding:2px 7px;border-radius:6px;">' + esc(it.qualityOrQuantity) + '</span></td>' +
-            '<td class="mono" style="text-align:right;font-weight:600;">$' + it.totalAmount.toFixed(2) + '</td>' +
-            '<td class="mono" style="text-align:right;font-weight:700;color:#2E7D32;">$' + it.paidAmount.toFixed(2) + '</td>' +
-            '<td class="mono" style="text-align:right;font-weight:700;color:' + (hasBal ? '#E65100' : '#2E7D32') + ';">$' + it.remainingBalance.toFixed(2) + '</td>' +
-            '<td style="text-align:center;"><span style="' + badgeStyle + 'padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">' + esc(it.status) + '</span></td>' +
-            '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + esc(it.date) + '</td>' +
-            '<td class="no-print" style="text-align:center;">' + (hasBal ? '<button class="btn btn-primary rep-remind" data-cust="' + esc(it.customerName) + '" data-bal="' + it.remainingBalance.toFixed(2) + '" style="padding:4px 9px;font-size:11px;">' + icon('send', 11) + '<span>Remind</span></button>' : '—') + '</td></tr>';
-        });
-      }
-      html += '</tbody></table></div>' +
-        '<div style="background:#0D47A1;color:#fff;padding:10px 16px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px;">' +
-          '<span style="color:#FCD34D;font-weight:800;">Σ Period Totals (' + filtered.length + ' customers)</span>' +
+      // All Folders Section — each folder displays its real-time data directly underneath the folder header (ከ folder ስር)
+      foldersToShow.forEach(function (folderName) {
+        var folderBots = state.bots.filter(function (b) { return (b.folder || 'General') === folderName; });
+        var folderItems = filtered.filter(function (it) { return it.folder === folderName; });
+        var fTot = 0, fPaid = 0, fRem = 0;
+        folderItems.forEach(function (it) { fTot += it.totalAmount; fPaid += it.paidAmount; fRem += it.remainingBalance; });
+
+        html += '<div class="report-folder-card">' +
+          '<div class="report-folder-head">' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+              '<span style="color:#D97706;display:inline-flex;">' + icon('folder', 18) + '</span>' +
+              '<span style="font-weight:800;font-size:14px;color:#0D47A1;">' + esc(folderName) + '</span>' +
+              '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;">' + folderBots.length + ' table(s) &middot; ' + folderItems.length + ' row(s)</span>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;">' +
+              '<span class="mono">Total: <strong>$' + fTot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></span>' +
+              '<span class="mono" style="color:#2E7D32;">Paid: <strong>$' + fPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></span>' +
+              '<span class="mono" style="color:#E65100;">Due: <strong>$' + fRem.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></span>' +
+              '<button type="button" class="btn btn-outline rep-focus-folder" data-rfolder="' + esc(folderName) + '" style="padding:4px 9px;font-size:11px;">' + (m.folder === folderName ? 'All Folders' : 'Only This Folder') + '</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>#</th><th>Table / Bot</th><th>Customer / Record</th><th>Quality / Detail</th><th style="text-align:right;">Total / Formula</th><th style="text-align:right;">Paid / Amt</th><th style="text-align:right;color:#E65100;">Remaining</th><th style="text-align:center;">Status</th><th>Real-Time Date</th><th class="no-print" style="text-align:center;">Action</th></tr></thead><tbody>';
+
+        if (folderItems.length === 0) {
+          html += '<tr><td colspan="10" style="text-align:center;padding:18px;color:#64748B;">No matching rows in folder <strong>' + esc(folderName) + '</strong> for this period. ' +
+            (folderBots[0]
+              ? '<button type="button" class="btn btn-primary rep-open-bot" data-bid="' + esc(folderBots[0].id) + '" style="padding:4px 10px;font-size:11px;margin-left:8px;">Open "' + esc(folderBots[0].name) + '"</button>'
+              : '<button type="button" class="btn btn-primary rep-new-in-folder" data-rfolder="' + esc(folderName) + '" style="padding:4px 10px;font-size:11px;margin-left:8px;">+ Add Table in ' + esc(folderName) + '</button>'
+            ) + '</td></tr>';
+        } else {
+          folderItems.forEach(function (it, idx) {
+            var hasBal = it.remainingBalance > 0.01;
+            var badgeStyle = !hasBal ? 'background:#DCFCE7;color:#166534;' : it.paidAmount > 0 ? 'background:#FEF3C7;color:#92400E;' : 'background:#FEE2E2;color:#991B1B;';
+            html += '<tr><td class="mono" style="color:#94A3B8;">' + (idx + 1) + '</td>' +
+              '<td><button type="button" class="rep-open-bot" data-bid="' + esc(it.botId) + '" style="font-weight:600;color:#1565C0;text-decoration:underline;text-align:left;">' + esc(it.botName) + '</button></td>' +
+              '<td style="font-weight:700;">' + esc(it.customerName) + '</td>' +
+              '<td><span style="background:#F1F5F9;padding:2px 7px;border-radius:6px;">' + esc(it.qualityOrQuantity) + '</span></td>' +
+              '<td class="mono" style="text-align:right;font-weight:600;">$' + it.totalAmount.toFixed(2) + '</td>' +
+              '<td class="mono" style="text-align:right;font-weight:700;color:#2E7D32;">$' + it.paidAmount.toFixed(2) + '</td>' +
+              '<td class="mono" style="text-align:right;font-weight:700;color:' + (hasBal ? '#E65100' : '#2E7D32') + ';">$' + it.remainingBalance.toFixed(2) + '</td>' +
+              '<td style="text-align:center;"><span style="' + badgeStyle + 'padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;">' + esc(it.status) + '</span></td>' +
+              '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + esc(it.date) + '</td>' +
+              '<td class="no-print" style="text-align:center;">' + (hasBal ? '<button class="btn btn-primary rep-remind" data-cust="' + esc(it.customerName) + '" data-bal="' + it.remainingBalance.toFixed(2) + '" style="padding:4px 9px;font-size:11px;">' + icon('send', 11) + '<span>Remind</span></button>' : '—') + '</td></tr>';
+          });
+          html += '<tr style="background:#EFF6FF;font-weight:800;color:#0D47A1;"><td colspan="4">Σ ' + esc(folderName) + ' Subtotal (' + folderItems.length + ' rows)</td>' +
+            '<td class="mono" style="text-align:right;">$' + fTot.toFixed(2) + '</td>' +
+            '<td class="mono" style="text-align:right;color:#2E7D32;">$' + fPaid.toFixed(2) + '</td>' +
+            '<td class="mono" style="text-align:right;color:#E65100;">$' + fRem.toFixed(2) + '</td><td colspan="3"></td></tr>';
+        }
+        html += '</tbody></table></div></div>';
+      });
+
+      html += '<div style="background:#0D47A1;color:#fff;border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12.5px;">' +
+          '<span style="color:#FCD34D;font-weight:800;">Σ Grand Totals (' + foldersToShow.length + ' folders &middot; ' + filtered.length + ' records)</span>' +
           '<div class="mono" style="display:flex;gap:18px;font-weight:700;"><span>Total: $' + met.totalInvoiced.toFixed(2) + '</span><span style="color:#6EE7B7;">Paid: $' + met.totalPaid.toFixed(2) + '</span><span style="color:#FCD34D;">Balance: $' + met.totalRemaining.toFixed(2) + '</span></div>' +
-        '</div></div></div></div></div>';
+        '</div></div></div></div>';
 
       document.getElementById('modal-root').innerHTML = html;
       document.getElementById('m-bg').onclick = closeModal;
       document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('rep-close').onclick = closeModal;
+      document.getElementById('rep-refresh-live').onclick = function () { showToast('Real-time folder report refreshed'); renderReportsModal(m); };
       document.getElementById('rep-dl-toggle').onclick = function (e) { e.stopPropagation(); m.menuOpen = !m.menuOpen; renderReportsModal(m); };
       if (m.menuOpen) {
         document.getElementById('rep-dl-pdf').onclick = function () { m.menuOpen = false; exportReportPdfHtml(m.period, m.folder, filtered, met); renderReportsModal(m); };
@@ -3124,7 +3557,7 @@
         document.getElementById('rep-print').onclick = function () { m.menuOpen = false; window.print(); };
         document.getElementById('rep-copy').onclick = function () {
           m.menuOpen = false;
-          var txt = 'TableBot ' + m.period.toUpperCase() + ' REPORT\nInvoiced: $' + met.totalInvoiced.toFixed(2) + '\nPaid: $' + met.totalPaid.toFixed(2) + '\nRemaining: $' + met.totalRemaining.toFixed(2);
+          var txt = 'TableBot ' + m.period.toUpperCase() + ' FOLDER REPORT (' + toLocalDateTimeStr(new Date()) + ')\nInvoiced: $' + met.totalInvoiced.toFixed(2) + '\nPaid: $' + met.totalPaid.toFixed(2) + '\nRemaining: $' + met.totalRemaining.toFixed(2);
           if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(function () {});
           showToast('Report summary copied for Telegram'); renderReportsModal(m);
         };
@@ -3135,6 +3568,26 @@
       document.querySelectorAll('[data-rper]').forEach(function (b) { b.onclick = function () { m.period = b.getAttribute('data-rper'); renderReportsModal(m); }; });
       document.getElementById('rep-folder').onchange = function (e) { m.folder = e.target.value; renderReportsModal(m); };
       document.getElementById('rep-status').onchange = function (e) { m.status = e.target.value; renderReportsModal(m); };
+      document.querySelectorAll('.rep-focus-folder').forEach(function (b) {
+        b.onclick = function () {
+          var rf = b.getAttribute('data-rfolder');
+          m.folder = (m.folder === rf) ? 'all' : rf;
+          renderReportsModal(m);
+        };
+      });
+      document.querySelectorAll('.rep-open-bot').forEach(function (b) {
+        b.onclick = function () {
+          state.activeBotId = b.getAttribute('data-bid');
+          closeModal(); renderApp();
+        };
+      });
+      document.querySelectorAll('.rep-new-in-folder').forEach(function (b) {
+        b.onclick = function () {
+          var rf = b.getAttribute('data-rfolder');
+          createCustomFolder(rf, true);
+          renderReportsModal(m);
+        };
+      });
       var rs = document.getElementById('rep-search');
       rs.oninput = function (e) {
         var pos = e.target.selectionStart; m.search = e.target.value; renderReportsModal(m);
