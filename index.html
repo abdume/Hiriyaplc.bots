@@ -2014,6 +2014,7 @@
 
           if (state.activeCardMenuId === b.id) {
             html += '<div class="dropdown-menu" data-stop-card="1">' +
+              '<button class="dropdown-item" data-menu-action="history" data-bot-id="' + esc(b.id) + '">' + icon('history', 14) + '<span>File Version History</span></button>' +
               '<button class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename / Settings</span></button>' +
               '<button class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
               '<button class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
@@ -2131,7 +2132,8 @@
           var act = item.getAttribute('data-menu-action');
           var bid = item.getAttribute('data-bot-id');
           state.activeCardMenuId = null;
-          if (act === 'rename') { var b = state.bots.find(function (x) { return x.id === bid; }); if (b) openModal('settings', { bot: b }); }
+          if (act === 'history') openModal('file_history', { botId: bid });
+          else if (act === 'rename') { var b = state.bots.find(function (x) { return x.id === bid; }); if (b) openModal('settings', { bot: b }); }
           else if (act === 'dup') duplicateBot(bid);
           else if (act === 'csv') { var b2 = state.bots.find(function (x) { return x.id === bid; }); if (b2) exportBotCsv(b2); }
           else if (act === 'del') deleteBot(bid);
@@ -2191,9 +2193,10 @@
           '<div class="header-right">' +
             (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 10px;font-size:11.5px;">' + icon('trash', 14) + '<span>Delete (' + selCount + ')</span></button>' : '') +
             '<button class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>Sync</span></button>' +
+            '<button class="header-action-btn" id="btn-table-history" title="Open File Version History (3m+ &amp; Restore)"><span style="color:#A7F3D0">' + icon('history', 14) + '</span><span>Versions</span></button>' +
+            '<button class="header-action-btn" id="btn-table-add-col" title="Add New Column"><span style="color:#93C5FD">' + icon('plus', 14) + '</span><span>Add Column</span></button>' +
             '<button class="header-action-btn" id="btn-table-reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
             '<button class="icon-btn" id="btn-table-search" title="Search rows">' + icon('search', 20) + '</button>' +
-            '<button class="icon-btn" id="btn-table-add-col" title="Add Column">' + icon('plus', 20) + '</button>' +
             '<button class="icon-btn" id="btn-table-settings" title="Bot Settings">' + icon('settings', 19) + '</button>' +
           '</div></div>';
 
@@ -2217,6 +2220,7 @@
             '<span style="font-size:10px;font-family:monospace;text-transform:uppercase;background:#E2E8F0;color:#475569;padding:1px 5px;border-radius:4px;">' + esc(col.type) + '</span>' +
           '</div></th>';
       });
+      html += '<th id="th-add-col" style="min-width:124px;background:#EFF6FF;color:#0D47A1;cursor:pointer;text-align:center;" title="Click to add a new column"><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">' + icon('plus', 13) + '<span>Add Column</span></span></th>';
       html += '</tr></thead><tbody>';
 
       visibleRows.forEach(function (row, idx) {
@@ -2248,13 +2252,15 @@
               '<span class="' + (isAmt ? 'cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col)) + '</span></td>';
           }
         });
+        html += '<td style="background:#F8FAFC;"></td>';
         html += '</tr>';
       });
       html += '</tbody></table>';
 
-      html += '<div class="add-row-bar">' +
+      html += '<div class="add-row-bar" style="flex-wrap:wrap;gap:10px;">' +
         '<button class="add-row-btn" id="btn-add-row" title="Append Row">' + icon('plus', 20) + '</button>' +
-        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows displayed</span>' +
+        '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
+        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns displayed</span>' +
       '</div></div>';
 
       // Sticky Sigma Summary Footer
@@ -2285,8 +2291,9 @@
 
       if (state.showMoreMenu) {
         html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:245px;">' +
+          '<button class="dropdown-item" id="more-file-history">' + icon('history', 15) + '<span>File Version History</span></button>' +
           '<button class="dropdown-item" id="more-import-excel">' + icon('excel', 15) + '<span>Import Excel (.xlsx / .csv)</span></button>' +
-          '<button class="dropdown-item" id="more-backup-history">' + icon('history', 15) + '<span>Folder History &amp; Restore</span></button>' +
+          '<button class="dropdown-item" id="more-backup-history">' + icon('folder', 15) + '<span>Folder Backup &amp; Missing</span></button>' +
           '<button class="dropdown-item" id="more-admin">' + icon('shield', 15) + '<span>Admin Activity &amp; Transmit</span></button>' +
           '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
           '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
@@ -2303,6 +2310,7 @@
     function bindTableEvents(bot, visibleRows) {
       document.getElementById('btn-table-back').onclick = function () { state.activeBotId = null; state.showMoreMenu = false; renderApp(); };
       document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
+      document.getElementById('btn-table-history').onclick = function () { openModal('file_history', { botId: bot.id }); };
       document.getElementById('btn-table-reports').onclick = function () { openModal('reports'); };
       document.getElementById('btn-table-settings').onclick = function () { openModal('settings', { bot: bot }); };
       document.getElementById('btn-table-search').onclick = function () {
@@ -2352,10 +2360,13 @@
         });
         bot.updatedAt = new Date().toISOString();
         updateBot(bot, 'ADD', 'Added column "' + colName + '"');
-        showToast('Added "' + colName + '" — tap header to edit');
+        recordFolderSnapshot(bot, 'COLUMN_ADDED', 'Added column "' + colName + '" (now ' + bot.columns.length + ' columns)', true);
+        showToast('Added "' + colName + '" — tap header to rename or change type');
         renderTableView(bot);
       };
       document.getElementById('btn-table-add-col').onclick = addColFn;
+      document.getElementById('th-add-col').onclick = addColFn;
+      document.getElementById('btn-bar-add-col').onclick = addColFn;
       document.getElementById('tb-cols').onclick = addColFn;
 
       document.getElementById('btn-add-row').onclick = function () {
@@ -2463,8 +2474,9 @@
       document.getElementById('tb-export').onclick = function () { exportBotCsv(bot); };
       document.getElementById('tb-more').onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
       if (state.showMoreMenu) {
+        document.getElementById('more-file-history').onclick = function () { state.showMoreMenu = false; openModal('file_history', { botId: bot.id }); };
         document.getElementById('more-import-excel').onclick = function () { state.showMoreMenu = false; openModal('import_excel', { mode: 'merge', targetBotId: bot.id }); };
-        document.getElementById('more-backup-history').onclick = function () { state.showMoreMenu = false; openModal('backup', { tab: 'history', folderFilter: bot.folder || 'General' }); };
+        document.getElementById('more-backup-history').onclick = function () { state.showMoreMenu = false; openModal('backup', { tab: 'vault', folderFilter: bot.folder || 'General' }); };
         document.getElementById('more-admin').onclick = function () { state.showMoreMenu = false; openModal('admin', { tab: 'logs' }); };
         document.getElementById('more-settings').onclick = function () { state.showMoreMenu = false; openModal('settings', { bot: bot }); };
         document.getElementById('more-reports').onclick = function () { state.showMoreMenu = false; openModal('reports'); };
@@ -2597,6 +2609,7 @@
       else if (m.type === 'admin') renderAdminModal(m);
       else if (m.type === 'import_excel') renderImportExcelModal(m);
       else if (m.type === 'backup') renderBackupModal(m);
+      else if (m.type === 'file_history') renderFileHistoryModal(m);
     }
 
     function renderColumnModal(m) {
@@ -4392,7 +4405,8 @@
                   '</div>' +
                   '<div style="font-size:11px;color:#475569;margin-top:2px;">' + esc(it.diffText) + '</div>' +
                 '</div>' +
-                '<div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                  '<button type="button" class="btn btn-outline bk-file-hist" data-bid="' + esc(it.botId) + '" style="padding:4px 8px;font-size:11px;">' + icon('history', 12) + '<span>File Versions</span></button>' +
                   ((it.status === 'DELETED_FILE' || it.status === 'MISSING_FILE')
                     ? '<button type="button" class="btn btn-green bk-rest-item" data-bid="' + esc(it.botId) + '" data-fn="' + esc(it.folder) + '" style="padding:4px 9px;font-size:11px;">' + icon('restore', 12) + '<span>Restore File</span></button>'
                     : it.status === 'CHANGED' && it.prevBackupSnapshot
@@ -4430,6 +4444,7 @@
             '<select id="fh-type" class="form-select" style="flex:1;min-width:130px;">' +
               '<option value="ALL"' + (m.changeFilter === 'ALL' ? ' selected' : '') + '>All Changes</option>' +
               '<option value="MODIFIED"' + (m.changeFilter === 'MODIFIED' ? ' selected' : '') + '>Changed / Edited</option>' +
+              '<option value="COLUMN_ADDED"' + (m.changeFilter === 'COLUMN_ADDED' ? ' selected' : '') + '>Column Added</option>' +
               '<option value="DELETED"' + (m.changeFilter === 'DELETED' ? ' selected' : '') + '>Deleted Files</option>' +
               '<option value="FOLDER_DELETED"' + (m.changeFilter === 'FOLDER_DELETED' ? ' selected' : '') + '>Deleted Folders</option>' +
               '<option value="BACKUP"' + (m.changeFilter === 'BACKUP' ? ' selected' : '') + '>Backups</option>' +
@@ -4443,7 +4458,7 @@
               ? '<div style="text-align:center;padding:24px;color:#94A3B8;font-size:12.5px;">No folder history records match these filters.</div>'
               : histRows.map(function (h) {
                   var acCls = (h.changeType === 'DELETED' || h.changeType === 'FOLDER_DELETED') ? 'act-delete'
-                    : h.changeType === 'MODIFIED' ? 'act-edit'
+                    : (h.changeType === 'MODIFIED' || h.changeType === 'COLUMN_ADDED') ? 'act-edit'
                     : (h.changeType === 'RESTORED' || h.changeType === 'BACKUP') ? 'act-transmit'
                     : 'act-add';
                   return '<div style="padding:10px 12px;border:1px solid #E2E8F0;border-radius:10px;background:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
@@ -4455,9 +4470,12 @@
                         '<span class="mono" style="font-size:11px;color:#0D47A1;font-weight:700;">' + formatHistoryAge(h.timestamp) + '</span>' +
                       '</div>' +
                       '<div style="font-size:11.5px;color:#334155;margin-top:3px;">' + esc(h.diffSummary) + '</div>' +
-                      '<div style="font-size:10.5px;color:#94A3B8;margin-top:2px;">By ' + esc(h.actor) + ' &middot; ' + new Date(h.timestamp).toLocaleString() + ' &middot; ' + h.rowCount + ' rows</div>' +
+                      '<div style="font-size:10.5px;color:#94A3B8;margin-top:2px;">By ' + esc(h.actor) + ' &middot; ' + new Date(h.timestamp).toLocaleString() + ' &middot; ' + h.rowCount + ' rows &middot; ' + h.colCount + ' cols</div>' +
                     '</div>' +
-                    (h.botSnapshot ? '<button type="button" class="btn btn-primary fh-restore-btn" data-snap="' + esc(h.id) + '" style="padding:5px 10px;font-size:11px;">' + icon('restore', 13) + '<span>Restore Version</span></button>' : '') +
+                    '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                      '<button type="button" class="btn btn-outline fh-open-file-hist" data-bid="' + esc(h.botId) + '" style="padding:5px 9px;font-size:11px;">' + icon('history', 12) + '<span>File History</span></button>' +
+                      (h.botSnapshot ? '<button type="button" class="btn btn-primary fh-restore-btn" data-snap="' + esc(h.id) + '" style="padding:5px 10px;font-size:11px;">' + icon('restore', 13) + '<span>Restore Version</span></button>' : '') +
+                    '</div>' +
                   '</div>';
                 }).join('')) +
           '</div>';
@@ -4609,6 +4627,9 @@
             }
           };
         });
+        document.querySelectorAll('.bk-file-hist').forEach(function (b) {
+          b.onclick = function () { openModal('file_history', { botId: b.getAttribute('data-bid') }); };
+        });
         document.querySelectorAll('.bk-revert-item').forEach(function (b) {
           b.onclick = function () {
             var sid = b.getAttribute('data-snap');
@@ -4624,6 +4645,9 @@
         document.getElementById('fh-folder').onchange = function (e) { m.folderFilter = e.target.value; renderBackupModal(m); };
         document.getElementById('fh-win').onchange = function (e) { m.timeWindow = e.target.value; renderBackupModal(m); };
         document.getElementById('fh-type').onchange = function (e) { m.changeFilter = e.target.value; renderBackupModal(m); };
+        document.querySelectorAll('.fh-open-file-hist').forEach(function (b) {
+          b.onclick = function () { openModal('file_history', { botId: b.getAttribute('data-bid') }); };
+        });
         document.querySelectorAll('.fh-restore-btn').forEach(function (b) {
           b.onclick = function () {
             var sid = b.getAttribute('data-snap');
@@ -4659,6 +4683,196 @@
           };
         });
       }
+    }
+
+    // Dedicated Per-File Version History Modal (Minutes, Days, 3+ Months + Preview & Restore / Copy)
+    function renderFileHistoryModal(m) {
+      ensureInitialFolderManifest();
+      var fileChoices = {};
+      state.bots.forEach(function (b) {
+        fileChoices[b.id] = { id: b.id, name: b.name, folder: b.folder || 'General', deleted: false };
+      });
+      state.folderHistory.forEach(function (h) {
+        if (h.botId && !fileChoices[h.botId]) {
+          fileChoices[h.botId] = { id: h.botId, name: h.botName || h.botId, folder: h.folder || 'General', deleted: true };
+        }
+      });
+      state.deletedVault.forEach(function (d) {
+        if (d.botId && !fileChoices[d.botId]) {
+          fileChoices[d.botId] = { id: d.botId, name: d.botName || d.botId, folder: d.folder || 'General', deleted: true };
+        }
+      });
+      var choiceArr = Object.keys(fileChoices).map(function (k) { return fileChoices[k]; });
+      if (!m.botId && choiceArr.length) m.botId = choiceArr[0].id;
+      if (!m.timeWindow) m.timeWindow = 'all';
+      if (!m.changeFilter) m.changeFilter = 'ALL';
+
+      var activeLiveBot = state.bots.find(function (b) { return b.id === m.botId; }) || null;
+      var meta = fileChoices[m.botId] || { id: m.botId || '', name: 'Selected File', folder: 'General', deleted: !activeLiveBot };
+
+      var versions = state.folderHistory.filter(function (h) {
+        if (h.botId !== m.botId) return false;
+        if (!matchesHistoryWindow(h.timestamp, m.timeWindow)) return false;
+        if (m.changeFilter !== 'ALL' && h.changeType !== m.changeFilter) return false;
+        return true;
+      });
+      var totalVersionsForFile = state.folderHistory.filter(function (h) { return h.botId === m.botId; }).length;
+
+      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B;border:1px solid #FECACA;' : '#ECFDF5;color:#065F46;border:1px solid #A7F3D0;') + '">' + esc(m.statusMsg) + '</div>' : '';
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('history', 21) + '<div><h2 style="font-size:16px;font-weight:700;">File Version History &middot; ' + esc(meta.name) + '</h2><div style="font-size:11px;color:#BFDBFE;">Folder: ' + esc(meta.folder) + ' &middot; Minutes, Days &amp; 3+ Months Timeline</div></div></div>' +
+          '<button class="icon-btn" id="fvh-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' + msgNote +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#F8FAFC;border:1px solid #E2E8F0;padding:10px;border-radius:10px;">' +
+            '<div style="flex:1;min-width:190px;">' +
+              '<label class="field-label" style="margin-bottom:3px;">Select File</label>' +
+              '<select id="fvh-file-sel" class="form-select">' +
+                choiceArr.map(function (fc) {
+                  return '<option value="' + esc(fc.id) + '"' + (fc.id === m.botId ? ' selected' : '') + '>' + esc(fc.name) + ' (' + esc(fc.folder) + (fc.deleted ? ' - DELETED' : '') + ')</option>';
+                }).join('') +
+              '</select>' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;padding-top:16px;">' +
+              (activeLiveBot ? '<button type="button" id="fvh-save-cp" class="btn btn-primary" style="font-size:11.5px;padding:7px 11px;">' + icon('plus', 14) + '<span>Save Version Checkpoint</span></button>' : '') +
+              '<button type="button" id="fvh-open-vault" class="btn btn-outline" style="font-size:11.5px;padding:7px 11px;">' + icon('folder', 14) + '<span>All Folders Backup</span></button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<select id="fvh-win" class="form-select" style="flex:1;min-width:165px;">' +
+              '<option value="all"' + (m.timeWindow === 'all' ? ' selected' : '') + '>All Time (Min / Days / 3+ Months)</option>' +
+              '<option value="minutes"' + (m.timeWindow === 'minutes' ? ' selected' : '') + '>Minutes (<= 60 mins)</option>' +
+              '<option value="hours24"' + (m.timeWindow === 'hours24' ? ' selected' : '') + '>Hours / Today (<= 24h)</option>' +
+              '<option value="days7"' + (m.timeWindow === 'days7' ? ' selected' : '') + '>Last 7 Days</option>' +
+              '<option value="days30"' + (m.timeWindow === 'days30' ? ' selected' : '') + '>Last 30 Days (1 Month)</option>' +
+              '<option value="months3"' + (m.timeWindow === 'months3' ? ' selected' : '') + '>Up to 3 Months (<= 90 Days)</option>' +
+              '<option value="above3m"' + (m.timeWindow === 'above3m' ? ' selected' : '') + '>3 Months &amp; Above (90+ Days)</option>' +
+            '</select>' +
+            '<select id="fvh-type" class="form-select" style="flex:1;min-width:150px;">' +
+              '<option value="ALL"' + (m.changeFilter === 'ALL' ? ' selected' : '') + '>All Version Events (' + totalVersionsForFile + ')</option>' +
+              '<option value="MODIFIED"' + (m.changeFilter === 'MODIFIED' ? ' selected' : '') + '>Edited / Changed</option>' +
+              '<option value="COLUMN_ADDED"' + (m.changeFilter === 'COLUMN_ADDED' ? ' selected' : '') + '>Column Added</option>' +
+              '<option value="BACKUP"' + (m.changeFilter === 'BACKUP' ? ' selected' : '') + '>Saved Checkpoints &amp; Backups</option>' +
+              '<option value="IMPORT_EXCEL"' + (m.changeFilter === 'IMPORT_EXCEL' ? ' selected' : '') + '>Excel Imports</option>' +
+              '<option value="DELETED"' + (m.changeFilter === 'DELETED' ? ' selected' : '') + '>Deleted</option>' +
+              '<option value="RESTORED"' + (m.changeFilter === 'RESTORED' ? ' selected' : '') + '>Restored</option>' +
+            '</select>' +
+          '</div>' +
+          '<div style="font-size:11.5px;color:#475569;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">' +
+            '<span>Status: <strong style="color:' + (activeLiveBot ? '#15803D' : '#B91C1C') + ';">' + (activeLiveBot ? ('ACTIVE (' + activeLiveBot.rows.length + ' rows, ' + activeLiveBot.columns.length + ' cols)') : 'DELETED / MISSING FROM FOLDER') + '</strong></span>' +
+            '<span>Showing <strong>' + versions.length + '</strong> version(s)</span>' +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;">' +
+            (versions.length === 0
+              ? '<div style="text-align:center;padding:28px;color:#94A3B8;font-size:12.5px;">No versions saved for this file in the selected filter yet. Click "Save Version Checkpoint" or make an edit.</div>'
+              : versions.map(function (h, idx) {
+                  var vNum = versions.length - idx;
+                  var acCls = (h.changeType === 'DELETED' || h.changeType === 'FOLDER_DELETED') ? 'act-delete'
+                    : (h.changeType === 'MODIFIED' || h.changeType === 'COLUMN_ADDED') ? 'act-edit'
+                    : (h.changeType === 'RESTORED' || h.changeType === 'BACKUP') ? 'act-transmit'
+                    : 'act-add';
+                  var isPreviewing = m.previewSnapId === h.id && h.botSnapshot;
+                  var prevHtml = '';
+                  if (isPreviewing) {
+                    var sb = h.botSnapshot;
+                    prevHtml = '<div style="margin-top:8px;border:1px solid #CBD5E1;border-radius:8px;overflow-x:auto;background:#F8FAFC;">' +
+                      '<table style="width:100%;border-collapse:collapse;font-size:11px;">' +
+                        '<thead><tr style="background:#EFF6FF;">' +
+                          (sb.columns || []).map(function (c) { return '<th style="padding:5px 8px;text-align:left;border-bottom:1px solid #BFDBFE;white-space:nowrap;">' + esc(c.name) + ' <span style="opacity:0.6;">(' + esc(c.type) + ')</span></th>'; }).join('') +
+                        '</tr></thead>' +
+                        '<tbody>' +
+                          ((sb.rows || []).slice(0, 4).map(function (r) {
+                            return '<tr style="border-bottom:1px solid #E2E8F0;background:#fff;">' +
+                              (sb.columns || []).map(function (c) { return '<td style="padding:4px 8px;white-space:nowrap;">' + esc(formatCell(r[c.id], c)) + '</td>'; }).join('') +
+                            '</tr>';
+                          }).join('') || '<tr><td colspan="' + Math.max(1, (sb.columns || []).length) + '" style="padding:8px;text-align:center;color:#94A3B8;">Empty table (0 rows)</td></tr>') +
+                        '</tbody>' +
+                      '</table>' +
+                    '</div>';
+                  }
+                  return '<div style="padding:10px 12px;border:1px solid ' + (idx === 0 ? '#93C5FD;background:#F8FAFF' : '#E2E8F0;background:#fff') + ';border-radius:10px;">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                      '<div style="min-width:0;flex:1;">' +
+                        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                          '<span class="pill-badge" style="background:#0D47A1;color:#fff;font-size:10px;">v' + vNum + (idx === 0 ? ' LATEST' : '') + '</span>' +
+                          '<span class="act-badge ' + acCls + '">' + esc(h.changeType) + '</span>' +
+                          '<span class="mono" style="font-size:11.5px;color:#0D47A1;font-weight:700;">' + formatHistoryAge(h.timestamp) + '</span>' +
+                        '</div>' +
+                        '<div style="font-size:12px;color:#1E293B;font-weight:600;margin-top:3px;">' + esc(h.diffSummary) + '</div>' +
+                        '<div style="font-size:10.5px;color:#64748B;margin-top:2px;">By ' + esc(h.actor) + ' &middot; ' + new Date(h.timestamp).toLocaleString() + ' &middot; ' + h.rowCount + ' rows &middot; ' + h.colCount + ' cols</div>' +
+                      '</div>' +
+                      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                        (h.botSnapshot ? '<button type="button" class="btn btn-outline fvh-prev-btn" data-snap="' + esc(h.id) + '" style="padding:5px 8px;font-size:11px;">' + (isPreviewing ? 'Hide Preview' : 'Preview') + '</button>' : '') +
+                        (h.botSnapshot ? '<button type="button" class="btn btn-green fvh-rest-btn" data-snap="' + esc(h.id) + '" style="padding:5px 9px;font-size:11px;">' + icon('restore', 12) + '<span>Restore</span></button>' : '') +
+                        (h.botSnapshot ? '<button type="button" class="btn btn-outline fvh-copy-btn" data-snap="' + esc(h.id) + '" data-vnum="' + vNum + '" style="padding:5px 9px;font-size:11px;">' + icon('copy', 12) + '<span>Save as Copy</span></button>' : '') +
+                      '</div>' +
+                    '</div>' +
+                    prevHtml +
+                  '</div>';
+                }).join('')) +
+          '</div>' +
+        '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('fvh-close').onclick = closeModal;
+      document.getElementById('fvh-file-sel').onchange = function (e) { m.botId = e.target.value; m.previewSnapId = null; m.statusMsg = null; renderFileHistoryModal(m); };
+      document.getElementById('fvh-win').onchange = function (e) { m.timeWindow = e.target.value; renderFileHistoryModal(m); };
+      document.getElementById('fvh-type').onchange = function (e) { m.changeFilter = e.target.value; renderFileHistoryModal(m); };
+      document.getElementById('fvh-open-vault').onclick = function () { openModal('backup', { tab: 'vault', folderFilter: meta.folder || 'all' }); };
+
+      var cpBtn = document.getElementById('fvh-save-cp');
+      if (cpBtn && activeLiveBot) {
+        cpBtn.onclick = function () {
+          recordFolderSnapshot(activeLiveBot, 'BACKUP', 'Manual file version checkpoint (' + activeLiveBot.rows.length + ' rows, ' + activeLiveBot.columns.length + ' cols)', true);
+          m.statusType = 'success'; m.statusMsg = 'Saved new version checkpoint for "' + activeLiveBot.name + '".';
+          renderFileHistoryModal(m);
+        };
+      }
+      document.querySelectorAll('.fvh-prev-btn').forEach(function (b) {
+        b.onclick = function () {
+          var sid = b.getAttribute('data-snap');
+          m.previewSnapId = m.previewSnapId === sid ? null : sid;
+          renderFileHistoryModal(m);
+        };
+      });
+      document.querySelectorAll('.fvh-rest-btn').forEach(function (b) {
+        b.onclick = function () {
+          var sid = b.getAttribute('data-snap');
+          var snap = state.folderHistory.find(function (h) { return h.id === sid; });
+          if (snap && snap.botSnapshot) {
+            if (activeLiveBot) recordFolderSnapshot(activeLiveBot, 'BACKUP', 'Auto-saved before version restore', true);
+            restoreBotFromSnapshot(snap.botSnapshot, snap.folder || meta.folder || 'General', 'Restored file version from ' + formatHistoryAge(snap.timestamp));
+            m.statusType = 'success'; m.statusMsg = 'Restored "' + snap.botName + '" to version from ' + formatHistoryAge(snap.timestamp) + '!';
+            renderApp(); renderFileHistoryModal(m);
+          }
+        };
+      });
+      document.querySelectorAll('.fvh-copy-btn').forEach(function (b) {
+        b.onclick = function () {
+          if (!guardWriteAction('Restore Version as Copy')) return;
+          var sid = b.getAttribute('data-snap');
+          var vnum = b.getAttribute('data-vnum');
+          var snap = state.folderHistory.find(function (h) { return h.id === sid; });
+          if (snap && snap.botSnapshot) {
+            var copy = JSON.parse(JSON.stringify(snap.botSnapshot));
+            copy.id = 'bot_' + Date.now();
+            copy.name = snap.botName + ' (v' + vnum + ' Copy)';
+            copy.createdBy = getCurrentActor();
+            copy.lastEditedBy = getCurrentActor();
+            copy.updatedAt = new Date().toISOString();
+            state.bots.unshift(copy);
+            saveBotsLocal();
+            recordFolderSnapshot(copy, 'CREATED', 'Saved copy from v' + vnum + ' of "' + snap.botName + '"', true);
+            recordAudit('ADD', copy, 'Restored v' + vnum + ' of "' + snap.botName + '" as new file "' + copy.name + '"', { source: 'File Version History' });
+            pushBotToSupabase(copy);
+            m.botId = copy.id;
+            m.statusType = 'success'; m.statusMsg = 'Created new file "' + copy.name + '" from v' + vnum + '!';
+            renderApp(); renderFileHistoryModal(m);
+          }
+        };
+      });
     }
 
     function exportStandaloneHtml() {
