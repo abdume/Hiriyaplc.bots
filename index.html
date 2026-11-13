@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --blue-dark: #0D47A1;
@@ -434,6 +435,9 @@
     var STORAGE_USERS = 'tablebot_workspace_users';
     var STORAGE_ADMIN_CFG = 'tablebot_admin_config';
     var STORAGE_TG_OFFSET = 'tablebot_tg_offsets';
+    var STORAGE_FOLDER_HISTORY = 'tablebot_folder_history';
+    var STORAGE_DELETED_VAULT = 'tablebot_deleted_vault';
+    var STORAGE_FOLDER_MANIFEST = 'tablebot_folder_manifest';
 
     var SQL_SETUP_SCRIPT =
       '-- Run this in your Supabase SQL Editor:\n' +
@@ -517,7 +521,11 @@
       check: '<polyline points="20 6 9 17 4 12"/>',
       chevronDown: '<path d="m6 9 6 6 6-6"/>',
       refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
-      zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
+      zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+      upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+      history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+      restore: '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+      excel: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9.5 12.5 5 5"/><path d="m14.5 12.5-5 5"/>'
     };
 
     function icon(name, size) {
@@ -698,6 +706,9 @@
       ]),
       adminConfig: Object.assign({}, DEFAULT_ADMIN_CFG, loadJsonStorage(STORAGE_ADMIN_CFG, {})),
       tgOffsets: loadJsonStorage(STORAGE_TG_OFFSET, {}),
+      folderHistory: loadJsonStorage(STORAGE_FOLDER_HISTORY, []),
+      deletedVault: loadJsonStorage(STORAGE_DELETED_VAULT, []),
+      folderManifest: loadJsonStorage(STORAGE_FOLDER_MANIFEST, {}),
       // Dashboard filters
       searchOpen: false,
       searchQuery: '',
@@ -834,8 +845,376 @@
         if (mins < 60) return mins + 'm ago';
         var hrs = Math.floor(mins / 60);
         if (hrs < 24) return hrs + 'h ago';
-        return Math.floor(hrs / 24) + 'd ago';
+        var days = Math.floor(hrs / 24);
+        if (days < 30) return days + 'd ago';
+        var mos = Math.floor(days / 30);
+        if (days <= 90) return mos + ' mo ' + (days % 30) + 'd ago';
+        return '3+ mo (' + days + 'd ago)';
       } catch (e) { return 'Recently'; }
+    }
+
+    // Detailed History Age Formatter: Minutes, Days, up to 3 Months & 3+ Months
+    function formatHistoryAge(dateStr) {
+      try {
+        var diffMs = Math.max(0, Date.now() - new Date(dateStr).getTime());
+        var totalMins = Math.floor(diffMs / 60000);
+        var hrs = Math.floor(totalMins / 60);
+        var days = Math.floor(hrs / 24);
+        if (totalMins < 1) return 'Just now (0m)';
+        if (totalMins < 60) return totalMins + ' min ago';
+        if (hrs < 24) return hrs + 'h ' + (totalMins % 60) + 'm ago (' + totalMins + 'm)';
+        if (days < 30) return days + ' day' + (days === 1 ? '' : 's') + ' ' + (hrs % 24) + 'h ago';
+        var mos = Math.floor(days / 30);
+        var remDays = days % 30;
+        if (days <= 90) return mos + ' mo' + (remDays ? (' ' + remDays + 'd') : '') + ' (' + days + ' days ago)';
+        return '3+ mo (' + days + ' days ago)';
+      } catch (e) { return 'Unknown time'; }
+    }
+
+    function matchesHistoryWindow(dateStr, win) {
+      if (!win || win === 'all') return true;
+      var diffMs = Math.max(0, Date.now() - new Date(dateStr).getTime());
+      var mins = diffMs / 60000;
+      var days = mins / 1440;
+      if (win === 'minutes') return mins <= 60;
+      if (win === 'hours24') return days <= 1;
+      if (win === 'days7') return days <= 7;
+      if (win === 'days30') return days <= 30;
+      if (win === 'months3') return days <= 92;
+      if (win === 'above3m') return days > 92;
+      return true;
+    }
+
+    function saveVaultState() {
+      try {
+        localStorage.setItem(STORAGE_FOLDER_HISTORY, JSON.stringify(state.folderHistory));
+        localStorage.setItem(STORAGE_DELETED_VAULT, JSON.stringify(state.deletedVault));
+        localStorage.setItem(STORAGE_FOLDER_MANIFEST, JSON.stringify(state.folderManifest));
+      } catch (e) {
+        // Trim oldest redundant MODIFIED snapshots first if localStorage quota is tight (keep DELETED/BACKUP/3m+)
+        try {
+          if (state.folderHistory.length > 60) {
+            state.folderHistory = state.folderHistory.slice(0, 60);
+            localStorage.setItem(STORAGE_FOLDER_HISTORY, JSON.stringify(state.folderHistory));
+          }
+          localStorage.setItem(STORAGE_DELETED_VAULT, JSON.stringify(state.deletedVault.slice(0, 50)));
+          localStorage.setItem(STORAGE_FOLDER_MANIFEST, JSON.stringify(state.folderManifest));
+        } catch (e2) {}
+      }
+    }
+
+    function computeBotSignature(bot) {
+      if (!bot) return '';
+      var sample = (bot.rows || []).slice(0, 12).map(function (r) { return JSON.stringify(r); }).join('|');
+      return [bot.name || '', bot.folder || 'General', (bot.columns || []).length, (bot.rows || []).length, sample].join('::');
+    }
+
+    function recordFolderSnapshot(bot, changeType, diffSummary, force) {
+      if (!bot || !bot.id) return;
+      var folder = bot.folder || 'General';
+      var nowIso = new Date().toISOString();
+      var sig = computeBotSignature(bot);
+      var prevManifest = state.folderManifest[bot.id];
+
+      // Auto-calculate human readable diff from manifest if not given
+      if (!diffSummary) {
+        if (!prevManifest) {
+          diffSummary = 'Initial baseline (' + (bot.rows || []).length + ' rows, ' + (bot.columns || []).length + ' cols)';
+        } else {
+          var dr = (bot.rows || []).length - (prevManifest.rowCount || 0);
+          var dc = (bot.columns || []).length - (prevManifest.colCount || 0);
+          var parts = [];
+          if (dr > 0) parts.push('+' + dr + ' row(s)');
+          else if (dr < 0) parts.push(dr + ' row(s)');
+          if (dc > 0) parts.push('+' + dc + ' col(s)');
+          else if (dc < 0) parts.push(dc + ' col(s)');
+          if (prevManifest.folder !== folder) parts.push('Moved: ' + prevManifest.folder + ' -> ' + folder);
+          if (prevManifest.name !== bot.name) parts.push('Renamed: ' + prevManifest.name + ' -> ' + bot.name);
+          if (!parts.length) parts.push('Updated cells (' + (bot.rows || []).length + ' rows)');
+          diffSummary = parts.join(' · ');
+        }
+      }
+
+      // Deduplicate rapid same-minute edits for the same bot unless forced (e.g. BACKUP / DELETED / IMPORT_EXCEL / RESTORED)
+      var latestForBot = state.folderHistory.find(function (h) { return h.botId === bot.id; });
+      if (!force && changeType === 'MODIFIED' && latestForBot && latestForBot.changeType === 'MODIFIED') {
+        var ageSec = (Date.now() - new Date(latestForBot.timestamp).getTime()) / 1000;
+        if (ageSec < 20 && latestForBot.rowCount === (bot.rows || []).length && latestForBot.colCount === (bot.columns || []).length) {
+          latestForBot.timestamp = nowIso;
+          latestForBot.diffSummary = diffSummary;
+          latestForBot.botSnapshot = JSON.parse(JSON.stringify(bot));
+          state.folderManifest[bot.id] = {
+            id: bot.id, name: bot.name, folder: folder,
+            rowCount: (bot.rows || []).length, colCount: (bot.columns || []).length,
+            hash: sig, updatedAt: nowIso
+          };
+          saveVaultState();
+          return;
+        }
+      }
+
+      var snap = {
+        id: 'fh_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        folder: folder,
+        botId: bot.id,
+        botName: bot.name,
+        changeType: changeType || 'MODIFIED',
+        timestamp: nowIso,
+        actor: getCurrentActor(),
+        rowCount: (bot.rows || []).length,
+        colCount: (bot.columns || []).length,
+        hash: sig,
+        diffSummary: diffSummary,
+        botSnapshot: JSON.parse(JSON.stringify(bot))
+      };
+      state.folderHistory.unshift(snap);
+      if (state.folderHistory.length > 180) {
+        // Keep up to 180 snapshots; preserve DELETED, FOLDER_DELETED, BACKUP, RESTORED, IMPORT_EXCEL longest
+        state.folderHistory = state.folderHistory.slice(0, 180);
+      }
+
+      if (changeType !== 'DELETED' && changeType !== 'FOLDER_DELETED') {
+        state.folderManifest[bot.id] = {
+          id: bot.id, name: bot.name, folder: folder,
+          rowCount: (bot.rows || []).length, colCount: (bot.columns || []).length,
+          hash: sig, updatedAt: nowIso
+        };
+      }
+      saveVaultState();
+    }
+
+    function ensureInitialFolderManifest() {
+      var changed = false;
+      state.bots.forEach(function (b) {
+        if (!state.folderManifest[b.id]) {
+          state.folderManifest[b.id] = {
+            id: b.id, name: b.name, folder: b.folder || 'General',
+            rowCount: (b.rows || []).length, colCount: (b.columns || []).length,
+            hash: computeBotSignature(b), updatedAt: b.updatedAt || new Date().toISOString()
+          };
+          changed = true;
+        }
+      });
+      if (state.folderHistory.length === 0 && state.bots.length > 0) {
+        state.bots.forEach(function (b) {
+          state.folderHistory.push({
+            id: 'fh_init_' + b.id,
+            folder: b.folder || 'General',
+            botId: b.id,
+            botName: b.name,
+            changeType: 'BACKUP',
+            timestamp: b.updatedAt || new Date().toISOString(),
+            actor: b.createdBy || getCurrentActor(),
+            rowCount: (b.rows || []).length,
+            colCount: (b.columns || []).length,
+            hash: computeBotSignature(b),
+            diffSummary: 'Initial folder backup baseline (' + (b.rows || []).length + ' rows)',
+            botSnapshot: JSON.parse(JSON.stringify(b))
+          });
+        });
+        changed = true;
+      }
+      if (changed) saveVaultState();
+    }
+
+    function analyzeFolderHealth() {
+      ensureInitialFolderManifest();
+      var currentMap = {};
+      var folderSet = {};
+      state.bots.forEach(function (b) {
+        currentMap[b.id] = b;
+        folderSet[b.folder || 'General'] = true;
+      });
+      Object.keys(state.folderManifest).forEach(function (bid) {
+        var m = state.folderManifest[bid];
+        if (m && m.folder) folderSet[m.folder] = true;
+      });
+      state.deletedVault.forEach(function (d) { if (d.folder) folderSet[d.folder] = true; });
+      state.folderHistory.forEach(function (h) { if (h.folder) folderSet[h.folder] = true; });
+
+      var foldersOut = [];
+      var missingFolders = 0, missingFiles = 0, changedFiles = 0, healthyFiles = 0;
+
+      Object.keys(folderSet).sort().forEach(function (fname) {
+        var items = [];
+        var activeInFolder = state.bots.filter(function (b) { return (b.folder || 'General') === fname; });
+        var seenIds = {};
+
+        // 1. Active files in this folder
+        activeInFolder.forEach(function (b) {
+          seenIds[b.id] = true;
+          var latestBackup = state.folderHistory.find(function (h) {
+            return h.botId === b.id && (h.changeType === 'BACKUP' || h.changeType === 'CREATED' || h.changeType === 'IMPORT_EXCEL' || h.changeType === 'RESTORED');
+          });
+          var sigNow = computeBotSignature(b);
+          var isChanged = latestBackup && latestBackup.hash && latestBackup.hash !== sigNow;
+          var diffText = 'Matches backup';
+          if (isChanged) {
+            changedFiles++;
+            var dr = (b.rows || []).length - (latestBackup.rowCount || 0);
+            diffText = 'Changed since backup (' + (dr >= 0 ? ('+' + dr) : dr) + ' rows, ' + timeAgo(b.updatedAt) + ')';
+          } else {
+            healthyFiles++;
+          }
+          items.push({
+            status: isChanged ? 'CHANGED' : 'OK',
+            botId: b.id, botName: b.name, folder: fname,
+            rowCount: (b.rows || []).length, colCount: (b.columns || []).length,
+            diffText: diffText, lastTime: b.updatedAt || new Date().toISOString(),
+            latestSnapshot: state.folderHistory.find(function (h) { return h.botId === b.id; }) || null,
+            prevBackupSnapshot: latestBackup || null
+          });
+        });
+
+        // 2. Deleted / Missing files belonging to this folder
+        state.deletedVault.forEach(function (dv) {
+          if ((dv.folder || 'General') === fname && !currentMap[dv.botId] && !seenIds[dv.botId]) {
+            seenIds[dv.botId] = true;
+            missingFiles++;
+            items.push({
+              status: 'DELETED_FILE',
+              botId: dv.botId, botName: dv.botName, folder: fname,
+              rowCount: dv.rowCount || 0, colCount: dv.colCount || 0,
+              diffText: (dv.reason || 'Deleted file') + ' · by ' + (dv.deletedBy || 'user'),
+              lastTime: dv.deletedAt,
+              trashItem: dv
+            });
+          }
+        });
+
+        // 3. Manifest entries that went missing without going through deletedVault (e.g. cloud purge / local wipe / moved)
+        Object.keys(state.folderManifest).forEach(function (bid) {
+          var mf = state.folderManifest[bid];
+          if (mf && (mf.folder || 'General') === fname && !currentMap[bid] && !seenIds[bid]) {
+            seenIds[bid] = true;
+            missingFiles++;
+            var snap = state.folderHistory.find(function (h) { return h.botId === bid && h.botSnapshot; });
+            items.push({
+              status: 'MISSING_FILE',
+              botId: bid, botName: mf.name || bid, folder: fname,
+              rowCount: mf.rowCount || 0, colCount: mf.colCount || 0,
+              diffText: 'Missing from folder (last seen ' + formatHistoryAge(mf.updatedAt) + ')',
+              lastTime: mf.updatedAt,
+              latestSnapshot: snap || null
+            });
+          }
+        });
+
+        var isMissingFolder = activeInFolder.length === 0 && items.length > 0;
+        if (isMissingFolder) missingFolders++;
+        var histCount = state.folderHistory.filter(function (h) { return (h.folder || 'General') === fname; }).length;
+        foldersOut.push({
+          folderName: fname,
+          isMissingFolder: isMissingFolder,
+          activeCount: activeInFolder.length,
+          missingCount: items.filter(function (it) { return it.status === 'DELETED_FILE' || it.status === 'MISSING_FILE'; }).length,
+          changedCount: items.filter(function (it) { return it.status === 'CHANGED'; }).length,
+          historyCount: histCount,
+          items: items
+        });
+      });
+
+      return {
+        folders: foldersOut,
+        summary: {
+          totalFolders: foldersOut.length,
+          missingFolders: missingFolders,
+          missingFiles: missingFiles,
+          changedFiles: changedFiles,
+          healthyFiles: healthyFiles
+        }
+      };
+    }
+
+    function restoreBotFromSnapshot(snapData, targetFolder, modeLabel) {
+      if (!snapData || !snapData.id) return null;
+      var restored = JSON.parse(JSON.stringify(snapData));
+      if (targetFolder) restored.folder = targetFolder;
+      restored.updatedAt = new Date().toISOString();
+      restored.lastEditedBy = getCurrentActor();
+      var idx = state.bots.findIndex(function (b) { return b.id === restored.id; });
+      if (idx >= 0) state.bots[idx] = restored;
+      else state.bots.unshift(restored);
+      state.deletedVault = state.deletedVault.filter(function (d) { return d.botId !== restored.id; });
+      saveBotsLocal();
+      recordFolderSnapshot(restored, 'RESTORED', modeLabel || ('Restored "' + restored.name + '" into folder "' + (restored.folder || 'General') + '"'), true);
+      recordAudit('ADD', restored, 'Restored "' + restored.name + '" (' + (restored.rows || []).length + ' rows) to folder "' + (restored.folder || 'General') + '"', { source: 'Restore Vault' });
+      pushBotToSupabase(restored);
+      return restored;
+    }
+
+    function restoreFolderAllMissing(folderName) {
+      if (!guardWriteAction('Restore Folder')) return 0;
+      var count = 0;
+      var currentMap = {};
+      state.bots.forEach(function (b) { currentMap[b.id] = true; });
+      var toRestore = state.deletedVault.filter(function (d) { return (d.folder || 'General') === folderName && !currentMap[d.botId]; });
+      toRestore.forEach(function (d) {
+        if (d.botSnapshot) {
+          restoreBotFromSnapshot(d.botSnapshot, folderName, 'Folder restore "' + folderName + '"');
+          currentMap[d.botId] = true;
+          count++;
+        }
+      });
+      // Also check folderHistory for any missing manifest file in this folder
+      state.folderHistory.forEach(function (h) {
+        if ((h.folder || 'General') === folderName && h.botSnapshot && !currentMap[h.botId]) {
+          restoreBotFromSnapshot(h.botSnapshot, folderName, 'Folder history restore "' + folderName + '"');
+          currentMap[h.botId] = true;
+          count++;
+        }
+      });
+      renderApp();
+      return count;
+    }
+
+    async function deleteFolderWithBackup(folderName) {
+      if (!guardWriteAction('Delete Folder')) return 0;
+      var targets = state.bots.filter(function (b) { return (b.folder || 'General') === folderName; });
+      if (targets.length === 0) return 0;
+      for (var i = 0; i < targets.length; i++) {
+        var t = targets[i];
+        state.deletedVault.unshift({
+          id: 'del_' + Date.now() + '_' + i,
+          folder: folderName,
+          botId: t.id,
+          botName: t.name,
+          deletedAt: new Date().toISOString(),
+          deletedBy: getCurrentActor(),
+          rowCount: (t.rows || []).length,
+          colCount: (t.columns || []).length,
+          reason: 'Folder "' + folderName + '" deleted (backed up)',
+          botSnapshot: JSON.parse(JSON.stringify(t))
+        });
+        recordFolderSnapshot(t, 'FOLDER_DELETED', 'Folder "' + folderName + '" deleted (' + (t.rows || []).length + ' rows backed up)', true);
+        recordAudit('DELETE', t, 'Deleted folder "' + folderName + '" (backed up "' + t.name + '")');
+        if (state.supabaseConfig.isConnected && state.authSession) {
+          var client = getSbClient();
+          if (client) { try { await client.from('user_bots').delete().eq('id', t.id); } catch (e) {} }
+        }
+      }
+      state.deletedVault = state.deletedVault.slice(0, 120);
+      var idSet = {};
+      targets.forEach(function (t) { idSet[t.id] = true; });
+      state.bots = state.bots.filter(function (b) { return !idSet[b.id]; });
+      if (idSet[state.activeBotId]) state.activeBotId = null;
+      if (state.selectedFolder === folderName) state.selectedFolder = 'all';
+      saveBotsLocal();
+      saveVaultState();
+      broadcastLocalSync('delete_folder');
+      renderApp();
+      return targets.length;
+    }
+
+    function createManualBackupCheckpoint() {
+      var count = 0;
+      state.bots.forEach(function (b) {
+        recordFolderSnapshot(b, 'BACKUP', 'Manual full backup checkpoint (' + (b.rows || []).length + ' rows)', true);
+        count++;
+      });
+      recordAudit('ADD', null, 'Created backup checkpoint for ' + count + ' bot file(s) across ' + getAllFolders().length + ' folder(s)', { source: 'Backup Vault' });
+      saveVaultState();
+      return count;
     }
 
     function formatCell(val, col) {
@@ -1359,6 +1738,7 @@
       updated.updatedAt = updated.updatedAt || new Date().toISOString();
       state.bots = state.bots.map(function (b) { return b.id === updated.id ? updated : b; });
       saveBotsLocal();
+      recordFolderSnapshot(updated, 'MODIFIED', auditSummary || ('Updated ' + updated.name), false);
       if (auditAction) {
         recordAudit(auditAction, updated, auditSummary || ('Updated ' + updated.name));
       }
@@ -1385,11 +1765,12 @@
       }
       var id = Date.now();
       var actor = getCurrentActor();
+      var targetFolder = (state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : 'General';
       var newBot = {
         id: 'bot_' + id,
         name: botName,
         description: isBlank ? 'Quick-created blank spreadsheet table' : 'Telegram Bot & Live Table',
-        folder: 'General',
+        folder: targetFolder,
         telegramToken: '',
         webhookUrl: '',
         webhookSecret: '',
@@ -1409,6 +1790,7 @@
       };
       state.bots.unshift(newBot);
       saveBotsLocal();
+      recordFolderSnapshot(newBot, 'CREATED', 'Created bot table "' + botName + '" in folder "' + targetFolder + '"', true);
       recordAudit('ADD', newBot, 'Created new bot table "' + botName + '"');
       pushBotToSupabase(newBot);
       state.activeBotId = newBot.id;
@@ -1422,16 +1804,33 @@
       if (!guardWriteAction('Delete Bot')) return;
       var target = state.bots.find(function (b) { return b.id === botId; });
       if (!target) return;
+      // Auto-archive deleted bot into Deleted/Missing Vault & Folder History (retains 3m+ restore)
+      state.deletedVault.unshift({
+        id: 'del_' + Date.now(),
+        folder: target.folder || 'General',
+        botId: target.id,
+        botName: target.name,
+        deletedAt: new Date().toISOString(),
+        deletedBy: getCurrentActor(),
+        rowCount: (target.rows || []).length,
+        colCount: (target.columns || []).length,
+        reason: 'Bot table deleted',
+        botSnapshot: JSON.parse(JSON.stringify(target))
+      });
+      if (state.deletedVault.length > 120) state.deletedVault = state.deletedVault.slice(0, 120);
+      recordFolderSnapshot(target, 'DELETED', 'Deleted "' + target.name + '" (' + (target.rows || []).length + ' rows backed up to Restore Vault)', true);
+
       state.bots = state.bots.filter(function (b) { return b.id !== botId; });
       if (state.activeBotId === botId) state.activeBotId = null;
       saveBotsLocal();
+      saveVaultState();
       recordAudit('DELETE', target, 'Deleted bot table "' + target.name + '"');
       broadcastLocalSync('delete_bot');
       if (state.supabaseConfig.isConnected && state.authSession) {
         var client = getSbClient();
         if (client) { try { await client.from('user_bots').delete().eq('id', botId); } catch (e) {} }
       }
-      showToast('Deleted "' + target.name + '"');
+      showToast('Deleted "' + target.name + '" (saved in Backup & Restore Vault)');
       renderApp();
     }
 
@@ -1447,6 +1846,7 @@
       copy.updatedAt = new Date().toISOString();
       state.bots.unshift(copy);
       saveBotsLocal();
+      recordFolderSnapshot(copy, 'CREATED', 'Duplicated from "' + t.name + '"', true);
       recordAudit('ADD', copy, 'Duplicated "' + t.name + '" into "' + copy.name + '"');
       pushBotToSupabase(copy);
       showToast('Duplicated "' + t.name + '"');
@@ -1514,6 +1914,8 @@
         '</div>' +
         '<div class="header-right">' +
           '<button class="icon-btn" id="btn-dash-sync" title="Sync Browser, Telegram &amp; Supabase Now">' + icon('refresh', 17) + '</button>' +
+          '<button class="header-action-btn" id="btn-dash-excel" title="Import Excel (.xlsx, .xls, .csv)"><span style="color:#6EE7B7">' + icon('excel', 15) + '</span><span>Import Excel</span></button>' +
+          '<button class="header-action-btn" id="btn-dash-backup" title="Folder Backup, Missing Files &amp; 3m+ History Restore"><span style="color:#A7F3D0">' + icon('history', 15) + '</span><span>Backup &amp; Restore</span></button>' +
           '<button class="header-action-btn" id="btn-dash-admin" title="Admin Panel: User Edits, Unwanted User Block &amp; Transmit"><span style="color:#FDE68A">' + icon('shield', 15) + '</span><span>Admin</span>' + (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;padding:1px 5px;">' + blockedCount + '</span>' : '') + '</button>' +
           '<button class="header-action-btn" id="btn-dash-supabase" title="Login / Connect Supabase Account"><span style="color:' + (state.authSession ? '#6EE7B7' : '#93C5FD') + '">' + icon('cloud', 15) + '</span><span>' + (state.authSession ? 'Account' : state.supabaseConfig.isConnected ? 'Login' : 'Supabase') + '</span></button>' +
           '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
@@ -1535,6 +1937,7 @@
         '</div></div>';
       }
 
+      var healthSummary = analyzeFolderHealth().summary;
       html += '<div class="folders-bar"><div class="folders-inner">' +
         '<span style="font-size:11px;font-weight:700;color:#BFDBFE;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;margin-right:4px;flex-shrink:0;">' +
         '<span style="color:#FCD34D">' + icon('folder', 13) + '</span>Folders:</span>' +
@@ -1544,6 +1947,9 @@
         var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
         html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + ' <span class="folder-count">' + cnt + '</span></button>';
       });
+      html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>History &amp; Restore</span>' +
+        ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
+      '</button>';
       html += '</div></div></header>';
 
       html += '<main class="dashboard-main">';
@@ -1647,6 +2053,12 @@
       if (syncPillBtn) syncPillBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
       var syncNowHdr = document.getElementById('btn-dash-sync');
       if (syncNowHdr) syncNowHdr.onclick = function () { syncAllNow('manual'); };
+      var xlHdr = document.getElementById('btn-dash-excel');
+      if (xlHdr) xlHdr.onclick = function () { openModal('import_excel', { mode: 'new' }); };
+      var bkHdr = document.getElementById('btn-dash-backup');
+      if (bkHdr) bkHdr.onclick = function () { openModal('backup', { tab: 'vault', folderFilter: state.selectedFolder || 'all' }); };
+      var fhBarBtn = document.getElementById('btn-folder-history-bar');
+      if (fhBarBtn) fhBarBtn.onclick = function () { openModal('backup', { tab: 'history', folderFilter: state.selectedFolder || 'all' }); };
       var admBtn = document.getElementById('btn-dash-admin');
       if (admBtn) admBtn.onclick = function () { openModal('admin', { tab: 'logs' }); };
       var sbHdrBtn = document.getElementById('btn-dash-supabase');
@@ -1872,7 +2284,9 @@
         '<div style="position:relative;"><button class="toolbar-btn" id="tb-more">' + icon('dotsH', 19) + '<span>More</span></button>';
 
       if (state.showMoreMenu) {
-        html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:225px;">' +
+        html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:245px;">' +
+          '<button class="dropdown-item" id="more-import-excel">' + icon('excel', 15) + '<span>Import Excel (.xlsx / .csv)</span></button>' +
+          '<button class="dropdown-item" id="more-backup-history">' + icon('history', 15) + '<span>Folder History &amp; Restore</span></button>' +
           '<button class="dropdown-item" id="more-admin">' + icon('shield', 15) + '<span>Admin Activity &amp; Transmit</span></button>' +
           '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
           '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
@@ -2049,6 +2463,8 @@
       document.getElementById('tb-export').onclick = function () { exportBotCsv(bot); };
       document.getElementById('tb-more').onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
       if (state.showMoreMenu) {
+        document.getElementById('more-import-excel').onclick = function () { state.showMoreMenu = false; openModal('import_excel', { mode: 'merge', targetBotId: bot.id }); };
+        document.getElementById('more-backup-history').onclick = function () { state.showMoreMenu = false; openModal('backup', { tab: 'history', folderFilter: bot.folder || 'General' }); };
         document.getElementById('more-admin').onclick = function () { state.showMoreMenu = false; openModal('admin', { tab: 'logs' }); };
         document.getElementById('more-settings').onclick = function () { state.showMoreMenu = false; openModal('settings', { bot: bot }); };
         document.getElementById('more-reports').onclick = function () { state.showMoreMenu = false; openModal('reports'); };
@@ -2056,6 +2472,7 @@
         document.getElementById('more-clear').onclick = function () {
           state.showMoreMenu = false;
           if (!guardWriteAction('Clear All Rows')) return;
+          recordFolderSnapshot(bot, 'BACKUP', 'Pre-clear snapshot (' + bot.rows.length + ' rows)', true);
           var prevCnt = bot.rows.length;
           bot.rows = []; bot.updatedAt = new Date().toISOString();
           updateBot(bot, 'DELETE', 'Cleared all ' + prevCnt + ' rows');
@@ -2095,7 +2512,9 @@
               (loggedIn ? '<span class="sync-dot dot-synced"></span>' : cfg.isConnected ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:999px;">Login Req</span>' : '<span style="font-size:11px;background:#F1F5F9;color:#475569;padding:2px 8px;border-radius:999px;">Offline</span>') + '</button>' +
             '<button class="drawer-item" data-nav="telegram"><span class="drawer-item-left"><span style="color:#0288D1">' + icon('key', 19) + '</span><span>Connect Telegram Token</span></span></button>' +
             '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
-            '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="color:#0F766E">' + icon('download', 19) + '</span><span>Backup Bots (JSON)</span></span></button>' +
+            '<button class="drawer-item" data-nav="import_excel"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:4px;border-radius:6px;display:inline-flex;">' + icon('excel', 17) + '</span><span><div><div style="font-weight:700;">Import Excel (.xlsx / .xls / .csv)</div><div style="font-size:11px;color:#64748B;">Import sheets as new tables or merge rows</div></div></span></span></button>' +
+            '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="background:#F0FDFA;color:#0F766E;padding:4px;border-radius:6px;display:inline-flex;">' + icon('history', 17) + '</span><span><div><div style="font-weight:700;">Backup, Delete &amp; Restore Folders</div><div style="font-size:11px;color:#64748B;">Folder history (min/days/3+ mo), missing &amp; trash</div></div></span></span>' +
+              (state.deletedVault.length ? '<span class="pill-badge" style="background:#D97706;color:#fff;font-size:10px;">' + state.deletedVault.length + '</span>' : '') + '</button>' +
             '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>Export Standalone HTML</span></span></button>' +
             '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>Bot Settings</span></span></button>' +
             '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>Share App</span></span></button>' +
@@ -2135,7 +2554,8 @@
           else if (v === 'forgot') openModal('supabase', { authTab: 'forgot' });
           else if (v === 'supabase') openModal('supabase', { authTab: 'login' });
           else if (v === 'telegram') openModal('telegram', { bot: getActiveBot() || state.bots[0], tab: 'token' });
-          else if (v === 'backup') exportJsonBackup();
+          else if (v === 'import_excel') openModal('import_excel', { mode: getActiveBot() ? 'merge' : 'new', targetBotId: getActiveBot() ? getActiveBot().id : '' });
+          else if (v === 'backup') openModal('backup', { tab: 'vault', folderFilter: state.selectedFolder || 'all' });
           else if (v === 'export_html') exportStandaloneHtml();
           else if (v === 'settings') { var t = getActiveBot() || state.bots[0]; if (t) openModal('settings', { bot: t }); }
           else if (v === 'share') {
@@ -2175,6 +2595,8 @@
       else if (m.type === 'telegram') renderTelegramModal(m);
       else if (m.type === 'supabase') renderSupabaseModal(m);
       else if (m.type === 'admin') renderAdminModal(m);
+      else if (m.type === 'import_excel') renderImportExcelModal(m);
+      else if (m.type === 'backup') renderBackupModal(m);
     }
 
     function renderColumnModal(m) {
@@ -3509,6 +3931,736 @@
       }
     }
 
+    // Excel (.xlsx, .xls, .csv, .tsv) Parser + Pure-JS CSV Fallback
+    function parseCsvTextFallback(text, delimiter) {
+      var rows = [];
+      var curRow = [];
+      var curCell = '';
+      var inQuotes = false;
+      var sep = delimiter || (text.indexOf('\t') !== -1 && text.indexOf(',') === -1 ? '\t' : ',');
+      for (var i = 0; i < text.length; i++) {
+        var ch = text[i];
+        var next = text[i + 1];
+        if (inQuotes) {
+          if (ch === '"' && next === '"') { curCell += '"'; i++; }
+          else if (ch === '"') inQuotes = false;
+          else curCell += ch;
+        } else {
+          if (ch === '"') inQuotes = true;
+          else if (ch === sep) { curRow.push(curCell.trim()); curCell = ''; }
+          else if (ch === '\r' && next === '\n') { curRow.push(curCell.trim()); rows.push(curRow); curRow = []; curCell = ''; i++; }
+          else if (ch === '\n' || ch === '\r') { curRow.push(curCell.trim()); rows.push(curRow); curRow = []; curCell = ''; }
+          else curCell += ch;
+        }
+      }
+      if (curCell.length > 0 || curRow.length > 0) {
+        curRow.push(curCell.trim());
+        rows.push(curRow);
+      }
+      return rows.filter(function (r) { return r.some(function (c) { return c !== ''; }); });
+    }
+
+    function inferExcelColType(headerName, sampleValues) {
+      var h = String(headerName || '').toLowerCase();
+      if (h.indexOf('date') !== -1 || h.indexOf('time') !== -1 || h.indexOf('day') !== -1) return 'date';
+      if (h.indexOf('paid') !== -1 || h.indexOf('check') !== -1 || h.indexOf('done') !== -1 || h.indexOf('active') !== -1) {
+        var boolHits = sampleValues.filter(function (v) { return typeof v === 'boolean' || /^(true|false|yes|no)$/i.test(String(v).trim()); }).length;
+        if (boolHits > 0 && boolHits >= Math.ceil(sampleValues.length / 2)) return 'checkbox';
+      }
+      var nonEmpty = sampleValues.filter(function (v) { return v !== '' && v !== null && v !== undefined; });
+      if (nonEmpty.length === 0) return (h.indexOf('amount') !== -1 || h.indexOf('price') !== -1 || h.indexOf('total') !== -1 || h.indexOf('balance') !== -1) ? 'amount' : 'text';
+      var curHits = 0, numHits = 0, dateHits = 0, boolHits2 = 0;
+      nonEmpty.forEach(function (v) {
+        if (typeof v === 'boolean' || /^(true|false|yes|no)$/i.test(String(v).trim())) boolHits2++;
+        else if (v instanceof Date) dateHits++;
+        else {
+          var s = String(v).trim();
+          if (/^[$€£¥₹]/.test(s)) curHits++;
+          if (/^-?[$€£¥₹]?\s*[0-9,]+(\.[0-9]+)?$/.test(s)) numHits++;
+          else if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(s)) dateHits++;
+        }
+      });
+      if (boolHits2 === nonEmpty.length) return 'checkbox';
+      if (dateHits >= Math.ceil(nonEmpty.length * 0.7)) return 'date';
+      if (numHits >= Math.ceil(nonEmpty.length * 0.7)) {
+        if (curHits > 0 || /amount|price|cost|total|paid|balance|revenue|fee|usd|eur/i.test(h)) return 'amount';
+        return 'number';
+      }
+      return 'text';
+    }
+
+    function parseExcelArrayBufferToSheets(fileName, arrayBuf, rawTextFallback) {
+      var sheets = [];
+      var lower = String(fileName || '').toLowerCase();
+      if (window.XLSX && !lower.endsWith('.csv') && !lower.endsWith('.tsv')) {
+        var wb = window.XLSX.read(new Uint8Array(arrayBuf), { type: 'array', cellDates: true });
+        wb.SheetNames.forEach(function (sname) {
+          var ws = wb.Sheets[sname];
+          var aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+          aoa = aoa.filter(function (r) { return Array.isArray(r) && r.some(function (c) { return c !== '' && c !== null && c !== undefined; }); });
+          if (aoa.length > 0) sheets.push({ name: sname, aoa: aoa, selected: true });
+        });
+      } else if (window.XLSX && (lower.endsWith('.csv') || lower.endsWith('.tsv'))) {
+        try {
+          var wbCsv = window.XLSX.read(rawTextFallback, { type: 'string' });
+          var firstName = wbCsv.SheetNames[0] || fileName.replace(/\.(csv|tsv)$/i, '');
+          var aoaCsv = window.XLSX.utils.sheet_to_json(wbCsv.Sheets[firstName], { header: 1, defval: '' });
+          if (aoaCsv.length > 0) sheets.push({ name: firstName, aoa: aoaCsv, selected: true });
+        } catch (eCsv) {}
+      }
+      if (sheets.length === 0 && rawTextFallback) {
+        var parsedCsv = parseCsvTextFallback(rawTextFallback);
+        if (parsedCsv.length > 0) {
+          sheets.push({ name: fileName.replace(/\.(xlsx|xls|csv|tsv|ods)$/i, '') || 'Sheet1', aoa: parsedCsv, selected: true });
+        }
+      }
+      return sheets.map(function (sh) {
+        var headers = (sh.aoa[0] || []).map(function (h, idx) {
+          var t = String(h === undefined || h === null ? '' : h).trim();
+          return t || ('Column ' + (idx + 1));
+        });
+        var body = sh.aoa.slice(1).map(function (rowArr) {
+          return headers.map(function (_, idx) {
+            var val = rowArr[idx];
+            if (val instanceof Date && !isNaN(val.getTime())) return val.toISOString().slice(0, 16).replace('T', ' ');
+            return val === undefined || val === null ? '' : val;
+          });
+        });
+        var colTypes = headers.map(function (h, idx) {
+          var samples = body.slice(0, 20).map(function (r) { return r[idx]; });
+          return inferExcelColType(h, samples);
+        });
+        return { name: sh.name, headers: headers, colTypes: colTypes, rows: body, selected: true };
+      });
+    }
+
+    function renderImportExcelModal(m) {
+      if (!m.mode) m.mode = (state.bots.length && m.targetBotId) ? 'merge' : 'new';
+      if (!m.targetFolder) m.targetFolder = (state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : 'Imported Excel';
+      if (!m.targetBotId && state.bots.length) m.targetBotId = state.bots[0].id;
+      if (!m.sheets) m.sheets = [];
+      var folders = getAllFolders();
+      if (folders.indexOf('Imported Excel') === -1) folders.push('Imported Excel');
+
+      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B;border:1px solid #FECACA;' : '#ECFDF5;color:#065F46;border:1px solid #A7F3D0;') + '">' + esc(m.statusMsg) + '</div>' : '';
+
+      var previewHtml = '';
+      if (m.sheets.length > 0) {
+        var firstSh = m.sheets[0];
+        previewHtml = '<div style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">' +
+          '<div style="background:#F8FAFC;padding:10px 12px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+            '<div style="font-size:12px;font-weight:700;color:#0F172A;">Parsed File: <span style="color:#0D47A1;">' + esc(m.fileName || '') + '</span> (' + m.sheets.length + ' sheet' + (m.sheets.length > 1 ? 's' : '') + ')</div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+              m.sheets.map(function (sh, si) {
+                return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;background:#fff;padding:4px 8px;border:1px solid #CBD5E1;border-radius:6px;cursor:pointer;">' +
+                  '<input type="checkbox" class="xl-sh-chk" data-si="' + si + '" ' + (sh.selected ? 'checked' : '') + ' />' +
+                  '<span>' + esc(sh.name) + ' (' + sh.rows.length + ' rows)</span></label>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+          '<div style="overflow-x:auto;max-height:200px;">' +
+            '<table style="width:100%;border-collapse:collapse;font-size:11.5px;">' +
+              '<thead><tr style="background:#EFF6FF;">' +
+                firstSh.headers.map(function (h, hi) {
+                  return '<th style="padding:7px 10px;text-align:left;border-bottom:1px solid #BFDBFE;white-space:nowrap;">' + esc(h) + ' <span style="font-size:9.5px;color:#1565C0;font-weight:600;">(' + esc(firstSh.colTypes[hi]) + ')</span></th>';
+                }).join('') +
+              '</tr></thead>' +
+              '<tbody>' +
+                (firstSh.rows.slice(0, 5).map(function (r) {
+                  return '<tr style="border-bottom:1px solid #F1F5F9;">' +
+                    firstSh.headers.map(function (_, ci) {
+                      return '<td style="padding:6px 10px;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;">' + esc(r[ci]) + '</td>';
+                    }).join('') + '</tr>';
+                }).join('') || '<tr><td colspan="' + Math.max(1, firstSh.headers.length) + '" style="padding:12px;text-align:center;color:#94A3B8;">Header-only worksheet (0 data rows)</td></tr>') +
+              '</tbody>' +
+            '</table>' +
+          '</div>' +
+        '</div>';
+      }
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('excel', 21) + '<div><h2 style="font-size:16px;font-weight:700;">Import Excel Workbook (.xlsx, .xls, .csv)</h2><div style="font-size:11px;color:#BFDBFE;">Create new bot tables or append Excel rows into any existing table &amp; folder</div></div></div>' +
+          '<button class="icon-btn" id="xl-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + msgNote +
+          '<div id="xl-drop" style="border:2px dashed #93C5FD;border-radius:12px;padding:18px;text-align:center;background:#F8FAFC;cursor:pointer;">' +
+            '<div style="color:#0D47A1;margin-bottom:6px;">' + icon('upload', 26) + '</div>' +
+            '<div style="font-weight:700;font-size:13.5px;color:#0F172A;">Choose or Drop Excel / CSV File</div>' +
+            '<div style="font-size:11.5px;color:#64748B;margin:4px 0 10px;">Supports multi-sheet <code>.xlsx</code>, <code>.xls</code>, <code>.ods</code>, <code>.csv</code> &amp; <code>.tsv</code></div>' +
+            '<input id="xl-file-inp" type="file" accept=".xlsx,.xls,.csv,.tsv,.ods" style="display:none;" />' +
+            '<button type="button" id="xl-pick-btn" class="btn btn-primary">' + icon('excel', 15) + '<span>Select Excel / CSV File</span></button>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+            '<div>' +
+              '<label class="field-label">Import Mode</label>' +
+              '<select id="xl-mode" class="form-select">' +
+                '<option value="new"' + (m.mode === 'new' ? ' selected' : '') + '>Create New Bot Table(s) per Sheet</option>' +
+                '<option value="merge"' + (m.mode === 'merge' ? ' selected' : '') + '>Append Rows into Existing Table</option>' +
+              '</select>' +
+            '</div>' +
+            (m.mode === 'new'
+              ? '<div><label class="field-label">Target Folder</label><input id="xl-folder" list="xl-dl-folders" class="form-input" value="' + esc(m.targetFolder) + '" placeholder="e.g. Sales, Imported Excel" /><datalist id="xl-dl-folders">' + folders.map(function (f) { return '<option value="' + esc(f) + '">'; }).join('') + '</datalist></div>'
+              : '<div><label class="field-label">Target Existing Bot Table</label><select id="xl-target-bot" class="form-select">' +
+                  state.bots.map(function (b) { return '<option value="' + esc(b.id) + '"' + (m.targetBotId === b.id ? ' selected' : '') + '>' + esc(b.name) + ' (' + esc(b.folder || 'General') + ')</option>'; }).join('') +
+                '</select></div>') +
+          '</div>' +
+          previewHtml +
+          '<div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px;">' +
+            '<button type="button" id="xl-cancel" class="btn btn-outline">Cancel</button>' +
+            '<button type="button" id="xl-import-go" class="btn btn-green" ' + (!m.sheets.length ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '') + '>' + icon('check', 15) + '<span>Import Excel Data Now</span></button>' +
+          '</div>' +
+        '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('xl-close').onclick = closeModal;
+      document.getElementById('xl-cancel').onclick = closeModal;
+
+      var handleFile = function (file) {
+        if (!file) return;
+        m.fileName = file.name;
+        var readerArr = new FileReader();
+        readerArr.onload = function (ev) {
+          var buf = ev.target.result;
+          var textReader = new FileReader();
+          textReader.onload = function (tev) {
+            try {
+              m.sheets = parseExcelArrayBufferToSheets(file.name, buf, tev.target.result || '');
+              if (!m.sheets.length) {
+                m.statusType = 'error'; m.statusMsg = 'Could not detect any rows or headers in "' + file.name + '".';
+              } else {
+                m.statusType = 'success'; m.statusMsg = 'Loaded "' + file.name + '" — ' + m.sheets.length + ' sheet(s) ready to import.';
+              }
+            } catch (err) {
+              m.statusType = 'error'; m.statusMsg = 'Excel parse failed: ' + (err && err.message ? err.message : 'Unsupported format');
+            }
+            renderImportExcelModal(m);
+          };
+          textReader.readAsText(file);
+        };
+        readerArr.readAsArrayBuffer(file);
+      };
+
+      document.getElementById('xl-pick-btn').onclick = function () { document.getElementById('xl-file-inp').click(); };
+      document.getElementById('xl-file-inp').onchange = function (e) { if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]); };
+      var dropEl = document.getElementById('xl-drop');
+      dropEl.ondragover = function (e) { e.preventDefault(); dropEl.style.background = '#EFF6FF'; };
+      dropEl.ondragleave = function () { dropEl.style.background = '#F8FAFC'; };
+      dropEl.ondrop = function (e) {
+        e.preventDefault(); dropEl.style.background = '#F8FAFC';
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+      };
+
+      document.getElementById('xl-mode').onchange = function (e) { m.mode = e.target.value; renderImportExcelModal(m); };
+      var fInp = document.getElementById('xl-folder');
+      if (fInp) fInp.oninput = function (e) { m.targetFolder = e.target.value; };
+      var tbSel = document.getElementById('xl-target-bot');
+      if (tbSel) tbSel.onchange = function (e) { m.targetBotId = e.target.value; };
+      document.querySelectorAll('.xl-sh-chk').forEach(function (chk) {
+        chk.onchange = function () {
+          var idx = parseInt(chk.getAttribute('data-si'), 10);
+          if (m.sheets[idx]) m.sheets[idx].selected = chk.checked;
+        };
+      });
+
+      document.getElementById('xl-import-go').onclick = function () {
+        if (!guardWriteAction('Import Excel')) return;
+        var chosen = m.sheets.filter(function (s) { return s.selected; });
+        if (!chosen.length) { m.statusType = 'error'; m.statusMsg = 'Select at least one worksheet to import.'; renderImportExcelModal(m); return; }
+
+        if (m.mode === 'new') {
+          var folderName = (document.getElementById('xl-folder').value || '').trim() || 'Imported Excel';
+          var createdNames = [];
+          chosen.forEach(function (sh, sIdx) {
+            var baseTs = Date.now() + sIdx * 10;
+            var cols = sh.headers.map(function (h, cIdx) {
+              var tp = sh.colTypes[cIdx] || 'text';
+              return {
+                id: 'col_xl_' + baseTs + '_' + cIdx,
+                name: h,
+                type: tp,
+                widthMultiplier: 1.15,
+                currency: tp === 'amount' ? '$' : 'None',
+                thousandSeparator: tp === 'amount' || tp === 'number',
+                decimals: tp === 'amount' ? 2 : 0,
+                style: { bold: tp === 'amount' || tp === 'number', italic: false, align: (tp === 'amount' || tp === 'number') ? 'right' : 'left', color: tp === 'amount' ? '#E65100' : '#1E293B', bgColor: '#FFFFFF' },
+                includeInGraph: true
+              };
+            });
+            var rowsOut = sh.rows.map(function (arr, rIdx) {
+              var obj = { id: 'xlr_' + baseTs + '_' + rIdx, _actor: getCurrentActor() };
+              cols.forEach(function (col, cIdx) {
+                var raw = arr[cIdx];
+                if (col.type === 'amount' || col.type === 'number') {
+                  var n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
+                  obj[col.id] = isNaN(n) ? 0 : n;
+                } else if (col.type === 'checkbox') {
+                  obj[col.id] = raw === true || /^(true|yes|1)$/i.test(String(raw).trim());
+                } else {
+                  obj[col.id] = raw !== undefined && raw !== null ? String(raw) : '';
+                }
+              });
+              return obj;
+            });
+            var bName = chosen.length === 1 && sh.name === 'Sheet1' ? m.fileName.replace(/\.(xlsx|xls|csv|tsv|ods)$/i, '') : sh.name;
+            var nb = {
+              id: 'bot_' + baseTs,
+              name: bName || 'Excel Import',
+              description: 'Imported from Excel (' + m.fileName + ')',
+              folder: folderName,
+              telegramToken: '',
+              webhookUrl: '',
+              webhookSecret: '',
+              webhookActive: false,
+              botStatus: 'simulator',
+              isFavorite: false,
+              createdBy: getCurrentActor(),
+              lastEditedBy: getCurrentActor(),
+              updatedAt: new Date().toISOString(),
+              columns: cols,
+              rows: rowsOut
+            };
+            state.bots.unshift(nb);
+            createdNames.push(nb.name);
+            recordFolderSnapshot(nb, 'IMPORT_EXCEL', 'Imported Excel sheet "' + sh.name + '" (' + rowsOut.length + ' rows)', true);
+            recordAudit('ADD', nb, 'Imported Excel "' + m.fileName + '" -> ' + rowsOut.length + ' row(s)', { source: 'Excel Import' });
+            pushBotToSupabase(nb);
+            state.activeBotId = nb.id;
+          });
+          saveBotsLocal();
+          closeModal();
+          renderApp();
+          showToast('Imported ' + createdNames.length + ' Excel sheet(s) into folder "' + folderName + '"');
+        } else {
+          var targetBot = state.bots.find(function (b) { return b.id === m.targetBotId; });
+          if (!targetBot) { m.statusType = 'error'; m.statusMsg = 'Select a target table first.'; renderImportExcelModal(m); return; }
+          recordFolderSnapshot(targetBot, 'BACKUP', 'Pre-Excel-Import backup (' + targetBot.rows.length + ' rows)', true);
+          var addedRowsTotal = 0;
+          chosen.forEach(function (sh, sIdx) {
+            var colMap = {};
+            sh.headers.forEach(function (h, hIdx) {
+              var normH = h.toLowerCase().trim();
+              var existingCol = targetBot.columns.find(function (c) { return c.name.toLowerCase().trim() === normH; });
+              if (!existingCol) {
+                var tp = sh.colTypes[hIdx] || 'text';
+                existingCol = {
+                  id: 'col_xl_' + Date.now() + '_' + sIdx + '_' + hIdx,
+                  name: h,
+                  type: tp,
+                  widthMultiplier: 1.1,
+                  currency: tp === 'amount' ? '$' : 'None',
+                  thousandSeparator: tp === 'amount' || tp === 'number',
+                  decimals: tp === 'amount' ? 2 : 0,
+                  style: { bold: tp === 'amount', italic: false, align: (tp === 'amount' || tp === 'number') ? 'right' : 'left', color: tp === 'amount' ? '#E65100' : '#1E293B', bgColor: '#FFFFFF' },
+                  includeInGraph: true
+                };
+                targetBot.columns.push(existingCol);
+              }
+              colMap[hIdx] = existingCol;
+            });
+            sh.rows.forEach(function (arr, rIdx) {
+              var nr = { id: 'xlr_' + Date.now() + '_' + sIdx + '_' + rIdx, _actor: getCurrentActor() };
+              targetBot.columns.forEach(function (c) {
+                if (c.type === 'amount' || c.type === 'number') nr[c.id] = 0;
+                else if (c.type === 'checkbox') nr[c.id] = false;
+                else nr[c.id] = '';
+              });
+              sh.headers.forEach(function (_, hIdx) {
+                var c = colMap[hIdx];
+                var raw = arr[hIdx];
+                if (c.type === 'amount' || c.type === 'number') {
+                  var n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
+                  nr[c.id] = isNaN(n) ? 0 : n;
+                } else if (c.type === 'checkbox') {
+                  nr[c.id] = raw === true || /^(true|yes|1)$/i.test(String(raw).trim());
+                } else {
+                  nr[c.id] = raw !== undefined && raw !== null ? String(raw) : '';
+                }
+              });
+              targetBot.rows.push(nr);
+              addedRowsTotal++;
+            });
+          });
+          targetBot.updatedAt = new Date().toISOString();
+          updateBot(targetBot, 'ADD', 'Imported +' + addedRowsTotal + ' Excel rows from "' + m.fileName + '"');
+          recordFolderSnapshot(targetBot, 'IMPORT_EXCEL', 'Appended +' + addedRowsTotal + ' rows from "' + m.fileName + '"', true);
+          state.activeBotId = targetBot.id;
+          closeModal();
+          renderApp();
+          showToast('Merged +' + addedRowsTotal + ' Excel rows into "' + targetBot.name + '"');
+        }
+      };
+    }
+
+    // Backup, Folder Delete, Missing/Changed Scanner & 3-Month+ History Restore Modal
+    function renderBackupModal(m) {
+      if (!m.tab) m.tab = 'vault';
+      if (!m.folderFilter) m.folderFilter = 'all';
+      if (!m.timeWindow) m.timeWindow = 'all'; // 'all' | 'minutes' | 'hours24' | 'days7' | 'days30' | 'months3' | 'above3m'
+      if (!m.changeFilter) m.changeFilter = 'ALL';
+
+      var health = analyzeFolderHealth();
+      var allFoldersList = health.folders.map(function (f) { return f.folderName; });
+      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B;border:1px solid #FECACA;' : '#ECFDF5;color:#065F46;border:1px solid #A7F3D0;') + '">' + esc(m.statusMsg) + '</div>' : '';
+
+      var tabHtml = '';
+      if (m.tab === 'vault') {
+        var visibleFolders = health.folders.filter(function (f) {
+          return m.folderFilter === 'all' || f.folderName === m.folderFilter;
+        });
+
+        tabHtml = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">' +
+            '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#1D4ED8;text-transform:uppercase;">All Folders</div><div style="font-size:20px;font-weight:800;color:#0D47A1;">' + health.summary.totalFolders + '</div></div>' +
+            '<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#B91C1C;text-transform:uppercase;">Missing Folders</div><div style="font-size:20px;font-weight:800;color:#991B1B;">' + health.summary.missingFolders + '</div></div>' +
+            '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#C2410C;text-transform:uppercase;">Missing / Del Files</div><div style="font-size:20px;font-weight:800;color:#9A3412;">' + health.summary.missingFiles + '</div></div>' +
+            '<div style="background:#FEFCE8;border:1px solid #FDE047;border-radius:10px;padding:10px;"><div style="font-size:10px;font-weight:700;color:#A16207;text-transform:uppercase;">Changed Files</div><div style="font-size:20px;font-weight:800;color:#854D0E;">' + health.summary.changedFiles + '</div></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#F8FAFC;border:1px solid #E2E8F0;padding:10px;border-radius:10px;">' +
+            '<button type="button" id="bk-create-snap" class="btn btn-primary" style="font-size:11.5px;padding:7px 11px;">' + icon('history', 14) + '<span>Create Backup Snapshot Now</span></button>' +
+            '<button type="button" id="bk-dl-json" class="btn btn-green" style="font-size:11.5px;padding:7px 11px;">' + icon('download', 14) + '<span>Download JSON Backup</span></button>' +
+            '<input id="bk-restore-file" type="file" accept=".json" style="display:none;" />' +
+            '<button type="button" id="bk-upload-json" class="btn btn-outline" style="font-size:11.5px;padding:7px 11px;">' + icon('upload', 14) + '<span>Restore from JSON File</span></button>' +
+            '<button type="button" id="bk-open-excel" class="btn btn-outline" style="font-size:11.5px;padding:7px 11px;">' + icon('excel', 14) + '<span>Import Excel</span></button>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+            '<select id="bk-folder-flt" class="form-select" style="flex:1;min-width:160px;">' +
+              '<option value="all"' + (m.folderFilter === 'all' ? ' selected' : '') + '>All Folders (' + allFoldersList.length + ')</option>' +
+              allFoldersList.map(function (fn) { return '<option value="' + esc(fn) + '"' + (m.folderFilter === fn ? ' selected' : '') + '>' + esc(fn) + '</option>'; }).join('') +
+            '</select>' +
+            '<select id="bk-time-win" class="form-select" style="flex:1;min-width:180px;">' +
+              '<option value="all"' + (m.timeWindow === 'all' ? ' selected' : '') + '>All Time (Min / Days / 3+ Months)</option>' +
+              '<option value="minutes"' + (m.timeWindow === 'minutes' ? ' selected' : '') + '>Minutes (Last 60 mins)</option>' +
+              '<option value="hours24"' + (m.timeWindow === 'hours24' ? ' selected' : '') + '>Today (Last 24 hours)</option>' +
+              '<option value="days7"' + (m.timeWindow === 'days7' ? ' selected' : '') + '>Last 7 Days</option>' +
+              '<option value="days30"' + (m.timeWindow === 'days30' ? ' selected' : '') + '>Last 30 Days (1 Month)</option>' +
+              '<option value="months3"' + (m.timeWindow === 'months3' ? ' selected' : '') + '>Up to 3 Months (<= 90 Days)</option>' +
+              '<option value="above3m"' + (m.timeWindow === 'above3m' ? ' selected' : '') + '>3 Months &amp; Above (90+ Days)</option>' +
+            '</select>' +
+          '</div>';
+
+        if (m.pendingRestoreBots) {
+          var existingMap = {};
+          state.bots.forEach(function (b) { existingMap[b.id] = b; });
+          var newOrMissing = m.pendingRestoreBots.filter(function (pb) { return !existingMap[pb.id]; }).length;
+          var existingMatches = m.pendingRestoreBots.length - newOrMissing;
+          tabHtml += '<div style="padding:12px;background:#EFF6FF;border:1px solid #93C5FD;border-radius:12px;">' +
+            '<div style="font-weight:800;font-size:13px;color:#0D47A1;margin-bottom:4px;">Backup File Ready: ' + esc(m.pendingRestoreName || 'backup.json') + '</div>' +
+            '<div style="font-size:12px;color:#334155;margin-bottom:10px;">Contains <strong>' + m.pendingRestoreBots.length + '</strong> bot table(s): <strong>' + newOrMissing + '</strong> missing/new, <strong>' + existingMatches + '</strong> already present.</div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+              '<button type="button" id="bk-json-restore-missing" class="btn btn-green" style="font-size:11.5px;padding:6px 12px;">' + icon('restore', 13) + '<span>Restore Missing Files Only (' + newOrMissing + ')</span></button>' +
+              '<button type="button" id="bk-json-restore-all" class="btn btn-dark-blue" style="font-size:11.5px;padding:6px 12px;">Merge &amp; Restore All (' + m.pendingRestoreBots.length + ')</button>' +
+              '<button type="button" id="bk-json-cancel" class="btn btn-outline" style="font-size:11.5px;padding:6px 10px;">Dismiss</button>' +
+            '</div>' +
+          '</div>';
+        }
+
+        visibleFolders.forEach(function (fld) {
+          var filteredItems = fld.items.filter(function (it) { return matchesHistoryWindow(it.lastTime, m.timeWindow); });
+          tabHtml += '<div style="border:1px solid ' + (fld.isMissingFolder ? '#FECACA;background:#FFFBFB' : '#E2E8F0;background:#fff') + ';border-radius:12px;overflow:hidden;">' +
+            '<div style="padding:10px 12px;background:' + (fld.isMissingFolder ? '#FEF2F2' : '#F8FAFC') + ';border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+              '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<span style="color:' + (fld.isMissingFolder ? '#DC2626' : '#0D47A1') + ';">' + icon('folder', 16) + '</span>' +
+                '<div>' +
+                  '<div style="font-weight:800;font-size:13px;color:#0F172A;display:flex;align-items:center;gap:6px;">' +
+                    '<span>' + esc(fld.folderName) + '</span>' +
+                    (fld.isMissingFolder ? '<span class="act-badge act-delete">MISSING FOLDER</span>' : '') +
+                    (fld.missingCount > 0 ? '<span class="act-badge act-delete">' + fld.missingCount + ' MISSING</span>' : '') +
+                    (fld.changedCount > 0 ? '<span class="act-badge act-edit">' + fld.changedCount + ' CHANGED</span>' : '') +
+                  '</div>' +
+                  '<div style="font-size:11px;color:#64748B;">' + fld.activeCount + ' active file(s) &middot; ' + fld.historyCount + ' history snapshot(s)</div>' +
+                '</div>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                '<button type="button" class="btn btn-outline bk-view-hist" data-fn="' + esc(fld.folderName) + '" style="padding:4px 9px;font-size:11px;">' + icon('history', 12) + '<span>History</span></button>' +
+                (fld.missingCount > 0 ? '<button type="button" class="btn btn-green bk-rest-fld" data-fn="' + esc(fld.folderName) + '" style="padding:4px 9px;font-size:11px;">' + icon('restore', 12) + '<span>Restore Missing (' + fld.missingCount + ')</span></button>' : '') +
+                (fld.activeCount > 0 ? '<button type="button" class="btn btn-red bk-del-fld" data-fn="' + esc(fld.folderName) + '" style="padding:4px 9px;font-size:11px;" title="Safely delete folder and keep full backup">' + icon('trash', 12) + '<span>Delete Folder (Backup)</span></button>' : '') +
+              '</div>' +
+            '</div>';
+          if (filteredItems.length === 0) {
+            tabHtml += '<div style="padding:10px 12px;font-size:11.5px;color:#94A3B8;">No files matching selected time window.</div>';
+          } else {
+            tabHtml += '<div style="display:flex;flex-direction:column;">';
+            filteredItems.forEach(function (it) {
+              var badgeCls = (it.status === 'DELETED_FILE' || it.status === 'MISSING_FILE') ? 'act-delete' : (it.status === 'CHANGED' ? 'act-edit' : 'act-add');
+              var badgeTxt = it.status === 'DELETED_FILE' ? 'DELETED FILE' : it.status === 'MISSING_FILE' ? 'MISSING FILE' : it.status === 'CHANGED' ? 'CHANGED' : 'SYNCED';
+              tabHtml += '<div style="padding:8px 12px;border-bottom:1px solid #F1F5F9;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<div style="min-width:0;flex:1;">' +
+                  '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                    '<span class="act-badge ' + badgeCls + '">' + badgeTxt + '</span>' +
+                    '<strong style="font-size:12.5px;color:#0F172A;">' + esc(it.botName) + '</strong>' +
+                    '<span style="font-size:11px;color:#64748B;">(' + it.rowCount + ' rows &middot; ' + formatHistoryAge(it.lastTime) + ')</span>' +
+                  '</div>' +
+                  '<div style="font-size:11px;color:#475569;margin-top:2px;">' + esc(it.diffText) + '</div>' +
+                '</div>' +
+                '<div>' +
+                  ((it.status === 'DELETED_FILE' || it.status === 'MISSING_FILE')
+                    ? '<button type="button" class="btn btn-green bk-rest-item" data-bid="' + esc(it.botId) + '" data-fn="' + esc(it.folder) + '" style="padding:4px 9px;font-size:11px;">' + icon('restore', 12) + '<span>Restore File</span></button>'
+                    : it.status === 'CHANGED' && it.prevBackupSnapshot
+                      ? '<button type="button" class="btn btn-outline bk-revert-item" data-snap="' + esc(it.prevBackupSnapshot.id) + '" style="padding:4px 9px;font-size:11px;">' + icon('restore', 12) + '<span>Revert Backup</span></button>'
+                      : '<span style="font-size:11px;color:#15803D;font-weight:700;">OK</span>') +
+                '</div>' +
+              '</div>';
+            });
+            tabHtml += '</div>';
+          }
+          tabHtml += '</div>';
+        });
+      } else if (m.tab === 'history') {
+        var histRows = state.folderHistory.filter(function (h) {
+          if (m.folderFilter !== 'all' && (h.folder || 'General') !== m.folderFilter) return false;
+          if (!matchesHistoryWindow(h.timestamp, m.timeWindow)) return false;
+          if (m.changeFilter !== 'ALL' && h.changeType !== m.changeFilter) return false;
+          return true;
+        });
+
+        tabHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<select id="fh-folder" class="form-select" style="flex:1;min-width:130px;">' +
+              '<option value="all"' + (m.folderFilter === 'all' ? ' selected' : '') + '>All Folders</option>' +
+              allFoldersList.map(function (fn) { return '<option value="' + esc(fn) + '"' + (m.folderFilter === fn ? ' selected' : '') + '>' + esc(fn) + '</option>'; }).join('') +
+            '</select>' +
+            '<select id="fh-win" class="form-select" style="flex:1;min-width:165px;">' +
+              '<option value="all"' + (m.timeWindow === 'all' ? ' selected' : '') + '>All Time (Up to 3+ Months)</option>' +
+              '<option value="minutes"' + (m.timeWindow === 'minutes' ? ' selected' : '') + '>Minutes (<= 60 mins)</option>' +
+              '<option value="hours24"' + (m.timeWindow === 'hours24' ? ' selected' : '') + '>Hours / Today (<= 24h)</option>' +
+              '<option value="days7"' + (m.timeWindow === 'days7' ? ' selected' : '') + '>Last 7 Days</option>' +
+              '<option value="days30"' + (m.timeWindow === 'days30' ? ' selected' : '') + '>Last 30 Days (1 Month)</option>' +
+              '<option value="months3"' + (m.timeWindow === 'months3' ? ' selected' : '') + '>Up to 3 Months (<= 90 Days)</option>' +
+              '<option value="above3m"' + (m.timeWindow === 'above3m' ? ' selected' : '') + '>3 Months &amp; Above (90+ Days)</option>' +
+            '</select>' +
+            '<select id="fh-type" class="form-select" style="flex:1;min-width:130px;">' +
+              '<option value="ALL"' + (m.changeFilter === 'ALL' ? ' selected' : '') + '>All Changes</option>' +
+              '<option value="MODIFIED"' + (m.changeFilter === 'MODIFIED' ? ' selected' : '') + '>Changed / Edited</option>' +
+              '<option value="DELETED"' + (m.changeFilter === 'DELETED' ? ' selected' : '') + '>Deleted Files</option>' +
+              '<option value="FOLDER_DELETED"' + (m.changeFilter === 'FOLDER_DELETED' ? ' selected' : '') + '>Deleted Folders</option>' +
+              '<option value="BACKUP"' + (m.changeFilter === 'BACKUP' ? ' selected' : '') + '>Backups</option>' +
+              '<option value="IMPORT_EXCEL"' + (m.changeFilter === 'IMPORT_EXCEL' ? ' selected' : '') + '>Excel Imports</option>' +
+              '<option value="RESTORED"' + (m.changeFilter === 'RESTORED' ? ' selected' : '') + '>Restored</option>' +
+            '</select>' +
+          '</div>' +
+          '<div style="font-size:11px;color:#64748B;">Showing <strong>' + histRows.length + '</strong> history checkpoint(s). Ages display exact minutes, days, and 3 months+ retention.</div>' +
+          '<div style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;">' +
+            (histRows.length === 0
+              ? '<div style="text-align:center;padding:24px;color:#94A3B8;font-size:12.5px;">No folder history records match these filters.</div>'
+              : histRows.map(function (h) {
+                  var acCls = (h.changeType === 'DELETED' || h.changeType === 'FOLDER_DELETED') ? 'act-delete'
+                    : h.changeType === 'MODIFIED' ? 'act-edit'
+                    : (h.changeType === 'RESTORED' || h.changeType === 'BACKUP') ? 'act-transmit'
+                    : 'act-add';
+                  return '<div style="padding:10px 12px;border:1px solid #E2E8F0;border-radius:10px;background:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
+                    '<div style="min-width:0;flex:1;">' +
+                      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                        '<span class="act-badge ' + acCls + '">' + esc(h.changeType) + '</span>' +
+                        '<span class="status-chip chip-folder">' + icon('folder', 10) + ' ' + esc(h.folder || 'General') + '</span>' +
+                        '<strong style="font-size:12.5px;">' + esc(h.botName) + '</strong>' +
+                        '<span class="mono" style="font-size:11px;color:#0D47A1;font-weight:700;">' + formatHistoryAge(h.timestamp) + '</span>' +
+                      '</div>' +
+                      '<div style="font-size:11.5px;color:#334155;margin-top:3px;">' + esc(h.diffSummary) + '</div>' +
+                      '<div style="font-size:10.5px;color:#94A3B8;margin-top:2px;">By ' + esc(h.actor) + ' &middot; ' + new Date(h.timestamp).toLocaleString() + ' &middot; ' + h.rowCount + ' rows</div>' +
+                    '</div>' +
+                    (h.botSnapshot ? '<button type="button" class="btn btn-primary fh-restore-btn" data-snap="' + esc(h.id) + '" style="padding:5px 10px;font-size:11px;">' + icon('restore', 13) + '<span>Restore Version</span></button>' : '') +
+                  '</div>';
+                }).join('')) +
+          '</div>';
+      } else {
+        var trashList = state.deletedVault.filter(function (d) {
+          if (m.folderFilter !== 'all' && (d.folder || 'General') !== m.folderFilter) return false;
+          return matchesHistoryWindow(d.deletedAt, m.timeWindow);
+        });
+        tabHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+            '<select id="trv-folder" class="form-select" style="flex:1;">' +
+              '<option value="all"' + (m.folderFilter === 'all' ? ' selected' : '') + '>All Folders</option>' +
+              allFoldersList.map(function (fn) { return '<option value="' + esc(fn) + '"' + (m.folderFilter === fn ? ' selected' : '') + '>' + esc(fn) + '</option>'; }).join('') +
+            '</select>' +
+            '<select id="trv-win" class="form-select" style="flex:1;">' +
+              '<option value="all"' + (m.timeWindow === 'all' ? ' selected' : '') + '>All Deleted (Up to 3+ Months)</option>' +
+              '<option value="minutes"' + (m.timeWindow === 'minutes' ? ' selected' : '') + '>Deleted in Minutes (<= 60m)</option>' +
+              '<option value="days30"' + (m.timeWindow === 'days30' ? ' selected' : '') + '>Deleted in Days (<= 30d)</option>' +
+              '<option value="months3"' + (m.timeWindow === 'months3' ? ' selected' : '') + '>Up to 3 Months (<= 90d)</option>' +
+              '<option value="above3m"' + (m.timeWindow === 'above3m' ? ' selected' : '') + '>3 Months &amp; Above (90+d)</option>' +
+            '</select>' +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;">' +
+            (trashList.length === 0
+              ? '<div style="text-align:center;padding:28px;color:#94A3B8;font-size:12.5px;">No deleted files or deleted folders in this filter.</div>'
+              : trashList.map(function (d) {
+                  return '<div style="padding:10px 12px;border:1px solid #FECACA;background:#FFFBFB;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                    '<div style="min-width:0;flex:1;">' +
+                      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                        '<span class="act-badge act-delete">DELETED</span>' +
+                        '<span class="status-chip chip-folder">' + icon('folder', 10) + ' ' + esc(d.folder || 'General') + '</span>' +
+                        '<strong style="font-size:12.5px;">' + esc(d.botName) + '</strong>' +
+                        '<span class="mono" style="font-size:11px;color:#B91C1C;font-weight:700;">' + formatHistoryAge(d.deletedAt) + '</span>' +
+                      '</div>' +
+                      '<div style="font-size:11px;color:#475569;margin-top:2px;">' + esc(d.reason || 'Deleted') + ' &middot; ' + (d.rowCount || 0) + ' rows &middot; by ' + esc(d.deletedBy || 'user') + '</div>' +
+                    '</div>' +
+                    '<div style="display:flex;gap:6px;">' +
+                      '<button type="button" class="btn btn-green trv-rest-btn" data-did="' + esc(d.id) + '" style="padding:5px 10px;font-size:11px;">' + icon('restore', 12) + '<span>Restore</span></button>' +
+                      '<button type="button" class="btn btn-outline trv-purge-btn" data-did="' + esc(d.id) + '" style="padding:5px 8px;font-size:11px;color:#B91C1C;">' + icon('trash', 12) + '</button>' +
+                    '</div>' +
+                  '</div>';
+                }).join('')) +
+          '</div>';
+      }
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('history', 21) + '<div><h2 style="font-size:16px;font-weight:700;">Folder Backup, History &amp; Restore Vault</h2><div style="font-size:11px;color:#BFDBFE;">Missing Folders/Files &middot; Changed File Diffs &middot; Minutes, Days &amp; 3+ Months Restore</div></div></div>' +
+          '<button class="icon-btn" id="bk-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="admin-tabs">' +
+          '<button class="admin-tab-btn ' + (m.tab === 'vault' ? 'active' : '') + '" data-bktab="vault">Folders, Missing &amp; Backup (' + health.summary.totalFolders + ')</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'history' ? 'active' : '') + '" data-bktab="history">Folder History 3m+ (' + state.folderHistory.length + ')</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'trash' ? 'active' : '') + '" data-bktab="trash">Deleted / Missing Bin (' + state.deletedVault.length + ')</button>' +
+        '</div>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' + msgNote + tabHtml + '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('bk-close').onclick = closeModal;
+      document.querySelectorAll('[data-bktab]').forEach(function (b) {
+        b.onclick = function () { m.tab = b.getAttribute('data-bktab'); m.statusMsg = null; renderBackupModal(m); };
+      });
+
+      if (m.tab === 'vault') {
+        document.getElementById('bk-folder-flt').onchange = function (e) { m.folderFilter = e.target.value; renderBackupModal(m); };
+        document.getElementById('bk-time-win').onchange = function (e) { m.timeWindow = e.target.value; renderBackupModal(m); };
+        document.getElementById('bk-create-snap').onclick = function () {
+          var cnt = createManualBackupCheckpoint();
+          m.statusType = 'success'; m.statusMsg = 'Created full backup checkpoint for ' + cnt + ' file(s) across all folders.';
+          renderBackupModal(m); renderApp();
+        };
+        document.getElementById('bk-dl-json').onclick = function () {
+          createManualBackupCheckpoint();
+          exportJsonBackup();
+        };
+        document.getElementById('bk-open-excel').onclick = function () { openModal('import_excel', { mode: 'new' }); };
+        document.getElementById('bk-upload-json').onclick = function () { document.getElementById('bk-restore-file').click(); };
+        document.getElementById('bk-restore-file').onchange = function (e) {
+          var file = e.target.files && e.target.files[0];
+          if (!file) return;
+          var r = new FileReader();
+          r.onload = function (ev) {
+            try {
+              var parsed = JSON.parse(ev.target.result);
+              var arr = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.bots) ? parsed.bots : []);
+              if (!arr.length) throw new Error('No bot tables found inside JSON backup.');
+              m.pendingRestoreBots = arr;
+              m.pendingRestoreName = file.name;
+              m.statusType = 'success'; m.statusMsg = 'Parsed backup "' + file.name + '" with ' + arr.length + ' table(s). Choose restore mode below.';
+            } catch (err) {
+              m.statusType = 'error'; m.statusMsg = 'Invalid JSON backup: ' + (err && err.message ? err.message : 'Parse error');
+            }
+            renderBackupModal(m);
+          };
+          r.readAsText(file);
+        };
+        var rmBtn = document.getElementById('bk-json-restore-missing');
+        if (rmBtn) rmBtn.onclick = function () {
+          var cur = {}; state.bots.forEach(function (b) { cur[b.id] = true; });
+          var n = 0;
+          (m.pendingRestoreBots || []).forEach(function (pb) {
+            if (pb && pb.id && !cur[pb.id]) { restoreBotFromSnapshot(pb, pb.folder || 'General', 'JSON Backup restore missing'); n++; }
+          });
+          m.pendingRestoreBots = null;
+          m.statusType = 'success'; m.statusMsg = 'Restored ' + n + ' missing bot file(s) from JSON backup.';
+          renderApp(); renderBackupModal(m);
+        };
+        var raBtn = document.getElementById('bk-json-restore-all');
+        if (raBtn) raBtn.onclick = function () {
+          var n = 0;
+          (m.pendingRestoreBots || []).forEach(function (pb) {
+            if (pb && pb.id) { restoreBotFromSnapshot(pb, pb.folder || 'General', 'JSON Backup full restore'); n++; }
+          });
+          m.pendingRestoreBots = null;
+          m.statusType = 'success'; m.statusMsg = 'Restored/merged ' + n + ' bot file(s) from JSON backup.';
+          renderApp(); renderBackupModal(m);
+        };
+        var rcBtn = document.getElementById('bk-json-cancel');
+        if (rcBtn) rcBtn.onclick = function () { m.pendingRestoreBots = null; renderBackupModal(m); };
+
+        document.querySelectorAll('.bk-view-hist').forEach(function (b) {
+          b.onclick = function () { m.folderFilter = b.getAttribute('data-fn'); m.tab = 'history'; renderBackupModal(m); };
+        });
+        document.querySelectorAll('.bk-rest-fld').forEach(function (b) {
+          b.onclick = function () {
+            var fn = b.getAttribute('data-fn');
+            var c = restoreFolderAllMissing(fn);
+            m.statusType = 'success'; m.statusMsg = 'Restored ' + c + ' missing/deleted file(s) into folder "' + fn + '".';
+            renderBackupModal(m);
+          };
+        });
+        document.querySelectorAll('.bk-del-fld').forEach(function (b) {
+          b.onclick = async function () {
+            var fn = b.getAttribute('data-fn');
+            var c = await deleteFolderWithBackup(fn);
+            m.statusType = 'success'; m.statusMsg = 'Safely deleted folder "' + fn + '" (' + c + ' file(s) backed up to Deleted Bin for instant restore).';
+            renderBackupModal(m);
+          };
+        });
+        document.querySelectorAll('.bk-rest-item').forEach(function (b) {
+          b.onclick = function () {
+            var bid = b.getAttribute('data-bid');
+            var fn = b.getAttribute('data-fn');
+            var dv = state.deletedVault.find(function (d) { return d.botId === bid; });
+            var sn = dv ? dv.botSnapshot : (state.folderHistory.find(function (h) { return h.botId === bid && h.botSnapshot; }) || {}).botSnapshot;
+            if (sn) {
+              restoreBotFromSnapshot(sn, fn, 'Restored missing file');
+              m.statusType = 'success'; m.statusMsg = 'Restored "' + sn.name + '" back into folder "' + fn + '".';
+              renderApp(); renderBackupModal(m);
+            }
+          };
+        });
+        document.querySelectorAll('.bk-revert-item').forEach(function (b) {
+          b.onclick = function () {
+            var sid = b.getAttribute('data-snap');
+            var snap = state.folderHistory.find(function (h) { return h.id === sid; });
+            if (snap && snap.botSnapshot) {
+              restoreBotFromSnapshot(snap.botSnapshot, snap.folder, 'Reverted changed file to backup (' + formatHistoryAge(snap.timestamp) + ')');
+              m.statusType = 'success'; m.statusMsg = 'Reverted "' + snap.botName + '" to backup from ' + formatHistoryAge(snap.timestamp) + '.';
+              renderApp(); renderBackupModal(m);
+            }
+          };
+        });
+      } else if (m.tab === 'history') {
+        document.getElementById('fh-folder').onchange = function (e) { m.folderFilter = e.target.value; renderBackupModal(m); };
+        document.getElementById('fh-win').onchange = function (e) { m.timeWindow = e.target.value; renderBackupModal(m); };
+        document.getElementById('fh-type').onchange = function (e) { m.changeFilter = e.target.value; renderBackupModal(m); };
+        document.querySelectorAll('.fh-restore-btn').forEach(function (b) {
+          b.onclick = function () {
+            var sid = b.getAttribute('data-snap');
+            var snap = state.folderHistory.find(function (h) { return h.id === sid; });
+            if (snap && snap.botSnapshot) {
+              restoreBotFromSnapshot(snap.botSnapshot, snap.folder || 'General', 'Restored version from ' + formatHistoryAge(snap.timestamp));
+              m.statusType = 'success'; m.statusMsg = 'Restored "' + snap.botName + '" (' + formatHistoryAge(snap.timestamp) + ') into folder "' + (snap.folder || 'General') + '".';
+              renderApp(); renderBackupModal(m);
+            }
+          };
+        });
+      } else {
+        document.getElementById('trv-folder').onchange = function (e) { m.folderFilter = e.target.value; renderBackupModal(m); };
+        document.getElementById('trv-win').onchange = function (e) { m.timeWindow = e.target.value; renderBackupModal(m); };
+        document.querySelectorAll('.trv-rest-btn').forEach(function (b) {
+          b.onclick = function () {
+            var did = b.getAttribute('data-did');
+            var dv = state.deletedVault.find(function (d) { return d.id === did; });
+            if (dv && dv.botSnapshot) {
+              restoreBotFromSnapshot(dv.botSnapshot, dv.folder || 'General', 'Restored deleted file (' + formatHistoryAge(dv.deletedAt) + ')');
+              m.statusType = 'success'; m.statusMsg = 'Restored "' + dv.botName + '" into folder "' + (dv.folder || 'General') + '".';
+              renderApp(); renderBackupModal(m);
+            }
+          };
+        });
+        document.querySelectorAll('.trv-purge-btn').forEach(function (b) {
+          b.onclick = function () {
+            var did = b.getAttribute('data-did');
+            state.deletedVault = state.deletedVault.filter(function (d) { return d.id !== did; });
+            saveVaultState();
+            m.statusType = 'success'; m.statusMsg = 'Permanently removed item from Deleted Bin.';
+            renderBackupModal(m);
+          };
+        });
+      }
+    }
+
     function exportStandaloneHtml() {
       var snapshot = '<!doctype html>\n' + document.documentElement.outerHTML;
       downloadBlob(snapshot, 'TableBot_Standalone_' + new Date().toISOString().slice(0, 10) + '.html', 'text/html;charset=utf-8');
@@ -3529,10 +4681,12 @@
       syncAllNow('online');
     });
     window.addEventListener('storage', function (e) {
-      if (e.key === STORAGE_BOTS || e.key === STORAGE_AUDIT_LOGS || e.key === STORAGE_USERS) {
+      if (e.key === STORAGE_BOTS || e.key === STORAGE_AUDIT_LOGS || e.key === STORAGE_USERS || e.key === STORAGE_FOLDER_HISTORY || e.key === STORAGE_DELETED_VAULT) {
         state.bots = loadBots();
         state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
         state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
+        state.folderHistory = loadJsonStorage(STORAGE_FOLDER_HISTORY, state.folderHistory);
+        state.deletedVault = loadJsonStorage(STORAGE_DELETED_VAULT, state.deletedVault);
         renderApp();
       }
     });
@@ -3541,6 +4695,8 @@
         state.bots = loadBots();
         state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
         state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
+        state.folderHistory = loadJsonStorage(STORAGE_FOLDER_HISTORY, state.folderHistory);
+        state.deletedVault = loadJsonStorage(STORAGE_DELETED_VAULT, state.deletedVault);
         renderApp();
       };
     }
@@ -3554,6 +4710,7 @@
     });
 
     // Boot Application & Trigger Immediate Open-Time Sync
+    ensureInitialFolderManifest();
     renderApp();
     startTelegramAutoPoll();
     if (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
