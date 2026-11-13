@@ -11,7 +11,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
@@ -29,7 +29,7 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      font-family: 'Inter', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', 'Noto Sans Ethiopic', 'Roboto', 'Nyala', 'Abyssinica SIL', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg-app);
       color: var(--text-main);
       -webkit-font-smoothing: antialiased;
@@ -290,6 +290,61 @@
       border-bottom: 1px solid #CBD5E1; padding: 11px 16px;
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
     }
+    .welcome-hero-card {
+      background: linear-gradient(135deg, #064E3B 0%, #0F766E 38%, #0D47A1 100%);
+      color: #fff; border-radius: 16px; padding: 18px 20px; margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(13,71,161,0.18);
+      border: 1px solid rgba(255,255,255,0.18);
+      display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center;
+    }
+    @media (max-width: 780px) { .welcome-hero-card { grid-template-columns: 1fr; } }
+    .cyber-badge {
+      display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap;
+      background: rgba(15,23,42,0.48); border: 1px solid rgba(252,211,77,0.55);
+      padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #FEF3C7;
+    }
+    .lang-toggle-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 800;
+      background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4);
+      color: #fff; transition: background 0.15s;
+    }
+    .lang-toggle-btn:hover { background: rgba(255,255,255,0.28); }
+    .maed-gallery {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
+    }
+    .maed-logo-box {
+      width: 68px; height: 68px; border-radius: 14px; background: #fff; padding: 4px;
+      object-fit: contain; box-shadow: 0 4px 12px rgba(0,0,0,0.22); cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.85); transition: transform 0.15s;
+    }
+    .maed-poster-box {
+      height: 112px; width: auto; max-width: 150px; border-radius: 12px; background: #fff;
+      object-fit: cover; box-shadow: 0 6px 16px rgba(0,0,0,0.28); cursor: pointer;
+      border: 2px solid #FCD34D; transition: transform 0.15s;
+    }
+    .maed-logo-box:hover, .maed-poster-box:hover { transform: scale(1.04); }
+
+    /* Automatic Weekly Day Progression Strip */
+    .week-strip {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px;
+    }
+    .day-chip {
+      display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+      min-width: 62px; padding: 5px 9px; border-radius: 10px;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22);
+      color: #E2E8F0; font-size: 10.5px; font-weight: 700; cursor: pointer;
+      transition: background 0.15s, transform 0.15s, border-color 0.15s;
+    }
+    .day-chip:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
+    .day-chip.today {
+      background: #F59E0B; border-color: #FEF3C7; color: #fff;
+      box-shadow: 0 3px 10px rgba(245,158,11,0.35);
+    }
+    .day-chip.preview {
+      background: #10B981; border-color: #A7F3D0; color: #fff;
+    }
+    .day-chip-num { font-size: 13px; font-weight: 800; line-height: 1.1; }
 
     /* Sticky Summary Footer & Bottom Toolbar */
     .sigma-footer {
@@ -462,6 +517,7 @@
     var STORAGE_DELETED_VAULT = 'tablebot_deleted_vault';
     var STORAGE_FOLDER_MANIFEST = 'tablebot_folder_manifest';
     var STORAGE_CUSTOM_FOLDERS = 'tablebot_custom_folders';
+    var STORAGE_LANG = 'tablebot_ui_lang';
 
     var SQL_SETUP_SCRIPT =
       '-- Run this in your Supabase SQL Editor:\n' +
@@ -705,13 +761,213 @@
 
     var DEFAULT_ADMIN_CFG = {
       adminEmail: 'umery1969@gmail.com',
+      cyberSecurityManager: 'Abdulfeta',
+      cyberSecurityTitle: 'Manager of Cyber Security',
       autoSyncOnOpen: true,
       telegramAutoPoll: true,
       showDashboardActivity: true,
       blockStrictMode: true
     };
 
+    var BRAND_ASSETS = {
+      logoWhiteStars: '/assets/aistudio/file_000000003a3c8210ac093d7bf55b2a9c_7f2565a5.png',
+      logoGreenStars: '/assets/aistudio/file_000000002e1481f4b0a098ac50b472ae_e5f32c46.png',
+      posterAdama: '/assets/aistudio/file_000000007c048210acefecd95c486656_e7fa0c87.png'
+    };
+
+    var I18N = {
+      en: {
+        all_bots: 'All Bots',
+        import_excel: 'Import Excel',
+        backup_restore: 'Backup & Restore',
+        admin: 'Admin',
+        reports: 'Reports',
+        folders: 'Folders:',
+        all_folders: 'All Folders',
+        add_folder: 'Add Folder',
+        history_restore: 'History & Restore',
+        welcome_today: 'Welcome to Today',
+        welcome_tagline: "MA'ED Table Salt (መዕድ የጠረጴዛ ጨው) — Pure Healthy Life · Operations, Inventory & Cloud Ledger",
+        cyber_mgr_title: 'Manager of Cyber Security',
+        cyber_protected: 'Cyber Defense Active',
+        open_security: 'Security & Admin',
+        admin_live_title: 'Admin Live Changes & User Activity Dashboard',
+        all_bot_tables: 'All Bot Tables',
+        tap_card: 'Tap a card to open & immediately sync',
+        sync: 'Sync',
+        versions: 'Versions',
+        add_column: 'Add Column',
+        add_row: 'Add Row',
+        last_row_sum: 'Σ Last Row Sum',
+        live_totals: 'Σ Live Totals (Num / Formula / Amt):',
+        columns: 'Columns',
+        filter: 'Filter',
+        tester: 'Tester',
+        export_lbl: 'Export',
+        more: 'More',
+        manage_bots: 'Manage Bots',
+        admin_menu: 'Admin Menu',
+        reports_nav: 'Daily, Weekly & Monthly Reports',
+        login_nav: 'Login / Sign In',
+        forgot_pw: 'Forgot / Reset Password',
+        cloud_sync: 'Cloud Sync / Supabase',
+        telegram_nav: 'Connect Telegram Token',
+        backup_nav: 'Backup, Delete & Restore Folders',
+        export_html: 'Export Standalone HTML',
+        bot_settings: 'Bot Settings',
+        share_app: 'Share App',
+        help_guide: 'Help & Setup Guide',
+        logout: 'Logout',
+        reports_heading: 'Real-Time Folder & Financial Reports',
+        live_all_folders: 'Live All Folders',
+        daily_today: 'Daily (Today)',
+        weekly_report: 'Weekly Report',
+        monthly_report: 'Monthly Report',
+        grand_totals: 'Σ Grand Totals',
+        auto_date_live: 'Auto-Date: LIVE',
+        reset_today: 'Back to Today',
+        folder_report_auto: 'Auto Folder Report',
+        open_folder_report: 'Full Report',
+        export_folder_csv: 'Folder CSV',
+        collapse_lbl: 'Hide Data',
+        expand_lbl: 'Show Data',
+        quick_add_row: '+ Quick Add Row',
+        add_table_folder: '+ Table',
+        no_rows_in_folder: 'No rows recorded in this folder yet — add a row right here without opening.',
+        folder_subtotal: 'Folder Report Subtotal',
+        lang_btn: 'አማርኛ (AM)'
+      },
+      am: {
+        all_bots: 'ሁሉም ቦቶች',
+        import_excel: 'ኤክሴል አስመጣ',
+        backup_restore: 'ምትኬ እና መመለሻ',
+        admin: 'አስተዳዳሪ',
+        reports: 'ሪፖርቶች',
+        folders: 'አቃፊዎች:',
+        all_folders: 'ሁሉም አቃፊዎች',
+        add_folder: 'አቃፊ ጨምር',
+        history_restore: 'ታሪክ እና መመለሻ',
+        welcome_today: 'ዛሬ እንኳን በደህና መጡ',
+        welcome_tagline: "መዕድ የጠረጴዛ ጨው (MA'ED Table Salt) — ንጹህ እና ጤናማ ህይወት · የስራ እና የክፍያ መዝገብ",
+        cyber_mgr_title: 'የሳይበር ደህንነት ስራ አስኪያጅ',
+        cyber_protected: 'የሳይበር ጥበቃ ነቅቷል',
+        open_security: 'ደህንነት እና አስተዳዳሪ',
+        admin_live_title: 'የአስተዳዳሪ የቀጥታ ለውጦች እና የተጠቃሚ እንቅስቃሴ',
+        all_bot_tables: 'ሁሉም የቦት ሰንጠረዦች',
+        tap_card: 'ለመክፈት እና በቀጥታ ለማመሳሰል ካርዱን ይንኩ',
+        sync: 'አመሳስል',
+        versions: 'ስሪቶች',
+        add_column: 'አምድ ጨምር',
+        add_row: 'ረድፍ ጨምር',
+        last_row_sum: 'Σ የመጨረሻ ረድፍ ድምር',
+        live_totals: 'Σ የቀጥታ ድምሮች (ቁጥር / ቀመር / መጠን):',
+        columns: 'አምዶች',
+        filter: 'አጣራ',
+        tester: 'ሙከራ',
+        export_lbl: 'ላክ (CSV)',
+        more: 'ተጨማሪ',
+        manage_bots: 'ቦቶችን ያስተዳድሩ',
+        admin_menu: 'የአስተዳዳሪ ዝርዝር',
+        reports_nav: 'የቀን፣ የሳምንት እና የወር ሪፖርቶች',
+        login_nav: 'ግባ / መለያ',
+        forgot_pw: 'የይለፍ ቃል ረሱ / ዳግም ያስጀምሩ',
+        cloud_sync: 'የደመና ማመሳሰል / Supabase',
+        telegram_nav: 'የቴሌግራም ቶከን ያገናኙ',
+        backup_nav: 'የአቃፊ ምትኬ፣ ስረዛ እና መመለሻ',
+        export_html: 'HTML ፋይል አውርድ',
+        bot_settings: 'የቦት ቅንብሮች',
+        share_app: 'መተግበሪያ አጋራ',
+        help_guide: 'እገዛ እና መመሪያ',
+        logout: 'ውጣ',
+        reports_heading: 'የቀጥታ አቃፊ እና የፋይናንስ ሪፖርቶች',
+        live_all_folders: 'ሁሉም አቃፊዎች (ቀጥታ)',
+        daily_today: 'የዛሬ ሪፖርት',
+        weekly_report: 'የሳምንት ሪፖርት',
+        monthly_report: 'የወር ሪፖርት',
+        grand_totals: 'Σ ጠቅላላ ድምር',
+        auto_date_live: 'ቀጥታ አውቶ-ቀን',
+        reset_today: 'ወደ ዛሬ ተመለስ',
+        folder_report_auto: 'የአቃፊው ራስ-ሰር ሪፖርት',
+        open_folder_report: 'ሙሉ ሪፖርት',
+        export_folder_csv: 'CSV ላክ',
+        collapse_lbl: 'ደብቅ',
+        expand_lbl: 'ዳታ አሳይ',
+        quick_add_row: '+ ፈጣን ረድፍ ጨምር',
+        add_table_folder: '+ ሰንጠረዥ',
+        no_rows_in_folder: 'በዚህ አቃፊ ውስጥ ገና ረድፍ አልተመዘገበም — ሳይከፍቱ እዚህ ቀጥታ መጨመር ይችላሉ።',
+        folder_subtotal: 'የአቃፊው ሪፖርት ድምር',
+        lang_btn: 'English (EN)'
+      }
+    };
+
+    function t(key) {
+      var lang = state.lang === 'am' ? 'am' : 'en';
+      return (I18N[lang] && I18N[lang][key]) || (I18N.en && I18N.en[key]) || key;
+    }
+
+    function getWelcomeDayInfo(lang, offsetDays) {
+      var off = typeof offsetDays === 'number' ? offsetDays : (state.previewDayOffset || 0);
+      var baseNow = new Date();
+      var target = new Date(baseNow.getTime());
+      target.setDate(baseNow.getDate() + off);
+      var enDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      var amDays = ['እሁድ', 'ሰኞ', 'ማክሰኞ', 'ረቡዕ', 'ሐሙስ', 'አርብ', 'ቅዳሜ'];
+      var enMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      var amMonths = ['ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ'];
+      var dIdx = target.getDay();
+      var dayNum = target.getDate();
+      var nextD = new Date(target.getTime());
+      nextD.setDate(target.getDate() + 1);
+      var nextIdx = nextD.getDay();
+      var nextNum = nextD.getDate();
+      var timeTxt = baseNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      var prefixAm = off === 0 ? 'ዛሬ ' : ('+' + off + ' ቀን · ');
+      var prefixEn = off === 0 ? 'Welcome to Today' : ('Schedule (+' + off + 'd)');
+      if (lang === 'am') {
+        return {
+          ymd: getLocalYmd(target),
+          isLiveToday: off === 0,
+          headline: (off === 0 ? 'እንኳን በደህና መጡ — ' : '') + prefixAm + amDays[dIdx] + ' ቀን ' + dayNum,
+          dateBadge: amDays[dIdx] + '፣ ' + amMonths[target.getMonth()] + ' ' + dayNum + ' · ' + target.getFullYear() + ' (' + timeTxt + ')',
+          nextDayText: 'ቀጣይ ቀን (አውቶ): ' + amDays[nextIdx] + ' ' + nextNum
+        };
+      }
+      return {
+        ymd: getLocalYmd(target),
+        isLiveToday: off === 0,
+        headline: prefixEn + ' — ' + enDays[dIdx] + ', Day ' + dayNum,
+        dateBadge: enDays[dIdx] + ', ' + enMonths[target.getMonth()] + ' ' + dayNum + ', ' + target.getFullYear() + ' · ' + timeTxt,
+        nextDayText: 'Next Auto: ' + enDays[nextIdx] + ', Day ' + nextNum
+      };
+    }
+
+    function getWeekCalendarStrip(lang, selectedOffset) {
+      var baseNow = new Date();
+      var enShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      var amShort = ['እሁድ', 'ሰኞ', 'ማክ', 'ረቡዕ', 'ሐሙስ', 'አርብ', 'ቅዳሜ'];
+      var days = [];
+      for (var i = 0; i < 7; i++) {
+        var dt = new Date(baseNow.getTime());
+        dt.setDate(baseNow.getDate() + i);
+        days.push({
+          offset: i,
+          label: lang === 'am' ? amShort[dt.getDay()] : enShort[dt.getDay()],
+          dayNum: dt.getDate(),
+          isToday: i === 0,
+          isSelected: i === (selectedOffset || 0)
+        });
+      }
+      return days;
+    }
+
+    function assetImgHtml(src, cls, alt, modalTitle) {
+      var fallback = src.charAt(0) === '/' ? ('public' + src) : src;
+      return '<img src="' + esc(src) + '" data-preview-src="' + esc(src) + '" data-preview-title="' + esc(modalTitle || alt) + '" class="' + esc(cls) + '" alt="' + esc(alt) + '" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + esc(fallback) + '\';}" />';
+    }
+
+    var savedAdminCfg = loadJsonStorage(STORAGE_ADMIN_CFG, {});
     var state = {
+      lang: localStorage.getItem(STORAGE_LANG) || 'en',
       bots: loadBots(),
       activeBotId: null,
       supabaseConfig: loadSupabaseConfig(),
@@ -726,9 +982,10 @@
       syncInFlight: false,
       auditLogs: loadJsonStorage(STORAGE_AUDIT_LOGS, []),
       workspaceUsers: loadJsonStorage(STORAGE_USERS, [
-        { id: 'umery1969@gmail.com', label: 'umery1969@gmail.com', role: 'admin', source: 'Browser', blocked: false, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() }
+        { id: 'umery1969@gmail.com', label: 'umery1969@gmail.com', role: 'admin', source: 'Browser', blocked: false, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() },
+        { id: 'abdulfeta', label: 'Abdulfeta (Manager of Cyber Security)', role: 'cyber_security_manager', source: 'Security', blocked: false, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() }
       ]),
-      adminConfig: Object.assign({}, DEFAULT_ADMIN_CFG, loadJsonStorage(STORAGE_ADMIN_CFG, {})),
+      adminConfig: Object.assign({}, DEFAULT_ADMIN_CFG, savedAdminCfg),
       tgOffsets: loadJsonStorage(STORAGE_TG_OFFSET, {}),
       folderHistory: loadJsonStorage(STORAGE_FOLDER_HISTORY, []),
       deletedVault: loadJsonStorage(STORAGE_DELETED_VAULT, []),
@@ -741,6 +998,9 @@
       selectedFolder: 'all',
       sortOrder: 'recent',
       activeCardMenuId: null,
+      collapsedHomeFolders: {},
+      previewDayOffset: 0,
+      lastRenderedYmd: '',
       // Table view UI
       tableSearchOpen: false,
       tableSearchQuery: '',
@@ -754,6 +1014,20 @@
       toastTimer: null
     };
     state.syncStatus = state.supabaseConfig.isConnected ? 'syncing' : 'local';
+    if (!state.adminConfig.cyberSecurityManager) state.adminConfig.cyberSecurityManager = 'Abdulfeta';
+    if (!state.adminConfig.cyberSecurityTitle) state.adminConfig.cyberSecurityTitle = 'Manager of Cyber Security';
+    if (!state.workspaceUsers.some(function (u) { return String(u.id).toLowerCase() === 'abdulfeta'; })) {
+      state.workspaceUsers.push({ id: 'abdulfeta', label: 'Abdulfeta (Manager of Cyber Security)', role: 'cyber_security_manager', source: 'Security', blocked: false, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() });
+    }
+
+    function toggleLanguage() {
+      state.lang = state.lang === 'am' ? 'en' : 'am';
+      try { localStorage.setItem(STORAGE_LANG, state.lang); } catch (e) {}
+      renderApp();
+      if (state.drawerOpen) renderDrawer();
+      if (state.modal) renderModal();
+      showToast(state.lang === 'am' ? 'ቋንቋ ወደ አማርኛ ተቀይሯል' : 'Language switched to English');
+    }
 
     var syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('tablebot_live_sync') : null;
 
@@ -1924,7 +2198,7 @@
     }
 
     // Instant Bot Creation (+ New Bot & Quick Blank Table)
-    function createInstantBot(isBlank) {
+    function createInstantBot(isBlank, overrideFolder) {
       if (!guardWriteAction('Create New Bot')) return;
       var names = {};
       state.bots.forEach(function (b) { names[b.name] = true; });
@@ -1933,16 +2207,16 @@
         botName = 'Blank Table ' + (state.bots.length + 1);
         if (names[botName]) botName = 'Blank Table ' + String(Date.now()).slice(-4);
       } else {
-        botName = 'New Bot';
+        botName = overrideFolder ? (overrideFolder + ' Table') : 'New Bot';
         if (names[botName]) {
           var c = 2;
-          while (names['New Bot ' + c]) c++;
-          botName = 'New Bot ' + c;
+          while (names[(overrideFolder ? (overrideFolder + ' Table ') : 'New Bot ') + c]) c++;
+          botName = (overrideFolder ? (overrideFolder + ' Table ') : 'New Bot ') + c;
         }
       }
       var id = Date.now();
       var actor = getCurrentActor();
-      var targetFolder = (state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : 'General';
+      var targetFolder = overrideFolder || ((state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : 'General');
       var newBot = {
         id: 'bot_' + id,
         name: botName,
@@ -2085,17 +2359,18 @@
       var html = '<header class="app-header"><div class="header-inner">' +
         '<div class="header-left">' +
           '<button class="icon-btn" id="btn-open-drawer" aria-label="Menu">' + icon('menu', 22) + '</button>' +
-          '<span style="font-weight:700;font-size:18px;letter-spacing:-0.01em">All Bots</span>' +
+          '<span style="font-weight:700;font-size:18px;letter-spacing:-0.01em">' + esc(t('all_bots')) + '</span>' +
           '<span class="pill-badge">' + filtered.length + '</span>' +
           '<button id="sync-pill-badge" class="sync-pill" title="Connect or manage Supabase account" style="cursor:pointer;border:1px solid rgba(255,255,255,0.2);"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></button>' +
         '</div>' +
         '<div class="header-right">' +
+          '<button type="button" class="lang-toggle-btn" id="btn-lang-toggle" title="Switch English / አማርኛ">' + esc(t('lang_btn')) + '</button>' +
           '<button class="icon-btn" id="btn-dash-sync" title="Sync Browser, Telegram &amp; Supabase Now">' + icon('refresh', 17) + '</button>' +
-          '<button class="header-action-btn" id="btn-dash-excel" title="Import Excel (.xlsx, .xls, .csv)"><span style="color:#6EE7B7">' + icon('excel', 15) + '</span><span>Import Excel</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-backup" title="Folder Backup, Missing Files &amp; 3m+ History Restore"><span style="color:#A7F3D0">' + icon('history', 15) + '</span><span>Backup &amp; Restore</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-admin" title="Admin Panel: User Edits, Unwanted User Block &amp; Transmit"><span style="color:#FDE68A">' + icon('shield', 15) + '</span><span>Admin</span>' + (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;padding:1px 5px;">' + blockedCount + '</span>' : '') + '</button>' +
+          '<button class="header-action-btn" id="btn-dash-excel" title="Import Excel (.xlsx, .xls, .csv)"><span style="color:#6EE7B7">' + icon('excel', 15) + '</span><span>' + esc(t('import_excel')) + '</span></button>' +
+          '<button class="header-action-btn" id="btn-dash-backup" title="Folder Backup, Missing Files &amp; 3m+ History Restore"><span style="color:#A7F3D0">' + icon('history', 15) + '</span><span>' + esc(t('backup_restore')) + '</span></button>' +
+          '<button class="header-action-btn" id="btn-dash-admin" title="Admin Panel: User Edits, Unwanted User Block &amp; Transmit"><span style="color:#FDE68A">' + icon('shield', 15) + '</span><span>' + esc(t('admin')) + '</span>' + (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;padding:1px 5px;">' + blockedCount + '</span>' : '') + '</button>' +
           '<button class="header-action-btn" id="btn-dash-supabase" title="Login / Connect Supabase Account"><span style="color:' + (state.authSession ? '#6EE7B7' : '#93C5FD') + '">' + icon('cloud', 15) + '</span><span>' + (state.authSession ? 'Account' : state.supabaseConfig.isConnected ? 'Login' : 'Supabase') + '</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
+          '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>' + esc(t('reports')) + '</span></button>' +
           '<button class="icon-btn" id="btn-dash-search" title="Search bots">' + icon('search', 20) + '</button>' +
           '<button class="icon-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')" style="width:auto;padding:0 8px;gap:4px;font-size:11px;font-weight:700;">' + icon('sort', 18) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
           '<select id="sel-dash-filter" class="header-select">' +
@@ -2117,20 +2392,61 @@
       var healthSummary = analyzeFolderHealth().summary;
       html += '<div class="folders-bar"><div class="folders-inner">' +
         '<span style="font-size:11px;font-weight:700;color:#BFDBFE;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;margin-right:4px;flex-shrink:0;">' +
-        '<span style="color:#FCD34D">' + icon('folder', 13) + '</span>Folders:</span>' +
-        '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">All Folders <span class="folder-count">' + state.bots.length + '</span></button>';
+        '<span style="color:#FCD34D">' + icon('folder', 13) + '</span>' + esc(t('folders')) + '</span>' +
+        '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">' + esc(t('all_folders')) + ' <span class="folder-count">' + state.bots.length + '</span></button>';
 
       folders.forEach(function (f) {
         var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
         html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + ' <span class="folder-count">' + cnt + '</span></button>';
       });
-      html += '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Create a new folder (e.g. Folder B)">' + icon('plus', 13) + '<span>Add Folder</span></button>';
-      html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>History &amp; Restore</span>' +
+      html += '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Create a new folder (e.g. Folder B)">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>';
+      html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>' + esc(t('history_restore')) + '</span>' +
         ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
       '</button>';
       html += '</div></div></header>';
 
       html += '<main class="dashboard-main">';
+
+      var dayInfo = getWelcomeDayInfo(state.lang, state.previewDayOffset);
+      state.lastRenderedYmd = getLocalYmd(new Date());
+      var weekDays = getWeekCalendarStrip(state.lang, state.previewDayOffset);
+      var secMgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
+      html += '<section class="welcome-hero-card">' +
+        '<div style="display:flex;flex-direction:column;gap:9px;min-width:0;">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<span class="pill-badge" id="hero-date-badge" style="background:#F59E0B;color:#fff;font-size:11px;padding:3px 10px;">' + esc(dayInfo.dateBadge) + '</span>' +
+            '<span class="pill-badge" style="background:rgba(16,185,129,0.28);border:1px solid rgba(167,243,208,0.55);color:#ECFDF5;font-size:10.5px;padding:2px 9px;">' + icon('clock', 11) + ' <span>' + esc(t('auto_date_live')) + '</span></span>' +
+            (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FEF3C7;font-size:10.5px;padding:2px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
+            '<button type="button" class="lang-toggle-btn" id="hero-lang-toggle" style="font-size:11px;padding:3px 9px;">' + esc(t('lang_btn')) + '</button>' +
+          '</div>' +
+          '<h1 id="hero-welcome-headline" style="font-size:21px;font-weight:800;line-height:1.25;letter-spacing:-0.01em;">' + esc(dayInfo.headline) + '</h1>' +
+          '<div class="week-strip">' +
+            weekDays.map(function (wd) {
+              var cls = wd.isToday ? (wd.isSelected ? 'today' : 'today') : (wd.isSelected ? 'preview' : '');
+              return '<button type="button" class="day-chip ' + cls + '" data-day-offset="' + wd.offset + '" title="' + (wd.isToday ? 'Live Today' : 'Preview +' + wd.offset + ' day(s)') + '">' +
+                '<span style="font-size:9.5px;opacity:0.9;">' + (wd.isToday ? (state.lang === 'am' ? 'ዛሬ' : 'TODAY') : esc(wd.label)) + '</span>' +
+                '<span class="day-chip-num">' + esc(wd.label) + ' ' + wd.dayNum + '</span>' +
+              '</button>';
+            }).join('') +
+            '<span id="hero-next-day" style="font-size:11px;color:#BAE6FD;font-weight:700;margin-left:4px;">' + esc(dayInfo.nextDayText) + '</span>' +
+          '</div>' +
+          '<div style="font-size:12px;color:#E2E8F0;line-height:1.45;">' + esc(t('welcome_tagline')) + '</div>' +
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;">' +
+            '<div class="cyber-badge">' +
+              '<span style="color:#34D399;display:inline-flex;">' + icon('shield', 15) + '</span>' +
+              '<span>' + esc(t('cyber_mgr_title')) + ': <strong style="color:#fff;">' + esc(secMgr) + '</strong></span>' +
+              '<span style="background:#10B981;color:#fff;font-size:10px;padding:1px 7px;border-radius:999px;">' + esc(t('cyber_protected')) + '</span>' +
+            '</div>' +
+            '<button type="button" id="hero-open-security" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:6px 12px;font-size:11.5px;">' + icon('shield', 13) + '<span>' + esc(t('open_security')) + '</span></button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="maed-gallery">' +
+          assetImgHtml(BRAND_ASSETS.logoGreenStars, 'maed-logo-box', "MA'ED Salt Emblem", "MA'ED Salt Emblem (Green Stars)") +
+          assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'maed-logo-box', "MA'ED Salt Crest", "MA'ED Salt Crest (White Stars)") +
+          assetImgHtml(BRAND_ASSETS.posterAdama, 'maed-poster-box', "MA'ED Table Salt Poster", "MA'ED Table Salt — Adama, Ethiopia") +
+        '</div>' +
+      '</section>';
+
 
       if (state.adminConfig.showDashboardActivity) {
         html += '<section class="audit-strip">' +
@@ -2168,8 +2484,8 @@
       }
 
       html += '<div class="grid-meta"><span class="grid-meta-title">' +
-        (state.filterType === 'all' ? 'All Bot Tables' : state.filterType.toUpperCase() + ' Bot Tables') + ' (' + filtered.length + ')' +
-        '</span><span style="color:#94A3B8">Tap a card to open &amp; immediately sync</span></div>';
+        (state.filterType === 'all' ? esc(t('all_bot_tables')) : state.filterType.toUpperCase() + ' Bot Tables') + ' (' + filtered.length + ')' +
+        '</span><span style="color:#94A3B8">' + esc(t('tap_card')) + '</span></div>';
 
       if (filtered.length === 0) {
         html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:40px auto;border:1px solid #E2E8F0;">' +
@@ -2216,6 +2532,7 @@
         html += '</div>';
       }
 
+
       html += '</main><div class="fab-stack">' +
         '<button class="fab-secondary" id="fab-blank-bot" title="Quick-create Blank Bot Table">' + icon('grid', 21) + '</button>' +
         '<button class="fab-primary" id="fab-new-bot" title="Create New Bot">' + icon('plus', 26) + '</button>' +
@@ -2228,6 +2545,25 @@
     function bindDashboardEvents() {
       var drawerBtn = document.getElementById('btn-open-drawer');
       if (drawerBtn) drawerBtn.onclick = function () { state.drawerOpen = true; renderDrawer(); };
+      var langBtn = document.getElementById('btn-lang-toggle');
+      if (langBtn) langBtn.onclick = toggleLanguage;
+      var heroLangBtn = document.getElementById('hero-lang-toggle');
+      if (heroLangBtn) heroLangBtn.onclick = toggleLanguage;
+      var heroSecBtn = document.getElementById('hero-open-security');
+      if (heroSecBtn) heroSecBtn.onclick = function () { openModal('admin', { tab: 'transmit' }); };
+      var heroResetBtn = document.getElementById('hero-reset-today');
+      if (heroResetBtn) heroResetBtn.onclick = function () { state.previewDayOffset = 0; renderDashboard(); };
+      document.querySelectorAll('.day-chip[data-day-offset]').forEach(function (btn) {
+        btn.onclick = function () {
+          state.previewDayOffset = parseInt(btn.getAttribute('data-day-offset'), 10) || 0;
+          renderDashboard();
+        };
+      });
+      document.querySelectorAll('[data-preview-src]').forEach(function (img) {
+        img.onclick = function () {
+          openModal('image_preview', { src: img.getAttribute('data-preview-src'), title: img.getAttribute('data-preview-title') });
+        };
+      });
       var syncPillBtn = document.getElementById('sync-pill-badge');
       if (syncPillBtn) syncPillBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
       var syncNowHdr = document.getElementById('btn-dash-sync');
@@ -2370,11 +2706,12 @@
             '</div>' +
           '</div>' +
           '<div class="header-right">' +
+            '<button type="button" class="lang-toggle-btn" id="btn-table-lang" title="Switch English / አማርኛ">' + esc(t('lang_btn')) + '</button>' +
             (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 10px;font-size:11.5px;">' + icon('trash', 14) + '<span>Delete (' + selCount + ')</span></button>' : '') +
-            '<button class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>Sync</span></button>' +
-            '<button class="header-action-btn" id="btn-table-history" title="Open File Version History (3m+ &amp; Restore)"><span style="color:#A7F3D0">' + icon('history', 14) + '</span><span>Versions</span></button>' +
-            '<button class="header-action-btn" id="btn-table-add-col" title="Add New Column"><span style="color:#93C5FD">' + icon('plus', 14) + '</span><span>Add Column</span></button>' +
-            '<button class="header-action-btn" id="btn-table-reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
+            '<button class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>' + esc(t('sync')) + '</span></button>' +
+            '<button class="header-action-btn" id="btn-table-history" title="Open File Version History (3m+ &amp; Restore)"><span style="color:#A7F3D0">' + icon('history', 14) + '</span><span>' + esc(t('versions')) + '</span></button>' +
+            '<button class="header-action-btn" id="btn-table-add-col" title="Add New Column"><span style="color:#93C5FD">' + icon('plus', 14) + '</span><span>' + esc(t('add_column')) + '</span></button>' +
+            '<button class="header-action-btn" id="btn-table-reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>' + esc(t('reports')) + '</span></button>' +
             '<button class="icon-btn" id="btn-table-search" title="Search rows">' + icon('search', 20) + '</button>' +
             '<button class="icon-btn" id="btn-table-settings" title="Bot Settings">' + icon('settings', 19) + '</button>' +
           '</div></div>';
@@ -2512,6 +2849,8 @@
 
     function bindTableEvents(bot, visibleRows) {
       document.getElementById('btn-table-back').onclick = function () { state.activeBotId = null; state.showMoreMenu = false; renderApp(); };
+      var tLangBtn = document.getElementById('btn-table-lang');
+      if (tLangBtn) tLangBtn.onclick = toggleLanguage;
       document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
       document.getElementById('btn-table-history').onclick = function () { openModal('file_history', { botId: bot.id }); };
       document.getElementById('btn-table-reports').onclick = function () { openModal('reports'); };
@@ -2718,35 +3057,41 @@
               (loggedIn ? 'Cloud Session Active' : cfg.isConnected ? 'Supabase Configured (Sign In)' : 'Local Storage Mode') + '</div>' +
             '<div style="font-size:11px;opacity:0.85;">' + (loggedIn ? 'Logged In as' : 'Active Profile') + '</div>' +
             '<div class="truncate" style="font-weight:700;font-size:14px;">' + esc(activeEmail) + '</div>' +
+            '<div style="margin-top:6px;font-size:11px;background:rgba(15,23,42,0.45);padding:4px 8px;border-radius:8px;display:inline-flex;align-items:center;gap:5px;color:#FEF3C7;">' +
+              '<span style="color:#34D399;display:inline-flex;">' + icon('shield', 12) + '</span>' +
+              '<span>' + esc(t('cyber_mgr_title')) + ': <strong>' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '</strong></span>' +
+            '</div>' +
           '</div>' +
           '<div class="drawer-nav">' +
-            '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>Manage Bots</span></span></button>' +
-            '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:700;">Admin Menu</div><div style="font-size:11px;color:#64748B;">User edits, unwanted block &amp; transmit</div></div></span></span>' +
+            '<button class="drawer-item" id="drawer-lang-toggle"><span class="drawer-item-left"><span style="color:#0F766E;font-weight:800;font-size:13px;">አማ/EN</span><span><div><div style="font-weight:700;">Language / ቋንቋ (Amharic)</div><div style="font-size:11px;color:#64748B;">Current: ' + (state.lang === 'am' ? 'አማርኛ (Amharic)' : 'English') + '</div></div></span></span><span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;">' + (state.lang === 'am' ? 'አማ' : 'EN') + '</span></button>' +
+            '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>' + esc(t('manage_bots')) + '</span></span></button>' +
+            '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('admin_menu')) + '</div><div style="font-size:11px;color:#64748B;">Cyber Security: ' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '</div></div></span></span>' +
               (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;">' + blockedCount + ' BLK</span>' : '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;font-size:10px;">' + state.auditLogs.length + '</span>') + '</button>' +
-            '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#E65100;padding:4px;border-radius:6px;display:inline-flex;">' + icon('chart', 16) + '</span><span><div><div style="font-weight:700;">Daily, Weekly &amp; Monthly Reports</div><div style="font-size:11px;color:#64748B;">Customer ledger, paid &amp; balances</div></div></span></span></button>' +
+            '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#E65100;padding:4px;border-radius:6px;display:inline-flex;">' + icon('chart', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('reports_nav')) + '</div><div style="font-size:11px;color:#64748B;">Customer ledger, paid &amp; balances</div></div></span></span></button>' +
             '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
-            '<button class="drawer-item" data-nav="login"><span class="drawer-item-left"><span style="color:#059669">' + icon('login', 19) + '</span><span><div><div style="font-weight:700;">' + (loggedIn ? 'Account &amp; Switch Login' : 'Login / Sign In') + '</div><div style="font-size:11px;color:#64748B;">Email &amp; Password or Magic Link</div></div></span></span></button>' +
-            '<button class="drawer-item" data-nav="forgot"><span class="drawer-item-left"><span style="color:#D97706">' + icon('lock', 19) + '</span><span>Forgot / Reset Password</span></span></button>' +
-            '<button class="drawer-item" data-nav="supabase"><span class="drawer-item-left"><span style="color:#1976D2">' + icon('cloud', 19) + '</span><span>Cloud Sync / Supabase</span></span>' +
+            '<button class="drawer-item" data-nav="login"><span class="drawer-item-left"><span style="color:#059669">' + icon('login', 19) + '</span><span><div><div style="font-weight:700;">' + (loggedIn ? 'Account &amp; Switch Login' : t('login_nav')) + '</div><div style="font-size:11px;color:#64748B;">Email &amp; Password or Magic Link</div></div></span></span></button>' +
+            '<button class="drawer-item" data-nav="forgot"><span class="drawer-item-left"><span style="color:#D97706">' + icon('lock', 19) + '</span><span>' + esc(t('forgot_pw')) + '</span></span></button>' +
+            '<button class="drawer-item" data-nav="supabase"><span class="drawer-item-left"><span style="color:#1976D2">' + icon('cloud', 19) + '</span><span>' + esc(t('cloud_sync')) + '</span></span>' +
               (loggedIn ? '<span class="sync-dot dot-synced"></span>' : cfg.isConnected ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:999px;">Login Req</span>' : '<span style="font-size:11px;background:#F1F5F9;color:#475569;padding:2px 8px;border-radius:999px;">Offline</span>') + '</button>' +
-            '<button class="drawer-item" data-nav="telegram"><span class="drawer-item-left"><span style="color:#0288D1">' + icon('key', 19) + '</span><span>Connect Telegram Token</span></span></button>' +
+            '<button class="drawer-item" data-nav="telegram"><span class="drawer-item-left"><span style="color:#0288D1">' + icon('key', 19) + '</span><span>' + esc(t('telegram_nav')) + '</span></span></button>' +
             '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
-            '<button class="drawer-item" data-nav="import_excel"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:4px;border-radius:6px;display:inline-flex;">' + icon('excel', 17) + '</span><span><div><div style="font-weight:700;">Import Excel (.xlsx / .xls / .csv)</div><div style="font-size:11px;color:#64748B;">Import sheets as new tables or merge rows</div></div></span></span></button>' +
-            '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="background:#F0FDFA;color:#0F766E;padding:4px;border-radius:6px;display:inline-flex;">' + icon('history', 17) + '</span><span><div><div style="font-weight:700;">Backup, Delete &amp; Restore Folders</div><div style="font-size:11px;color:#64748B;">Folder history (min/days/3+ mo), missing &amp; trash</div></div></span></span>' +
+            '<button class="drawer-item" data-nav="import_excel"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:4px;border-radius:6px;display:inline-flex;">' + icon('excel', 17) + '</span><span><div><div style="font-weight:700;">' + esc(t('import_excel')) + ' (.xlsx / .csv)</div><div style="font-size:11px;color:#64748B;">Import sheets as new tables or merge rows</div></div></span></span></button>' +
+            '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="background:#F0FDFA;color:#0F766E;padding:4px;border-radius:6px;display:inline-flex;">' + icon('history', 17) + '</span><span><div><div style="font-weight:700;">' + esc(t('backup_nav')) + '</div><div style="font-size:11px;color:#64748B;">Folder history (min/days/3+ mo), missing &amp; trash</div></div></span></span>' +
               (state.deletedVault.length ? '<span class="pill-badge" style="background:#D97706;color:#fff;font-size:10px;">' + state.deletedVault.length + '</span>' : '') + '</button>' +
-            '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>Export Standalone HTML</span></span></button>' +
-            '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>Bot Settings</span></span></button>' +
-            '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>Share App</span></span></button>' +
-            '<button class="drawer-item" data-nav="help"><span class="drawer-item-left"><span style="color:#64748B">' + icon('help', 19) + '</span><span>Help &amp; Setup Guide</span></span></button>' +
+            '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>' + esc(t('export_html')) + '</span></span></button>' +
+            '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>' + esc(t('bot_settings')) + '</span></span></button>' +
+            '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>' + esc(t('share_app')) + '</span></span></button>' +
+            '<button class="drawer-item" data-nav="help"><span class="drawer-item-left"><span style="color:#64748B">' + icon('help', 19) + '</span><span>' + esc(t('help_guide')) + '</span></span></button>' +
           '</div>' +
           '<div style="padding:14px;border-top:1px solid #E2E8F0;background:#F8FAFC;display:flex;gap:8px;">' +
-            '<button class="btn btn-red" id="drawer-signout" style="width:100%;">' + icon('logout', 16) + '<span>' + (loggedIn ? 'Logout' : 'Logout / Reset Session') + '</span></button>' +
+            '<button class="btn btn-red" id="drawer-signout" style="width:100%;">' + icon('logout', 16) + '<span>' + (loggedIn ? t('logout') : t('logout') + ' / Reset Session') + '</span></button>' +
           '</div>' +
         '</div></div>';
 
       document.getElementById('drawer-bg').onclick = function () { state.drawerOpen = false; renderDrawer(); };
       document.getElementById('drawer-panel').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('drawer-close').onclick = function () { state.drawerOpen = false; renderDrawer(); };
+      document.getElementById('drawer-lang-toggle').onclick = toggleLanguage;
       document.getElementById('drawer-signout').onclick = async function () {
         var prevActor = getCurrentActor();
         try {
@@ -2818,6 +3163,21 @@
       else if (m.type === 'backup') renderBackupModal(m);
       else if (m.type === 'file_history') renderFileHistoryModal(m);
       else if (m.type === 'add_folder') renderAddFolderModal(m);
+      else if (m.type === 'image_preview') renderImagePreviewModal(m);
+    }
+
+    function renderImagePreviewModal(m) {
+      var fallback = (m.src || '').charAt(0) === '/' ? ('public' + m.src) : (m.src || '');
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" style="max-width:560px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;"><h2 style="font-size:15px;font-weight:700;">' + esc(m.title || "MA'ED Salt Showcase") + '</h2></div>' +
+          '<button class="icon-btn" id="img-prev-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="text-align:center;background:#F8FAFC;">' +
+          '<img src="' + esc(m.src || '') + '" style="max-width:100%;max-height:70vh;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.14);" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + esc(fallback) + '\';}" />' +
+        '</div></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('img-prev-close').onclick = closeModal;
     }
 
     function renderAddFolderModal(m) {
@@ -2829,7 +3189,7 @@
           '<div><label class="field-label">New Folder Name</label>' +
             '<input id="af-name" class="form-input" placeholder="e.g. Folder B, Orders, Expenses..." value="' + esc(m.name || '') + '" required autofocus />' +
             '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
-              ['Folder B', 'Folder C', 'Inventory', 'Expenses'].map(function (sug) {
+              ['Ali', 'Folder B', 'Orders', 'Expenses'].map(function (sug) {
                 return '<button type="button" class="btn btn-outline af-sug" data-sug="' + esc(sug) + '" style="padding:3px 9px;font-size:11px;">+ ' + esc(sug) + '</button>';
               }).join('') +
             '</div>' +
@@ -4289,6 +4649,13 @@
             '<button id="tr-transfer-btn" class="btn btn-dark-blue" style="flex:1;">' + icon('swap', 14) + '<span>Transmit Data to Target</span></button>' +
             '<button id="tr-purge-btn" class="btn btn-red" style="flex:1;">' + icon('trash', 14) + '<span>Delete User\'s Added Rows</span></button>' +
           '</div></div>' +
+          '<div style="padding:14px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="font-weight:800;font-size:13px;color:#065F46;display:flex;align-items:center;gap:6px;">' + icon('shield', 15) + '<span>' + esc(t('cyber_mgr_title')) + ' Designation</span></div>' +
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+              '<input id="cfg-cyber-mgr" class="form-input" style="flex:1;min-width:180px;" value="' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '" placeholder="Manager of Cyber Security name" />' +
+              '<button id="cfg-cyber-save" class="btn btn-green" style="font-size:12px;">Save Cyber Manager</button>' +
+            '</div>' +
+          '</div>' +
           '<div style="padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
             '<div style="font-weight:800;font-size:13px;color:#0F172A;">Immediate Sync Method (Browser Open &amp; Telegram Open)</div>' +
             '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Immediate sync on Browser Open / Tab Focus</span><input type="checkbox" id="cfg-sync-open" ' + (state.adminConfig.autoSyncOnOpen ? 'checked' : '') + ' /></label>' +
@@ -4299,7 +4666,7 @@
       }
 
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('shield', 21) + '<div><h2 style="font-size:16px;font-weight:700;">Admin Control Center</h2><div style="font-size:11px;color:#BFDBFE;">User Add/Edit/Delete Audit &middot; Block Unwanted Users &middot; Instant Transmit &amp; Sync</div></div></div>' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('shield', 21) + '<div><h2 style="font-size:16px;font-weight:700;">Admin &amp; Cyber Security Control Center</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(t('cyber_mgr_title')) + ': <strong style="color:#FDE68A;">' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '</strong> &middot; Block Unwanted Users &amp; Instant Transmit</div></div></div>' +
           '<button class="icon-btn" id="adm-close">' + icon('close', 18) + '</button></header>' +
         '<div class="admin-tabs">' +
           '<button class="admin-tab-btn ' + (m.tab === 'logs' ? 'active' : '') + '" data-admtab="logs">Activity Dashboard (' + state.auditLogs.length + ')</button>' +
@@ -4384,6 +4751,15 @@
           recordAudit('DELETE', null, 'Purged ' + removedRows + ' unwanted row(s) by "' + src + '"', { source: 'Admin' });
           renderApp(); renderAdminModal(m);
           showToast('Deleted ' + removedRows + ' row(s) created by ' + src);
+        };
+        var cySaveBtn = document.getElementById('cfg-cyber-save');
+        if (cySaveBtn) cySaveBtn.onclick = function () {
+          var nv = (document.getElementById('cfg-cyber-mgr').value || '').trim() || 'Abdulfeta';
+          state.adminConfig.cyberSecurityManager = nv;
+          saveAdminState();
+          recordAudit('AUTH', null, 'Set Manager of Cyber Security: ' + nv, { source: 'Admin' });
+          renderApp(); renderAdminModal(m);
+          showToast('Manager of Cyber Security set to ' + nv);
         };
         document.getElementById('cfg-sync-open').onchange = function (e) { state.adminConfig.autoSyncOnOpen = e.target.checked; saveAdminState(); };
         document.getElementById('cfg-tg-poll').onchange = function (e) { state.adminConfig.telegramAutoPoll = e.target.checked; saveAdminState(); };
@@ -5376,10 +5752,34 @@
       if (dirty) renderApp();
     });
 
+    function refreshWelcomeDateIfNeeded() {
+      var curYmd = getLocalYmd(new Date());
+      if (state.lastRenderedYmd && state.lastRenderedYmd !== curYmd) {
+        state.previewDayOffset = 0;
+        state.lastRenderedYmd = curYmd;
+        if (!state.activeBotId) renderDashboard();
+        if (state.modal && state.modal.type === 'reports') renderReportsModal(state.modal);
+        return;
+      }
+      var badgeEl = document.getElementById('hero-date-badge');
+      var headEl = document.getElementById('hero-welcome-headline');
+      var nextEl = document.getElementById('hero-next-day');
+      if (!badgeEl || !headEl) return;
+      var info = getWelcomeDayInfo(state.lang, state.previewDayOffset);
+      if (badgeEl.textContent !== info.dateBadge) badgeEl.textContent = info.dateBadge;
+      if (headEl.textContent !== info.headline) headEl.textContent = info.headline;
+      if (nextEl && nextEl.textContent !== info.nextDayText) nextEl.textContent = info.nextDayText;
+    }
+
+    function startLiveDateWatcher() {
+      setInterval(refreshWelcomeDateIfNeeded, 10000);
+    }
+
     // Boot Application & Trigger Immediate Open-Time Sync
     ensureInitialFolderManifest();
     renderApp();
     startTelegramAutoPoll();
+    startLiveDateWatcher();
     if (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
       getSbClient();
       openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
