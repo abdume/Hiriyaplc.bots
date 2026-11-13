@@ -380,6 +380,40 @@
       .modal-backdrop { position: static; background: #fff; padding: 0; }
       .modal-card { max-width: 100% !important; max-height: none !important; box-shadow: none !important; }
     }
+
+    /* Admin Activity Strip & Audit Badges */
+    .audit-strip {
+      background: #fff; border: 1px solid #DBEAFE; border-radius: 12px;
+      padding: 12px 14px; margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(13,71,161,0.06);
+    }
+    .audit-strip-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .audit-feed-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 7px 10px; border-radius: 8px; background: #F8FAFC; border: 1px solid #F1F5F9;
+      font-size: 12px; flex-wrap: wrap;
+    }
+    .act-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase;
+    }
+    .act-add { background: #DCFCE7; color: #166534; }
+    .act-edit { background: #DBEAFE; color: #1E40AF; }
+    .act-delete { background: #FEE2E2; color: #991B1B; }
+    .act-block { background: #450A0A; color: #FECACA; }
+    .act-auth { background: #FEF3C7; color: #92400E; }
+    .act-transmit { background: #F3E8FF; color: #6B21A8; }
+    .act-sync { background: #E0F2FE; color: #0369A1; }
+    .admin-tabs {
+      display: flex; border-bottom: 1px solid #E2E8F0; background: #F8FAFC; font-size: 12px; font-weight: 700;
+    }
+    .admin-tab-btn {
+      flex: 1; padding: 11px 8px; border-bottom: 2px solid transparent; color: #64748B; text-align: center;
+    }
+    .admin-tab-btn.active { border-bottom-color: #0D47A1; color: #0D47A1; background: #fff; }
   </style>
 </head>
 <body>
@@ -396,6 +430,10 @@
     var STORAGE_SB_URL = 'tablebot_supabase_url';
     var STORAGE_SB_KEY = 'tablebot_supabase_anon_key';
     var STORAGE_SB_EMAIL = 'tablebot_user_email';
+    var STORAGE_AUDIT_LOGS = 'tablebot_audit_logs';
+    var STORAGE_USERS = 'tablebot_workspace_users';
+    var STORAGE_ADMIN_CFG = 'tablebot_admin_config';
+    var STORAGE_TG_OFFSET = 'tablebot_tg_offsets';
 
     var SQL_SETUP_SCRIPT =
       '-- Run this in your Supabase SQL Editor:\n' +
@@ -406,8 +444,35 @@
       '  updated_at timestamptz default now()\n' +
       ');\n\n' +
       'alter table user_bots enable row level security;\n\n' +
+      'drop policy if exists "Users manage own bots" on user_bots;\n' +
       'create policy "Users manage own bots" on user_bots\n' +
-      '  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);';
+      '  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);\n\n' +
+      '-- Admin Audit Logs & Realtime Sync:\n' +
+      'create table if not exists bot_audit_logs (\n' +
+      '  id text primary key,\n' +
+      '  user_id uuid references auth.users not null,\n' +
+      '  actor text not null,\n' +
+      '  action text not null,\n' +
+      '  source text not null,\n' +
+      '  bot_id text,\n' +
+      '  bot_name text,\n' +
+      '  summary text,\n' +
+      '  created_at timestamptz default now()\n' +
+      ');\n\n' +
+      'alter table bot_audit_logs enable row level security;\n' +
+      'drop policy if exists "Users manage own audit logs" on bot_audit_logs;\n' +
+      'create policy "Users manage own audit logs" on bot_audit_logs\n' +
+      '  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);\n\n' +
+      'do $$\n' +
+      'begin\n' +
+      '  alter publication supabase_realtime add table user_bots;\n' +
+      'exception when duplicate_object then null;\n' +
+      'end $$;\n' +
+      'do $$\n' +
+      'begin\n' +
+      '  alter publication supabase_realtime add table bot_audit_logs;\n' +
+      'exception when duplicate_object then null;\n' +
+      'end $$;';
 
     // Crisp inline SVG icons (zero external network dependency)
     var ICONS = {
@@ -437,7 +502,12 @@
       share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
       help: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" x2="12.01" y1="17" y2="17"/>',
       logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+      login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/>',
       user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+      shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+      lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+      ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+      swap: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
       close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
       sliders: '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/>',
       filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
@@ -446,7 +516,8 @@
       pdf: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/>',
       check: '<polyline points="20 6 9 17 4 12"/>',
       chevronDown: '<path d="m6 9 6 6 6-6"/>',
-      refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
+      refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+      zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
     };
 
     function icon(name, size) {
@@ -592,13 +663,41 @@
       return { url: url, anonKey: key, userEmail: email, isConnected: Boolean(url && key) };
     }
 
+    function loadJsonStorage(key, fallback) {
+      try {
+        var raw = localStorage.getItem(key);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return fallback;
+    }
+
+    var DEFAULT_ADMIN_CFG = {
+      adminEmail: 'umery1969@gmail.com',
+      autoSyncOnOpen: true,
+      telegramAutoPoll: true,
+      showDashboardActivity: true,
+      blockStrictMode: true
+    };
+
     var state = {
       bots: loadBots(),
       activeBotId: null,
       supabaseConfig: loadSupabaseConfig(),
+      authSession: null,
       syncStatus: 'local',
+      lastSyncAt: null,
+      lastTgSyncAt: null,
       sbClient: null,
       sbUnsub: null,
+      sbAuthSub: null,
+      tgPollTimer: null,
+      syncInFlight: false,
+      auditLogs: loadJsonStorage(STORAGE_AUDIT_LOGS, []),
+      workspaceUsers: loadJsonStorage(STORAGE_USERS, [
+        { id: 'umery1969@gmail.com', label: 'umery1969@gmail.com', role: 'admin', source: 'Browser', blocked: false, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() }
+      ]),
+      adminConfig: Object.assign({}, DEFAULT_ADMIN_CFG, loadJsonStorage(STORAGE_ADMIN_CFG, {})),
+      tgOffsets: loadJsonStorage(STORAGE_TG_OFFSET, {}),
       // Dashboard filters
       searchOpen: false,
       searchQuery: '',
@@ -615,10 +714,12 @@
       showMoreMenu: false,
       // Drawer & Modals
       drawerOpen: false,
-      modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help', data: ... }
+      modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin', ... }
       toastTimer: null
     };
     state.syncStatus = state.supabaseConfig.isConnected ? 'syncing' : 'local';
+
+    var syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('tablebot_live_sync') : null;
 
     function esc(v) {
       return String(v === undefined || v === null ? '' : v)
@@ -627,6 +728,95 @@
 
     function saveBotsLocal() {
       try { localStorage.setItem(STORAGE_BOTS, JSON.stringify(state.bots)); } catch (e) {}
+    }
+
+    function saveAdminState() {
+      try {
+        localStorage.setItem(STORAGE_AUDIT_LOGS, JSON.stringify(state.auditLogs.slice(0, 250)));
+        localStorage.setItem(STORAGE_USERS, JSON.stringify(state.workspaceUsers));
+        localStorage.setItem(STORAGE_ADMIN_CFG, JSON.stringify(state.adminConfig));
+        localStorage.setItem(STORAGE_TG_OFFSET, JSON.stringify(state.tgOffsets));
+      } catch (e) {}
+    }
+
+    function broadcastLocalSync(reason) {
+      if (syncChannel) {
+        try { syncChannel.postMessage({ type: 'SYNC_NOW', reason: reason || 'update', ts: Date.now() }); } catch (e) {}
+      }
+    }
+
+    function getCurrentActor() {
+      if (state.authSession && state.authSession.email) return state.authSession.email;
+      return state.supabaseConfig.userEmail || 'umery1969@gmail.com';
+    }
+
+    function isActorBlocked(identifier) {
+      if (!identifier) return false;
+      var norm = String(identifier).trim().toLowerCase();
+      return state.workspaceUsers.some(function (u) {
+        return u.blocked && (String(u.id || '').toLowerCase() === norm || String(u.label || '').toLowerCase() === norm);
+      });
+    }
+
+    function touchWorkspaceUser(actor, action, source) {
+      if (!actor) return;
+      var norm = String(actor).trim();
+      var lower = norm.toLowerCase();
+      var u = state.workspaceUsers.find(function (x) {
+        return String(x.id || '').toLowerCase() === lower || String(x.label || '').toLowerCase() === lower;
+      });
+      if (!u) {
+        u = {
+          id: norm,
+          label: norm,
+          role: lower === String(state.adminConfig.adminEmail || '').toLowerCase() ? 'admin' : 'editor',
+          source: source || 'Browser',
+          blocked: false,
+          adds: 0,
+          edits: 0,
+          deletes: 0,
+          lastSeen: new Date().toISOString()
+        };
+        state.workspaceUsers.push(u);
+      }
+      u.lastSeen = new Date().toISOString();
+      if (source) u.source = source;
+      if (action === 'ADD') u.adds = (u.adds || 0) + 1;
+      else if (action === 'EDIT') u.edits = (u.edits || 0) + 1;
+      else if (action === 'DELETE') u.deletes = (u.deletes || 0) + 1;
+    }
+
+    function recordAudit(action, bot, summary, extra) {
+      extra = extra || {};
+      var actor = extra.actor || getCurrentActor();
+      var source = extra.source || 'Browser';
+      var entry = {
+        id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        timestamp: new Date().toISOString(),
+        actor: actor,
+        action: action,
+        source: source,
+        botId: bot ? bot.id : (extra.botId || ''),
+        botName: bot ? bot.name : (extra.botName || 'Workspace'),
+        summary: summary || '',
+        before: extra.before !== undefined ? String(extra.before) : '',
+        after: extra.after !== undefined ? String(extra.after) : ''
+      };
+      state.auditLogs.unshift(entry);
+      if (state.auditLogs.length > 250) state.auditLogs = state.auditLogs.slice(0, 250);
+      touchWorkspaceUser(actor, action, source);
+      saveAdminState();
+      pushAuditLogToSupabase(entry);
+    }
+
+    function guardWriteAction(actionLabel) {
+      var actor = getCurrentActor();
+      if (isActorBlocked(actor)) {
+        recordAudit('BLOCK', getActiveBot(), 'Blocked user "' + actor + '" attempted: ' + actionLabel, { actor: actor, source: 'Browser' });
+        showToast('Access blocked by Admin for ' + actor);
+        return false;
+      }
+      return true;
     }
 
     function showToast(msg) {
@@ -680,93 +870,505 @@
       if (cfg.url && cfg.anonKey && window.supabase && window.supabase.createClient) {
         try {
           state.sbClient = window.supabase.createClient(cfg.url, cfg.anonKey, {
-            auth: { persistSession: true, autoRefreshToken: true }
+            auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
           });
+          if (!state.sbAuthSub && state.sbClient.auth && state.sbClient.auth.onAuthStateChange) {
+            state.sbAuthSub = state.sbClient.auth.onAuthStateChange(function (event, session) {
+              state.authSession = session && session.user ? { id: session.user.id, email: session.user.email } : null;
+              if (state.authSession && state.authSession.email) {
+                localStorage.setItem(STORAGE_SB_EMAIL, state.authSession.email);
+                state.supabaseConfig.userEmail = state.authSession.email;
+              }
+              if (event === 'PASSWORD_RECOVERY') {
+                openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery verified! Enter your new password below.' });
+                return;
+              }
+              if (event === 'SIGNED_IN') {
+                recordAudit('AUTH', null, 'Signed in via Supabase (' + (state.authSession ? state.authSession.email : '') + ')', { source: 'Browser' });
+                pullAndMergeSupabase('auth_signin');
+              } else if (event === 'SIGNED_OUT') {
+                state.syncStatus = state.supabaseConfig.isConnected ? 'auth_required' : 'local';
+                renderApp();
+              }
+            });
+          }
           return state.sbClient;
         } catch (e) { return null; }
       }
       return null;
     }
 
-    async function pushBotToSupabase(bot) {
-      if (!state.supabaseConfig.isConnected) return;
+    async function pushAuditLogToSupabase(entry) {
+      if (!state.supabaseConfig.isConnected || !state.authSession) return;
       var client = getSbClient();
       if (!client) return;
-      state.syncStatus = 'syncing';
-      renderHeaderSyncOnly();
       try {
-        var userRes = await client.auth.getUser();
-        var uid = userRes && userRes.data && userRes.data.user && userRes.data.user.id;
-        if (!uid) { state.syncStatus = 'error'; renderHeaderSyncOnly(); return; }
-        var res = await client.from('user_bots').upsert({
-          id: bot.id, user_id: uid, bot_data: bot, updated_at: new Date().toISOString()
+        await client.from('bot_audit_logs').upsert({
+          id: entry.id,
+          user_id: state.authSession.id,
+          actor: entry.actor,
+          action: entry.action,
+          source: entry.source,
+          bot_id: entry.botId || '',
+          bot_name: entry.botName || '',
+          summary: entry.summary || '',
+          created_at: entry.timestamp
         });
-        state.syncStatus = res.error ? 'error' : 'synced';
-      } catch (e) { state.syncStatus = 'error'; }
-      renderHeaderSyncOnly();
+      } catch (e) { /* Optional table may not exist yet; local audit persists */ }
     }
 
-    async function initSupabaseCloud() {
-      if (!state.supabaseConfig.isConnected) {
-        state.syncStatus = 'local';
-        renderApp();
-        return;
-      }
+    async function pushBotToSupabase(bot) {
+      broadcastLocalSync('bot_update');
+      if (!state.supabaseConfig.isConnected) return false;
       var client = getSbClient();
-      if (!client) { state.syncStatus = 'local'; renderApp(); return; }
+      if (!client) return false;
       state.syncStatus = 'syncing';
-      renderApp();
+      renderHeaderSyncOnly();
       try {
-        var res = await client.from('user_bots').select('bot_data').order('updated_at', { ascending: false });
-        if (!res.error && res.data && res.data.length > 0) {
-          state.bots = res.data.map(function (r) { return r.bot_data; });
-          saveBotsLocal();
-        } else {
-          for (var i = 0; i < state.bots.length; i++) await pushBotToSupabase(state.bots[i]);
+        var sessRes = await client.auth.getSession();
+        var user = sessRes && sessRes.data && sessRes.data.session && sessRes.data.session.user;
+        if (!user) {
+          state.authSession = null;
+          state.syncStatus = 'auth_required';
+          renderHeaderSyncOnly();
+          return false;
+        }
+        state.authSession = { id: user.id, email: user.email };
+        var payloadBot = Object.assign({}, bot, {
+          lastEditedBy: bot.lastEditedBy || user.email || getCurrentActor(),
+          updatedAt: bot.updatedAt || new Date().toISOString()
+        });
+        var res = await client.from('user_bots').upsert({
+          id: payloadBot.id,
+          user_id: user.id,
+          bot_data: payloadBot,
+          updated_at: payloadBot.updatedAt
+        });
+        if (res.error) {
+          state.syncStatus = 'error';
+          renderHeaderSyncOnly();
+          return false;
         }
         state.syncStatus = 'synced';
-        if (state.sbUnsub) state.sbUnsub();
-        var ch = client.channel('user_bots_realtime').on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'user_bots' },
-          function (payload) {
-            if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new && payload.new.bot_data) {
-              var up = payload.new.bot_data;
-              var idx = state.bots.findIndex(function (b) { return b.id === up.id; });
-              if (idx >= 0) state.bots[idx] = up; else state.bots.unshift(up);
-              saveBotsLocal();
-              showToast('Real-time sync: ' + up.name);
-              renderApp();
-            } else if (payload.eventType === 'DELETE' && payload.old && payload.old.id) {
-              state.bots = state.bots.filter(function (b) { return b.id !== payload.old.id; });
-              saveBotsLocal();
-              renderApp();
+        state.lastSyncAt = new Date().toISOString();
+        renderHeaderSyncOnly();
+        return true;
+      } catch (e) {
+        state.syncStatus = 'error';
+        renderHeaderSyncOnly();
+        return false;
+      }
+    }
+
+    async function pullAndMergeSupabase(reason) {
+      if (!state.supabaseConfig.isConnected) {
+        state.syncStatus = 'local';
+        renderHeaderSyncOnly();
+        return;
+      }
+      if (state.syncInFlight) return;
+      var client = getSbClient();
+      if (!client) { state.syncStatus = 'local'; renderHeaderSyncOnly(); return; }
+      state.syncInFlight = true;
+      state.syncStatus = 'syncing';
+      renderHeaderSyncOnly();
+      try {
+        var sessRes = await client.auth.getSession();
+        var user = sessRes && sessRes.data && sessRes.data.session && sessRes.data.session.user;
+        if (!user) {
+          state.authSession = null;
+          state.syncStatus = 'auth_required';
+          state.syncInFlight = false;
+          renderApp();
+          return;
+        }
+        state.authSession = { id: user.id, email: user.email };
+        localStorage.setItem(STORAGE_SB_EMAIL, user.email || state.supabaseConfig.userEmail);
+        state.supabaseConfig.userEmail = user.email || state.supabaseConfig.userEmail;
+
+        var res = await client.from('user_bots').select('id, bot_data, updated_at').order('updated_at', { ascending: false });
+        if (res.error) {
+          state.syncStatus = 'error';
+          state.syncInFlight = false;
+          renderHeaderSyncOnly();
+          return;
+        }
+
+        var remoteRows = Array.isArray(res.data) ? res.data : [];
+        var remoteMap = {};
+        remoteRows.forEach(function (r) {
+          if (r && r.bot_data && r.bot_data.id) remoteMap[r.bot_data.id] = r.bot_data;
+        });
+
+        var merged = [];
+        var localSeen = {};
+        var toPush = [];
+
+        state.bots.forEach(function (lb) {
+          localSeen[lb.id] = true;
+          var rb = remoteMap[lb.id];
+          if (!rb) {
+            merged.push(lb);
+            toPush.push(lb);
+          } else {
+            var lt = new Date(lb.updatedAt || 0).getTime();
+            var rt = new Date(rb.updatedAt || 0).getTime();
+            if (lt > rt) {
+              merged.push(lb);
+              toPush.push(lb);
+            } else {
+              merged.push(rb);
             }
           }
-        ).subscribe();
-        state.sbUnsub = function () { client.removeChannel(ch); };
+        });
+
+        remoteRows.forEach(function (r) {
+          var rb = r && r.bot_data;
+          if (rb && rb.id && !localSeen[rb.id]) merged.push(rb);
+        });
+
+        state.bots = merged;
+        saveBotsLocal();
+
+        for (var i = 0; i < toPush.length; i++) {
+          await client.from('user_bots').upsert({
+            id: toPush[i].id,
+            user_id: user.id,
+            bot_data: toPush[i],
+            updated_at: toPush[i].updatedAt || new Date().toISOString()
+          });
+        }
+
+        // Pull optional remote audit logs if table exists
+        try {
+          var logRes = await client.from('bot_audit_logs').select('*').order('created_at', { ascending: false }).limit(80);
+          if (!logRes.error && Array.isArray(logRes.data) && logRes.data.length) {
+            var existingIds = {};
+            state.auditLogs.forEach(function (l) { existingIds[l.id] = true; });
+            logRes.data.forEach(function (rl) {
+              if (!existingIds[rl.id]) {
+                state.auditLogs.push({
+                  id: rl.id, timestamp: rl.created_at, actor: rl.actor, action: rl.action,
+                  source: rl.source || 'Cloud', botId: rl.bot_id, botName: rl.bot_name, summary: rl.summary
+                });
+              }
+            });
+            state.auditLogs.sort(function (a, b) { return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); });
+            if (state.auditLogs.length > 250) state.auditLogs = state.auditLogs.slice(0, 250);
+            saveAdminState();
+          }
+        } catch (e2) {}
+
+        state.syncStatus = 'synced';
+        state.lastSyncAt = new Date().toISOString();
+
+        if (!state.sbUnsub) {
+          var ch = client.channel('user_bots_realtime_' + user.id.slice(0, 8)).on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'user_bots' },
+            function (payload) {
+              if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new && payload.new.bot_data) {
+                var up = payload.new.bot_data;
+                var idx = state.bots.findIndex(function (b) { return b.id === up.id; });
+                if (idx >= 0) state.bots[idx] = up; else state.bots.unshift(up);
+                saveBotsLocal();
+                state.lastSyncAt = new Date().toISOString();
+                showToast('Live Supabase sync: ' + up.name);
+                renderApp();
+              } else if (payload.eventType === 'DELETE' && payload.old && payload.old.id) {
+                state.bots = state.bots.filter(function (b) { return b.id !== payload.old.id; });
+                saveBotsLocal();
+                renderApp();
+              }
+            }
+          ).subscribe();
+          state.sbUnsub = function () { client.removeChannel(ch); };
+        }
+        if (reason === 'manual') showToast('Synced with Supabase Cloud!');
       } catch (e) {
         state.syncStatus = 'error';
       }
+      state.syncInFlight = false;
       renderApp();
+    }
+
+    async function initSupabaseCloud() {
+      await pullAndMergeSupabase('init');
+    }
+
+    function generateWebhookSecret() {
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+      var out = 'tb_';
+      for (var i = 0; i < 24; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));
+      return out;
+    }
+
+    function getSuggestedSupabaseWebhookUrl(bot) {
+      var ref = extractSupabaseRef(state.supabaseConfig.url || '');
+      if (!ref) return '';
+      return 'https://' + ref + '.supabase.co/functions/v1/telegram-webhook?bot_id=' + encodeURIComponent(bot.id);
+    }
+
+    function buildWebhookEdgeFunctionCode(bot) {
+      return '// Supabase Edge Function: supabase/functions/telegram-webhook/index.ts\n' +
+        '// Receives Telegram Webhook POSTs and writes directly to user_bots (fires Realtime instant sync)\n' +
+        'import { createClient } from "https://esm.sh/@supabase/supabase-js@2";\n\n' +
+        'Deno.serve(async (req) => {\n' +
+        '  if (req.method !== "POST") return new Response("OK", { status: 200 });\n' +
+        '  const secret = Deno.env.get("TELEGRAM_WEBHOOK_SECRET");\n' +
+        '  if (secret && req.headers.get("x-telegram-bot-api-secret-token") !== secret) {\n' +
+        '    return new Response("Forbidden", { status: 403 });\n' +
+        '  }\n' +
+        '  const url = new URL(req.url);\n' +
+        '  const botId = url.searchParams.get("bot_id") || "' + bot.id + '";\n' +
+        '  const update = await req.json();\n' +
+        '  const msg = update.message || update.edited_message || update.channel_post;\n' +
+        '  if (!msg) return new Response("Ignored", { status: 200 });\n\n' +
+        '  const supabase = createClient(\n' +
+        '    Deno.env.get("SUPABASE_URL")!,\n' +
+        '    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!\n' +
+        '  );\n' +
+        '  const { data: row } = await supabase.from("user_bots").select("*").eq("id", botId).single();\n' +
+        '  if (!row) return new Response("Bot not found", { status: 404 });\n\n' +
+        '  const botData = row.bot_data;\n' +
+        '  const rid = "tg_" + update.update_id;\n' +
+        '  if (!(botData.rows || []).some((r: any) => r.id === rid)) {\n' +
+        '    const from = msg.from || msg.chat || {};\n' +
+        '    const tgActor = (from.username ? "@" + from.username : (from.first_name || "user")) + " (" + (from.id || "?") + ")";\n' +
+        '    const text = msg.text || msg.caption || "[Media]";\n' +
+        '    const amtM = text.match(/([0-9]+(?:\\.[0-9]{1,2})?)/);\n' +
+        '    const nr: Record<string, any> = { id: rid, _actor: tgActor };\n' +
+        '    for (const c of (botData.columns || [])) {\n' +
+        '      const cn = (c.name || "").toLowerCase();\n' +
+        '      if (c.type === "amount" || c.type === "number") nr[c.id] = amtM ? parseFloat(amtM[1]) : 0;\n' +
+        '      else if (c.type === "date") nr[c.id] = new Date((msg.date || Date.now()/1000) * 1000).toISOString().slice(0,16).replace("T"," ");\n' +
+        '      else if (cn.includes("user") || cn.includes("customer")) nr[c.id] = tgActor;\n' +
+        '      else nr[c.id] = text;\n' +
+        '    }\n' +
+        '    botData.rows = [nr, ...(botData.rows || [])];\n' +
+        '    botData.updatedAt = new Date().toISOString();\n' +
+        '    botData.lastEditedBy = tgActor;\n' +
+        '    await supabase.from("user_bots").update({ bot_data: botData, updated_at: botData.updatedAt }).eq("id", botId);\n' +
+        '    await supabase.from("bot_audit_logs").insert({\n' +
+        '      id: "log_" + Date.now(), user_id: row.user_id, actor: tgActor,\n' +
+        '      action: "ADD", source: "Telegram Webhook", bot_id: botId, bot_name: botData.name,\n' +
+        '      summary: "Webhook message: " + text.slice(0, 50), created_at: botData.updatedAt\n' +
+        '    });\n' +
+        '  }\n' +
+        '  return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });\n' +
+        '});';
+    }
+
+    async function refreshWebhookInfo(bot) {
+      if (!bot || !bot.telegramToken) return null;
+      var res = await fetch('https://api.telegram.org/bot' + bot.telegramToken + '/getWebhookInfo');
+      var data = await res.json();
+      if (!data.ok || !data.result) throw new Error(data.description || 'Failed to fetch webhook info');
+      var info = data.result;
+      bot.webhookInfo = {
+        url: info.url || '',
+        pending_update_count: info.pending_update_count || 0,
+        last_error_message: info.last_error_message || '',
+        last_error_date: info.last_error_date || 0,
+        max_connections: info.max_connections || 40,
+        checkedAt: new Date().toISOString()
+      };
+      if (info.url) {
+        bot.webhookUrl = info.url;
+        bot.webhookActive = true;
+        bot.botStatus = 'online';
+      } else {
+        bot.webhookActive = false;
+      }
+      bot.updatedAt = new Date().toISOString();
+      saveBotsLocal();
+      pushBotToSupabase(bot);
+      return bot.webhookInfo;
+    }
+
+    async function applyTelegramWebhook(bot, url, secret, dropPending) {
+      if (!bot || !bot.telegramToken) throw new Error('Connect a valid Telegram Bot Token first.');
+      if (!/^https:\/\/.+/i.test(url)) throw new Error('Telegram requires a valid HTTPS webhook URL (starting with https://).');
+      var payload = {
+        url: url,
+        drop_pending_updates: !!dropPending,
+        allowed_updates: ['message', 'edited_message', 'channel_post']
+      };
+      if (secret) payload.secret_token = secret;
+      var res = await fetch('https://api.telegram.org/bot' + bot.telegramToken + '/setWebhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var data = await res.json();
+      if (!data.ok) throw new Error(data.description || 'Telegram setWebhook rejected URL');
+      bot.webhookUrl = url;
+      bot.webhookSecret = secret || '';
+      bot.webhookActive = true;
+      bot.botStatus = 'online';
+      bot.updatedAt = new Date().toISOString();
+      updateBot(bot, 'EDIT', 'Activated Telegram Webhook -> ' + url);
+      try { await refreshWebhookInfo(bot); } catch (e) {}
+      return data;
+    }
+
+    async function removeTelegramWebhook(bot, dropPending) {
+      if (!bot || !bot.telegramToken) throw new Error('Connect a valid Telegram Bot Token first.');
+      var res = await fetch('https://api.telegram.org/bot' + bot.telegramToken + '/deleteWebhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drop_pending_updates: !!dropPending })
+      });
+      var data = await res.json();
+      if (!data.ok) throw new Error(data.description || 'Failed to remove webhook');
+      bot.webhookActive = false;
+      bot.webhookInfo = { url: '', pending_update_count: 0, last_error_message: '', max_connections: 40, checkedAt: new Date().toISOString() };
+      bot.updatedAt = new Date().toISOString();
+      updateBot(bot, 'EDIT', 'Removed Telegram Webhook (switched back to Polling)');
+      return data;
+    }
+
+    // Immediate Telegram Sync (on Bot Open, Browser Open, & Live Auto-Poll)
+    async function syncTelegramBot(bot, silent) {
+      if (!bot || !bot.telegramToken) return 0;
+      if (bot.webhookActive) {
+        if (!silent) showToast('Webhook active on ' + bot.name + ' — updates push via cloud realtime!');
+        return 0;
+      }
+      try {
+        var offset = state.tgOffsets[bot.id] ? Number(state.tgOffsets[bot.id]) : 0;
+        var apiUrl = 'https://api.telegram.org/bot' + bot.telegramToken + '/getUpdates?timeout=1' + (offset ? ('&offset=' + offset) : '');
+        var res = await fetch(apiUrl);
+        var data = await res.json();
+        if (!data.ok) {
+          if (data.error_code === 409 || String(data.description || '').toLowerCase().indexOf('webhook') !== -1) {
+            bot.webhookActive = true;
+            try { await refreshWebhookInfo(bot); } catch (e2) {}
+            if (!silent) showToast('Webhook is active on Telegram — using instant push delivery');
+            renderApp();
+          }
+          return 0;
+        }
+        if (!Array.isArray(data.result)) return 0;
+        var addedCount = 0;
+        var maxUpdId = offset ? (offset - 1) : 0;
+        var existingRowIds = {};
+        bot.rows.forEach(function (r) { existingRowIds[r.id] = true; });
+
+        data.result.forEach(function (u) {
+          if (u.update_id > maxUpdId) maxUpdId = u.update_id;
+          var msgObj = u.message || u.edited_message || u.channel_post;
+          if (!msgObj) return;
+          var rid = 'tg_' + u.update_id;
+          if (existingRowIds[rid]) return;
+
+          var fromObj = msgObj.from || msgObj.chat || {};
+          var tgUserId = String(fromObj.id || 'unknown');
+          var tgHandle = fromObj.username ? ('@' + fromObj.username) : (fromObj.first_name || tgUserId);
+          var tgActor = tgHandle + ' (' + tgUserId + ')';
+
+          if (isActorBlocked(tgUserId) || isActorBlocked(tgHandle) || isActorBlocked(tgActor)) {
+            recordAudit('BLOCK', bot, 'Ignored Telegram message from blocked user ' + tgActor, { actor: tgActor, source: 'Telegram' });
+            return;
+          }
+
+          var txt = msgObj.text || msgObj.caption || '[Media]';
+          var amtM = txt.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
+          var nr = { id: rid, _actor: tgActor };
+          bot.columns.forEach(function (c) {
+            var cname = c.name.toLowerCase();
+            if (c.type === 'amount' || c.type === 'number') nr[c.id] = amtM ? parseFloat(amtM[1]) : 0;
+            else if (c.type === 'date') nr[c.id] = new Date((msgObj.date || Math.floor(Date.now() / 1000)) * 1000).toISOString().slice(0, 16).replace('T', ' ');
+            else if (cname.indexOf('user') !== -1 || cname.indexOf('customer') !== -1 || cname.indexOf('buyer') !== -1) nr[c.id] = tgActor;
+            else nr[c.id] = txt;
+          });
+          bot.rows.unshift(nr);
+          existingRowIds[rid] = true;
+          addedCount++;
+          recordAudit('ADD', bot, 'Telegram message logged: "' + txt.slice(0, 50) + '"', { actor: tgActor, source: 'Telegram' });
+        });
+
+        if (maxUpdId > 0) {
+          state.tgOffsets[bot.id] = maxUpdId + 1;
+          saveAdminState();
+        }
+        state.lastTgSyncAt = new Date().toISOString();
+        if (addedCount > 0) {
+          bot.botStatus = 'online';
+          bot.updatedAt = new Date().toISOString();
+          bot.lastEditedBy = 'Telegram Bot';
+          saveBotsLocal();
+          await pushBotToSupabase(bot);
+          showToast('Telegram live sync: +' + addedCount + ' new row(s) in ' + bot.name);
+          renderApp();
+        } else if (!silent) {
+          showToast('Telegram checked (' + bot.name + '): up to date');
+        }
+        return addedCount;
+      } catch (e) {
+        if (!silent) showToast('Telegram sync network error');
+        return 0;
+      }
+    }
+
+    async function syncAllNow(reason) {
+      if (state.supabaseConfig.isConnected) {
+        await pullAndMergeSupabase(reason || 'auto');
+      }
+      var active = getActiveBot();
+      if (active && active.telegramToken) {
+        await syncTelegramBot(active, reason !== 'manual');
+      } else {
+        for (var i = 0; i < state.bots.length; i++) {
+          if (state.bots[i].telegramToken) {
+            await syncTelegramBot(state.bots[i], true);
+          }
+        }
+      }
+    }
+
+    function startTelegramAutoPoll() {
+      if (state.tgPollTimer) clearInterval(state.tgPollTimer);
+      state.tgPollTimer = setInterval(function () {
+        if (!state.adminConfig.telegramAutoPoll || document.hidden) return;
+        var active = getActiveBot();
+        if (active && active.telegramToken && !active.webhookActive) {
+          syncTelegramBot(active, true);
+        }
+      }, 6000);
     }
 
     function renderHeaderSyncOnly() {
       var pill = document.getElementById('sync-pill-badge');
       if (!pill) return;
-      var cls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : state.syncStatus === 'error' ? 'dot-error' : 'dot-local';
-      var txt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'error' ? 'Sync Error' : 'Local';
+      var cls = state.syncStatus === 'synced' ? 'dot-synced'
+        : state.syncStatus === 'syncing' ? 'dot-syncing'
+        : (state.syncStatus === 'error' || state.syncStatus === 'auth_required') ? 'dot-error'
+        : 'dot-local';
+      var txt = state.syncStatus === 'synced' ? 'Live Cloud'
+        : state.syncStatus === 'syncing' ? 'Syncing...'
+        : state.syncStatus === 'auth_required' ? 'Sign In Req'
+        : state.syncStatus === 'error' ? 'Sync Error'
+        : 'Local';
       pill.innerHTML = '<span class="sync-dot ' + cls + '"></span><span>' + txt + '</span>';
     }
 
-    function updateBot(updated) {
+    function updateBot(updated, auditAction, auditSummary) {
+      if (!guardWriteAction(auditSummary || 'Edit Bot')) return false;
+      updated.lastEditedBy = getCurrentActor();
+      updated.updatedAt = updated.updatedAt || new Date().toISOString();
       state.bots = state.bots.map(function (b) { return b.id === updated.id ? updated : b; });
       saveBotsLocal();
+      if (auditAction) {
+        recordAudit(auditAction, updated, auditSummary || ('Updated ' + updated.name));
+      }
       pushBotToSupabase(updated);
+      return true;
     }
 
     // Instant Bot Creation (+ New Bot & Quick Blank Table)
     function createInstantBot(isBlank) {
+      if (!guardWriteAction('Create New Bot')) return;
       var names = {};
       state.bots.forEach(function (b) { names[b.name] = true; });
       var botName;
@@ -782,14 +1384,20 @@
         }
       }
       var id = Date.now();
+      var actor = getCurrentActor();
       var newBot = {
         id: 'bot_' + id,
         name: botName,
         description: isBlank ? 'Quick-created blank spreadsheet table' : 'Telegram Bot & Live Table',
         folder: 'General',
         telegramToken: '',
+        webhookUrl: '',
+        webhookSecret: '',
+        webhookActive: false,
         botStatus: 'simulator',
         isFavorite: false,
+        createdBy: actor,
+        lastEditedBy: actor,
         updatedAt: new Date().toISOString(),
         columns: [
           { id: 'col_uid_' + id, name: 'User ID', type: 'text', widthMultiplier: 1.0, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
@@ -801,6 +1409,7 @@
       };
       state.bots.unshift(newBot);
       saveBotsLocal();
+      recordAudit('ADD', newBot, 'Created new bot table "' + botName + '"');
       pushBotToSupabase(newBot);
       state.activeBotId = newBot.id;
       state.selectedRowIds = {};
@@ -810,13 +1419,15 @@
     }
 
     async function deleteBot(botId) {
+      if (!guardWriteAction('Delete Bot')) return;
       var target = state.bots.find(function (b) { return b.id === botId; });
       if (!target) return;
-      if (!confirm('Are you sure you want to delete "' + target.name + '"?')) return;
       state.bots = state.bots.filter(function (b) { return b.id !== botId; });
       if (state.activeBotId === botId) state.activeBotId = null;
       saveBotsLocal();
-      if (state.supabaseConfig.isConnected) {
+      recordAudit('DELETE', target, 'Deleted bot table "' + target.name + '"');
+      broadcastLocalSync('delete_bot');
+      if (state.supabaseConfig.isConnected && state.authSession) {
         var client = getSbClient();
         if (client) { try { await client.from('user_bots').delete().eq('id', botId); } catch (e) {} }
       }
@@ -825,14 +1436,18 @@
     }
 
     function duplicateBot(botId) {
+      if (!guardWriteAction('Duplicate Bot')) return;
       var t = state.bots.find(function (b) { return b.id === botId; });
       if (!t) return;
       var copy = JSON.parse(JSON.stringify(t));
       copy.id = 'bot_' + Date.now();
       copy.name = t.name + ' (Copy)';
+      copy.createdBy = getCurrentActor();
+      copy.lastEditedBy = getCurrentActor();
       copy.updatedAt = new Date().toISOString();
       state.bots.unshift(copy);
       saveBotsLocal();
+      recordAudit('ADD', copy, 'Duplicated "' + t.name + '" into "' + copy.name + '"');
       pushBotToSupabase(copy);
       showToast('Duplicated "' + t.name + '"');
       renderApp();
@@ -885,8 +1500,10 @@
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
 
-      var dotCls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : state.syncStatus === 'error' ? 'dot-error' : 'dot-local';
-      var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'error' ? 'Sync Error' : 'Local';
+      var dotCls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : (state.syncStatus === 'error' || state.syncStatus === 'auth_required') ? 'dot-error' : 'dot-local';
+      var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'auth_required' ? 'Sign In Req' : state.syncStatus === 'error' ? 'Sync Error' : 'Local';
+      var blockedCount = state.workspaceUsers.filter(function (u) { return u.blocked; }).length;
+      var recentChanges = state.auditLogs.slice(0, 4);
 
       var html = '<header class="app-header"><div class="header-inner">' +
         '<div class="header-left">' +
@@ -896,8 +1513,10 @@
           '<button id="sync-pill-badge" class="sync-pill" title="Connect or manage Supabase account" style="cursor:pointer;border:1px solid rgba(255,255,255,0.2);"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></button>' +
         '</div>' +
         '<div class="header-right">' +
-          '<button class="header-action-btn" id="btn-dash-supabase" title="Connect Supabase Account &amp; Cloud Sync"><span style="color:' + (state.supabaseConfig.isConnected ? '#6EE7B7' : '#93C5FD') + '">' + icon('cloud', 15) + '</span><span>' + (state.supabaseConfig.isConnected ? 'Supabase' : 'Connect Supabase') + '</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly & Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
+          '<button class="icon-btn" id="btn-dash-sync" title="Sync Browser, Telegram &amp; Supabase Now">' + icon('refresh', 17) + '</button>' +
+          '<button class="header-action-btn" id="btn-dash-admin" title="Admin Panel: User Edits, Unwanted User Block &amp; Transmit"><span style="color:#FDE68A">' + icon('shield', 15) + '</span><span>Admin</span>' + (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;padding:1px 5px;">' + blockedCount + '</span>' : '') + '</button>' +
+          '<button class="header-action-btn" id="btn-dash-supabase" title="Login / Connect Supabase Account"><span style="color:' + (state.authSession ? '#6EE7B7' : '#93C5FD') + '">' + icon('cloud', 15) + '</span><span>' + (state.authSession ? 'Account' : state.supabaseConfig.isConnected ? 'Login' : 'Supabase') + '</span></button>' +
+          '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
           '<button class="icon-btn" id="btn-dash-search" title="Search bots">' + icon('search', 20) + '</button>' +
           '<button class="icon-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')" style="width:auto;padding:0 8px;gap:4px;font-size:11px;font-weight:700;">' + icon('sort', 18) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
           '<select id="sel-dash-filter" class="header-select">' +
@@ -927,9 +1546,46 @@
       });
       html += '</div></div></header>';
 
-      html += '<main class="dashboard-main"><div class="grid-meta"><span class="grid-meta-title">' +
+      html += '<main class="dashboard-main">';
+
+      if (state.adminConfig.showDashboardActivity) {
+        html += '<section class="audit-strip">' +
+          '<div class="audit-strip-head">' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<span style="color:#0D47A1">' + icon('shield', 17) + '</span>' +
+              '<div><div style="font-size:13px;font-weight:800;color:#0D47A1;">Admin Live Changes &amp; User Activity Dashboard</div>' +
+              '<div style="font-size:11px;color:#64748B;">Actor: <strong>' + esc(getCurrentActor()) + '</strong>' + (state.lastSyncAt ? ' &middot; Cloud synced ' + timeAgo(state.lastSyncAt) : '') + (state.lastTgSyncAt ? ' &middot; TG checked ' + timeAgo(state.lastTgSyncAt) : '') + '</div></div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;">' +
+              '<button id="strip-sync-now" class="btn btn-outline" style="padding:5px 10px;font-size:11px;">' + icon('refresh', 13) + '<span>Sync Now</span></button>' +
+              '<button id="strip-open-admin" class="btn btn-dark-blue" style="padding:5px 11px;font-size:11px;">' + icon('shield', 13) + '<span>Admin &amp; Transmit (' + state.auditLogs.length + ')</span></button>' +
+              '<button id="strip-hide" class="btn btn-outline" style="padding:5px 8px;font-size:11px;" title="Hide strip">✕</button>' +
+            '</div>' +
+          '</div>';
+        if (recentChanges.length === 0) {
+          html += '<div style="font-size:12px;color:#64748B;padding:6px 2px;">No user add/edit/delete changes logged yet. Any browser or Telegram bot edit will appear here immediately.</div>';
+        } else {
+          html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+          recentChanges.forEach(function (lg) {
+            var acCls = lg.action === 'ADD' ? 'act-add' : lg.action === 'EDIT' ? 'act-edit' : lg.action === 'DELETE' ? 'act-delete' : lg.action === 'BLOCK' ? 'act-block' : lg.action === 'TRANSMIT' ? 'act-transmit' : 'act-auth';
+            html += '<div class="audit-feed-row">' +
+              '<div style="display:flex;align-items:center;gap:7px;min-width:0;flex:1;">' +
+                '<span class="act-badge ' + acCls + '">' + esc(lg.action) + '</span>' +
+                '<span style="font-weight:700;color:#0F172A;">' + esc(lg.actor) + '</span>' +
+                '<span style="font-size:10.5px;background:#EFF6FF;color:#1565C0;padding:1px 6px;border-radius:4px;font-weight:600;">' + esc(lg.source || 'Browser') + '</span>' +
+                '<span class="truncate" style="color:#475569;">' + esc(lg.botName) + ': ' + esc(lg.summary) + '</span>' +
+              '</div>' +
+              '<span class="mono" style="font-size:10.5px;color:#94A3B8;white-space:nowrap;">' + timeAgo(lg.timestamp) + '</span>' +
+            '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</section>';
+      }
+
+      html += '<div class="grid-meta"><span class="grid-meta-title">' +
         (state.filterType === 'all' ? 'All Bot Tables' : state.filterType.toUpperCase() + ' Bot Tables') + ' (' + filtered.length + ')' +
-        '</span><span style="color:#94A3B8">Tap a card to open spreadsheet</span></div>';
+        '</span><span style="color:#94A3B8">Tap a card to open &amp; immediately sync</span></div>';
 
       if (filtered.length === 0) {
         html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:40px auto;border:1px solid #E2E8F0;">' +
@@ -962,8 +1618,10 @@
 
           html += '</div><div class="badges-row">' +
             '<span class="status-chip ' + stCls + '"><span style="width:6px;height:6px;border-radius:999px;background:currentColor;"></span>' + stTxt + '</span>' +
+            (b.webhookActive ? '<span class="status-chip" style="background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;">' + icon('zap', 10) + ' WEBHOOK</span>' : '') +
             (b.folder ? '<span class="status-chip chip-folder">' + icon('folder', 11) + ' ' + esc(b.folder) + '</span>' : '') +
             (b.botUsername ? '<span class="status-chip chip-user">' + esc(b.botUsername) + '</span>' : '') +
+            (b.lastEditedBy ? '<span class="status-chip chip-user" title="Last edited by">' + esc(b.lastEditedBy) + '</span>' : '') +
           '</div></div>' +
           '<div class="card-footer">' +
             '<span><strong>' + b.rows.length + '</strong> rows &nbsp;·&nbsp; <strong>' + b.columns.length + '</strong> cols &nbsp;·&nbsp; ' + timeAgo(b.updatedAt) + '</span>' +
@@ -986,11 +1644,23 @@
       var drawerBtn = document.getElementById('btn-open-drawer');
       if (drawerBtn) drawerBtn.onclick = function () { state.drawerOpen = true; renderDrawer(); };
       var syncPillBtn = document.getElementById('sync-pill-badge');
-      if (syncPillBtn) syncPillBtn.onclick = function () { openModal('supabase'); };
+      if (syncPillBtn) syncPillBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
+      var syncNowHdr = document.getElementById('btn-dash-sync');
+      if (syncNowHdr) syncNowHdr.onclick = function () { syncAllNow('manual'); };
+      var admBtn = document.getElementById('btn-dash-admin');
+      if (admBtn) admBtn.onclick = function () { openModal('admin', { tab: 'logs' }); };
       var sbHdrBtn = document.getElementById('btn-dash-supabase');
-      if (sbHdrBtn) sbHdrBtn.onclick = function () { openModal('supabase'); };
+      if (sbHdrBtn) sbHdrBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
       var repBtn = document.getElementById('btn-dash-reports');
       if (repBtn) repBtn.onclick = function () { openModal('reports'); };
+
+      var stSync = document.getElementById('strip-sync-now');
+      if (stSync) stSync.onclick = function () { syncAllNow('manual'); };
+      var stAdmin = document.getElementById('strip-open-admin');
+      if (stAdmin) stAdmin.onclick = function () { openModal('admin', { tab: 'logs' }); };
+      var stHide = document.getElementById('strip-hide');
+      if (stHide) stHide.onclick = function () { state.adminConfig.showDashboardActivity = false; saveAdminState(); renderDashboard(); };
+
       var sBtn = document.getElementById('btn-dash-search');
       if (sBtn) sBtn.onclick = function () {
         state.searchOpen = !state.searchOpen; renderDashboard();
@@ -1019,11 +1689,17 @@
       document.querySelectorAll('[data-open-bot]').forEach(function (card) {
         card.onclick = function () {
           state.activeCardMenuId = null;
-          state.activeBotId = card.getAttribute('data-open-bot');
+          var bid = card.getAttribute('data-open-bot');
+          state.activeBotId = bid;
           state.selectedRowIds = {};
           state.editingCell = null;
           state.tableSearchQuery = '';
           renderApp();
+          var targetBot = getActiveBot();
+          if (targetBot) {
+            if (targetBot.telegramToken) syncTelegramBot(targetBot, true);
+            if (state.supabaseConfig.isConnected) pullAndMergeSupabase('bot_open');
+          }
         };
       });
       document.querySelectorAll('[data-card-menu]').forEach(function (btn) {
@@ -1095,12 +1771,14 @@
                   : '<button id="btn-edit-title" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:16px;color:#fff;padding:2px 6px;border-radius:6px;" title="Click to rename bot"><span class="truncate" style="max-width:220px;">' + esc(bot.name) + '</span><span style="opacity:0.75">' + icon('edit', 13) + '</span></button>'
                 ) +
                 '<span class="pill-badge" style="' + statusBg + 'font-size:10px;text-transform:uppercase;">' + esc(bot.botStatus) + '</span>' +
+                (bot.webhookActive ? '<span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;" title="' + esc(bot.webhookUrl || '') + '">WEBHOOK PUSH</span>' : '') +
               '</div>' +
-              '<div style="font-size:11px;color:#BFDBFE;">' + bot.rows.length + ' records &middot; Tap any header to edit properties</div>' +
+              '<div style="font-size:11px;color:#BFDBFE;">' + bot.rows.length + ' records &middot; ' + esc(getCurrentActor()) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="header-right">' +
             (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 10px;font-size:11.5px;">' + icon('trash', 14) + '<span>Delete (' + selCount + ')</span></button>' : '') +
+            '<button class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>Sync</span></button>' +
             '<button class="header-action-btn" id="btn-table-reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>Reports</span></button>' +
             '<button class="icon-btn" id="btn-table-search" title="Search rows">' + icon('search', 20) + '</button>' +
             '<button class="icon-btn" id="btn-table-add-col" title="Add Column">' + icon('plus', 20) + '</button>' +
@@ -1194,7 +1872,8 @@
         '<div style="position:relative;"><button class="toolbar-btn" id="tb-more">' + icon('dotsH', 19) + '<span>More</span></button>';
 
       if (state.showMoreMenu) {
-        html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:215px;">' +
+        html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:225px;">' +
+          '<button class="dropdown-item" id="more-admin">' + icon('shield', 15) + '<span>Admin Activity &amp; Transmit</span></button>' +
           '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
           '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
           '<button class="dropdown-item" id="more-pivot">' + icon('pie', 15) + '<span>Pivot Summary Graph</span></button>' +
@@ -1209,6 +1888,7 @@
 
     function bindTableEvents(bot, visibleRows) {
       document.getElementById('btn-table-back').onclick = function () { state.activeBotId = null; state.showMoreMenu = false; renderApp(); };
+      document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
       document.getElementById('btn-table-reports').onclick = function () { openModal('reports'); };
       document.getElementById('btn-table-settings').onclick = function () { openModal('settings', { bot: bot }); };
       document.getElementById('btn-table-search').onclick = function () {
@@ -1234,7 +1914,9 @@
           var v = titleInp.value.trim();
           state.editingTitle = false;
           if (v && v !== bot.name) {
-            bot.name = v; bot.updatedAt = new Date().toISOString(); updateBot(bot);
+            var oldN = bot.name;
+            bot.name = v; bot.updatedAt = new Date().toISOString();
+            updateBot(bot, 'EDIT', 'Renamed bot "' + oldN + '" -> "' + v + '"');
           }
           renderTableView(bot);
         };
@@ -1246,6 +1928,7 @@
       }
 
       var addColFn = function () {
+        if (!guardWriteAction('Add Column')) return;
         var colName = 'Column ' + (bot.columns.length + 1);
         bot.columns.push({
           id: 'col_' + Date.now(), name: colName, type: 'text', widthMultiplier: 1.0,
@@ -1254,7 +1937,7 @@
           includeInGraph: true
         });
         bot.updatedAt = new Date().toISOString();
-        updateBot(bot);
+        updateBot(bot, 'ADD', 'Added column "' + colName + '"');
         showToast('Added "' + colName + '" — tap header to edit');
         renderTableView(bot);
       };
@@ -1262,7 +1945,8 @@
       document.getElementById('tb-cols').onclick = addColFn;
 
       document.getElementById('btn-add-row').onclick = function () {
-        var nr = { id: 'row_' + Date.now() };
+        if (!guardWriteAction('Add Row')) return;
+        var nr = { id: 'row_' + Date.now(), _actor: getCurrentActor() };
         bot.columns.forEach(function (c) {
           if (c.type === 'amount' || c.type === 'number') nr[c.id] = 0;
           else if (c.type === 'checkbox') nr[c.id] = false;
@@ -1271,16 +1955,18 @@
         });
         bot.rows.push(nr);
         bot.updatedAt = new Date().toISOString();
-        updateBot(bot);
+        updateBot(bot, 'ADD', 'Added new row #' + bot.rows.length);
         renderTableView(bot);
       };
 
       var delBtn = document.getElementById('btn-del-rows');
       if (delBtn) delBtn.onclick = function () {
+        if (!guardWriteAction('Delete Selected Rows')) return;
+        var delIds = Object.keys(state.selectedRowIds).filter(function (k) { return state.selectedRowIds[k]; });
         bot.rows = bot.rows.filter(function (r) { return !state.selectedRowIds[r.id]; });
         state.selectedRowIds = {};
         bot.updatedAt = new Date().toISOString();
-        updateBot(bot);
+        updateBot(bot, 'DELETE', 'Deleted ' + delIds.length + ' selected row(s)');
         renderTableView(bot);
       };
 
@@ -1297,10 +1983,12 @@
       });
       document.querySelectorAll('.chk-cell').forEach(function (chk) {
         chk.onchange = function () {
+          if (!guardWriteAction('Toggle Checkbox')) { renderTableView(bot); return; }
           var rid = chk.getAttribute('data-row-id'), cid = chk.getAttribute('data-col-id');
+          var colObj = bot.columns.find(function (c) { return c.id === cid; });
           bot.rows.forEach(function (r) { if (r.id === rid) r[cid] = chk.checked; });
           bot.updatedAt = new Date().toISOString();
-          updateBot(bot);
+          updateBot(bot, 'EDIT', 'Toggled "' + (colObj ? colObj.name : cid) + '" -> ' + chk.checked);
           renderTableView(bot);
         };
       });
@@ -1326,6 +2014,8 @@
         var commitCell = function () {
           var ed = state.editingCell;
           if (!ed) return;
+          state.editingCell = null;
+          if (!guardWriteAction('Edit Cell')) { renderTableView(bot); return; }
           var col = bot.columns.find(function (c) { return c.id === ed.colId; });
           var raw = activeInp.value;
           var parsed = raw;
@@ -1333,10 +2023,18 @@
             var num = parseFloat(raw.replace(/[^0-9.-]/g, ''));
             parsed = isNaN(num) ? 0 : num;
           }
-          bot.rows.forEach(function (r) { if (r.id === ed.rowId) r[ed.colId] = parsed; });
+          var oldVal = '';
+          bot.rows.forEach(function (r) {
+            if (r.id === ed.rowId) {
+              oldVal = r[ed.colId];
+              r[ed.colId] = parsed;
+              r._actor = getCurrentActor();
+            }
+          });
           bot.updatedAt = new Date().toISOString();
-          state.editingCell = null;
-          updateBot(bot);
+          if (String(oldVal) !== String(parsed)) {
+            updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"');
+          }
           renderTableView(bot);
         };
         activeInp.onblur = commitCell;
@@ -1351,69 +2049,91 @@
       document.getElementById('tb-export').onclick = function () { exportBotCsv(bot); };
       document.getElementById('tb-more').onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
       if (state.showMoreMenu) {
+        document.getElementById('more-admin').onclick = function () { state.showMoreMenu = false; openModal('admin', { tab: 'logs' }); };
         document.getElementById('more-settings').onclick = function () { state.showMoreMenu = false; openModal('settings', { bot: bot }); };
         document.getElementById('more-reports').onclick = function () { state.showMoreMenu = false; openModal('reports'); };
         document.getElementById('more-pivot').onclick = function () { state.showMoreMenu = false; openModal('pivot', { bot: bot }); };
         document.getElementById('more-clear').onclick = function () {
           state.showMoreMenu = false;
-          if (confirm('Clear all data rows in this bot table?')) {
-            bot.rows = []; bot.updatedAt = new Date().toISOString(); updateBot(bot);
-          }
+          if (!guardWriteAction('Clear All Rows')) return;
+          var prevCnt = bot.rows.length;
+          bot.rows = []; bot.updatedAt = new Date().toISOString();
+          updateBot(bot, 'DELETE', 'Cleared all ' + prevCnt + ' rows');
           renderTableView(bot);
         };
       }
     }
 
-    // Navigation Drawer
+    // Navigation Drawer (includes Login, Logout, Forgot Password & Admin Menu)
     function renderDrawer() {
       var root = document.getElementById('drawer-root');
       if (!state.drawerOpen) { root.innerHTML = ''; return; }
       var cfg = state.supabaseConfig;
+      var loggedIn = Boolean(state.authSession && state.authSession.email);
+      var activeEmail = getCurrentActor();
+      var blockedCount = state.workspaceUsers.filter(function (u) { return u.blocked; }).length;
+
       root.innerHTML = '<div class="drawer-backdrop" id="drawer-bg">' +
         '<div class="drawer-panel" id="drawer-panel">' +
           '<div class="drawer-banner">' +
             '<button class="icon-btn" id="drawer-close" style="position:absolute;top:12px;right:12px;">' + icon('close', 20) + '</button>' +
             '<div class="drawer-avatar">' + icon('user', 30) + '</div>' +
             '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#FDE68A;margin-bottom:2px;">' +
-              (cfg.isConnected ? 'Cloud Sync Active' : 'Local Storage Mode') + '</div>' +
-            '<div style="font-size:11px;opacity:0.85;">Signed In as</div>' +
-            '<div class="truncate" style="font-weight:700;font-size:14px;">' + esc(cfg.userEmail || 'umery1969@gmail.com') + '</div>' +
+              (loggedIn ? 'Cloud Session Active' : cfg.isConnected ? 'Supabase Configured (Sign In)' : 'Local Storage Mode') + '</div>' +
+            '<div style="font-size:11px;opacity:0.85;">' + (loggedIn ? 'Logged In as' : 'Active Profile') + '</div>' +
+            '<div class="truncate" style="font-weight:700;font-size:14px;">' + esc(activeEmail) + '</div>' +
           '</div>' +
           '<div class="drawer-nav">' +
             '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>Manage Bots</span></span></button>' +
-            '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#E65100;padding:4px;border-radius:6px;display:inline-flex;">' + icon('chart', 16) + '</span><span><div><div style="font-weight:700;">Daily, Weekly &amp; Monthly Reports</div><div style="font-size:11px;color:#64748B;">Customer ledger, paid &amp; balances</div></div></span></span><span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;font-size:10px;">NEW</span></button>' +
+            '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:700;">Admin Menu</div><div style="font-size:11px;color:#64748B;">User edits, unwanted block &amp; transmit</div></div></span></span>' +
+              (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;">' + blockedCount + ' BLK</span>' : '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;font-size:10px;">' + state.auditLogs.length + '</span>') + '</button>' +
+            '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#E65100;padding:4px;border-radius:6px;display:inline-flex;">' + icon('chart', 16) + '</span><span><div><div style="font-weight:700;">Daily, Weekly &amp; Monthly Reports</div><div style="font-size:11px;color:#64748B;">Customer ledger, paid &amp; balances</div></div></span></span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
+            '<button class="drawer-item" data-nav="login"><span class="drawer-item-left"><span style="color:#059669">' + icon('login', 19) + '</span><span><div><div style="font-weight:700;">' + (loggedIn ? 'Account &amp; Switch Login' : 'Login / Sign In') + '</div><div style="font-size:11px;color:#64748B;">Email &amp; Password or Magic Link</div></div></span></span></button>' +
+            '<button class="drawer-item" data-nav="forgot"><span class="drawer-item-left"><span style="color:#D97706">' + icon('lock', 19) + '</span><span>Forgot / Reset Password</span></span></button>' +
             '<button class="drawer-item" data-nav="supabase"><span class="drawer-item-left"><span style="color:#1976D2">' + icon('cloud', 19) + '</span><span>Cloud Sync / Supabase</span></span>' +
-              (cfg.isConnected ? '<span class="sync-dot dot-synced"></span>' : '<span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:999px;">Offline</span>') + '</button>' +
+              (loggedIn ? '<span class="sync-dot dot-synced"></span>' : cfg.isConnected ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:999px;">Login Req</span>' : '<span style="font-size:11px;background:#F1F5F9;color:#475569;padding:2px 8px;border-radius:999px;">Offline</span>') + '</button>' +
             '<button class="drawer-item" data-nav="telegram"><span class="drawer-item-left"><span style="color:#0288D1">' + icon('key', 19) + '</span><span>Connect Telegram Token</span></span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
             '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="color:#0F766E">' + icon('download', 19) + '</span><span>Backup Bots (JSON)</span></span></button>' +
             '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>Export Standalone HTML</span></span></button>' +
-            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
             '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>Bot Settings</span></span></button>' +
             '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>Share App</span></span></button>' +
             '<button class="drawer-item" data-nav="help"><span class="drawer-item-left"><span style="color:#64748B">' + icon('help', 19) + '</span><span>Help &amp; Setup Guide</span></span></button>' +
           '</div>' +
-          '<div style="padding:14px;border-top:1px solid #E2E8F0;background:#F8FAFC;">' +
-            '<button class="btn btn-outline" id="drawer-signout" style="width:100%;">' + icon('logout', 16) + '<span>' + (cfg.isConnected ? 'Sign Out / Disconnect' : 'Switch User / Reset') + '</span></button>' +
+          '<div style="padding:14px;border-top:1px solid #E2E8F0;background:#F8FAFC;display:flex;gap:8px;">' +
+            '<button class="btn btn-red" id="drawer-signout" style="width:100%;">' + icon('logout', 16) + '<span>' + (loggedIn ? 'Logout' : 'Logout / Reset Session') + '</span></button>' +
           '</div>' +
         '</div></div>';
 
       document.getElementById('drawer-bg').onclick = function () { state.drawerOpen = false; renderDrawer(); };
       document.getElementById('drawer-panel').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('drawer-close').onclick = function () { state.drawerOpen = false; renderDrawer(); };
-      document.getElementById('drawer-signout').onclick = function () {
-        localStorage.removeItem(STORAGE_SB_URL); localStorage.removeItem(STORAGE_SB_KEY);
-        localStorage.setItem(STORAGE_SB_EMAIL, 'local-user@tablebot.app');
-        state.supabaseConfig = loadSupabaseConfig(); state.sbClient = null; state.syncStatus = 'local';
+      document.getElementById('drawer-signout').onclick = async function () {
+        var prevActor = getCurrentActor();
+        try {
+          var client = getSbClient();
+          if (client && client.auth) await client.auth.signOut();
+        } catch (e) {}
+        if (state.sbUnsub) { try { state.sbUnsub(); } catch (e2) {} state.sbUnsub = null; }
+        state.authSession = null;
+        localStorage.setItem(STORAGE_SB_EMAIL, 'guest@tablebot.local');
+        state.supabaseConfig = loadSupabaseConfig();
+        state.syncStatus = state.supabaseConfig.isConnected ? 'auth_required' : 'local';
+        recordAudit('AUTH', null, 'User logged out (' + prevActor + ')', { actor: prevActor, source: 'Browser' });
         state.drawerOpen = false; renderDrawer(); renderApp();
-        showToast('Signed out. Local Storage mode active.');
+        showToast('Logged out successfully.');
       };
       document.querySelectorAll('[data-nav]').forEach(function (btn) {
         btn.onclick = function () {
           var v = btn.getAttribute('data-nav');
           state.drawerOpen = false; renderDrawer();
           if (v === 'all_bots') { state.activeBotId = null; renderApp(); }
+          else if (v === 'admin') openModal('admin', { tab: 'logs' });
           else if (v === 'reports') openModal('reports');
-          else if (v === 'supabase') openModal('supabase');
+          else if (v === 'login') openModal('supabase', { authTab: 'login' });
+          else if (v === 'forgot') openModal('supabase', { authTab: 'forgot' });
+          else if (v === 'supabase') openModal('supabase', { authTab: 'login' });
           else if (v === 'telegram') openModal('telegram', { bot: getActiveBot() || state.bots[0], tab: 'token' });
           else if (v === 'backup') exportJsonBackup();
           else if (v === 'export_html') exportStandaloneHtml();
@@ -1454,6 +2174,7 @@
       else if (m.type === 'reports') renderReportsModal(m);
       else if (m.type === 'telegram') renderTelegramModal(m);
       else if (m.type === 'supabase') renderSupabaseModal(m);
+      else if (m.type === 'admin') renderAdminModal(m);
     }
 
     function renderColumnModal(m) {
@@ -1573,10 +2294,12 @@
       document.getElementById('col-inc-graph').onchange = function (e) { d.includeInGraph = e.target.checked; };
       document.getElementById('col-open-pivot').onclick = function () { openModal('pivot', { bot: bot, colId: origCol.id }); };
       document.getElementById('col-save').onclick = function () {
+        if (!guardWriteAction('Edit Column Properties')) return;
         d.name = (d.name || '').trim() || 'Untitled Column';
         bot.columns = bot.columns.map(function (c) { return c.id === origCol.id ? d : c; });
         bot.updatedAt = new Date().toISOString();
-        updateBot(bot); closeModal(); renderApp();
+        updateBot(bot, 'EDIT', 'Updated column "' + d.name + '" (' + d.type + ')');
+        closeModal(); renderApp();
         showToast('Updated properties for "' + d.name + '"');
       };
     }
@@ -1603,13 +2326,16 @@
       document.getElementById('set-cancel').onclick = closeModal;
       document.getElementById('set-form').onsubmit = function (e) {
         e.preventDefault();
+        if (!guardWriteAction('Save Bot Settings')) return;
         bot.name = document.getElementById('set-name').value.trim() || 'New Bot';
         bot.folder = document.getElementById('set-folder').value.trim() || 'General';
         bot.description = document.getElementById('set-desc').value.trim();
         bot.telegramToken = document.getElementById('set-tok').value.trim();
         bot.botStatus = bot.telegramToken ? (bot.botStatus === 'online' ? 'online' : 'simulator') : 'simulator';
         bot.updatedAt = new Date().toISOString();
-        updateBot(bot); closeModal(); renderApp();
+        updateBot(bot, 'EDIT', 'Updated settings for "' + bot.name + '"');
+        closeModal(); renderApp();
+        if (bot.telegramToken) syncTelegramBot(bot, true);
         showToast('Saved settings for "' + bot.name + '"');
       };
     }
@@ -1635,11 +2361,13 @@
       document.getElementById('flt-close').onclick = closeModal;
       document.getElementById('flt-reset').onclick = function () { state.tableSearchQuery = ''; closeModal(); renderApp(); showToast('Filter reset to all rows'); };
       document.getElementById('flt-apply').onclick = function () {
+        if (!guardWriteAction('Filter Rows')) return;
         var cid = document.getElementById('flt-col').value;
         var cond = document.getElementById('flt-cond').value;
         var val = document.getElementById('flt-val').value.trim();
         if (!val) { closeModal(); return; }
         var q = val.toLowerCase();
+        var beforeCnt = bot.rows.length;
         bot.rows = bot.rows.filter(function (r) {
           var cell = r[cid]; if (cell === undefined || cell === null) return false;
           var s = String(cell).toLowerCase();
@@ -1651,7 +2379,8 @@
           return true;
         });
         bot.updatedAt = new Date().toISOString();
-        updateBot(bot); closeModal(); renderApp();
+        updateBot(bot, 'DELETE', 'Filtered rows (' + beforeCnt + ' -> ' + bot.rows.length + ')');
+        closeModal(); renderApp();
       };
     }
 
@@ -1993,15 +2722,19 @@
         { s: 'bot', t: 'Welcome to <b>' + esc(bot.name) + '</b>! Live database logging is active.', tm: '10:00' }
       ];
       if (!m.logs) m.logs = [];
-      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B' : '#ECFDF5;color:#065F46') + ';">' + esc(m.statusMsg) + '</div>' : '';
+      var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B;border:1px solid #FECACA;' : '#ECFDF5;color:#065F46;border:1px solid #A7F3D0;') + '">' + esc(m.statusMsg) + '</div>' : '';
+
+      var suggestedWh = getSuggestedSupabaseWebhookUrl(bot);
+      var activeWhUrl = bot.webhookUrl || '';
 
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('bot', 20) + '<div><h2 style="font-size:15px;font-weight:700;">' + esc(bot.name) + ' &middot; Telegram API</h2><div style="font-size:11px;color:#BFDBFE;">Official REST API &amp; Live Simulator</div></div></div>' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('bot', 20) + '<div><h2 style="font-size:15px;font-weight:700;">' + esc(bot.name) + ' &middot; Telegram API</h2><div style="font-size:11px;color:#BFDBFE;">' + (bot.webhookActive ? 'Instant Webhook Push Active' : 'Official REST API, Webhook &amp; Simulator') + '</div></div></div>' +
           '<button class="icon-btn" id="tg-close">' + icon('close', 18) + '</button></header>' +
         '<div style="display:flex;border-bottom:1px solid #E2E8F0;background:#F8FAFC;font-size:12px;font-weight:700;">' +
-          '<button data-tgtab="token" style="flex:1;padding:11px;border-bottom:2px solid ' + (m.tab === 'token' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Bot Token</button>' +
-          '<button data-tgtab="simulator" style="flex:1;padding:11px;border-bottom:2px solid ' + (m.tab === 'simulator' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Test Simulator</button>' +
-          '<button data-tgtab="broadcast" style="flex:1;padding:11px;border-bottom:2px solid ' + (m.tab === 'broadcast' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Broadcast</button>' +
+          '<button data-tgtab="token" style="flex:1;padding:11px 6px;border-bottom:2px solid ' + (m.tab === 'token' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Bot Token</button>' +
+          '<button data-tgtab="webhook" style="flex:1;padding:11px 6px;display:flex;align-items:center;justify-content:center;gap:5px;border-bottom:2px solid ' + (m.tab === 'webhook' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';"><span>Webhook</span>' + (bot.webhookActive ? '<span style="width:7px;height:7px;border-radius:999px;background:#10B981;"></span>' : '') + '</button>' +
+          '<button data-tgtab="simulator" style="flex:1;padding:11px 6px;border-bottom:2px solid ' + (m.tab === 'simulator' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Simulator</button>' +
+          '<button data-tgtab="broadcast" style="flex:1;padding:11px 6px;border-bottom:2px solid ' + (m.tab === 'broadcast' ? '#0D47A1;color:#0D47A1;background:#fff' : 'transparent;color:#64748B') + ';">Broadcast</button>' +
         '</div>' +
         '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + msgNote;
 
@@ -2010,7 +2743,62 @@
           '<div style="font-size:11px;color:#64748B;margin-top:4px;">Search <strong>@BotFather</strong> in Telegram, send <code>/newbot</code>, and paste the token here.</div></div>' +
           '<div style="display:flex;gap:8px;"><button id="tg-verify" class="btn btn-primary" style="flex:1;">Connect &amp; Verify Bot</button>' +
           '<button id="tg-sync" class="btn btn-green">Sync Messages</button></div>' +
-          (bot.botUsername ? '<div style="padding:12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;display:flex;justify-content:space-between;align-items:center;"><div><div style="font-size:10px;font-weight:700;color:#0D47A1;">LINKED BOT</div><div style="font-weight:700;">' + esc(bot.botUsername) + '</div></div><span class="status-chip chip-online">ONLINE</span></div>' : '');
+          (bot.botUsername ? '<div style="padding:12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;"><div><div style="font-size:10px;font-weight:700;color:#0D47A1;">LINKED BOT &middot; ' + (bot.webhookActive ? 'INSTANT WEBHOOK' : '6s POLLING') + '</div><div style="font-weight:700;">' + esc(bot.botUsername) + '</div></div><div style="display:flex;align-items:center;gap:6px;"><button type="button" id="tg-goto-wh" class="btn btn-outline" style="padding:5px 9px;font-size:11px;">' + icon('zap', 12) + '<span>Webhook</span></button><span class="status-chip chip-online">ONLINE</span></div></div>' : '');
+      } else if (m.tab === 'webhook') {
+        var whInfo = bot.webhookInfo || {};
+        var isLiveWh = !!(bot.webhookActive && (whInfo.url || activeWhUrl));
+        html += '<div style="padding:12px;border-radius:10px;border:1px solid ' + (isLiveWh ? '#A7F3D0;background:#ECFDF5' : '#BFDBFE;background:#EFF6FF') + ';">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+              '<div>' +
+                '<div style="font-size:10.5px;font-weight:700;color:' + (isLiveWh ? '#047857' : '#0D47A1') + ';text-transform:uppercase;">' + (isLiveWh ? 'Webhook Mode Active (Near-Instant Push)' : 'Polling Mode Active (6s Auto-Poll)') + '</div>' +
+                '<div style="font-size:12px;font-weight:700;color:#0F172A;margin-top:2px;word-break:break-all;">' + (isLiveWh ? esc(whInfo.url || activeWhUrl) : 'No webhook registered on Telegram yet') + '</div>' +
+              '</div>' +
+              '<span class="status-chip ' + (isLiveWh ? 'chip-online' : 'chip-sim') + '">' + (isLiveWh ? 'WEBHOOK' : 'POLLING') + '</span>' +
+            '</div>' +
+            (isLiveWh ? '<div style="margin-top:8px;font-size:11px;color:#065F46;display:flex;flex-wrap:wrap;gap:10px;">' +
+              '<span>Pending: <strong>' + (whInfo.pending_update_count || 0) + '</strong></span>' +
+              '<span>Max Conn: <strong>' + (whInfo.max_connections || 40) + '</strong></span>' +
+              (whInfo.checkedAt ? '<span>Checked: <strong>' + timeAgo(whInfo.checkedAt) + '</strong></span>' : '') +
+            '</div>' : '') +
+            (whInfo.last_error_message ? '<div style="margin-top:6px;padding:6px 8px;border-radius:6px;background:#FEF2F2;color:#991B1B;font-size:11px;"><strong>Last Telegram Delivery Error:</strong> ' + esc(whInfo.last_error_message) + '</div>' : '') +
+          '</div>' +
+          '<div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+              '<label class="field-label" style="margin-bottom:0;">Telegram Webhook HTTPS URL</label>' +
+              (suggestedWh ? '<button type="button" id="tg-wh-autofill" style="font-size:11px;font-weight:700;color:#1565C0;">Auto-fill Supabase Function URL</button>' : '') +
+            '</div>' +
+            '<div style="display:flex;gap:6px;">' +
+              '<input id="tg-wh-url" class="form-input mono" placeholder="https://your-project.supabase.co/functions/v1/telegram-webhook?bot_id=' + esc(bot.id) + '" value="' + esc(activeWhUrl || suggestedWh) + '" />' +
+              '<button type="button" id="tg-wh-copy-url" class="btn btn-outline" style="padding:8px 10px;" title="Copy Webhook URL">' + icon('copy', 14) + '</button>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#64748B;margin-top:4px;">Telegram pushes every incoming message immediately via HTTPS POST to this endpoint. Setting a webhook automatically disables <code>getUpdates</code> polling conflicts.</div>' +
+          '</div>' +
+          '<div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+              '<label class="field-label" style="margin-bottom:0;">Webhook Secret Token (X-Telegram-Bot-Api-Secret-Token)</label>' +
+              '<button type="button" id="tg-wh-gen-sec" style="font-size:11px;font-weight:700;color:#1565C0;">Generate Secret</button>' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;">' +
+              '<input id="tg-wh-secret" class="form-input mono" placeholder="Optional secret token (A-Z, 0-9, _ , -)" value="' + esc(bot.webhookSecret || '') + '" />' +
+              '<button type="button" id="tg-wh-copy-sec" class="btn btn-outline" style="padding:8px 10px;" title="Copy Secret Token">' + icon('copy', 14) + '</button>' +
+            '</div>' +
+          '</div>' +
+          '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#334155;cursor:pointer;">' +
+            '<input id="tg-wh-drop" type="checkbox" style="width:15px;height:15px;" /> Drop pending queued updates when applying' +
+          '</label>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<button type="button" id="tg-wh-set" class="btn btn-green">' + icon('zap', 14) + '<span>Save &amp; Set Webhook</span></button>' +
+            '<button type="button" id="tg-wh-info" class="btn btn-primary">' + icon('refresh', 14) + '<span>Check Status</span></button>' +
+            '<button type="button" id="tg-wh-test" class="btn btn-outline">' + icon('send', 14) + '<span>Test Endpoint</span></button>' +
+            '<button type="button" id="tg-wh-delete" class="btn btn-red" ' + (!bot.telegramToken ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '') + '>' + icon('trash', 14) + '<span>Remove Webhook</span></button>' +
+          '</div>' +
+          '<div style="background:#0F172A;border-radius:10px;padding:12px;color:#E2E8F0;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">' +
+              '<span style="font-size:11px;font-weight:700;color:#93C5FD;">SUPABASE EDGE FUNCTION RELAY (INSTANT PUSH TO APP)</span>' +
+              '<button type="button" id="tg-wh-copy-fn" class="btn btn-primary" style="padding:4px 9px;font-size:11px;">' + icon('copy', 12) + '<span>Copy Edge Function</span></button>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#CBD5E1;line-height:1.45;">Deploy this function as <code>telegram-webhook</code> in Supabase Edge Functions (with <code>TELEGRAM_WEBHOOK_SECRET</code> env var). When Telegram sends a message, the function updates <code>user_bots</code> and Supabase Realtime immediately displays the row here.</div>' +
+          '</div>';
       } else if (m.tab === 'simulator') {
         html += '<div style="padding:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;font-size:12px;color:#92400E;">Type a command below to simulate a Telegram user message and automatically append a row into your table.</div>' +
           '<div style="height:200px;background:#0F172A;border-radius:12px;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;">' +
@@ -2022,7 +2810,8 @@
           }).join('') + '</div>' +
           '<div style="display:flex;gap:8px;"><input id="tg-sim-inp" class="form-input" value="' + esc(m.simCmd || '/donate 35.00') + '" /><button id="tg-sim-send" class="btn btn-dark-blue">' + icon('send', 14) + '<span>Send</span></button></div>';
       } else {
-        html += '<div><label class="field-label">Message Content (HTML supported)</label><textarea id="tg-bmsg" rows="4" class="form-textarea" placeholder="Enter broadcast message...">' + esc(m.prefill || '') + '</textarea></div>' +
+        html += '<div><label class="field-label">Target Chat ID (Optional — leave blank for local log)</label><input id="tg-bchat" class="form-input mono" placeholder="e.g. 123456789 or @channelusername" value="' + esc(m.targetChatId || '') + '" /></div>' +
+          '<div><label class="field-label">Message Content (HTML supported)</label><textarea id="tg-bmsg" rows="4" class="form-textarea" placeholder="Enter broadcast message...">' + esc(m.prefill || '') + '</textarea></div>' +
           '<button id="tg-bsend" class="btn btn-dark-blue" style="width:100%;">' + icon('send', 14) + '<span>Send Broadcast Message</span></button>' +
           (m.logs.length ? '<div style="padding:10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;font-size:11px;font-family:monospace;">' + m.logs.map(esc).join('<br>') + '</div>' : '');
       }
@@ -2034,7 +2823,15 @@
       document.querySelectorAll('[data-tgtab]').forEach(function (b) { b.onclick = function () { m.tab = b.getAttribute('data-tgtab'); m.statusMsg = null; renderTelegramModal(m); }; });
 
       if (m.tab === 'token') {
+        if (bot.telegramToken && !m.autoChecked) {
+          m.autoChecked = true;
+          if (bot.webhookActive) refreshWebhookInfo(bot).catch(function () {});
+          else syncTelegramBot(bot, true);
+        }
+        var gotoWh = document.getElementById('tg-goto-wh');
+        if (gotoWh) gotoWh.onclick = function () { m.tab = 'webhook'; m.statusMsg = null; renderTelegramModal(m); };
         document.getElementById('tg-verify').onclick = async function () {
+          if (!guardWriteAction('Verify Telegram Bot')) return;
           var tk = document.getElementById('tg-tok').value.trim();
           if (!tk) { m.statusType = 'error'; m.statusMsg = 'Please enter a token.'; renderTelegramModal(m); return; }
           try {
@@ -2042,40 +2839,149 @@
             var data = await res.json();
             if (data.ok && data.result) {
               bot.telegramToken = tk; bot.botUsername = '@' + data.result.username; bot.botStatus = 'online'; bot.updatedAt = new Date().toISOString();
-              updateBot(bot); renderApp();
-              m.statusType = 'success'; m.statusMsg = 'Connected to @' + data.result.username + '!';
+              updateBot(bot, 'EDIT', 'Connected Telegram Bot @' + data.result.username);
+              try { await refreshWebhookInfo(bot); } catch (e0) {}
+              var syncedCnt = bot.webhookActive ? 0 : await syncTelegramBot(bot, true);
+              renderApp();
+              m.statusType = 'success';
+              m.statusMsg = bot.webhookActive
+                ? ('Connected to @' + data.result.username + ' (Webhook active: ' + (bot.webhookUrl || 'configured') + ')')
+                : ('Connected to @' + data.result.username + ' & synced ' + syncedCnt + ' update(s)!');
             } else { m.statusType = 'error'; m.statusMsg = data.description || 'Invalid token'; }
           } catch (e) { m.statusType = 'error'; m.statusMsg = 'Network error reaching Telegram API'; }
           renderTelegramModal(m);
         };
         document.getElementById('tg-sync').onclick = async function () {
           if (!bot.telegramToken) { m.statusType = 'error'; m.statusMsg = 'Connect a valid token first, or use Test Simulator.'; renderTelegramModal(m); return; }
+          if (bot.webhookActive) {
+            await pullAndMergeSupabase('manual');
+            try { await refreshWebhookInfo(bot); } catch (e1) {}
+            m.statusType = 'success';
+            m.statusMsg = 'Webhook mode is active — refreshed Webhook Info & synced latest cloud rows.';
+          } else {
+            var cnt = await syncTelegramBot(bot, false);
+            m.statusType = 'success';
+            m.statusMsg = cnt > 0 ? ('Immediately synced ' + cnt + ' new Telegram message(s) & pushed to Supabase!') : 'Checked Telegram API: all messages are already synced.';
+          }
+          renderTelegramModal(m);
+        };
+      } else if (m.tab === 'webhook') {
+        if (bot.telegramToken && !m.whInfoLoaded) {
+          m.whInfoLoaded = true;
+          refreshWebhookInfo(bot).then(function () { if (state.modal && state.modal.type === 'telegram' && state.modal.tab === 'webhook') renderTelegramModal(m); }).catch(function () {});
+        }
+        var afBtn = document.getElementById('tg-wh-autofill');
+        if (afBtn) afBtn.onclick = function () {
+          var s = getSuggestedSupabaseWebhookUrl(bot);
+          if (s) { document.getElementById('tg-wh-url').value = s; showToast('Filled Supabase Edge Function Webhook URL'); }
+        };
+        document.getElementById('tg-wh-copy-url').onclick = function () {
+          copyTextValue(document.getElementById('tg-wh-url').value.trim(), 'Webhook URL');
+        };
+        document.getElementById('tg-wh-gen-sec').onclick = function () {
+          var sec = generateWebhookSecret();
+          document.getElementById('tg-wh-secret').value = sec;
+          showToast('Generated secure webhook secret token');
+        };
+        document.getElementById('tg-wh-copy-sec').onclick = function () {
+          copyTextValue(document.getElementById('tg-wh-secret').value.trim(), 'Webhook Secret Token');
+        };
+        document.getElementById('tg-wh-copy-fn').onclick = function () {
+          copyTextValue(buildWebhookEdgeFunctionCode(bot), 'Supabase Edge Function Code');
+        };
+        document.getElementById('tg-wh-set').onclick = async function () {
+          if (!guardWriteAction('Configure Telegram Webhook')) return;
+          var url = document.getElementById('tg-wh-url').value.trim();
+          var secret = document.getElementById('tg-wh-secret').value.trim();
+          var drop = document.getElementById('tg-wh-drop').checked;
+          if (!url) { m.statusType = 'error'; m.statusMsg = 'Please enter a valid HTTPS Webhook URL.'; renderTelegramModal(m); return; }
+          if (!/^https:\/\/.+/i.test(url)) { m.statusType = 'error'; m.statusMsg = 'Webhook URL must begin with https://'; renderTelegramModal(m); return; }
+          if (!bot.telegramToken) {
+            bot.webhookUrl = url;
+            bot.webhookSecret = secret;
+            bot.updatedAt = new Date().toISOString();
+            updateBot(bot, 'EDIT', 'Saved draft Webhook URL (connect Bot Token to activate on Telegram)');
+            m.statusType = 'success';
+            m.statusMsg = 'Saved Webhook URL & secret locally. Connect your Bot Token in the Bot Token tab, then click Save & Set Webhook to register with Telegram.';
+            renderTelegramModal(m);
+            renderApp();
+            return;
+          }
           try {
-            var res = await fetch('https://api.telegram.org/bot' + bot.telegramToken + '/getUpdates?timeout=5');
-            var data = await res.json();
-            if (data.ok && Array.isArray(data.result) && data.result.length) {
-              data.result.forEach(function (u) {
-                if (!u.message) return;
-                var txt = u.message.text || '[Media]';
-                var amtM = txt.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
-                var nr = { id: 'tg_' + u.update_id };
-                bot.columns.forEach(function (c) {
-                  if (c.type === 'amount' || c.type === 'number') nr[c.id] = amtM ? parseFloat(amtM[1]) : 10;
-                  else if (c.type === 'date') nr[c.id] = new Date(u.message.date * 1000).toISOString().slice(0, 16).replace('T', ' ');
-                  else if (c.name.toLowerCase().indexOf('user') !== -1) nr[c.id] = String(u.message.from ? u.message.from.id : u.message.chat.id);
-                  else nr[c.id] = txt;
-                });
-                bot.rows.unshift(nr);
-              });
-              bot.updatedAt = new Date().toISOString(); updateBot(bot); renderApp();
-              m.statusType = 'success'; m.statusMsg = 'Synced ' + data.result.length + ' updates into table!';
-            } else { m.statusType = 'success'; m.statusMsg = 'No new incoming updates.'; }
-          } catch (e) { m.statusType = 'error'; m.statusMsg = 'Failed to fetch Telegram updates.'; }
+            await applyTelegramWebhook(bot, url, secret, drop);
+            m.statusType = 'success';
+            m.statusMsg = 'Telegram Webhook activated! Messages now push instantaneously to your endpoint & Supabase Realtime.';
+            renderApp();
+          } catch (e) {
+            m.statusType = 'error';
+            m.statusMsg = e.message || 'Failed to register webhook with Telegram.';
+          }
+          renderTelegramModal(m);
+        };
+        document.getElementById('tg-wh-info').onclick = async function () {
+          if (!bot.telegramToken) { m.statusType = 'error'; m.statusMsg = 'Connect a Bot Token first to query Telegram getWebhookInfo.'; renderTelegramModal(m); return; }
+          try {
+            var info = await refreshWebhookInfo(bot);
+            m.statusType = 'success';
+            m.statusMsg = info.url ? ('Webhook active: ' + info.url + ' (pending: ' + info.pending_update_count + ')') : 'Telegram reports no active webhook (Polling mode active).';
+            renderApp();
+          } catch (e) {
+            m.statusType = 'error';
+            m.statusMsg = e.message || 'Could not retrieve webhook info.';
+          }
+          renderTelegramModal(m);
+        };
+        document.getElementById('tg-wh-delete').onclick = async function () {
+          if (!guardWriteAction('Remove Telegram Webhook')) return;
+          if (!bot.telegramToken) return;
+          var drop = document.getElementById('tg-wh-drop').checked;
+          try {
+            await removeTelegramWebhook(bot, drop);
+            m.statusType = 'success';
+            m.statusMsg = 'Webhook removed from Telegram. Switched back to immediate Open & 6s Polling sync.';
+            renderApp();
+          } catch (e) {
+            m.statusType = 'error';
+            m.statusMsg = e.message || 'Failed to remove webhook.';
+          }
+          renderTelegramModal(m);
+        };
+        document.getElementById('tg-wh-test').onclick = async function () {
+          var url = document.getElementById('tg-wh-url').value.trim();
+          var secret = document.getElementById('tg-wh-secret').value.trim();
+          if (!/^https:\/\/.+/i.test(url)) { m.statusType = 'error'; m.statusMsg = 'Enter a valid https:// Webhook URL first.'; renderTelegramModal(m); return; }
+          var samplePayload = {
+            update_id: Math.floor(Date.now() / 1000),
+            message: {
+              message_id: 1,
+              from: { id: 999001, is_bot: false, first_name: 'WebhookTest', username: 'webhook_tester' },
+              chat: { id: 999001, type: 'private' },
+              date: Math.floor(Date.now() / 1000),
+              text: '/order 49.50 Webhook instant test'
+            }
+          };
+          try {
+            var headers = { 'Content-Type': 'application/json' };
+            if (secret) headers['X-Telegram-Bot-Api-Secret-Token'] = secret;
+            var res = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(samplePayload) });
+            if (res.ok) {
+              m.statusType = 'success';
+              m.statusMsg = 'Endpoint responded HTTP ' + res.status + ' OK! Pulling latest Supabase data...';
+              await pullAndMergeSupabase('manual');
+            } else {
+              m.statusType = 'error';
+              m.statusMsg = 'Endpoint returned HTTP ' + res.status + '. Verify your Edge Function secret and bot_id query parameter.';
+            }
+          } catch (e) {
+            m.statusType = 'error';
+            m.statusMsg = 'Browser CORS blocked direct test POST (normal for strict endpoints). Telegram servers POST server-to-server without CORS — use Check Status after sending a Telegram message.';
+          }
           renderTelegramModal(m);
         };
       } else if (m.tab === 'simulator') {
         document.querySelectorAll('.tg-preset').forEach(function (b) { b.onclick = function () { m.simCmd = b.getAttribute('data-cmd'); renderTelegramModal(m); }; });
         var simRun = function () {
+          if (!guardWriteAction('Telegram Simulator Add')) return;
           var cmd = document.getElementById('tg-sim-inp').value.trim();
           if (!cmd) return;
           var amtM = cmd.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
@@ -2084,7 +2990,7 @@
           var nowT = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           var reply = 'Received: "<i>' + esc(cmd) + '</i>"<br>Logged into <b>' + esc(bot.name) + '</b> ($' + amt.toFixed(2) + ').';
           m.chat.push({ s: 'user', t: esc(cmd), tm: nowT }, { s: 'bot', t: reply, tm: nowT });
-          var nr = { id: 'sim_' + Date.now() };
+          var nr = { id: 'sim_' + Date.now(), _actor: uid };
           bot.columns.forEach(function (c) {
             if (c.type === 'amount' || c.type === 'number') nr[c.id] = amt;
             else if (c.type === 'date') nr[c.id] = new Date().toISOString().slice(0, 16).replace('T', ' ');
@@ -2094,16 +3000,45 @@
             else nr[c.id] = cmd;
           });
           bot.rows.unshift(nr); bot.updatedAt = new Date().toISOString();
-          updateBot(bot); renderApp();
+          updateBot(bot, 'ADD', 'Simulator Telegram entry: "' + cmd + '" ($' + amt.toFixed(2) + ')');
+          renderApp();
           m.simCmd = ''; renderTelegramModal(m);
         };
         document.getElementById('tg-sim-send').onclick = simRun;
         document.getElementById('tg-sim-inp').onkeydown = function (e) { if (e.key === 'Enter') simRun(); };
       } else {
         document.getElementById('tg-bsend').onclick = async function () {
+          if (!guardWriteAction('Send Broadcast')) return;
+          var chatId = (document.getElementById('tg-bchat').value || '').trim();
           var txt = document.getElementById('tg-bmsg').value.trim();
           if (!txt) return;
-          m.logs.unshift((bot.telegramToken ? '[API] ' : '[SIMULATOR] ') + 'Broadcast sent: "' + txt + '"');
+          m.targetChatId = chatId;
+          if (bot.telegramToken && chatId) {
+            try {
+              var bRes = await fetch('https://api.telegram.org/bot' + bot.telegramToken + '/sendMessage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text: txt, parse_mode: 'HTML' })
+              });
+              var bData = await bRes.json();
+              if (!bData.ok) {
+                m.statusType = 'error'; m.statusMsg = bData.description || 'Telegram sendMessage failed';
+                renderTelegramModal(m);
+                return;
+              }
+              m.logs.unshift('[TELEGRAM API -> ' + chatId + '] Sent: "' + txt + '"');
+              recordAudit('ADD', bot, 'Sent live Telegram message to ' + chatId + ': "' + txt.slice(0, 40) + '"', { source: 'Telegram' });
+              m.prefill = ''; m.statusType = 'success'; m.statusMsg = 'Sent directly via Telegram API to ' + chatId + '!';
+              renderTelegramModal(m);
+              return;
+            } catch (e) {
+              m.statusType = 'error'; m.statusMsg = 'Network error sending Telegram message';
+              renderTelegramModal(m);
+              return;
+            }
+          }
+          m.logs.unshift((bot.telegramToken ? '[API LOG] ' : '[SIMULATOR] ') + 'Broadcast sent: "' + txt + '"');
+          recordAudit('ADD', bot, 'Broadcast message dispatched: "' + txt.slice(0, 40) + '"', { source: bot.telegramToken ? 'Telegram' : 'Browser' });
           m.prefill = ''; m.statusType = 'success'; m.statusMsg = 'Broadcast message dispatched!';
           renderTelegramModal(m);
         };
@@ -2124,72 +3059,136 @@
       return base + '?' + params.toString();
     }
 
+    function copyTextValue(text, label) {
+      if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function () {});
+      showToast(label + ' copied!');
+    }
+
     function renderSupabaseModal(m) {
       var cfg = state.supabaseConfig;
-      var ref = extractSupabaseRef(m.draftUrl !== undefined ? m.draftUrl : cfg.url);
+      var curUrl = m.draftUrl !== undefined ? m.draftUrl : cfg.url;
+      var curKey = m.draftKey !== undefined ? m.draftKey : cfg.anonKey;
+      var curEmail = m.draftEmail !== undefined ? m.draftEmail : cfg.userEmail;
+      var ref = extractSupabaseRef(curUrl);
       var dashBase = ref ? ('https://supabase.com/dashboard/project/' + ref) : 'https://supabase.com/dashboard';
-      var apiLink = ref ? (dashBase + '/settings/api') : 'https://supabase.com/dashboard';
-      var sqlLink = ref ? (dashBase + '/sql/new') : 'https://supabase.com/dashboard';
-      var authUsersLink = ref ? (dashBase + '/auth/users') : 'https://supabase.com/dashboard';
+      var apiLink = ref ? (dashBase + '/settings/api') : 'https://supabase.com/dashboard/project/_/settings/api';
+      var sqlLink = ref ? (dashBase + '/sql/new') : 'https://supabase.com/dashboard/project/_/sql/new';
+      var authUrlCfgLink = ref ? (dashBase + '/auth/url-configuration') : 'https://supabase.com/dashboard/project/_/auth/url-configuration';
+      var redirectUrl = window.location.href.split('#')[0].split('?')[0];
+      if (!m.authTab) m.authTab = m.recoveryMode ? 'recovery' : 'login';
 
+      var loggedInUser = state.authSession && state.authSession.email;
       var msgNote = m.statusMsg ? '<div style="padding:10px 12px;border-radius:10px;font-size:12px;background:' + (m.statusType === 'error' ? '#FEF2F2;color:#991B1B;border:1px solid #FECACA;' : '#ECFDF5;color:#065F46;border:1px solid #A7F3D0;') + '">' + esc(m.statusMsg) + '</div>' : '';
+
+      var authBodyHtml = '';
+      if (m.authTab === 'recovery') {
+        authBodyHtml = '<div style="display:flex;flex-direction:column;gap:10px;padding:12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;">' +
+          '<div style="font-size:12px;font-weight:800;color:#92400E;">Set New Password (Recovery Verified)</div>' +
+          '<input id="sb-new-pass" type="password" class="form-input" placeholder="Enter new password (min 6 characters)" />' +
+          '<div style="display:flex;gap:8px;"><button id="sb-update-pass" class="btn btn-green" style="flex:1;">Save New Password</button>' +
+          '<button id="sb-back-login" class="btn btn-outline">Back to Login</button></div></div>';
+      } else if (m.authTab === 'forgot') {
+        authBodyHtml = '<div style="display:flex;flex-direction:column;gap:10px;padding:12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;">' +
+          '<div style="font-size:12px;font-weight:800;color:#92400E;">Forgot Password &mdash; Send Reset Email</div>' +
+          '<div style="font-size:11px;color:#78350F;">Enter your account email. Supabase will send a secure password recovery link to reset your password.</div>' +
+          '<input id="sb-email" type="email" class="form-input" value="' + esc(curEmail) + '" placeholder="Email address" />' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button id="sb-send-reset" class="btn btn-dark-blue" style="flex:1;">Send Reset Link</button>' +
+            '<button id="sb-back-login" class="btn btn-outline">Back to Login</button>' +
+          '</div></div>';
+      } else {
+        authBodyHtml = '<div style="display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<span style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">Login / Register / Logout</span>' +
+            '<button type="button" id="sb-go-forgot" style="font-size:11.5px;font-weight:700;color:#D97706;">Forgot Password?</button>' +
+          '</div>' +
+          (loggedInUser ? '<div style="padding:8px 12px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>Signed in as <strong>' + esc(loggedInUser) + '</strong></span><button id="sb-logout-btn" class="btn btn-red" style="padding:4px 10px;font-size:11px;">Logout</button></div>' : '') +
+          '<input id="sb-email" type="email" class="form-input" value="' + esc(curEmail) + '" placeholder="Email address" />' +
+          '<input id="sb-pass" type="password" class="form-input" placeholder="Password (leave blank for Magic Link)" />' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button id="sb-signin" class="btn btn-dark-blue" style="flex:1;">Login / Sign In</button>' +
+            '<button id="sb-signup" class="btn btn-primary" style="flex:1;">Sign Up</button>' +
+            '<button id="sb-magic" class="btn btn-green" title="Send passwordless login link to email">Magic Link</button>' +
+            '<button id="sb-offline" class="btn btn-outline">Local Mode</button>' +
+          '</div></div>';
+      }
+
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('cloud', 20) + '<div><h2 style="font-size:15px;font-weight:700;">Connect Supabase Account &amp; Cloud Sync</h2><div style="font-size:11px;color:#BFDBFE;">Link your Supabase project &amp; sync across devices</div></div></div>' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('cloud', 20) + '<div><h2 style="font-size:15px;font-weight:700;">Supabase Account, Auth &amp; API Links</h2><div style="font-size:11px;color:#BFDBFE;">' + (loggedInUser ? ('Synced as ' + esc(loggedInUser)) : cfg.isConnected ? 'Configured — Sign In below to activate RLS sync' : 'Connect your Supabase project') + '</div></div></div>' +
           '<button class="icon-btn" id="sb-close">' + icon('close', 18) + '</button></header>' +
-        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + msgNote +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:13px;">' + msgNote +
           '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
-              '<span style="font-size:11.5px;font-weight:700;color:#0D47A1;">Supabase Account &amp; Dashboard Links</span>' +
-              '<a href="' + esc(dashBase) + '" target="_blank" rel="noopener noreferrer" class="btn btn-dark-blue" style="padding:5px 10px;font-size:11px;text-decoration:none;">Open Supabase Account &rarr;</a>' +
+              '<span style="font-size:11.5px;font-weight:700;color:#0D47A1;">Supabase Account &amp; API Quick Links</span>' +
+              '<div style="display:flex;gap:6px;">' +
+                '<button id="sb-copy-api-link" class="btn btn-outline" style="padding:4px 9px;font-size:11px;">' + icon('copy', 12) + '<span>Copy API Link</span></button>' +
+                '<a href="' + esc(dashBase) + '" target="_blank" rel="noopener noreferrer" class="btn btn-dark-blue" style="padding:5px 10px;font-size:11px;text-decoration:none;">Open Supabase &rarr;</a>' +
+              '</div>' +
             '</div>' +
             '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">' +
               '<a href="' + esc(apiLink) + '" target="_blank" rel="noopener noreferrer" style="color:#1565C0;font-weight:700;background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #BFDBFE;text-decoration:none;">1. Project URL &amp; API Key</a>' +
               '<a href="' + esc(sqlLink) + '" target="_blank" rel="noopener noreferrer" style="color:#1565C0;font-weight:700;background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #BFDBFE;text-decoration:none;">2. SQL Editor</a>' +
-              '<a href="' + esc(authUsersLink) + '" target="_blank" rel="noopener noreferrer" style="color:#1565C0;font-weight:700;background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #BFDBFE;text-decoration:none;">3. Auth Users</a>' +
+              '<a href="' + esc(authUrlCfgLink) + '" target="_blank" rel="noopener noreferrer" style="color:#1565C0;font-weight:700;background:#fff;padding:4px 9px;border-radius:6px;border:1px solid #BFDBFE;text-decoration:none;">3. Auth URL Config</a>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;background:#fff;padding:6px 8px;border-radius:8px;border:1px solid #DBEAFE;font-size:11px;">' +
+              '<span style="color:#64748B;font-weight:700;white-space:nowrap;">Redirect URL:</span>' +
+              '<span class="mono truncate" style="flex:1;color:#0F172A;">' + esc(redirectUrl) + '</span>' +
+              '<button id="sb-copy-redirect" class="btn btn-outline" style="padding:3px 8px;font-size:10.5px;">Copy</button>' +
             '</div>' +
           '</div>' +
           '<div><label class="field-label">Paste Account Sync Link (Optional)</label>' +
             '<div style="display:flex;gap:6px;"><input id="sb-link-paste" class="form-input mono" style="font-size:11.5px;" placeholder="Paste ?sb_url=...&amp;sb_key=... link from another device" />' +
             '<button id="sb-apply-link" class="btn btn-outline" style="white-space:nowrap;">Apply Link</button></div></div>' +
-          '<div><label class="field-label">Supabase Project URL</label><input id="sb-url" class="form-input mono" placeholder="https://xyzcompany.supabase.co" value="' + esc(m.draftUrl !== undefined ? m.draftUrl : cfg.url) + '" /></div>' +
-          '<div><label class="field-label">Supabase Anon Public Key</label><input id="sb-key" type="password" class="form-input mono" placeholder="eyJhbGciOi..." value="' + esc(m.draftKey !== undefined ? m.draftKey : cfg.anonKey) + '" /></div>' +
+          '<div><label class="field-label">Supabase Project URL</label>' +
+            '<div style="display:flex;gap:6px;"><input id="sb-url" class="form-input mono" placeholder="https://xyzcompany.supabase.co" value="' + esc(curUrl) + '" />' +
+            '<button id="sb-copy-url" class="btn btn-outline" style="white-space:nowrap;">Copy</button></div></div>' +
+          '<div><label class="field-label">Supabase Anon Public Key</label>' +
+            '<div style="display:flex;gap:6px;"><input id="sb-key" type="' + (m.showKey ? 'text' : 'password') + '" class="form-input mono" placeholder="eyJhbGciOi..." value="' + esc(curKey) + '" />' +
+            '<button id="sb-toggle-key" class="btn btn-outline" style="white-space:nowrap;">' + (m.showKey ? 'Hide' : 'Show') + '</button>' +
+            '<button id="sb-copy-key" class="btn btn-outline" style="white-space:nowrap;">Copy</button></div></div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<button id="sb-test" class="btn btn-primary" style="flex:1;">Save &amp; Connect Supabase</button>' +
-            '<button id="sb-copy-link" class="btn btn-outline" title="Copy shareable Supabase sync link for another device">' + icon('share', 14) + '<span>Copy Account Link</span></button>' +
+            '<button id="sb-test" class="btn btn-primary" style="flex:1;">Save, Connect &amp; Sync Now</button>' +
+            '<button id="sb-copy-link" class="btn btn-outline" title="Copy shareable Supabase sync link for another device">' + icon('share', 14) + '<span>Copy Account Sync Link</span></button>' +
           '</div>' +
           '<div style="background:#0F172A;color:#E2E8F0;padding:12px;border-radius:12px;">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:11.5px;font-weight:700;">SQL Database Setup Script</span>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:11.5px;font-weight:700;">SQL Setup Script (Tables + Realtime)</span>' +
             '<button id="sb-copy-sql" class="btn btn-green" style="padding:4px 10px;font-size:11px;">Copy SQL Setup Script</button></div>' +
             '<pre class="mono" style="font-size:10.5px;color:#94A3B8;overflow-x:auto;max-height:90px;">' + esc(SQL_SETUP_SCRIPT) + '</pre>' +
           '</div>' +
-          '<div style="border-top:1px solid #E2E8F0;padding-top:12px;display:flex;flex-direction:column;gap:10px;">' +
-            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">Supabase Account Authentication</div>' +
-            '<input id="sb-email" type="email" class="form-input" value="' + esc(m.draftEmail !== undefined ? m.draftEmail : cfg.userEmail) + '" placeholder="Email address" />' +
-            '<input id="sb-pass" type="password" class="form-input" placeholder="Password (leave blank for Magic Link)" />' +
-            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-              '<button id="sb-signin" class="btn btn-dark-blue" style="flex:1;">Sign In</button>' +
-              '<button id="sb-signup" class="btn btn-primary" style="flex:1;">Sign Up</button>' +
-              '<button id="sb-magic" class="btn btn-green" title="Send passwordless login link to email">Magic Link</button>' +
-              '<button id="sb-offline" class="btn btn-outline">Local Mode</button>' +
-            '</div></div></div></div></div>';
+          '<div style="border-top:1px solid #E2E8F0;padding-top:12px;">' + authBodyHtml + '</div>' +
+        '</div></div></div>';
+
       document.getElementById('modal-root').innerHTML = html;
       document.getElementById('m-bg').onclick = closeModal;
       document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('sb-close').onclick = closeModal;
       document.getElementById('sb-url').oninput = function (e) { m.draftUrl = e.target.value; };
       document.getElementById('sb-key').oninput = function (e) { m.draftKey = e.target.value; };
-      document.getElementById('sb-email').oninput = function (e) { m.draftEmail = e.target.value; };
-      document.getElementById('sb-copy-sql').onclick = function () {
-        if (navigator.clipboard) navigator.clipboard.writeText(SQL_SETUP_SCRIPT).catch(function () {});
-        showToast('SQL Setup Script copied!');
+      var emInp = document.getElementById('sb-email');
+      if (emInp) emInp.oninput = function (e) { m.draftEmail = e.target.value; };
+
+      document.getElementById('sb-copy-api-link').onclick = function () { copyTextValue(apiLink, 'Supabase API page link'); };
+      document.getElementById('sb-copy-redirect').onclick = function () { copyTextValue(redirectUrl, 'Auth Redirect URL'); };
+      document.getElementById('sb-copy-url').onclick = function () {
+        var v = document.getElementById('sb-url').value.trim();
+        if (v) copyTextValue(v, 'Project URL'); else showToast('Enter Project URL first');
       };
+      document.getElementById('sb-toggle-key').onclick = function () { m.showKey = !m.showKey; renderSupabaseModal(m); };
+      document.getElementById('sb-copy-key').onclick = function () {
+        var v = document.getElementById('sb-key').value.trim();
+        if (v) copyTextValue(v, 'Anon Key'); else showToast('Enter Anon Key first');
+      };
+      document.getElementById('sb-copy-sql').onclick = function () { copyTextValue(SQL_SETUP_SCRIPT, 'SQL Setup Script'); };
+
       var saveCfg = function (u, k, em) {
         if (u) localStorage.setItem(STORAGE_SB_URL, u); else localStorage.removeItem(STORAGE_SB_URL);
         if (k) localStorage.setItem(STORAGE_SB_KEY, k); else localStorage.removeItem(STORAGE_SB_KEY);
         if (em) localStorage.setItem(STORAGE_SB_EMAIL, em);
         state.supabaseConfig = loadSupabaseConfig(); state.sbClient = null;
+        if (state.sbUnsub) { try { state.sbUnsub(); } catch (e) {} state.sbUnsub = null; }
       };
-      document.getElementById('sb-apply-link').onclick = function () {
+
+      document.getElementById('sb-apply-link').onclick = async function () {
         var raw = document.getElementById('sb-link-paste').value.trim();
         if (!raw) return;
         try {
@@ -2199,24 +3198,27 @@
           if (!lu || !lk) { m.statusType = 'error'; m.statusMsg = 'Invalid link: missing sb_url or sb_key parameters.'; renderSupabaseModal(m); return; }
           m.draftUrl = lu; m.draftKey = lk; if (le) m.draftEmail = le;
           saveCfg(lu, lk, le || cfg.userEmail);
-          initSupabaseCloud();
-          m.statusType = 'success'; m.statusMsg = 'Account link applied & connected to Supabase!';
+          await initSupabaseCloud();
+          m.statusType = 'success';
+          m.statusMsg = state.authSession ? 'Account link applied & data synced!' : 'Account link applied! Please Sign In below to sync RLS data.';
         } catch (e) {
           m.statusType = 'error'; m.statusMsg = 'Could not parse Supabase account link.';
         }
         renderSupabaseModal(m);
       };
+
       document.getElementById('sb-copy-link').onclick = function () {
-        var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim(), em = document.getElementById('sb-email').value.trim();
+        var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim();
+        var em = (document.getElementById('sb-email') ? document.getElementById('sb-email').value.trim() : curEmail);
         if (!u || !k) { m.statusType = 'error'; m.statusMsg = 'Enter Supabase URL and Anon Key before copying account link.'; renderSupabaseModal(m); return; }
-        var shareUrl = buildSupabaseShareLink(u, k, em);
-        if (navigator.clipboard) navigator.clipboard.writeText(shareUrl).catch(function () {});
-        showToast('Copied Supabase account sync link!');
-        m.statusType = 'success'; m.statusMsg = 'Account sync link copied to clipboard! Open it on any device to auto-connect.';
+        copyTextValue(buildSupabaseShareLink(u, k, em), 'Supabase account sync link');
+        m.statusType = 'success'; m.statusMsg = 'Account sync link copied! Open it on any browser to auto-connect.';
         renderSupabaseModal(m);
       };
+
       document.getElementById('sb-test').onclick = async function () {
-        var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim(), em = document.getElementById('sb-email').value.trim();
+        var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim();
+        var em = (document.getElementById('sb-email') ? document.getElementById('sb-email').value.trim() : curEmail);
         if (!u || !k) { m.statusType = 'error'; m.statusMsg = 'Enter both URL and Anon Key.'; renderSupabaseModal(m); return; }
         if (!window.supabase || !window.supabase.createClient) { m.statusType = 'error'; m.statusMsg = 'Supabase SDK unavailable offline.'; renderSupabaseModal(m); return; }
         try {
@@ -2225,28 +3227,87 @@
           if (res.error && res.error.code !== 'PGRST116' && res.error.code !== '42P01') {
             m.statusType = 'error'; m.statusMsg = res.error.message;
           } else {
-            saveCfg(u, k, em); initSupabaseCloud();
-            m.statusType = 'success'; m.statusMsg = 'Connected to Supabase Cloud!';
+            saveCfg(u, k, em);
+            await initSupabaseCloud();
+            if (state.authSession) {
+              m.statusType = 'success'; m.statusMsg = 'Connected & synced with Supabase Cloud!';
+            } else {
+              m.statusType = 'success'; m.statusMsg = 'Project connected! Now Login or Sign Up below so Supabase RLS syncs your data.';
+            }
           }
         } catch (e) { m.statusType = 'error'; m.statusMsg = 'Connection failed'; }
         renderSupabaseModal(m);
       };
+
+      if (m.authTab === 'recovery') {
+        document.getElementById('sb-update-pass').onclick = async function () {
+          var np = document.getElementById('sb-new-pass').value;
+          if (!np || np.length < 6) { m.statusType = 'error'; m.statusMsg = 'Password must be at least 6 characters.'; renderSupabaseModal(m); return; }
+          var client = getSbClient();
+          if (!client) { m.statusType = 'error'; m.statusMsg = 'Connect Supabase first.'; renderSupabaseModal(m); return; }
+          try {
+            var res = await client.auth.updateUser({ password: np });
+            if (res.error) throw res.error;
+            m.recoveryMode = false; m.authTab = 'login';
+            m.statusType = 'success'; m.statusMsg = 'Password updated! You are now signed in.';
+            recordAudit('AUTH', null, 'Password updated via recovery', { source: 'Browser' });
+            await initSupabaseCloud();
+          } catch (err) { m.statusType = 'error'; m.statusMsg = err.message || 'Could not update password'; }
+          renderSupabaseModal(m);
+        };
+        document.getElementById('sb-back-login').onclick = function () { m.recoveryMode = false; m.authTab = 'login'; m.statusMsg = null; renderSupabaseModal(m); };
+        return;
+      }
+
+      if (m.authTab === 'forgot') {
+        document.getElementById('sb-send-reset').onclick = async function () {
+          var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim();
+          var em = document.getElementById('sb-email').value.trim();
+          if (!em) { m.statusType = 'error'; m.statusMsg = 'Enter your email address.'; renderSupabaseModal(m); return; }
+          saveCfg(u, k, em);
+          var client = getSbClient();
+          if (!client) { m.statusType = 'error'; m.statusMsg = 'Configure valid Supabase URL and Key first.'; renderSupabaseModal(m); return; }
+          try {
+            var rres = await client.auth.resetPasswordForEmail(em, { redirectTo: redirectUrl });
+            if (rres.error) throw rres.error;
+            recordAudit('AUTH', null, 'Requested password reset email for ' + em, { actor: em, source: 'Browser' });
+            m.statusType = 'success'; m.statusMsg = 'Password reset link sent to ' + em + '! Check your inbox.';
+          } catch (err) { m.statusType = 'error'; m.statusMsg = err.message || 'Reset email error'; }
+          renderSupabaseModal(m);
+        };
+        document.getElementById('sb-back-login').onclick = function () { m.authTab = 'login'; m.statusMsg = null; renderSupabaseModal(m); };
+        return;
+      }
+
+      document.getElementById('sb-go-forgot').onclick = function () { m.authTab = 'forgot'; m.statusMsg = null; renderSupabaseModal(m); };
+      var loBtn = document.getElementById('sb-logout-btn');
+      if (loBtn) loBtn.onclick = async function () {
+        var prev = getCurrentActor();
+        try { var c = getSbClient(); if (c && c.auth) await c.auth.signOut(); } catch (e) {}
+        state.authSession = null;
+        state.syncStatus = state.supabaseConfig.isConnected ? 'auth_required' : 'local';
+        recordAudit('AUTH', null, 'Logged out (' + prev + ')', { actor: prev, source: 'Browser' });
+        m.statusType = 'success'; m.statusMsg = 'Logged out successfully.';
+        renderApp(); renderSupabaseModal(m);
+      };
+
       var doAuth = async function (mode) {
         var u = document.getElementById('sb-url').value.trim(), k = document.getElementById('sb-key').value.trim();
         var em = document.getElementById('sb-email').value.trim(), pw = document.getElementById('sb-pass').value;
+        if (!em) { m.statusType = 'error'; m.statusMsg = 'Please enter your email address.'; renderSupabaseModal(m); return; }
         saveCfg(u, k, em);
         var client = getSbClient();
         if (!client) { m.statusType = 'error'; m.statusMsg = 'Configure valid Supabase URL and Key first.'; renderSupabaseModal(m); return; }
         try {
           if (mode === 'magic') {
-            var mres = await client.auth.signInWithOtp({ email: em, options: { emailRedirectTo: window.location.href.split('#')[0] } });
+            var mres = await client.auth.signInWithOtp({ email: em, options: { emailRedirectTo: redirectUrl } });
             if (mres.error) throw mres.error;
             m.statusType = 'success'; m.statusMsg = 'Magic login link sent to ' + em + '! Check your inbox.';
           } else {
             var res = mode === 'up' ? await client.auth.signUp({ email: em, password: pw }) : await client.auth.signInWithPassword({ email: em, password: pw });
             if (res.error) throw res.error;
-            m.statusType = 'success'; m.statusMsg = mode === 'up' ? 'Account created! Check email or sign in.' : 'Signed in as ' + em;
-            initSupabaseCloud();
+            m.statusType = 'success'; m.statusMsg = mode === 'up' ? 'Account created! Check email or sign in.' : 'Logged in as ' + em + ' — Cloud Sync Active!';
+            await initSupabaseCloud();
           }
         } catch (err) { m.statusType = 'error'; m.statusMsg = err.message || 'Auth error'; }
         renderSupabaseModal(m);
@@ -2256,14 +3317,232 @@
       document.getElementById('sb-magic').onclick = function () { doAuth('magic'); };
       document.getElementById('sb-offline').onclick = function () {
         saveCfg('', '', document.getElementById('sb-email').value.trim() || 'offline-user@local.app');
-        state.syncStatus = 'local'; closeModal(); renderApp(); showToast('Operating in Local Storage Mode');
+        state.authSession = null; state.syncStatus = 'local'; closeModal(); renderApp(); showToast('Operating in Local Storage Mode');
       };
+    }
+
+    // Admin Modal: Audit Changes (Add/Edit/Delete), Block Unwanted Users & Transmit Data
+    function renderAdminModal(m) {
+      if (!m.tab) m.tab = 'logs';
+      if (!m.actionFilter) m.actionFilter = 'ALL';
+      if (!m.userFilter) m.userFilter = 'ALL';
+      if (m.search === undefined) m.search = '';
+
+      var userList = state.workspaceUsers.slice().sort(function (a, b) {
+        return new Date(b.lastSeen || 0).getTime() - new Date(a.lastSeen || 0).getTime();
+      });
+      var filteredLogs = state.auditLogs.filter(function (lg) {
+        if (m.actionFilter !== 'ALL' && lg.action !== m.actionFilter) return false;
+        if (m.userFilter !== 'ALL' && lg.actor !== m.userFilter) return false;
+        if (m.search.trim()) {
+          var q = m.search.toLowerCase();
+          if ((lg.actor || '').toLowerCase().indexOf(q) === -1 && (lg.botName || '').toLowerCase().indexOf(q) === -1 && (lg.summary || '').toLowerCase().indexOf(q) === -1) return false;
+        }
+        return true;
+      });
+
+      var tabContent = '';
+      if (m.tab === 'logs') {
+        tabContent = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+          '<select id="adm-act-flt" class="form-select" style="width:auto;padding:6px 10px;font-size:12px;">' +
+            ['ALL', 'ADD', 'EDIT', 'DELETE', 'BLOCK', 'TRANSMIT', 'AUTH'].map(function (a) {
+              return '<option value="' + a + '"' + (m.actionFilter === a ? ' selected' : '') + '>' + (a === 'ALL' ? 'All Actions' : a) + '</option>';
+            }).join('') +
+          '</select>' +
+          '<select id="adm-usr-flt" class="form-select" style="width:auto;max-width:200px;padding:6px 10px;font-size:12px;">' +
+            '<option value="ALL">All Users (' + userList.length + ')</option>' +
+            userList.map(function (u) { return '<option value="' + esc(u.id) + '"' + (m.userFilter === u.id ? ' selected' : '') + '>' + esc(u.label) + '</option>'; }).join('') +
+          '</select>' +
+          '<input id="adm-search" class="form-input" style="flex:1;min-width:150px;padding:6px 10px;font-size:12px;" placeholder="Search user, bot, change..." value="' + esc(m.search) + '" />' +
+          '<button id="adm-clear-logs" class="btn btn-outline" style="padding:6px 10px;font-size:11px;color:#DC2626;">Clear Logs</button>' +
+        '</div>' +
+        '<div style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;max-height:380px;overflow-y:auto;">' +
+          '<table class="report-table"><thead><tr><th>Action</th><th>User</th><th>Source</th><th>Bot / Table</th><th>Details</th><th>Time</th></tr></thead><tbody>' +
+          (filteredLogs.length === 0
+            ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94A3B8;">No matching change records yet.</td></tr>'
+            : filteredLogs.slice(0, 100).map(function (lg) {
+                var acCls = lg.action === 'ADD' ? 'act-add' : lg.action === 'EDIT' ? 'act-edit' : lg.action === 'DELETE' ? 'act-delete' : lg.action === 'BLOCK' ? 'act-block' : lg.action === 'TRANSMIT' ? 'act-transmit' : 'act-auth';
+                return '<tr><td><span class="act-badge ' + acCls + '">' + esc(lg.action) + '</span></td>' +
+                  '<td style="font-weight:700;">' + esc(lg.actor) + '</td>' +
+                  '<td><span style="font-size:11px;background:#EFF6FF;color:#1565C0;padding:2px 6px;border-radius:4px;font-weight:600;">' + esc(lg.source || 'Browser') + '</span></td>' +
+                  '<td style="font-weight:600;color:#0D47A1;">' + esc(lg.botName || 'Workspace') + '</td>' +
+                  '<td style="max-width:260px;">' + esc(lg.summary) + '</td>' +
+                  '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + timeAgo(lg.timestamp) + '</td></tr>';
+              }).join('')) +
+          '</tbody></table></div>';
+      } else if (m.tab === 'users') {
+        tabContent = '<div style="padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+          '<input id="adm-block-inp" class="form-input" style="flex:1;min-width:200px;" placeholder="Block unwanted email or Telegram @username / ID..." />' +
+          '<button id="adm-block-add" class="btn btn-red">' + icon('ban', 14) + '<span>Block Unwanted User</span></button>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;">' +
+          userList.map(function (u) {
+            return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
+              '<div><div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
+                '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-edit') + '">' + (u.blocked ? 'BLOCKED' : esc(u.role || 'editor')) + '</span>' +
+                '<span style="font-size:10.5px;color:#64748B;">(' + esc(u.source || 'Browser') + ')</span></div>' +
+                '<div class="mono" style="font-size:11px;color:#64748B;margin-top:3px;">Adds: <strong>' + (u.adds || 0) + '</strong> &middot; Edits: <strong>' + (u.edits || 0) + '</strong> &middot; Deletes: <strong>' + (u.deletes || 0) + '</strong> &middot; Seen ' + timeAgo(u.lastSeen) + '</div></div>' +
+              '<div style="display:flex;gap:6px;">' +
+                '<button class="btn ' + (u.blocked ? 'btn-green' : 'btn-red') + ' adm-tog-blk" data-uid="' + esc(u.id) + '" style="padding:5px 11px;font-size:11px;">' + (u.blocked ? 'Unblock User' : 'Block User') + '</button>' +
+              '</div></div>';
+          }).join('') +
+        '</div>';
+      } else {
+        tabContent = '<div style="padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="font-weight:800;font-size:13px;color:#0D47A1;">Unwanted User Data Transmit &amp; Ownership Control</div>' +
+          '<div style="font-size:11.5px;color:#334155;">Transfer (transmit) all bots &amp; rows created by an unwanted/old user to the Admin, or purge all rows submitted by that user across every bot table.</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div><label class="field-label">Source / Unwanted User</label><select id="tr-src" class="form-select">' +
+              userList.map(function (u) { return '<option value="' + esc(u.id) + '">' + esc(u.label) + (u.blocked ? ' [BLOCKED]' : '') + '</option>'; }).join('') +
+            '</select></div>' +
+            '<div><label class="field-label">Transmit To Target User</label><input id="tr-dst" class="form-input" value="' + esc(state.adminConfig.adminEmail || getCurrentActor()) + '" /></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button id="tr-transfer-btn" class="btn btn-dark-blue" style="flex:1;">' + icon('swap', 14) + '<span>Transmit Data to Target</span></button>' +
+            '<button id="tr-purge-btn" class="btn btn-red" style="flex:1;">' + icon('trash', 14) + '<span>Delete User\'s Added Rows</span></button>' +
+          '</div></div>' +
+          '<div style="padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
+            '<div style="font-weight:800;font-size:13px;color:#0F172A;">Immediate Sync Method (Browser Open &amp; Telegram Open)</div>' +
+            '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Immediate sync on Browser Open / Tab Focus</span><input type="checkbox" id="cfg-sync-open" ' + (state.adminConfig.autoSyncOnOpen ? 'checked' : '') + ' /></label>' +
+            '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Immediate Telegram sync on Bot Open &amp; 6s Live Poll</span><input type="checkbox" id="cfg-tg-poll" ' + (state.adminConfig.telegramAutoPoll ? 'checked' : '') + ' /></label>' +
+            '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Show Live Changes Strip on Main Dashboard</span><input type="checkbox" id="cfg-dash-strip" ' + (state.adminConfig.showDashboardActivity ? 'checked' : '') + ' /></label>' +
+            '<button id="adm-force-sync" class="btn btn-green" style="width:100%;">' + icon('refresh', 14) + '<span>Force Immediate Sync All (Browser + Telegram + Supabase)</span></button>' +
+          '</div>';
+      }
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('shield', 21) + '<div><h2 style="font-size:16px;font-weight:700;">Admin Control Center</h2><div style="font-size:11px;color:#BFDBFE;">User Add/Edit/Delete Audit &middot; Block Unwanted Users &middot; Instant Transmit &amp; Sync</div></div></div>' +
+          '<button class="icon-btn" id="adm-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="admin-tabs">' +
+          '<button class="admin-tab-btn ' + (m.tab === 'logs' ? 'active' : '') + '" data-admtab="logs">Activity Dashboard (' + state.auditLogs.length + ')</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'users' ? 'active' : '') + '" data-admtab="users">Users &amp; Unwanted Block (' + userList.length + ')</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'transmit' ? 'active' : '') + '" data-admtab="transmit">Transmit &amp; Sync Method</button>' +
+        '</div>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + tabContent + '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('adm-close').onclick = closeModal;
+      document.querySelectorAll('[data-admtab]').forEach(function (b) {
+        b.onclick = function () { m.tab = b.getAttribute('data-admtab'); renderAdminModal(m); };
+      });
+
+      if (m.tab === 'logs') {
+        document.getElementById('adm-act-flt').onchange = function (e) { m.actionFilter = e.target.value; renderAdminModal(m); };
+        document.getElementById('adm-usr-flt').onchange = function (e) { m.userFilter = e.target.value; renderAdminModal(m); };
+        var srch = document.getElementById('adm-search');
+        srch.oninput = function (e) {
+          var p = e.target.selectionStart; m.search = e.target.value; renderAdminModal(m);
+          var el = document.getElementById('adm-search'); if (el) { el.focus(); el.setSelectionRange(p, p); }
+        };
+        document.getElementById('adm-clear-logs').onclick = function () {
+          state.auditLogs = []; saveAdminState(); renderApp(); renderAdminModal(m);
+          showToast('Audit log history cleared');
+        };
+      } else if (m.tab === 'users') {
+        document.getElementById('adm-block-add').onclick = function () {
+          var v = document.getElementById('adm-block-inp').value.trim();
+          if (!v) return;
+          var existing = state.workspaceUsers.find(function (u) { return String(u.id).toLowerCase() === v.toLowerCase(); });
+          if (existing) existing.blocked = true;
+          else state.workspaceUsers.unshift({ id: v, label: v, role: 'blocked', source: 'Manual', blocked: true, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() });
+          recordAudit('BLOCK', null, 'Admin blocked unwanted user "' + v + '"', { source: 'Admin' });
+          saveAdminState(); renderApp(); renderAdminModal(m);
+          showToast('Blocked "' + v + '" from editing or syncing');
+        };
+        document.querySelectorAll('.adm-tog-blk').forEach(function (b) {
+          b.onclick = function () {
+            var uid = b.getAttribute('data-uid');
+            var u = state.workspaceUsers.find(function (x) { return x.id === uid; });
+            if (!u) return;
+            u.blocked = !u.blocked;
+            recordAudit('BLOCK', null, (u.blocked ? 'Blocked unwanted user ' : 'Unblocked user ') + u.label, { source: 'Admin' });
+            saveAdminState(); renderApp(); renderAdminModal(m);
+            showToast((u.blocked ? 'Blocked ' : 'Unblocked ') + u.label);
+          };
+        });
+      } else {
+        document.getElementById('tr-transfer-btn').onclick = async function () {
+          var src = document.getElementById('tr-src').value;
+          var dst = document.getElementById('tr-dst').value.trim() || getCurrentActor();
+          var movedBots = 0, movedRows = 0;
+          state.bots.forEach(function (b) {
+            var changed = false;
+            if (b.createdBy === src || b.lastEditedBy === src) { b.createdBy = dst; b.lastEditedBy = dst; changed = true; movedBots++; }
+            b.rows.forEach(function (r) {
+              if (r._actor === src) { r._actor = dst; changed = true; movedRows++; }
+            });
+            if (changed) { b.updatedAt = new Date().toISOString(); pushBotToSupabase(b); }
+          });
+          saveBotsLocal();
+          recordAudit('TRANSMIT', null, 'Transmitted ' + movedBots + ' bot(s) & ' + movedRows + ' row(s) from "' + src + '" -> "' + dst + '"', { source: 'Admin' });
+          renderApp(); renderAdminModal(m);
+          showToast('Transmitted ownership to ' + dst);
+        };
+        document.getElementById('tr-purge-btn').onclick = async function () {
+          var src = document.getElementById('tr-src').value;
+          var removedRows = 0;
+          state.bots.forEach(function (b) {
+            var before = b.rows.length;
+            b.rows = b.rows.filter(function (r) { return r._actor !== src; });
+            if (b.rows.length !== before) {
+              removedRows += (before - b.rows.length);
+              b.updatedAt = new Date().toISOString();
+              pushBotToSupabase(b);
+            }
+          });
+          saveBotsLocal();
+          recordAudit('DELETE', null, 'Purged ' + removedRows + ' unwanted row(s) by "' + src + '"', { source: 'Admin' });
+          renderApp(); renderAdminModal(m);
+          showToast('Deleted ' + removedRows + ' row(s) created by ' + src);
+        };
+        document.getElementById('cfg-sync-open').onchange = function (e) { state.adminConfig.autoSyncOnOpen = e.target.checked; saveAdminState(); };
+        document.getElementById('cfg-tg-poll').onchange = function (e) { state.adminConfig.telegramAutoPoll = e.target.checked; saveAdminState(); };
+        document.getElementById('cfg-dash-strip').onchange = function (e) { state.adminConfig.showDashboardActivity = e.target.checked; saveAdminState(); renderApp(); };
+        document.getElementById('adm-force-sync').onclick = async function () {
+          for (var i = 0; i < state.bots.length; i++) await pushBotToSupabase(state.bots[i]);
+          await syncAllNow('manual');
+          recordAudit('TRANSMIT', null, 'Forced immediate full sync across Browser, Telegram & Supabase', { source: 'Admin' });
+          renderAdminModal(m);
+        };
+      }
     }
 
     function exportStandaloneHtml() {
       var snapshot = '<!doctype html>\n' + document.documentElement.outerHTML;
       downloadBlob(snapshot, 'TableBot_Standalone_' + new Date().toISOString().slice(0, 10) + '.html', 'text/html;charset=utf-8');
       showToast('Exported Standalone Single-File HTML');
+    }
+
+    // Immediate Sync Listeners: Browser Open, Tab Switch, Window Focus, Online, Multi-Tab Storage & BroadcastChannel
+    window.addEventListener('focus', function () {
+      if (state.adminConfig.autoSyncOnOpen) syncAllNow('focus');
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && state.adminConfig.autoSyncOnOpen) syncAllNow('visibility');
+    });
+    window.addEventListener('pageshow', function () {
+      if (state.adminConfig.autoSyncOnOpen) syncAllNow('pageshow');
+    });
+    window.addEventListener('online', function () {
+      syncAllNow('online');
+    });
+    window.addEventListener('storage', function (e) {
+      if (e.key === STORAGE_BOTS || e.key === STORAGE_AUDIT_LOGS || e.key === STORAGE_USERS) {
+        state.bots = loadBots();
+        state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
+        state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
+        renderApp();
+      }
+    });
+    if (syncChannel) {
+      syncChannel.onmessage = function () {
+        state.bots = loadBots();
+        state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
+        state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
+        renderApp();
+      };
     }
 
     // Close floating menus on backdrop clicks
@@ -2274,9 +3553,14 @@
       if (dirty) renderApp();
     });
 
-    // Boot Application
+    // Boot Application & Trigger Immediate Open-Time Sync
     renderApp();
-    if (state.supabaseConfig.isConnected) initSupabaseCloud();
+    startTelegramAutoPoll();
+    if (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
+      getSbClient();
+      openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
+    }
+    syncAllNow('boot');
   })();
   </script>
 </body>
