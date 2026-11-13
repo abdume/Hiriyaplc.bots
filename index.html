@@ -345,6 +345,44 @@
       background: #10B981; border-color: #A7F3D0; color: #fff;
     }
     .day-chip-num { font-size: 13px; font-weight: 800; line-height: 1.1; }
+    .folder-summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .dash-summary-wrap {
+      background: #fff; border: 1px solid #CBD5E1; border-radius: 16px;
+      margin-bottom: 16px; box-shadow: 0 3px 12px rgba(13,71,161,0.06); overflow: hidden;
+    }
+    .dash-summary-head {
+      background: linear-gradient(90deg, #0D47A1 0%, #1565C0 65%, #1976D2 100%);
+      color: #fff; padding: 10px 16px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .dash-sum-cards {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+      padding: 12px 16px; background: #F8FAFC;
+    }
+    @media (max-width: 820px) { .dash-sum-cards { grid-template-columns: 1fr; } }
+    .dash-sum-card {
+      background: #fff; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 12px 14px;
+      cursor: pointer; transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    }
+    .dash-sum-card:hover { border-color: #1976D2; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(25,118,210,0.1); }
+    .dash-sum-card.active { border-color: #0D47A1; background: #EFF6FF; }
+    .dash-sum-metrics {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; margin-top: 8px;
+      font-size: 11.5px;
+    }
+    .dash-day-breakdown {
+      border-top: 1px solid #E2E8F0; background: #fff; overflow-x: auto;
+    }
+    .folder-summary-table th {
+      background: #F1F5F9; color: #334155; font-size: 11px; font-weight: 800;
+      text-transform: uppercase; padding: 8px 12px; border-bottom: 1px solid #CBD5E1; text-align: left;
+    }
+    .folder-summary-table td { padding: 8px 12px; border-bottom: 1px solid #F1F5F9; color: #1E293B; }
+    .folder-summary-table tbody tr:hover { background: #F8FAFC; }
+    .folder-summary-table tfoot td {
+      background: #EFF6FF; color: #0D47A1; font-weight: 800; padding: 9px 12px;
+      border-top: 2px solid #93C5FD;
+    }
 
     /* Sticky Summary Footer & Bottom Toolbar */
     .sigma-footer {
@@ -998,7 +1036,8 @@
       selectedFolder: 'all',
       sortOrder: 'recent',
       activeCardMenuId: null,
-      collapsedHomeFolders: {},
+      dashSummaryCollapsed: false,
+      dashDayBreakdownOpen: true,
       previewDayOffset: 0,
       lastRenderedYmd: '',
       // Table view UI
@@ -1008,6 +1047,8 @@
       editingCell: null,
       editingTitle: false,
       showMoreMenu: false,
+      tableReportScope: 'table',
+      tableReportCollapsed: false,
       // Drawer & Modals
       drawerOpen: false,
       modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin', ... }
@@ -2532,6 +2573,88 @@
         html += '</div>';
       }
 
+      var dashFolderScope = state.selectedFolder || 'all';
+      var dashDaily = calculateLiveReportSummary('daily', dashFolderScope, 'all', '');
+      var dashWeekly = calculateLiveReportSummary('weekly', dashFolderScope, 'all', '');
+      var dashMonthly = calculateLiveReportSummary('monthly', dashFolderScope, 'all', '');
+      var dashDays = groupReportItemsByDay(dashWeekly.filtered);
+      var todayDmyStr = formatDmyDate(new Date());
+
+      html += '<section class="dash-summary-wrap" style="margin-top:20px;">' +
+        '<div class="dash-summary-head">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<span style="color:#FCD34D;display:inline-flex;">' + icon('chart', 18) + '</span>' +
+            '<div>' +
+              '<div style="font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+                '<span>Summary Cards &mdash; Daily, Weekly &amp; Monthly</span>' +
+                '<span class="pill-badge" style="background:rgba(255,255,255,0.22);font-size:10.5px;">' + (dashFolderScope === 'all' ? 'All Folders' : 'Folder: ' + esc(dashFolderScope)) + '</span>' +
+              '</div>' +
+              '<div style="font-size:11px;color:#DBEAFE;">Automatic Quantity, Paid Sum &amp; Remaining Balance calculated by Day (' + esc(todayDmyStr) + '), Week &amp; Month</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<button type="button" id="dash-sum-days-btn" class="btn" style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:4px 10px;font-size:11px;">' + (state.dashDayBreakdownOpen ? 'Hide Days' : 'Daily/Weekly Rows') + '</button>' +
+            '<button type="button" id="dash-sum-open-rep" class="btn" style="background:#F59E0B;color:#fff;padding:4px 10px;font-size:11px;">' + icon('chart', 12) + '<span>Open Reports</span></button>' +
+            '<button type="button" id="dash-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:4px 9px;font-size:11px;">' + (state.dashSummaryCollapsed ? 'Show' : 'Hide') + '</button>' +
+          '</div>' +
+        '</div>';
+
+      if (!state.dashSummaryCollapsed) {
+        var renderPeriodSumCard = function (title, badge, data, perKey, accentColor) {
+          return '<div class="dash-sum-card" data-open-rper="' + perKey + '">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
+              '<span style="font-weight:800;font-size:13px;color:' + accentColor + ';">' + esc(title) + '</span>' +
+              '<span class="pill-badge" style="background:#EFF6FF;color:#0D47A1;font-size:10px;">' + esc(badge) + ' &middot; ' + data.met.rowCount + ' rows</span>' +
+            '</div>' +
+            '<div class="dash-sum-metrics">' +
+              '<div><span style="color:#64748B;">Quantity Sum:</span> <strong class="mono" style="color:#6D28D9;font-size:13px;">' + data.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</strong></div>' +
+              '<div><span style="color:#64748B;">Total Amt:</span> <strong class="mono" style="color:#0D47A1;">$' + data.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+              '<div><span style="color:#15803D;">Paid Sum:</span> <strong class="mono" style="color:#15803D;">$' + data.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+              '<div><span style="color:#C2410C;">Remaining:</span> <strong class="mono" style="color:#C2410C;">$' + data.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+            '</div>' +
+          '</div>';
+        };
+        html += '<div class="dash-sum-cards">' +
+          renderPeriodSumCard('Daily Report', todayDmyStr, dashDaily, 'daily', '#0D47A1') +
+          renderPeriodSumCard('Weekly Sum', 'Last 7 Days', dashWeekly, 'weekly', '#047857') +
+          renderPeriodSumCard('Monthly Sum', 'This Month', dashMonthly, 'monthly', '#6D28D9') +
+        '</div>';
+
+        if (state.dashDayBreakdownOpen) {
+          html += '<div class="dash-day-breakdown"><table class="folder-summary-table">' +
+            '<thead><tr>' +
+              '<th>Date (Day)</th>' +
+              '<th style="text-align:center;">Rows</th>' +
+              '<th style="text-align:right;color:#6D28D9;">Quantity Sum</th>' +
+              '<th style="text-align:right;">Total Amt</th>' +
+              '<th style="text-align:right;color:#15803D;">Paid Sum</th>' +
+              '<th style="text-align:right;color:#C2410C;">Remaining Balance</th>' +
+            '</tr></thead><tbody>';
+          if (dashDays.length === 0) {
+            html += '<tr><td colspan="6" style="text-align:center;color:#64748B;padding:10px;">No dated rows in the last 7 days for ' + (dashFolderScope === 'all' ? 'all folders' : '"' + esc(dashFolderScope) + '"') + '. Add rows with dates (e.g. ' + esc(todayDmyStr) + ') and Quantity to calculate daily &amp; weekly sums automatically.</td></tr>';
+          } else {
+            dashDays.slice(0, 7).forEach(function (dy) {
+              html += '<tr>' +
+                '<td style="font-weight:700;color:#0D47A1;">' + esc(dy.dmy) + ' <span style="font-size:10.5px;color:#64748B;">(' + esc(dy.weekday) + (dy.dmy === todayDmyStr ? ' · Today' : '') + ')</span></td>' +
+                '<td style="text-align:center;font-weight:700;">' + dy.rowCount + '</td>' +
+                '<td class="mono" style="text-align:right;font-weight:800;color:#6D28D9;">' + dy.quantitySum.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;font-weight:700;">$' + dy.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;font-weight:700;color:#15803D;">$' + dy.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;font-weight:700;color:' + (dy.totalRemaining > 0.01 ? '#C2410C' : '#15803D') + ';">$' + dy.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+              '</tr>';
+            });
+          }
+          html += '</tbody><tfoot><tr>' +
+            '<td>Σ Weekly Total (7 Days)</td>' +
+            '<td style="text-align:center;">' + dashWeekly.met.rowCount + '</td>' +
+            '<td class="mono" style="text-align:right;color:#6D28D9;">' + dashWeekly.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+            '<td class="mono" style="text-align:right;">$' + dashWeekly.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+            '<td class="mono" style="text-align:right;color:#15803D;">$' + dashWeekly.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+            '<td class="mono" style="text-align:right;color:' + (dashWeekly.met.totalRemaining > 0.01 ? '#C2410C' : '#15803D') + ';">$' + dashWeekly.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+          '</tr></tfoot></table></div>';
+        }
+      }
+      html += '</section>';
 
       html += '</main><div class="fab-stack">' +
         '<button class="fab-secondary" id="fab-blank-bot" title="Quick-create Blank Bot Table">' + icon('grid', 21) + '</button>' +
@@ -2580,6 +2703,16 @@
       if (sbHdrBtn) sbHdrBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
       var repBtn = document.getElementById('btn-dash-reports');
       if (repBtn) repBtn.onclick = function () { openModal('reports'); };
+
+      var dSumOpenRep = document.getElementById('dash-sum-open-rep');
+      if (dSumOpenRep) dSumOpenRep.onclick = function () { openModal('reports', { folder: state.selectedFolder || 'all' }); };
+      var dSumDaysBtn = document.getElementById('dash-sum-days-btn');
+      if (dSumDaysBtn) dSumDaysBtn.onclick = function () { state.dashDayBreakdownOpen = !state.dashDayBreakdownOpen; renderDashboard(); };
+      var dSumToggle = document.getElementById('dash-sum-toggle');
+      if (dSumToggle) dSumToggle.onclick = function () { state.dashSummaryCollapsed = !state.dashSummaryCollapsed; renderDashboard(); };
+      document.querySelectorAll('.dash-sum-card[data-open-rper]').forEach(function (card) {
+        card.onclick = function () { openModal('reports', { period: card.getAttribute('data-open-rper'), folder: state.selectedFolder || 'all' }); };
+      });
 
       var stSync = document.getElementById('strip-sync-now');
       if (stSync) stSync.onclick = function () { syncAllNow('manual'); };
@@ -2799,10 +2932,87 @@
       html += '<td></td></tr></tfoot></table>';
 
       html += '<div class="add-row-bar" style="flex-wrap:wrap;gap:10px;">' +
-        '<button class="add-row-btn" id="btn-add-row" title="Append Row">' + icon('plus', 20) + '</button>' +
-        '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<button class="btn btn-primary" id="btn-add-row" style="padding:7px 14px;font-size:12px;" title="Append Row">' + icon('plus', 15) + '<span>Add Row</span></button>' +
+          '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
+        '</div>' +
         '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns displayed</span>' +
-      '</div></div>';
+      '</div>';
+
+      // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report (never impacts + Add Row above)
+      var tblFolder = bot.folder || 'General';
+      var tblScopeBot = state.tableReportScope === 'folder' ? 'all' : bot.id;
+      var tblScopeFld = state.tableReportScope === 'folder' ? tblFolder : 'all';
+      var tblDaily = calculateLiveReportSummary('daily', tblScopeFld, 'all', '', tblScopeBot);
+      var tblWeekly = calculateLiveReportSummary('weekly', tblScopeFld, 'all', '', tblScopeBot);
+      var tblMonthly = calculateLiveReportSummary('monthly', tblScopeFld, 'all', '', tblScopeBot);
+      var tblDays = groupReportItemsByDay(tblWeekly.filtered);
+      var tblTodayDmy = formatDmyDate(new Date());
+
+      html += '<section class="dash-summary-wrap" style="margin:14px 16px 24px;">' +
+        '<div class="dash-summary-head">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<span style="color:#FCD34D;display:inline-flex;">' + icon('chart', 17) + '</span>' +
+            '<div>' +
+              '<div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+                '<span>Last-Row Automatic Report</span>' +
+                '<span class="pill-badge" style="background:rgba(255,255,255,0.22);font-size:10.5px;">' + (state.tableReportScope === 'folder' ? 'Folder: ' + esc(tblFolder) : 'Table: ' + esc(bot.name)) + '</span>' +
+              '</div>' +
+              '<div style="font-size:11px;color:#DBEAFE;">Calculated automatically below rows &mdash; adding rows above never impacts this report</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<button type="button" id="tbl-sum-scope-table" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope !== 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">This Table</button>' +
+            '<button type="button" id="tbl-sum-scope-folder" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope === 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">Folder (' + esc(tblFolder) + ')</button>' +
+            '<button type="button" id="tbl-sum-open-rep" class="btn" style="background:#F59E0B;color:#fff;padding:4px 10px;font-size:11px;">' + icon('chart', 12) + '<span>Full Report</span></button>' +
+            '<button type="button" id="tbl-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:4px 9px;font-size:11px;">' + (state.tableReportCollapsed ? 'Show' : 'Hide') + '</button>' +
+          '</div>' +
+        '</div>';
+
+      if (!state.tableReportCollapsed) {
+        var renderTblCard = function (title, badge, data, perKey, accentColor) {
+          return '<div class="dash-sum-card tbl-sum-card" data-open-rper="' + perKey + '">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
+              '<span style="font-weight:800;font-size:12.5px;color:' + accentColor + ';">' + esc(title) + '</span>' +
+              '<span class="pill-badge" style="background:#EFF6FF;color:#0D47A1;font-size:10px;">' + esc(badge) + ' &middot; ' + data.met.rowCount + ' rows</span>' +
+            '</div>' +
+            '<div class="dash-sum-metrics">' +
+              '<div><span style="color:#64748B;">Quantity Sum:</span> <strong class="mono" style="color:#6D28D9;font-size:13px;">' + data.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</strong></div>' +
+              '<div><span style="color:#64748B;">Total Amt:</span> <strong class="mono" style="color:#0D47A1;">$' + data.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+              '<div><span style="color:#15803D;">Paid Sum:</span> <strong class="mono" style="color:#15803D;">$' + data.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+              '<div><span style="color:#C2410C;">Remaining:</span> <strong class="mono" style="color:#C2410C;">$' + data.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+            '</div>' +
+          '</div>';
+        };
+        html += '<div class="dash-sum-cards">' +
+          renderTblCard('Daily Report', tblTodayDmy, tblDaily, 'daily', '#0D47A1') +
+          renderTblCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', '#047857') +
+          renderTblCard('Monthly Sum', 'This Month', tblMonthly, 'monthly', '#6D28D9') +
+        '</div>' +
+        '<div class="dash-day-breakdown"><table class="folder-summary-table">' +
+          '<thead><tr><th>Date (Day)</th><th style="text-align:center;">Rows</th><th style="text-align:right;color:#6D28D9;">Quantity Sum</th><th style="text-align:right;">Total Amt</th><th style="text-align:right;color:#15803D;">Paid Sum</th><th style="text-align:right;color:#C2410C;">Remaining Balance</th></tr></thead><tbody>' +
+          (tblDays.length === 0
+            ? '<tr><td colspan="6" style="text-align:center;color:#64748B;padding:10px;">No filled dated rows in the last 7 days yet. Add data to any row above to calculate Daily &amp; Weekly sums here automatically.</td></tr>'
+            : tblDays.slice(0, 7).map(function (dy) {
+                return '<tr>' +
+                  '<td style="font-weight:700;color:#0D47A1;">' + esc(dy.dmy) + ' <span style="font-size:10.5px;color:#64748B;">(' + esc(dy.weekday) + (dy.dmy === tblTodayDmy ? ' · Today' : '') + ')</span></td>' +
+                  '<td style="text-align:center;font-weight:700;">' + dy.rowCount + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:800;color:#6D28D9;">' + dy.quantitySum.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:700;">$' + dy.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:700;color:#15803D;">$' + dy.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:700;color:' + (dy.totalRemaining > 0.01 ? '#C2410C' : '#15803D') + ';">$' + dy.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '</tr>';
+              }).join('')) +
+          '</tbody><tfoot><tr>' +
+            '<td>Σ Weekly Total (7 Days)</td>' +
+            '<td style="text-align:center;">' + tblWeekly.met.rowCount + '</td>' +
+            '<td class="mono" style="text-align:right;color:#6D28D9;">' + tblWeekly.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+            '<td class="mono" style="text-align:right;">$' + tblWeekly.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+            '<td class="mono" style="text-align:right;color:#15803D;">$' + tblWeekly.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+            '<td class="mono" style="text-align:right;color:' + (tblWeekly.met.totalRemaining > 0.01 ? '#C2410C' : '#15803D') + ';">$' + tblWeekly.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+          '</tr></tfoot></table></div>';
+      }
+      html += '</section></div>';
 
       // Sticky Sigma Summary Footer
       var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; });
@@ -3037,6 +3247,18 @@
           renderTableView(bot);
         };
       }
+
+      var tblScopeTable = document.getElementById('tbl-sum-scope-table');
+      if (tblScopeTable) tblScopeTable.onclick = function () { state.tableReportScope = 'table'; renderTableView(bot); };
+      var tblScopeFolder = document.getElementById('tbl-sum-scope-folder');
+      if (tblScopeFolder) tblScopeFolder.onclick = function () { state.tableReportScope = 'folder'; renderTableView(bot); };
+      var tblSumToggle = document.getElementById('tbl-sum-toggle');
+      if (tblSumToggle) tblSumToggle.onclick = function () { state.tableReportCollapsed = !state.tableReportCollapsed; renderTableView(bot); };
+      var tblSumOpenRep = document.getElementById('tbl-sum-open-rep');
+      if (tblSumOpenRep) tblSumOpenRep.onclick = function () { openModal('reports', { folder: state.tableReportScope === 'folder' ? (bot.folder || 'General') : 'all' }); };
+      document.querySelectorAll('.tbl-sum-card[data-open-rper]').forEach(function (card) {
+        card.onclick = function () { openModal('reports', { period: card.getAttribute('data-open-rper'), folder: bot.folder || 'General' }); };
+      });
     }
 
     // Navigation Drawer (includes Login, Logout, Forgot Password & Admin Menu)
@@ -3578,9 +3800,45 @@
       return getLocalYmd(d) + ' ' + hh + ':' + mm;
     }
 
-    function buildReportItems() {
+    function parseFlexibleDate(raw, fallbackIso) {
+      var s = String(raw === undefined || raw === null ? '' : raw).trim();
+      if (s) {
+        var dmyM = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        if (dmyM) {
+          var p1 = parseInt(dmyM[1], 10);
+          var p2 = parseInt(dmyM[2], 10);
+          var yr = parseInt(dmyM[3], 10);
+          if (yr < 100) yr += 2000;
+          var hh = dmyM[4] ? parseInt(dmyM[4], 10) : 12;
+          var mm = dmyM[5] ? parseInt(dmyM[5], 10) : 0;
+          var ss = dmyM[6] ? parseInt(dmyM[6], 10) : 0;
+          var day = p1, mon = p2;
+          if (p2 > 12 && p1 <= 12) { mon = p1; day = p2; }
+          var dObj = new Date(yr, mon - 1, day, hh, mm, ss);
+          if (!isNaN(dObj.getTime())) return dObj;
+        }
+        var ymdM = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        if (ymdM) {
+          var dIso = new Date(parseInt(ymdM[1], 10), parseInt(ymdM[2], 10) - 1, parseInt(ymdM[3], 10), ymdM[4] ? parseInt(ymdM[4], 10) : 12, ymdM[5] ? parseInt(ymdM[5], 10) : 0, ymdM[6] ? parseInt(ymdM[6], 10) : 0);
+          if (!isNaN(dIso.getTime())) return dIso;
+        }
+        var norm = s.indexOf(' ') !== -1 && s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
+        var parsed = new Date(norm);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+      var fb = new Date(fallbackIso || Date.now());
+      return isNaN(fb.getTime()) ? new Date() : fb;
+    }
+
+    function formatDmyDate(input) {
+      var d = input instanceof Date ? input : parseFlexibleDate(input);
+      return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+    }
+
+    function buildReportItems(botFilterId) {
       var items = [];
       state.bots.forEach(function (bot) {
+        if (botFilterId && botFilterId !== 'all' && bot.id !== botFilterId) return;
         var folderName = bot.folder || 'General';
         var findCol = function (preds) {
           return bot.columns.find(function (c) {
@@ -3590,13 +3848,27 @@
         };
         var textCols = bot.columns.filter(function (c) { return c.type === 'text' || !c.type; });
         var cnameCol = findCol(['customer', 'user', 'name', 'client', 'buyer', 'col_cname', 'col_user', 'col_buyer']) || textCols[0];
+        var qtyCol = findCol(['quantity', 'qty', 'count', 'pcs', 'kg', 'bag', 'bags', 'unit', 'units', 'col_qty', 'col_quantity']);
         var qualCol = findCol(['quality', 'quantity', 'item', 'message', 'pair', 'inquiry', 'product', 'col_quality', 'col_item']) || (textCols[1] && textCols[1].id !== (cnameCol && cnameCol.id) ? textCols[1] : null);
         var totCol = findCol(['total', 'formula', 'col_total']);
         var paidCol = findCol(['paid', 'amount', 'price', 'target', 'col_paid', 'col_amount']);
-        var balCol = findCol(['balance', 'remaining', 'due', 'col_balance']);
+        var balCol = findCol(['balance', 'remaining', 'remain', 'due', 'rominbalce', 'romin', 'col_balance']);
         var dateCol = findCol(['date', 'time']);
 
         bot.rows.forEach(function (row, idx) {
+          // Ignore completely blank untouched rows just created by + Add Row so adding a row never impacts reports until edited
+          var hasUserData = bot.columns.some(function (c) {
+            if (c.type === 'date') return false;
+            var v = row[c.id];
+            if (c.type === 'checkbox') return v === true;
+            if (c.type === 'number' || c.type === 'amount') return Number(v) !== 0 && !isNaN(Number(v)) && v !== '' && v !== undefined && v !== null;
+            if (c.type === 'formula') {
+              var fv = getRowColNumeric(row, c, bot, 0);
+              return (v !== undefined && v !== null && String(v).trim() !== '') || (!isNaN(fv) && fv !== 0);
+            }
+            return v !== undefined && v !== null && String(v).trim() !== '';
+          });
+          if (!hasUserData) return;
           var cname = cnameCol && row[cnameCol.id] !== undefined && row[cnameCol.id] !== '' ? String(row[cnameCol.id]) : (bot.name + ' #' + (idx + 1));
           var qual = qualCol && row[qualCol.id] !== undefined && row[qualCol.id] !== '' ? String(row[qualCol.id]) : '';
           if (!qual) {
@@ -3613,6 +3885,28 @@
             var n = getRowColNumeric(row, col, bot, 0);
             return isNaN(n) ? 0 : n;
           };
+          var qtyVal = 0;
+          if (qtyCol) {
+            if (qtyCol.type === 'number' || qtyCol.type === 'formula' || qtyCol.type === 'amount') {
+              qtyVal = colNum(qtyCol);
+            } else if (row[qtyCol.id] !== undefined && row[qtyCol.id] !== null) {
+              var qm = String(row[qtyCol.id]).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+              if (qm) qtyVal = parseFloat(qm[0]);
+            }
+          }
+          if (!qtyVal && qualCol && row[qualCol.id] !== undefined && row[qualCol.id] !== null) {
+            var qStr = String(row[qualCol.id]).replace(/,/g, '').trim();
+            var qMatch = qStr.match(/(?:qty|quantity|count|pcs|kg|bags?)[:\s]*(-?\d+(?:\.\d+)?)/i) || (/^-?\d+(?:\.\d+)?(?:\s*(?:pcs|kg|bags?|units?))?$/i.test(qStr) ? qStr.match(/-?\d+(?:\.\d+)?/) : null);
+            if (qMatch) qtyVal = parseFloat(qMatch[1] !== undefined ? qMatch[1] : qMatch[0]);
+          }
+          if (!qtyVal) {
+            var plainNumCol = bot.columns.find(function (c) {
+              var cn = (c.name || '').toLowerCase();
+              return c.type === 'number' && cn.indexOf('paid') === -1 && cn.indexOf('total') === -1 && cn.indexOf('balance') === -1 && cn.indexOf('price') === -1 && cn.indexOf('amount') === -1;
+            });
+            if (plainNumCol) qtyVal = colNum(plainNumCol);
+          }
+
           var rowNumFormulaSum = 0;
           bot.columns.forEach(function (c) {
             if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
@@ -3627,7 +3921,9 @@
           if (paidVal <= 0 && totVal > 0 && !balCol) paidVal = totVal;
           var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
           var rawDate = dateCol && row[dateCol.id] ? String(row[dateCol.id]).trim() : '';
-          var dt = rawDate || toLocalDateTimeStr(row._updatedAt || row._createdAt || bot.updatedAt || new Date());
+          var fallbackIso = row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString();
+          var parsedDate = parseFlexibleDate(rawDate, fallbackIso);
+          var dt = rawDate || toLocalDateTimeStr(parsedDate);
           items.push({
             id: row.id,
             botId: bot.id,
@@ -3635,13 +3931,17 @@
             folder: folderName,
             customerName: cname,
             qualityOrQuantity: qual,
+            quantity: isNaN(qtyVal) ? 0 : qtyVal,
             totalAmount: totVal,
             paidAmount: paidVal,
             remainingBalance: balVal,
             numFormulaSum: rowNumFormulaSum,
             status: st,
             date: dt,
-            rawUpdatedAt: row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString()
+            ymd: getLocalYmd(parsedDate),
+            dmy: formatDmyDate(parsedDate),
+            parsedMs: parsedDate.getTime(),
+            rawUpdatedAt: fallbackIso
           });
         });
       });
@@ -3655,6 +3955,7 @@
         '"Period:","' + period.toUpperCase() + ' REPORT"',
         '"Generated (Real-Time):","' + toLocalDateTimeStr(new Date()) + '"',
         '"Folder Filter:","' + (folder === 'all' ? 'All Folders' : folder) + '"',
+        '"Total Quantity Sum:","' + (met.totalQuantity || 0) + '"',
         '"Total Invoiced / Amount:","$' + met.totalInvoiced.toFixed(2) + '"',
         '"Total Paid:","$' + met.totalPaid.toFixed(2) + '"',
         '"Remaining Balance:","$' + met.totalRemaining.toFixed(2) + '"',
@@ -3663,21 +3964,21 @@
       var fNames = folder === 'all' ? getAllFolders() : [folder];
       fNames.forEach(function (fn) {
         var fItems = items.filter(function (it) { return it.folder === fn; });
-        var fTot = 0, fPaid = 0, fRem = 0;
-        fItems.forEach(function (it) { fTot += it.totalAmount; fPaid += it.paidAmount; fRem += it.remainingBalance; });
+        var fTot = 0, fPaid = 0, fRem = 0, fQty = 0;
+        fItems.forEach(function (it) { fTot += it.totalAmount; fPaid += it.paidAmount; fRem += it.remainingBalance; fQty += (it.quantity || 0); });
         lines.push('"FOLDER: ' + fn.replace(/"/g, '""') + ' (' + fItems.length + ' rows)"');
-        lines.push('"#","Table / Bot","Customer / Record","Detail / Item","Total ($)","Paid ($)","Remaining ($)","Status","Date"');
+        lines.push('"#","Table / Bot","Customer / Record","Detail / Item","Quantity","Total ($)","Paid ($)","Remaining ($)","Status","Date"');
         if (fItems.length === 0) {
           lines.push('"—","No rows in this folder yet"');
         } else {
           fItems.forEach(function (it, i) {
-            lines.push([i + 1, '"' + it.botName.replace(/"/g, '""') + '"', '"' + it.customerName.replace(/"/g, '""') + '"', '"' + it.qualityOrQuantity.replace(/"/g, '""') + '"', it.totalAmount.toFixed(2), it.paidAmount.toFixed(2), it.remainingBalance.toFixed(2), '"' + it.status + '"', '"' + it.date + '"'].join(','));
+            lines.push([i + 1, '"' + it.botName.replace(/"/g, '""') + '"', '"' + it.customerName.replace(/"/g, '""') + '"', '"' + it.qualityOrQuantity.replace(/"/g, '""') + '"', it.quantity || 0, it.totalAmount.toFixed(2), it.paidAmount.toFixed(2), it.remainingBalance.toFixed(2), '"' + it.status + '"', '"' + it.date + '"'].join(','));
           });
         }
-        lines.push(['"FOLDER SUBTOTAL: ' + fn.replace(/"/g, '""') + '"', '""', '""', '"' + fItems.length + ' rows"', '"' + fTot.toFixed(2) + '"', '"' + fPaid.toFixed(2) + '"', '"' + fRem.toFixed(2) + '"', '""', '""'].join(','));
+        lines.push(['"FOLDER SUBTOTAL: ' + fn.replace(/"/g, '""') + '"', '""', '""', '"' + fItems.length + ' rows"', fQty, '"' + fTot.toFixed(2) + '"', '"' + fPaid.toFixed(2) + '"', '"' + fRem.toFixed(2) + '"', '""', '""'].join(','));
         lines.push('');
       });
-      lines.push(['"GRAND TOTALS"', '""', '""', '"' + items.length + ' records"', '"' + met.totalInvoiced.toFixed(2) + '"', '"' + met.totalPaid.toFixed(2) + '"', '"' + met.totalRemaining.toFixed(2) + '"', '""', '""'].join(','));
+      lines.push(['"GRAND TOTALS"', '""', '""', '"' + items.length + ' records"', met.totalQuantity || 0, '"' + met.totalInvoiced.toFixed(2) + '"', '"' + met.totalPaid.toFixed(2) + '"', '"' + met.totalRemaining.toFixed(2) + '"', '""', '""'].join(','));
       downloadBlob(lines.join('\n'), 'TableBot_' + period + '_Folder_Report_' + dStr + '.csv', 'text/csv;charset=utf-8;');
       showToast('Downloaded CSV Folder Report');
     }
@@ -3687,26 +3988,132 @@
       var fNames = folder === 'all' ? getAllFolders() : [folder];
       var sectionsHtml = fNames.map(function (fn) {
         var fItems = items.filter(function (it) { return it.folder === fn; });
-        var fTot = 0, fPaid = 0, fRem = 0;
-        fItems.forEach(function (it) { fTot += it.totalAmount; fPaid += it.paidAmount; fRem += it.remainingBalance; });
+        var fTot = 0, fPaid = 0, fRem = 0, fQty = 0;
+        fItems.forEach(function (it) { fTot += it.totalAmount; fPaid += it.paidAmount; fRem += it.remainingBalance; fQty += (it.quantity || 0); });
         var rowsHtml = fItems.length === 0
-          ? '<tr><td colspan="8" style="text-align:center;color:#64748B;">No rows in folder "' + esc(fn) + '" yet.</td></tr>'
+          ? '<tr><td colspan="9" style="text-align:center;color:#64748B;">No rows in folder "' + esc(fn) + '" yet.</td></tr>'
           : fItems.map(function (it, i) {
               return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td>' + esc(it.botName) + '</td><td><strong>' + esc(it.customerName) + '</strong></td><td>' + esc(it.qualityOrQuantity) + '</td>' +
+                '<td style="text-align:right;font-weight:700;">' + (it.quantity || 0) + '</td>' +
                 '<td style="text-align:right;">$' + it.totalAmount.toFixed(2) + '</td><td style="text-align:right;color:#2E7D32;">$' + it.paidAmount.toFixed(2) + '</td>' +
                 '<td style="text-align:right;font-weight:700;color:' + (it.remainingBalance > 0 ? '#E65100' : '#2E7D32') + ';">$' + it.remainingBalance.toFixed(2) + '</td>' +
                 '<td>' + esc(it.date) + '</td></tr>';
             }).join('');
-        return '<h2 style="margin-top:20px;color:#0D47A1;border-bottom:2px solid #0D47A1;padding-bottom:4px;">Folder: ' + esc(fn) + ' (' + fItems.length + ' rows) — Total: $' + fTot.toFixed(2) + ' | Paid: $' + fPaid.toFixed(2) + ' | Remaining: $' + fRem.toFixed(2) + '</h2>' +
-          '<table><thead><tr><th>#</th><th>Table</th><th>Customer / Record</th><th>Detail</th><th>Total</th><th>Paid</th><th>Balance</th><th>Date</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+        return '<h2 style="margin-top:20px;color:#0D47A1;border-bottom:2px solid #0D47A1;padding-bottom:4px;">Folder: ' + esc(fn) + ' (' + fItems.length + ' rows) — Qty: ' + fQty + ' | Total: $' + fTot.toFixed(2) + ' | Paid: $' + fPaid.toFixed(2) + ' | Remaining: $' + fRem.toFixed(2) + '</h2>' +
+          '<table><thead><tr><th>#</th><th>Table</th><th>Customer / Record</th><th>Detail</th><th>Qty</th><th>Total</th><th>Paid</th><th>Balance</th><th>Date</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>';
       }).join('');
       var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + period.toUpperCase() + ' Folder Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}h2{font-size:14px;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}th,td{border:1px solid #CBD5E1;padding:7px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
         '<body onload="window.print()"><div class="np" style="background:#0D47A1;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;"><span>Print / Save as PDF</span><button onclick="window.print()" style="background:#fff;color:#0D47A1;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button></div>' +
         '<h1>' + period.toUpperCase() + ' REAL-TIME FOLDER REPORT</h1><p>Folder Scope: <strong>' + esc(folder === 'all' ? 'All Folders' : folder) + '</strong> &middot; Real-Time: ' + toLocalDateTimeStr(new Date()) + '</p>' +
-        '<p style="margin-top:8px;"><strong>Grand Total:</strong> $' + met.totalInvoiced.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#2E7D32;">Paid:</strong> $' + met.totalPaid.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#E65100;">Remaining:</strong> $' + met.totalRemaining.toFixed(2) + '</p>' +
+        '<p style="margin-top:8px;"><strong>Quantity Sum:</strong> ' + (met.totalQuantity || 0) + ' &nbsp;|&nbsp; <strong>Grand Total:</strong> $' + met.totalInvoiced.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#2E7D32;">Paid:</strong> $' + met.totalPaid.toFixed(2) + ' &nbsp;|&nbsp; <strong style="color:#E65100;">Remaining:</strong> $' + met.totalRemaining.toFixed(2) + '</p>' +
         sectionsHtml + '</body></html>';
       downloadBlob(doc, 'TableBot_' + period + '_Folder_Report_' + dStr + '.html', 'text/html');
       showToast('Downloaded printable PDF/HTML folder report');
+    }
+
+    function groupReportItemsByDay(items) {
+      var daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      var map = {};
+      items.forEach(function (it) {
+        var key = it.ymd || getLocalYmd(parseFlexibleDate(it.date, it.rawUpdatedAt));
+        if (!map[key]) {
+          var dObj = parseFlexibleDate(it.date, it.rawUpdatedAt);
+          map[key] = {
+            ymd: key,
+            dmy: it.dmy || formatDmyDate(dObj),
+            weekday: daysShort[dObj.getDay()],
+            rowCount: 0,
+            quantitySum: 0,
+            totalInvoiced: 0,
+            totalPaid: 0,
+            totalRemaining: 0
+          };
+        }
+        var g = map[key];
+        g.rowCount++;
+        g.quantitySum += (it.quantity || 0);
+        g.totalInvoiced += it.totalAmount;
+        g.totalPaid += it.paidAmount;
+        g.totalRemaining += it.remainingBalance;
+      });
+      return Object.keys(map).sort().reverse().map(function (k) { return map[k]; });
+    }
+
+    function calculateLiveReportSummary(period, folderFilter, statusFilter, search, botFilterId) {
+      var per = period || 'all';
+      var fld = folderFilter || 'all';
+      var stF = statusFilter || 'all';
+      var q = (search || '').trim().toLowerCase();
+      var folders = getAllFolders();
+      var allItems = buildReportItems(botFilterId);
+      var refNow = new Date();
+      var todayYmd = getLocalYmd(refNow);
+      var todayMidnight = new Date(refNow.getFullYear(), refNow.getMonth(), refNow.getDate()).getTime();
+
+      var filtered = allItems.filter(function (it) {
+        if (fld !== 'all' && it.folder !== fld) return false;
+        if (q) {
+          if (it.customerName.toLowerCase().indexOf(q) === -1 && it.qualityOrQuantity.toLowerCase().indexOf(q) === -1 && it.folder.toLowerCase().indexOf(q) === -1 && it.botName.toLowerCase().indexOf(q) === -1 && it.dmy.indexOf(q) === -1) return false;
+        }
+        if (stF === 'paid' && it.remainingBalance > 0.01) return false;
+        if (stF === 'remaining' && it.remainingBalance <= 0.01) return false;
+        if (per === 'all') return true;
+        var dt = parseFlexibleDate(it.date, it.rawUpdatedAt);
+        if (per === 'daily') return it.ymd === todayYmd || getLocalYmd(dt) === todayYmd;
+        if (per === 'weekly') {
+          var dtMid = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+          var dayDiff = (todayMidnight - dtMid) / 86400000;
+          return dayDiff >= -1 && dayDiff <= 6;
+        }
+        return dt.getMonth() === refNow.getMonth() && dt.getFullYear() === refNow.getFullYear();
+      });
+
+      var met = { totalInvoiced: 0, totalPaid: 0, totalRemaining: 0, totalQuantity: 0, numFormulaSum: 0, rowCount: filtered.length, paidCount: 0, balCount: 0 };
+      filtered.forEach(function (it) {
+        met.totalInvoiced += it.totalAmount;
+        met.totalPaid += it.paidAmount;
+        met.totalRemaining += it.remainingBalance;
+        met.totalQuantity += (it.quantity || 0);
+        met.numFormulaSum += (it.numFormulaSum || 0);
+        if (it.remainingBalance <= 0.01) met.paidCount++; else met.balCount++;
+      });
+      met.rate = met.totalInvoiced > 0 ? (met.totalPaid / met.totalInvoiced) * 100 : (filtered.length > 0 ? 100 : 0);
+
+      var foldersToShow = fld === 'all' ? folders : [fld];
+      var folderSummaries = foldersToShow.map(function (fn) {
+        var fBots = state.bots.filter(function (b) { return (b.folder || 'General') === fn; });
+        var fItems = filtered.filter(function (it) { return it.folder === fn; });
+        var fTot = 0, fPaid = 0, fRem = 0, fNum = 0, fQty = 0;
+        fItems.forEach(function (it) {
+          fTot += it.totalAmount;
+          fPaid += it.paidAmount;
+          fRem += it.remainingBalance;
+          fQty += (it.quantity || 0);
+          fNum += (it.numFormulaSum || 0);
+        });
+        return {
+          folder: fn,
+          tableCount: fBots.length,
+          rowCount: fItems.length,
+          totalQuantity: fQty,
+          totalInvoiced: fTot,
+          totalPaid: fPaid,
+          totalRemaining: fRem,
+          numFormulaSum: fNum,
+          rate: fTot > 0 ? (fPaid / fTot) * 100 : (fItems.length > 0 ? 100 : 0)
+        };
+      });
+
+      return {
+        period: per,
+        refNow: refNow,
+        todayYmd: todayYmd,
+        folders: folders,
+        foldersToShow: foldersToShow,
+        filtered: filtered,
+        met: met,
+        folderSummaries: folderSummaries
+      };
     }
 
     function renderReportsModal(m) {
@@ -3716,36 +4123,18 @@
       if (m.search === undefined) m.search = '';
       if (m.menuOpen === undefined) m.menuOpen = false;
 
-      var folders = getAllFolders();
-      var allItems = buildReportItems();
-      var refNow = new Date();
-      var todayYmd = getLocalYmd(refNow);
-      var filtered = allItems.filter(function (it) {
-        if (m.folder !== 'all' && it.folder !== m.folder) return false;
-        if (m.search.trim()) {
-          var q = m.search.toLowerCase();
-          if (it.customerName.toLowerCase().indexOf(q) === -1 && it.qualityOrQuantity.toLowerCase().indexOf(q) === -1 && it.folder.toLowerCase().indexOf(q) === -1 && it.botName.toLowerCase().indexOf(q) === -1) return false;
-        }
-        if (m.status === 'paid' && it.remainingBalance > 0.01) return false;
-        if (m.status === 'remaining' && it.remainingBalance <= 0.01) return false;
-        if (m.period === 'all') return true;
-        var dt = new Date(it.date.indexOf(' ') !== -1 && it.date.indexOf('T') === -1 ? it.date.replace(' ', 'T') : it.date);
-        if (isNaN(dt.getTime())) dt = new Date(it.rawUpdatedAt);
-        if (isNaN(dt.getTime())) return true;
-        if (m.period === 'daily') return getLocalYmd(dt) === todayYmd || it.date.indexOf(todayYmd) !== -1;
-        if (m.period === 'weekly') { var diff = (refNow.getTime() - dt.getTime()) / 86400000; return diff >= -1 && diff <= 7; }
-        return dt.getMonth() === refNow.getMonth() && dt.getFullYear() === refNow.getFullYear();
-      });
-
-      var met = { totalInvoiced: 0, totalPaid: 0, totalRemaining: 0, paidCount: 0, balCount: 0 };
-      filtered.forEach(function (it) {
-        met.totalInvoiced += it.totalAmount; met.totalPaid += it.paidAmount; met.totalRemaining += it.remainingBalance;
-        if (it.remainingBalance <= 0.01) met.paidCount++; else met.balCount++;
-      });
-      met.rate = met.totalInvoiced > 0 ? (met.totalPaid / met.totalInvoiced) * 100 : 100;
-
-      // Dynamic Real-Time Trend Chart computed from filtered folder data
-      var foldersToShow = m.folder === 'all' ? folders : [m.folder];
+      var repData = calculateLiveReportSummary(m.period, m.folder, m.status, m.search);
+      var folders = repData.folders;
+      var refNow = repData.refNow;
+      var todayYmd = repData.todayYmd;
+      var filtered = repData.filtered;
+      var met = repData.met;
+      var foldersToShow = repData.foldersToShow;
+      var folderSummaries = repData.folderSummaries;
+      var repDaily = calculateLiveReportSummary('daily', m.folder, m.status, m.search);
+      var repWeekly = calculateLiveReportSummary('weekly', m.folder, m.status, m.search);
+      var repMonthly = calculateLiveReportSummary('monthly', m.folder, m.status, m.search);
+      var dayGroups = groupReportItemsByDay(filtered);
       var trends = [];
       if (m.period === 'all' || m.folder === 'all') {
         trends = foldersToShow.slice(0, 8).map(function (fn) {
@@ -3756,7 +4145,7 @@
       } else if (m.period === 'daily') {
         var hBuckets = [{ l: 'Morning', p: 0, b: 0 }, { l: 'Afternoon', p: 0, b: 0 }, { l: 'Evening', p: 0, b: 0 }];
         filtered.forEach(function (it) {
-          var hr = new Date(it.date.replace(' ', 'T')).getHours();
+          var hr = parseFlexibleDate(it.date, it.rawUpdatedAt).getHours();
           var idx = isNaN(hr) ? 1 : (hr < 12 ? 0 : hr < 17 ? 1 : 2);
           hBuckets[idx].p += it.paidAmount; hBuckets[idx].b += it.remainingBalance;
         });
@@ -3765,16 +4154,16 @@
         var wDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         var wMap = {}; wDays.forEach(function (d) { wMap[d] = { l: d, p: 0, b: 0 }; });
         filtered.forEach(function (it) {
-          var d = new Date(it.date.replace(' ', 'T'));
-          var key = isNaN(d.getTime()) ? wDays[refNow.getDay()] : wDays[d.getDay()];
+          var d = parseFlexibleDate(it.date, it.rawUpdatedAt);
+          var key = wDays[d.getDay()];
           wMap[key].p += it.paidAmount; wMap[key].b += it.remainingBalance;
         });
         trends = wDays.map(function (d) { return wMap[d]; });
       } else {
         var wkB = [{ l: 'Wk 1', p: 0, b: 0 }, { l: 'Wk 2', p: 0, b: 0 }, { l: 'Wk 3', p: 0, b: 0 }, { l: 'Wk 4+', p: 0, b: 0 }];
         filtered.forEach(function (it) {
-          var d = new Date(it.date.replace(' ', 'T'));
-          var dom = isNaN(d.getTime()) ? refNow.getDate() : d.getDate();
+          var d = parseFlexibleDate(it.date, it.rawUpdatedAt);
+          var dom = d.getDate();
           var idx = dom <= 7 ? 0 : dom <= 14 ? 1 : dom <= 21 ? 2 : 3;
           wkB[idx].p += it.paidAmount; wkB[idx].b += it.remainingBalance;
         });
@@ -3826,12 +4215,91 @@
               '<button id="ban-print" class="btn btn-outline" style="font-size:11.5px;color:#0D47A1;">' + icon('print', 14) + '<span>Print</span></button>' +
             '</div>' +
           '</div>' +
-          '<div class="kpi-grid" style="margin-bottom:0;">' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Total Invoiced / Amt</div><div class="kpi-val">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">' + filtered.length + ' entries across ' + foldersToShow.length + ' folder(s)</div></div>' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Paid Amount</div><div class="kpi-val" style="color:#2E7D32;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:10.5px;color:#64748B;margin-top:4px;">Collection: ' + met.rate.toFixed(1) + '%</div></div>' +
-            '<div class="kpi-card" style="border-color:#FDBA74;background:#FFFBEB;"><div class="field-label" style="margin:0;color:#E65100;">Remaining Balance</div><div class="kpi-val" style="color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#9A3412;margin-top:4px;">' + met.balCount + ' accounts owe balance</div></div>' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Active Folders</div><div class="kpi-val" style="color:#0D47A1;">' + foldersToShow.length + ' <span style="font-size:12px;color:#94A3B8;font-weight:500;">(' + met.paidCount + ' paid)</span></div><div style="font-size:11px;color:#047857;margin-top:4px;">Live data per folder below</div></div>' +
+          '<div class="dash-sum-cards" style="padding:0;background:transparent;">' +
+            [
+              { key: 'daily', title: 'Daily Summary (' + formatDmyDate(refNow) + ')', data: repDaily, color: '#0D47A1' },
+              { key: 'weekly', title: 'Weekly Summary (Last 7 Days)', data: repWeekly, color: '#047857' },
+              { key: 'monthly', title: 'Monthly Summary (This Month)', data: repMonthly, color: '#6D28D9' }
+            ].map(function (sc) {
+              return '<div class="dash-sum-card ' + (m.period === sc.key ? 'active' : '') + '" data-rper="' + sc.key + '">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                  '<strong style="font-size:13px;color:' + sc.color + ';">' + esc(sc.title) + '</strong>' +
+                  '<span class="pill-badge" style="background:#EFF6FF;color:#0D47A1;font-size:10px;">' + sc.data.met.rowCount + ' rows</span>' +
+                '</div>' +
+                '<div class="dash-sum-metrics">' +
+                  '<div><span style="color:#64748B;">Qty Sum:</span> <strong class="mono" style="color:#6D28D9;font-size:13px;">' + sc.data.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</strong></div>' +
+                  '<div><span style="color:#64748B;">Total:</span> <strong class="mono">$' + sc.data.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+                  '<div><span style="color:#2E7D32;">Paid Sum:</span> <strong class="mono" style="color:#2E7D32;">$' + sc.data.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+                  '<div><span style="color:#E65100;">Remaining:</span> <strong class="mono" style="color:#E65100;">$' + sc.data.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
           '</div>' +
+          '<div class="kpi-grid" style="margin-bottom:0;">' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Quantity Sum (' + esc(m.period.toUpperCase()) + ')</div><div class="kpi-val" style="color:#6D28D9;">' + met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">' + filtered.length + ' rows summed across ' + dayGroups.length + ' day(s)</div></div>' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Total Data / Amt</div><div class="kpi-val">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">Across ' + foldersToShow.length + ' folder(s)</div></div>' +
+            '<div class="kpi-card"><div class="field-label" style="margin:0;">Paid Sum</div><div class="kpi-val" style="color:#2E7D32;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:10.5px;color:#64748B;margin-top:4px;">Collection: ' + met.rate.toFixed(1) + '%</div></div>' +
+            '<div class="kpi-card" style="border-color:#FDBA74;background:#FFFBEB;"><div class="field-label" style="margin:0;color:#E65100;">Remaining Balance</div><div class="kpi-val" style="color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#9A3412;margin-top:4px;">' + met.balCount + ' accounts owe balance</div></div>' +
+          '</div>' +
+          '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
+            '<div style="padding:10px 16px;background:linear-gradient(90deg,#F5F3FF 0%,#F8FAFC 100%);border-bottom:1px solid #CBD5E1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+              '<div><div style="font-weight:800;font-size:13px;color:#5B21B6;">Daily &amp; Weekly Sum Calculation by Date (Quantity + Paid + Remaining Balance)</div>' +
+              '<div style="font-size:11px;color:#64748B;">Rows on the same date (e.g. ' + esc(formatDmyDate(refNow)) + ') automatically sum Quantity, Paid &amp; Remaining Balance</div></div>' +
+              '<span class="pill-badge" style="background:#EDE9FE;color:#5B21B6;">' + dayGroups.length + ' Day(s)</span>' +
+            '</div>' +
+            '<div style="overflow-x:auto;"><table class="folder-summary-table">' +
+              '<thead><tr><th>Date</th><th>Day</th><th style="text-align:center;">Rows</th><th style="text-align:right;color:#6D28D9;">Quantity Sum</th><th style="text-align:right;">Total Amt</th><th style="text-align:right;color:#2E7D32;">Paid Sum</th><th style="text-align:right;color:#E65100;">Remaining Balance</th></tr></thead><tbody>' +
+              (dayGroups.length === 0
+                ? '<tr><td colspan="7" style="text-align:center;color:#64748B;padding:12px;">No dated rows match this filter yet.</td></tr>'
+                : dayGroups.map(function (dy) {
+                    return '<tr>' +
+                      '<td style="font-weight:800;color:#0D47A1;">' + esc(dy.dmy) + '</td>' +
+                      '<td>' + esc(dy.weekday) + '</td>' +
+                      '<td style="text-align:center;font-weight:700;">' + dy.rowCount + '</td>' +
+                      '<td class="mono" style="text-align:right;font-weight:800;color:#6D28D9;">' + dy.quantitySum.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+                      '<td class="mono" style="text-align:right;font-weight:700;">$' + dy.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                      '<td class="mono" style="text-align:right;font-weight:700;color:#2E7D32;">$' + dy.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                      '<td class="mono" style="text-align:right;font-weight:700;color:' + (dy.totalRemaining > 0.01 ? '#E65100' : '#2E7D32') + ';">$' + dy.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                    '</tr>';
+                  }).join('')) +
+              '</tbody><tfoot><tr>' +
+                '<td colspan="2">Σ PERIOD TOTAL (' + esc(m.period.toUpperCase()) + ')</td>' +
+                '<td style="text-align:center;">' + filtered.length + '</td>' +
+                '<td class="mono" style="text-align:right;color:#6D28D9;">' + met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;color:#2E7D32;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+              '</tr></tfoot></table></div></div>' +
+          '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
+            '<div style="padding:10px 16px;background:linear-gradient(90deg,#EFF6FF 0%,#F8FAFC 100%);border-bottom:1px solid #CBD5E1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+              '<div><div style="font-weight:800;font-size:13px;color:#0D47A1;">Each Folder Individual Totals (Quantity, Total, Paid &amp; Remaining Balance)</div>' +
+              '<div style="font-size:11px;color:#64748B;">Underneath summary for every folder</div></div>' +
+              '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;">' + foldersToShow.length + ' Folders</span>' +
+            '</div>' +
+            '<div style="overflow-x:auto;"><table class="folder-summary-table">' +
+              '<thead><tr><th>Folder</th><th style="text-align:center;">Tables</th><th style="text-align:center;">Rows</th><th style="text-align:right;color:#6D28D9;">Qty Sum</th><th style="text-align:right;">Total Data / Amt</th><th style="text-align:right;color:#2E7D32;">Paid Amount</th><th style="text-align:right;color:#E65100;">Remaining Balance</th><th class="no-print" style="text-align:right;">Focus</th></tr></thead><tbody>' +
+              folderSummaries.map(function (fs) {
+                return '<tr>' +
+                  '<td style="font-weight:800;color:#0D47A1;">' + esc(fs.folder) + '</td>' +
+                  '<td style="text-align:center;">' + fs.tableCount + '</td>' +
+                  '<td style="text-align:center;font-weight:700;">' + fs.rowCount + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:800;color:#6D28D9;">' + fs.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:700;">$' + fs.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:700;color:#2E7D32;">$' + fs.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                  '<td class="mono" style="text-align:right;font-weight:700;color:' + (fs.totalRemaining > 0.01 ? '#E65100' : '#2E7D32') + ';">$' + fs.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                  '<td class="no-print" style="text-align:right;"><button type="button" class="btn btn-outline rep-focus-folder" data-rfolder="' + esc(fs.folder) + '" style="padding:3px 9px;font-size:10.5px;">' + (m.folder === fs.folder ? 'All Folders' : 'Only This') + '</button></td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody><tfoot><tr>' +
+                '<td>Σ ALL FOLDERS (' + folderSummaries.length + ')</td>' +
+                '<td style="text-align:center;">' + folderSummaries.reduce(function (a, b) { return a + b.tableCount; }, 0) + '</td>' +
+                '<td style="text-align:center;">' + met.rowCount + '</td>' +
+                '<td class="mono" style="text-align:right;color:#6D28D9;">' + met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;color:#2E7D32;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '<td class="mono" style="text-align:right;color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</td>' +
+                '<td></td>' +
+              '</tr></tfoot></table></div></div>' +
           '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:16px;">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
               '<div><div style="font-weight:700;font-size:13.5px;">Live Folder &amp; Payment Comparison</div><div style="font-size:11px;color:#64748B;">Computed in real time from ' + (m.folder === 'all' ? 'all folders' : esc(m.folder)) + '</div></div>' +
