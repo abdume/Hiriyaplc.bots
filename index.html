@@ -1244,15 +1244,27 @@
       state.workspaceUsers.push({ id: 'abdulfeta', label: 'Abdulfeta (Manager of Cyber Security)', role: 'cyber_security_manager', source: 'Security', blocked: false, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() });
     }
 
+    function normalizeSecurityCode(raw) {
+      return String(raw === undefined || raw === null ? '' : raw)
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/[０-９]/g, function (d) { return String.fromCharCode(d.charCodeAt(0) - 65248); })
+        .replace(/[٠-٩]/g, function (d) { return String.fromCharCode(d.charCodeAt(0) - 1632 + 48); })
+        .replace(/[۰-۹]/g, function (d) { return String.fromCharCode(d.charCodeAt(0) - 1776 + 48); })
+        .trim();
+    }
+
     function getConfiguredAccessCode() {
       var saved = '';
       try { saved = localStorage.getItem(STORAGE_ACCESS_CODE) || ''; } catch (e) {}
-      var cfgCode = state && state.adminConfig && state.adminConfig.accessCode ? String(state.adminConfig.accessCode) : '';
-      var code = (saved || cfgCode || '1234').trim();
+      saved = normalizeSecurityCode(saved);
+      if (saved === 'undefined' || saved === 'null') saved = '';
+      var cfgCode = state && state.adminConfig && state.adminConfig.accessCode ? normalizeSecurityCode(state.adminConfig.accessCode) : '';
+      if (cfgCode === 'undefined' || cfgCode === 'null') cfgCode = '';
+      var code = saved || cfgCode || '1234';
       return code || '1234';
     }
     function setConfiguredAccessCode(newCode) {
-      var clean = String(newCode || '').trim() || '1234';
+      var clean = normalizeSecurityCode(newCode) || '1234';
       state.adminConfig.accessCode = clean;
       try { localStorage.setItem(STORAGE_ACCESS_CODE, clean); } catch (e) {}
       saveAdminState();
@@ -1288,12 +1300,18 @@
     function getCyberSecurityCode() {
       var saved = '';
       try { saved = localStorage.getItem(STORAGE_CYBER_CODE) || ''; } catch (e) {}
-      var cfgCode = state && state.adminConfig && state.adminConfig.cyberSecurityCode ? String(state.adminConfig.cyberSecurityCode) : '';
-      var code = (saved || cfgCode || '1234').trim();
+      saved = normalizeSecurityCode(saved);
+      if (saved === 'undefined' || saved === 'null') saved = '';
+      var cfgCode = state && state.adminConfig && state.adminConfig.cyberSecurityCode ? normalizeSecurityCode(state.adminConfig.cyberSecurityCode) : '';
+      if (cfgCode === 'undefined' || cfgCode === 'null') cfgCode = '';
+      var code = saved || cfgCode || '1234';
+      if (state && state.adminConfig && state.adminConfig.cyberSecurityCode !== code) {
+        state.adminConfig.cyberSecurityCode = code;
+      }
       return code || '1234';
     }
     function setCyberSecurityCode(newCode) {
-      var clean = String(newCode || '').trim() || '1234';
+      var clean = normalizeSecurityCode(newCode) || '1234';
       state.adminConfig.cyberSecurityCode = clean;
       try { localStorage.setItem(STORAGE_CYBER_CODE, clean); } catch (e) {}
       saveAdminState();
@@ -1301,6 +1319,21 @@
     }
     if (!state.adminConfig.cyberSecurityCode) state.adminConfig.cyberSecurityCode = getCyberSecurityCode();
     if (!state.adminConfig.folderLocks || typeof state.adminConfig.folderLocks !== 'object') state.adminConfig.folderLocks = {};
+
+    function verifyCyberRecoveryIdentity(verifier) {
+      var vNorm = normalizeSecurityCode(verifier);
+      var vLower = vNorm.toLowerCase();
+      if (!vNorm) return false;
+      var lockCode = normalizeSecurityCode(getConfiguredAccessCode());
+      var adminEmail = String((state.adminConfig && state.adminConfig.adminEmail) || 'umery1969@gmail.com').trim().toLowerCase();
+      var sessionEmail = String((state.authSession && state.authSession.email) || '').trim().toLowerCase();
+      var sbEmail = String((state.supabaseConfig && state.supabaseConfig.userEmail) || '').trim().toLowerCase();
+      if (lockCode && vNorm === lockCode) return true;
+      if (adminEmail && vLower === adminEmail) return true;
+      if (sessionEmail && vLower === sessionEmail) return true;
+      if (sbEmail && vLower === sbEmail) return true;
+      return false;
+    }
 
     function isCyberSessionUnlocked() {
       try { return sessionStorage.getItem(SESSION_CYBER_UNLOCK_KEY) === '1'; } catch (e) { return false; }
@@ -1326,7 +1359,9 @@
         onAuthorized: onAuthorized,
         error: '',
         showCode: false,
-        shake: false
+        shake: false,
+        recoveryOpen: false,
+        recoveryError: ''
       };
       renderCyberPromptOverlay();
     }
@@ -1342,7 +1377,7 @@
       var mgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
       var isAm = state.lang === 'am';
       root.innerHTML = '<div class="cyber-prompt-backdrop" id="cp-bg">' +
-        '<form id="cp-form" class="modal-card narrow' + (cp.shake ? ' shake' : '') + '" style="max-width:420px;box-shadow:0 24px 60px rgba(0,0,0,0.45);" autocomplete="off">' +
+        '<div class="modal-card narrow' + (cp.shake ? ' shake' : '') + '" id="cp-card" style="max-width:430px;box-shadow:0 24px 60px rgba(0,0,0,0.45);">' +
           '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
             '<div style="display:flex;align-items:center;gap:9px;">' + icon('shield', 20) +
               '<div><h2 style="font-size:15px;font-weight:800;">' + esc(mgr) + ' &mdash; Cyber Security Code</h2>' +
@@ -1355,61 +1390,129 @@
               '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:#1D4ED8;margin-bottom:2px;">Protected Control Action</div>' +
               '<div style="font-weight:700;">' + esc(cp.actionLabel) + '</div>' +
             '</div>' +
-            '<div>' +
-              '<label class="field-label" for="cp-code-inp">' + (isAm ? 'የአብዱልፈታ የሳይበር ደህንነት ኮድ ያስገቡ' : 'Enter ' + esc(mgr) + "'s Cyber Security Code") + '</label>' +
-              '<div style="display:flex;gap:8px;align-items:center;">' +
-                '<input id="cp-code-inp" type="' + (cp.showCode ? 'text' : 'password') + '" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;" placeholder="Enter Cyber Security Code..." autofocus />' +
-                '<button type="button" id="cp-eye" class="btn btn-outline" style="padding:9px 11px;font-size:11.5px;">' + (cp.showCode ? 'Hide' : 'Show') + '</button>' +
-              '</div>' +
-            '</div>' +
-            (cp.error ? '<div id="cp-err" class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(cp.error) + '</span></div>' : '') +
-            '<div style="display:flex;gap:8px;margin-top:4px;">' +
-              '<button type="button" id="cp-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
-              '<button type="submit" id="cp-submit" class="btn btn-green" style="flex:1.4;">' + icon('shield', 15) + '<span>Verify &amp; Continue</span></button>' +
-            '</div>' +
+            (!cp.recoveryOpen ? (
+              '<form id="cp-form" style="display:flex;flex-direction:column;gap:11px;" autocomplete="off">' +
+                '<div>' +
+                  '<label class="field-label" for="cp-code-inp">' + (isAm ? 'የአብዱልፈታ የሳይበር ደህንነት ኮድ ያስገቡ' : 'Enter ' + esc(mgr) + "'s Cyber Security Code") + '</label>' +
+                  '<div style="display:flex;gap:8px;align-items:center;">' +
+                    '<input id="cp-code-inp" name="cyber_prompt_pin" type="' + (cp.showCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;" placeholder="Enter Cyber Code (default 1234)..." autofocus />' +
+                    '<button type="button" id="cp-eye" class="btn btn-outline" style="padding:9px 11px;font-size:11.5px;">' + (cp.showCode ? 'Hide' : 'Show') + '</button>' +
+                  '</div>' +
+                '</div>' +
+                (cp.error ? '<div id="cp-err" class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(cp.error) + '</span></div>' : '') +
+                '<div style="display:flex;gap:8px;margin-top:2px;">' +
+                  '<button type="button" id="cp-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+                  '<button type="submit" id="cp-submit" class="btn btn-green" style="flex:1.4;">' + icon('shield', 15) + '<span>Verify &amp; Continue</span></button>' +
+                '</div>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;border-top:1px dashed #E2E8F0;">' +
+                  '<span style="font-size:11px;color:#64748B;">Default code is <strong class="mono">1234</strong> unless changed</span>' +
+                  '<button type="button" id="cp-forgot-btn" style="font-size:11.5px;font-weight:800;color:#0D47A1;text-decoration:underline;">Forgot / Reset Code?</button>' +
+                '</div>' +
+              '</form>'
+            ) : (
+              '<form id="cp-rec-form" style="padding:12px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:12px;display:flex;flex-direction:column;gap:10px;" autocomplete="off">' +
+                '<div style="font-size:12.5px;font-weight:800;color:#92400E;">Reset ' + esc(mgr) + ' Cyber Security Code</div>' +
+                '<div style="font-size:11.5px;color:#78350F;">Verify with your <strong>Lock Screen Access Code</strong> (default 1234) or <strong>Admin Email</strong> to reset and continue.</div>' +
+                '<div>' +
+                  '<label class="field-label" for="cp-rec-verify">Lock Screen Code or Admin Email</label>' +
+                  '<input id="cp-rec-verify" name="cyber_rec_verifier" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input" placeholder="e.g. 1234 or admin email..." autofocus />' +
+                '</div>' +
+                '<div>' +
+                  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+                    '<label class="field-label" for="cp-rec-new" style="margin:0;">New Cyber Security Code</label>' +
+                    '<button type="button" id="cp-rec-1234" style="font-size:11px;font-weight:700;color:#0D47A1;">Use 1234</button>' +
+                  '</div>' +
+                  '<input id="cp-rec-new" name="cyber_rec_new" type="text" autocomplete="new-password" class="form-input mono" value="1234" placeholder="Enter new Cyber Code..." />' +
+                '</div>' +
+                (cp.recoveryError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(cp.recoveryError) + '</span></div>' : '') +
+                '<div style="display:flex;gap:8px;">' +
+                  '<button type="button" id="cp-rec-back" class="btn btn-outline" style="flex:1;">Back</button>' +
+                  '<button type="submit" id="cp-rec-save" class="btn btn-green" style="flex:1.4;">Verify &amp; Reset Code</button>' +
+                '</div>' +
+              '</form>'
+            )) +
           '</div>' +
-        '</form></div>';
+        '</div></div>';
 
       cp.shake = false;
-      var inp = document.getElementById('cp-code-inp');
-      if (inp) inp.focus();
       var closePrompt = function () { state.cyberPrompt = null; renderCyberPromptOverlay(); };
       document.getElementById('cp-bg').onclick = closePrompt;
-      document.getElementById('cp-form').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('cp-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('cp-close').onclick = closePrompt;
-      document.getElementById('cp-cancel').onclick = closePrompt;
-      document.getElementById('cp-eye').onclick = function () {
-        var cur = inp ? inp.value : '';
-        cp.showCode = !cp.showCode;
-        renderCyberPromptOverlay();
-        var nInp = document.getElementById('cp-code-inp');
-        if (nInp) { nInp.value = cur; nInp.focus(); }
-      };
-      document.getElementById('cp-form').onsubmit = function (e) {
-        e.preventDefault();
-        var entered = (document.getElementById('cp-code-inp').value || '').trim();
-        var expected = getCyberSecurityCode();
-        if (!entered) {
-          cp.error = 'Please enter ' + mgr + "'s Cyber Security Code.";
-          cp.shake = true;
+
+      if (!cp.recoveryOpen) {
+        var inp = document.getElementById('cp-code-inp');
+        if (inp) inp.focus();
+        document.getElementById('cp-cancel').onclick = closePrompt;
+        document.getElementById('cp-forgot-btn').onclick = function () {
+          cp.recoveryOpen = true;
+          cp.recoveryError = '';
           renderCyberPromptOverlay();
-          return;
-        }
-        if (entered !== expected) {
-          cp.error = 'Incorrect Cyber Security Code (' + mgr + '). Permission denied.';
-          cp.shake = true;
-          recordAudit('BLOCK', getActiveBot(), 'Denied protected action "' + cp.actionLabel + '" — wrong Cyber Security Code', { source: 'Security' });
+        };
+        document.getElementById('cp-eye').onclick = function () {
+          var cur = inp ? inp.value : '';
+          cp.showCode = !cp.showCode;
           renderCyberPromptOverlay();
-          return;
-        }
-        var cb = cp.onAuthorized;
-        var act = cp.actionLabel;
-        state.cyberPrompt = null;
-        unlockCyberSession();
-        recordAudit('AUTH', getActiveBot(), mgr + ' Cyber Security Code verified for: ' + act, { actor: mgr, source: 'Security' });
-        renderCyberPromptOverlay();
-        if (typeof cb === 'function') cb();
-      };
+          var nInp = document.getElementById('cp-code-inp');
+          if (nInp) { nInp.value = cur; nInp.focus(); }
+        };
+        document.getElementById('cp-form').onsubmit = function (e) {
+          e.preventDefault();
+          var entered = normalizeSecurityCode(document.getElementById('cp-code-inp').value);
+          var expected = getCyberSecurityCode();
+          if (!entered) {
+            cp.error = 'Please enter ' + mgr + "'s Cyber Security Code.";
+            cp.shake = true;
+            renderCyberPromptOverlay();
+            return;
+          }
+          if (entered !== expected) {
+            cp.error = 'Incorrect Cyber Security Code (' + mgr + '). Permission denied. Use "Forgot / Reset Code?" below if needed.';
+            cp.shake = true;
+            recordAudit('BLOCK', getActiveBot(), 'Denied protected action "' + cp.actionLabel + '" — wrong Cyber Security Code', { source: 'Security' });
+            renderCyberPromptOverlay();
+            return;
+          }
+          var cb = cp.onAuthorized;
+          var act = cp.actionLabel;
+          state.cyberPrompt = null;
+          unlockCyberSession();
+          recordAudit('AUTH', getActiveBot(), mgr + ' Cyber Security Code verified for: ' + act, { actor: mgr, source: 'Security' });
+          renderCyberPromptOverlay();
+          if (typeof cb === 'function') cb();
+        };
+      } else {
+        var recV = document.getElementById('cp-rec-verify');
+        if (recV) recV.focus();
+        document.getElementById('cp-rec-back').onclick = function () {
+          cp.recoveryOpen = false;
+          cp.recoveryError = '';
+          renderCyberPromptOverlay();
+        };
+        document.getElementById('cp-rec-1234').onclick = function () {
+          var rn = document.getElementById('cp-rec-new');
+          if (rn) rn.value = '1234';
+        };
+        document.getElementById('cp-rec-form').onsubmit = function (e) {
+          e.preventDefault();
+          var ver = document.getElementById('cp-rec-verify').value;
+          var nc = normalizeSecurityCode(document.getElementById('cp-rec-new').value) || '1234';
+          if (!verifyCyberRecoveryIdentity(ver)) {
+            cp.recoveryError = 'Verification failed. Enter your Lock Screen Access Code or Admin Email.';
+            renderCyberPromptOverlay();
+            return;
+          }
+          setCyberSecurityCode(nc);
+          unlockCyberSession();
+          var cb = cp.onAuthorized;
+          var act = cp.actionLabel;
+          state.cyberPrompt = null;
+          recordAudit('AUTH', getActiveBot(), mgr + ' Cyber Security Code reset via Admin Recovery & authorized: ' + act, { actor: mgr, source: 'Security' });
+          showToast(mgr + ' Cyber Security Code reset to "' + nc + '"');
+          renderCyberPromptOverlay();
+          if (typeof cb === 'function') cb();
+        };
+      }
     }
 
     // Folder Lock Helpers
@@ -4753,7 +4856,7 @@
         (state.adminConfig.cyberAlwaysAsk !== false || !isCyberSessionUnlocked());
 
       if (needsGate) {
-        var gHtml = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:430px;" id="m-card">' +
+        var gHtml = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:440px;" id="m-card">' +
           '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
             '<div style="display:flex;align-items:center;gap:9px;">' + icon('shield', 20) +
               '<div><h2 style="font-size:15.5px;font-weight:800;">Cyber Control Panel (' + esc(mgr) + ')</h2>' +
@@ -4761,55 +4864,130 @@
             '</div>' +
             '<button class="icon-btn" id="cy-gate-close">' + icon('close', 18) + '</button>' +
           '</header>' +
-          '<form id="cy-gate-form" class="modal-body" style="display:flex;flex-direction:column;gap:12px;" autocomplete="off">' +
+          '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
             '<div class="cyber-panel-hero">' +
               '<div><div style="font-size:11px;color:#A7F3D0;font-weight:700;text-transform:uppercase;">Manager of Cyber Security</div>' +
               '<div style="font-size:17px;font-weight:800;">' + esc(mgr) + '</div></div>' +
               '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">PROTECTED</span>' +
             '</div>' +
-            '<div style="font-size:12.5px;color:#475569;">Enter <strong>' + esc(mgr) + '</strong>\'s Cyber Security Code to access Transmit, Terminate, Timed Block/Unblock, User Delete, and Code Controls.</div>' +
-            '<div>' +
-              '<label class="field-label" for="cy-gate-inp">' + esc(mgr) + ' Cyber Security Code</label>' +
-              '<div style="display:flex;gap:8px;">' +
-                '<input id="cy-gate-inp" type="' + (m.gateShow ? 'text' : 'password') + '" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;" placeholder="Enter Cyber Code (default 1234)..." autofocus />' +
-                '<button type="button" id="cy-gate-eye" class="btn btn-outline" style="padding:9px 11px;font-size:11.5px;">' + (m.gateShow ? 'Hide' : 'Show') + '</button>' +
-              '</div>' +
-            '</div>' +
-            (m.gateError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(m.gateError) + '</span></div>' : '') +
-            '<div style="display:flex;gap:8px;">' +
-              '<button type="button" id="cy-gate-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
-              '<button type="submit" class="btn btn-green" style="flex:1.4;">' + icon('shield', 15) + '<span>Unlock Cyber Panel</span></button>' +
-            '</div>' +
-          '</form></div></div>';
+            (!m.gateRecoveryOpen ? (
+              '<form id="cy-gate-form" style="display:flex;flex-direction:column;gap:11px;" autocomplete="off">' +
+                '<div style="font-size:12.5px;color:#475569;">Enter <strong>' + esc(mgr) + '</strong>\'s Cyber Security Code to access Transmit, Terminate, Timed Block/Unblock, User Delete, and Code Controls.</div>' +
+                '<div>' +
+                  '<label class="field-label" for="cy-gate-inp">' + esc(mgr) + ' Cyber Security Code</label>' +
+                  '<div style="display:flex;gap:8px;">' +
+                    '<input id="cy-gate-inp" name="cyber_gate_pin" type="' + (m.gateShow ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;" placeholder="Enter Cyber Code (default 1234)..." autofocus />' +
+                    '<button type="button" id="cy-gate-eye" class="btn btn-outline" style="padding:9px 11px;font-size:11.5px;">' + (m.gateShow ? 'Hide' : 'Show') + '</button>' +
+                  '</div>' +
+                '</div>' +
+                (m.gateError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(m.gateError) + '</span></div>' : '') +
+                '<div style="display:flex;gap:8px;">' +
+                  '<button type="button" id="cy-gate-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+                  '<button type="submit" class="btn btn-green" style="flex:1.4;">' + icon('shield', 15) + '<span>Unlock Cyber Panel</span></button>' +
+                '</div>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px dashed #E2E8F0;flex-wrap:wrap;gap:6px;">' +
+                  '<span style="font-size:11px;color:#64748B;">Default code: <strong class="mono">1234</strong></span>' +
+                  '<button type="button" id="cy-gate-forgot" style="font-size:11.5px;font-weight:800;color:#0D47A1;text-decoration:underline;">Forgot Code? Fix / Reset Cyber Code</button>' +
+                '</div>' +
+              '</form>'
+            ) : (
+              '<form id="cy-gate-rec-form" style="padding:12px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:12px;display:flex;flex-direction:column;gap:10px;" autocomplete="off">' +
+                '<div style="font-size:13px;font-weight:800;color:#92400E;">Fix / Reset ' + esc(mgr) + ' Cyber Security Code</div>' +
+                '<div style="font-size:11.5px;color:#78350F;">Enter your <strong>App Lock Screen Code</strong> (default <code>1234</code>) or <strong>Admin Email</strong> to reset the Cyber Security Code and unlock immediately.</div>' +
+                '<div>' +
+                  '<label class="field-label" for="cy-rec-verify">Lock Screen Code or Admin Email</label>' +
+                  '<input id="cy-rec-verify" name="cy_rec_verifier" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input" placeholder="Enter 1234 (Lock Code) or admin email..." autofocus />' +
+                '</div>' +
+                '<div>' +
+                  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+                    '<label class="field-label" for="cy-rec-new" style="margin:0;">New Cyber Security Code</label>' +
+                    '<button type="button" id="cy-rec-fill-1234" style="font-size:11px;font-weight:700;color:#0D47A1;">Use Default (1234)</button>' +
+                  '</div>' +
+                  '<input id="cy-rec-new" name="cy_rec_new" type="text" autocomplete="new-password" class="form-input mono" value="1234" placeholder="New Cyber Security Code..." />' +
+                '</div>' +
+                (m.gateRecError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(m.gateRecError) + '</span></div>' : '') +
+                '<div style="display:flex;gap:8px;">' +
+                  '<button type="button" id="cy-rec-back" class="btn btn-outline" style="flex:1;">Back</button>' +
+                  '<button type="submit" id="cy-rec-submit" class="btn btn-green" style="flex:1.4;">Verify, Reset &amp; Open</button>' +
+                '</div>' +
+              '</form>'
+            )) +
+          '</div></div></div>';
         document.getElementById('modal-root').innerHTML = gHtml;
         document.getElementById('m-bg').onclick = closeModal;
         document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
         document.getElementById('cy-gate-close').onclick = closeModal;
-        document.getElementById('cy-gate-cancel').onclick = closeModal;
-        var gInp = document.getElementById('cy-gate-inp');
-        if (gInp) gInp.focus();
-        document.getElementById('cy-gate-eye').onclick = function () {
-          var v = gInp ? gInp.value : '';
-          m.gateShow = !m.gateShow;
-          renderCyberControlModal(m);
-          var n = document.getElementById('cy-gate-inp');
-          if (n) { n.value = v; n.focus(); }
-        };
-        document.getElementById('cy-gate-form').onsubmit = function (e) {
-          e.preventDefault();
-          var entered = (document.getElementById('cy-gate-inp').value || '').trim();
-          if (entered !== getCyberSecurityCode()) {
-            m.gateError = 'Incorrect Cyber Security Code for ' + mgr + '. Access denied.';
-            recordAudit('BLOCK', null, 'Failed Cyber Control Panel unlock attempt', { source: 'Security' });
+
+        if (!m.gateRecoveryOpen) {
+          document.getElementById('cy-gate-cancel').onclick = closeModal;
+          var gInp = document.getElementById('cy-gate-inp');
+          if (gInp) gInp.focus();
+          document.getElementById('cy-gate-forgot').onclick = function () {
+            m.gateRecoveryOpen = true;
+            m.gateRecError = '';
             renderCyberControlModal(m);
-            return;
-          }
-          m.gateError = '';
-          m.cyberVerified = true;
-          unlockCyberSession();
-          recordAudit('AUTH', null, mgr + ' unlocked Cyber Control Panel', { actor: mgr, source: 'Security' });
-          renderCyberControlModal(m);
-        };
+          };
+          document.getElementById('cy-gate-eye').onclick = function () {
+            var v = gInp ? gInp.value : '';
+            m.gateShow = !m.gateShow;
+            renderCyberControlModal(m);
+            var n = document.getElementById('cy-gate-inp');
+            if (n) { n.value = v; n.focus(); }
+          };
+          document.getElementById('cy-gate-form').onsubmit = function (e) {
+            e.preventDefault();
+            var entered = normalizeSecurityCode(document.getElementById('cy-gate-inp').value);
+            if (!entered) {
+              m.gateError = 'Please enter ' + mgr + "'s Cyber Security Code.";
+              renderCyberControlModal(m);
+              return;
+            }
+            if (entered !== getCyberSecurityCode()) {
+              m.gateError = 'Incorrect Cyber Security Code for ' + mgr + '. Access denied. Click "Forgot Code? Fix / Reset Cyber Code" below to reset.';
+              recordAudit('BLOCK', null, 'Failed Cyber Control Panel unlock attempt', { source: 'Security' });
+              renderCyberControlModal(m);
+              return;
+            }
+            m.gateError = '';
+            m.cyberVerified = true;
+            unlockCyberSession();
+            recordAudit('AUTH', null, mgr + ' unlocked Cyber Control Panel', { actor: mgr, source: 'Security' });
+            renderCyberControlModal(m);
+          };
+        } else {
+          var rv = document.getElementById('cy-rec-verify');
+          if (rv) rv.focus();
+          document.getElementById('cy-rec-back').onclick = function () {
+            m.gateRecoveryOpen = false;
+            m.gateRecError = '';
+            renderCyberControlModal(m);
+          };
+          document.getElementById('cy-rec-fill-1234').onclick = function () {
+            var rn = document.getElementById('cy-rec-new');
+            if (rn) rn.value = '1234';
+          };
+          document.getElementById('cy-gate-rec-form').onsubmit = function (e) {
+            e.preventDefault();
+            var ver = document.getElementById('cy-rec-verify').value;
+            var nc = normalizeSecurityCode(document.getElementById('cy-rec-new').value) || '1234';
+            if (!verifyCyberRecoveryIdentity(ver)) {
+              m.gateRecError = 'Verification failed. Enter your Lock Screen Access Code or Admin Email.';
+              renderCyberControlModal(m);
+              return;
+            }
+            setCyberSecurityCode(nc);
+            m.gateError = '';
+            m.gateRecError = '';
+            m.gateRecoveryOpen = false;
+            m.cyberVerified = true;
+            m.statusType = 'success';
+            m.statusMsg = mgr + ' Cyber Security Code reset to "' + nc + '" and unlocked!';
+            unlockCyberSession();
+            recordAudit('AUTH', null, mgr + ' Cyber Security Code reset via Admin Recovery & unlocked panel', { actor: mgr, source: 'Security' });
+            showToast(mgr + ' Cyber Code reset to "' + nc + '"');
+            renderCyberControlModal(m);
+          };
+        }
         return;
       }
 
@@ -4905,10 +5083,10 @@
             '<button type="button" id="cy-code-vis" style="font-size:11.5px;font-weight:700;color:#047857;">' + (m.showCyberCodes ? 'Hide' : 'Show') + '</button>' +
           '</div>' +
           '<div><label class="field-label">Cyber Security Manager Name</label><input id="cy-mgr-name" class="form-input" value="' + esc(mgr) + '" required /></div>' +
-          '<div><label class="field-label">Current Cyber Security Code</label><input id="cy-old-code" type="' + ct + '" class="form-input mono" placeholder="Enter current Cyber Code..." required /></div>' +
+          '<div><label class="field-label">Current Cyber Security Code</label><input id="cy-old-code" name="cy_old_code" type="' + ct + '" autocomplete="new-password" data-lpignore="true" class="form-input mono" value="' + esc(getCyberSecurityCode()) + '" placeholder="Enter current Cyber Code..." required /></div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-            '<div><label class="field-label">New Cyber Security Code</label><input id="cy-new-code" type="' + ct + '" class="form-input mono" placeholder="New Cyber Code" required /></div>' +
-            '<div><label class="field-label">Confirm New Code</label><input id="cy-new-code2" type="' + ct + '" class="form-input mono" placeholder="Confirm New Code" required /></div>' +
+            '<div><label class="field-label">New Cyber Security Code</label><input id="cy-new-code" name="cy_new_code" type="' + ct + '" autocomplete="new-password" data-lpignore="true" class="form-input mono" placeholder="New Cyber Code" required /></div>' +
+            '<div><label class="field-label">Confirm New Code</label><input id="cy-new-code2" name="cy_new_code2" type="' + ct + '" autocomplete="new-password" data-lpignore="true" class="form-input mono" placeholder="Confirm New Code" required /></div>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
             '<button type="submit" class="btn btn-green" style="flex:1.4;">Save New Cyber Security Code</button>' +
@@ -5088,9 +5266,9 @@
         document.getElementById('cy-code-form').onsubmit = function (e) {
           e.preventDefault();
           var newMgr = (document.getElementById('cy-mgr-name').value || '').trim() || 'Abdulfeta';
-          var oldC = (document.getElementById('cy-old-code').value || '').trim();
-          var n1 = (document.getElementById('cy-new-code').value || '').trim();
-          var n2 = (document.getElementById('cy-new-code2').value || '').trim();
+          var oldC = normalizeSecurityCode(document.getElementById('cy-old-code').value);
+          var n1 = normalizeSecurityCode(document.getElementById('cy-new-code').value);
+          var n2 = normalizeSecurityCode(document.getElementById('cy-new-code2').value);
           if (oldC !== getCyberSecurityCode()) {
             m.statusType = 'error';
             m.statusMsg = 'Current Cyber Security Code is incorrect.';
@@ -8424,6 +8602,12 @@
         state.folderHistory = loadJsonStorage(STORAGE_FOLDER_HISTORY, state.folderHistory);
         state.deletedVault = loadJsonStorage(STORAGE_DELETED_VAULT, state.deletedVault);
         state.adminConfig = Object.assign({}, DEFAULT_ADMIN_CFG, loadJsonStorage(STORAGE_ADMIN_CFG, {}));
+        if (state.adminConfig.cyberSecurityCode) {
+          try { localStorage.setItem(STORAGE_CYBER_CODE, normalizeSecurityCode(state.adminConfig.cyberSecurityCode)); } catch (e) {}
+        }
+        if (state.adminConfig.accessCode) {
+          try { localStorage.setItem(STORAGE_ACCESS_CODE, normalizeSecurityCode(state.adminConfig.accessCode)); } catch (e) {}
+        }
         var msg = ev && ev.data ? ev.data : {};
         if (msg.type === 'FORCE_LOGOUT' && (isCurrentUserRevoked() || matchesActorIdentity(msg.target, getCurrentActor()))) {
           forceLogoutCurrentUser(msg.reason || 'Your session was logged out by Admin. App data is hidden.');
