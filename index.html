@@ -531,6 +531,38 @@
       flex: 1; padding: 11px 8px; border-bottom: 2px solid transparent; color: #64748B; text-align: center;
     }
     .admin-tab-btn.active { border-bottom-color: #0D47A1; color: #0D47A1; background: #fff; }
+
+    /* Full-Screen Access Code Lock Screen */
+    .lock-screen {
+      min-height: 100vh; width: 100%;
+      background: linear-gradient(135deg, #071E4A 0%, #0D47A1 55%, #1565C0 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; position: relative;
+    }
+    .lock-card {
+      width: 100%; max-width: 410px; background: #fff; border-radius: 22px;
+      padding: 32px 26px 26px; box-shadow: 0 28px 64px rgba(7, 30, 74, 0.45);
+      border: 1px solid rgba(255,255,255,0.2); text-align: center;
+    }
+    .lock-card.shake { animation: lockShake 0.36s ease-in-out; }
+    @keyframes lockShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(5px); }
+    }
+    .lock-icon-ring {
+      width: 68px; height: 68px; border-radius: 999px; margin: 0 auto 14px;
+      background: linear-gradient(135deg, #0D47A1, #1976D2); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 10px 24px rgba(25, 118, 210, 0.32);
+    }
+    .lock-error-box {
+      background: #FEF2F2; border: 1px solid #FCA5A5; color: #B91C1C;
+      border-radius: 10px; padding: 9px 12px; font-size: 12.5px; font-weight: 700;
+      margin-top: 10px; text-align: left; display: flex; align-items: center; gap: 7px;
+    }
   </style>
 </head>
 <body>
@@ -556,6 +588,8 @@
     var STORAGE_FOLDER_MANIFEST = 'tablebot_folder_manifest';
     var STORAGE_CUSTOM_FOLDERS = 'tablebot_custom_folders';
     var STORAGE_LANG = 'tablebot_ui_lang';
+    var STORAGE_ACCESS_CODE = 'tablebot_access_code';
+    var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
 
     var SQL_SETUP_SCRIPT =
       '-- Run this in your Supabase SQL Editor:\n' +
@@ -801,6 +835,8 @@
       adminEmail: 'umery1969@gmail.com',
       cyberSecurityManager: 'Abdulfeta',
       cyberSecurityTitle: 'Manager of Cyber Security',
+      accessCode: '1234',
+      accessLockEnabled: true,
       autoSyncOnOpen: true,
       telegramAutoPoll: true,
       showDashboardActivity: true,
@@ -1052,7 +1088,10 @@
       // Drawer & Modals
       drawerOpen: false,
       modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin', ... }
-      toastTimer: null
+      toastTimer: null,
+      lockError: '',
+      lockShowCode: false,
+      lockShake: false
     };
     state.syncStatus = state.supabaseConfig.isConnected ? 'syncing' : 'local';
     if (!state.adminConfig.cyberSecurityManager) state.adminConfig.cyberSecurityManager = 'Abdulfeta';
@@ -1061,10 +1100,51 @@
       state.workspaceUsers.push({ id: 'abdulfeta', label: 'Abdulfeta (Manager of Cyber Security)', role: 'cyber_security_manager', source: 'Security', blocked: false, adds: 0, edits: 0, deletes: 0, lastSeen: new Date().toISOString() });
     }
 
+    function getConfiguredAccessCode() {
+      var saved = '';
+      try { saved = localStorage.getItem(STORAGE_ACCESS_CODE) || ''; } catch (e) {}
+      var cfgCode = state && state.adminConfig && state.adminConfig.accessCode ? String(state.adminConfig.accessCode) : '';
+      var code = (saved || cfgCode || '1234').trim();
+      return code || '1234';
+    }
+    function setConfiguredAccessCode(newCode) {
+      var clean = String(newCode || '').trim() || '1234';
+      state.adminConfig.accessCode = clean;
+      try { localStorage.setItem(STORAGE_ACCESS_CODE, clean); } catch (e) {}
+      saveAdminState();
+      return clean;
+    }
+    if (!state.adminConfig.accessCode) state.adminConfig.accessCode = getConfiguredAccessCode();
+
+    function isAccessLockEnabled() {
+      return state.adminConfig.accessLockEnabled !== false;
+    }
+    function isAccessUnlocked() {
+      if (!isAccessLockEnabled()) return true;
+      try { return sessionStorage.getItem(SESSION_UNLOCK_KEY) === '1'; } catch (e) { return false; }
+    }
+    function unlockAppSession() {
+      try { sessionStorage.setItem(SESSION_UNLOCK_KEY, '1'); } catch (e) {}
+    }
+    function lockAppNow() {
+      state.adminConfig.accessLockEnabled = true;
+      saveAdminState();
+      try { sessionStorage.removeItem(SESSION_UNLOCK_KEY); } catch (e) {}
+      state.drawerOpen = false;
+      state.modal = null;
+      state.lockError = '';
+      state.lockShowCode = false;
+      state.lockShake = false;
+      renderDrawer();
+      renderModal();
+      renderApp(true);
+      showToast('App locked — access code required');
+    }
+
     function toggleLanguage() {
       state.lang = state.lang === 'am' ? 'en' : 'am';
       try { localStorage.setItem(STORAGE_LANG, state.lang); } catch (e) {}
-      renderApp();
+      renderApp(true);
       if (state.drawerOpen) renderDrawer();
       if (state.modal) renderModal();
       showToast(state.lang === 'am' ? 'ቋንቋ ወደ አማርኛ ተቀይሯል' : 'Language switched to English');
@@ -3045,6 +3125,7 @@
           '<button class="dropdown-item" id="more-import-excel">' + icon('excel', 15) + '<span>Import Excel (.xlsx / .csv)</span></button>' +
           '<button class="dropdown-item" id="more-backup-history">' + icon('folder', 15) + '<span>Folder Backup &amp; Missing</span></button>' +
           '<button class="dropdown-item" id="more-admin">' + icon('shield', 15) + '<span>Admin Activity &amp; Transmit</span></button>' +
+          '<button class="dropdown-item" id="more-access-code">' + icon('lock', 15) + '<span>Lock Screen &amp; Change Code</span></button>' +
           '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
           '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
           '<button class="dropdown-item" id="more-pivot">' + icon('pie', 15) + '<span>Pivot Summary Graph</span></button>' +
@@ -3234,6 +3315,7 @@
         document.getElementById('more-import-excel').onclick = function () { state.showMoreMenu = false; openModal('import_excel', { mode: 'merge', targetBotId: bot.id }); };
         document.getElementById('more-backup-history').onclick = function () { state.showMoreMenu = false; openModal('backup', { tab: 'vault', folderFilter: bot.folder || 'General' }); };
         document.getElementById('more-admin').onclick = function () { state.showMoreMenu = false; openModal('admin', { tab: 'logs' }); };
+        document.getElementById('more-access-code').onclick = function () { state.showMoreMenu = false; openModal('access_code'); };
         document.getElementById('more-settings').onclick = function () { state.showMoreMenu = false; openModal('settings', { bot: bot }); };
         document.getElementById('more-reports').onclick = function () { state.showMoreMenu = false; openModal('reports'); };
         document.getElementById('more-pivot').onclick = function () { state.showMoreMenu = false; openModal('pivot', { bot: bot }); };
@@ -3264,7 +3346,7 @@
     // Navigation Drawer (includes Login, Logout, Forgot Password & Admin Menu)
     function renderDrawer() {
       var root = document.getElementById('drawer-root');
-      if (!state.drawerOpen) { root.innerHTML = ''; return; }
+      if (!isAccessUnlocked() || !state.drawerOpen) { root.innerHTML = ''; return; }
       var cfg = state.supabaseConfig;
       var loggedIn = Boolean(state.authSession && state.authSession.email);
       var activeEmail = getCurrentActor();
@@ -3301,11 +3383,14 @@
             '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="background:#F0FDFA;color:#0F766E;padding:4px;border-radius:6px;display:inline-flex;">' + icon('history', 17) + '</span><span><div><div style="font-weight:700;">' + esc(t('backup_nav')) + '</div><div style="font-size:11px;color:#64748B;">Folder history (min/days/3+ mo), missing &amp; trash</div></div></span></span>' +
               (state.deletedVault.length ? '<span class="pill-badge" style="background:#D97706;color:#fff;font-size:10px;">' + state.deletedVault.length + '</span>' : '') + '</button>' +
             '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>' + esc(t('export_html')) + '</span></span></button>' +
+            '<button class="drawer-item" data-nav="access_code"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('lock', 16) + '</span><span><div><div style="font-weight:700;">' + (state.lang === 'am' ? 'የመግቢያ ኮድ እና መቆለፊያ' : 'Lock Screen &amp; Change Code') + '</div><div style="font-size:11px;color:#64748B;">' + (state.lang === 'am' ? 'ኮድ ቀይር ወይም መቆለፊያን አስተካክል' : 'Change lock code or lock screen option') + '</div></div></span></span>' +
+              '<span class="pill-badge" style="background:' + (isAccessLockEnabled() ? '#059669' : '#64748B') + ';color:#fff;font-size:10px;">' + (isAccessLockEnabled() ? 'ON' : 'OFF') + '</span></button>' +
             '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>' + esc(t('bot_settings')) + '</span></span></button>' +
             '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>' + esc(t('share_app')) + '</span></span></button>' +
             '<button class="drawer-item" data-nav="help"><span class="drawer-item-left"><span style="color:#64748B">' + icon('help', 19) + '</span><span>' + esc(t('help_guide')) + '</span></span></button>' +
           '</div>' +
-          '<div style="padding:14px;border-top:1px solid #E2E8F0;background:#F8FAFC;display:flex;gap:8px;">' +
+          '<div style="padding:14px;border-top:1px solid #E2E8F0;background:#F8FAFC;display:flex;gap:8px;flex-direction:column;">' +
+            '<button class="btn btn-outline" id="drawer-lock-app" style="width:100%;color:#0D47A1;border-color:#93C5FD;background:#EFF6FF;">' + icon('lock', 15) + '<span>Lock Screen Now</span></button>' +
             '<button class="btn btn-red" id="drawer-signout" style="width:100%;">' + icon('logout', 16) + '<span>' + (loggedIn ? t('logout') : t('logout') + ' / Reset Session') + '</span></button>' +
           '</div>' +
         '</div></div>';
@@ -3314,6 +3399,7 @@
       document.getElementById('drawer-panel').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('drawer-close').onclick = function () { state.drawerOpen = false; renderDrawer(); };
       document.getElementById('drawer-lang-toggle').onclick = toggleLanguage;
+      document.getElementById('drawer-lock-app').onclick = lockAppNow;
       document.getElementById('drawer-signout').onclick = async function () {
         var prevActor = getCurrentActor();
         try {
@@ -3335,6 +3421,7 @@
           state.drawerOpen = false; renderDrawer();
           if (v === 'all_bots') { state.activeBotId = null; renderApp(); }
           else if (v === 'admin') openModal('admin', { tab: 'logs' });
+          else if (v === 'access_code') openModal('access_code');
           else if (v === 'reports') openModal('reports');
           else if (v === 'login') openModal('supabase', { authTab: 'login' });
           else if (v === 'forgot') openModal('supabase', { authTab: 'forgot' });
@@ -3343,7 +3430,7 @@
           else if (v === 'import_excel') openModal('import_excel', { mode: getActiveBot() ? 'merge' : 'new', targetBotId: getActiveBot() ? getActiveBot().id : '' });
           else if (v === 'backup') openModal('backup', { tab: 'vault', folderFilter: state.selectedFolder || 'all' });
           else if (v === 'export_html') exportStandaloneHtml();
-          else if (v === 'settings') { var t = getActiveBot() || state.bots[0]; if (t) openModal('settings', { bot: t }); }
+          else if (v === 'settings') { var t = getActiveBot() || state.bots[0]; openModal('settings', { bot: t || null }); }
           else if (v === 'share') {
             if (navigator.clipboard) navigator.clipboard.writeText(window.location.href).catch(function () {});
             showToast('App link copied to clipboard!');
@@ -3352,13 +3439,115 @@
       });
     }
 
-    function renderApp() {
+    function renderLockScreen() {
+      var isAm = state.lang === 'am';
+      var titleTxt = isAm ? 'የመግቢያ ኮድ ያስፈልጋል' : 'Access Code Required';
+      var subTxt = isAm
+        ? 'ሠንጠረዦችን እና ዝርዝሮችን ለመክፈት የመግቢያ ኮድዎን ያስገቡ።'
+        : 'Enter your access code to unlock tables and menus.';
+      var btnTxt = isAm ? 'ክፈት' : 'Unlock App';
+      var placeholderTxt = isAm ? 'የመግቢያ ኮድ ያስገቡ...' : 'Enter access code...';
+
+      var html = '<div class="lock-screen">' +
+        '<div style="position:absolute;top:16px;right:16px;">' +
+          '<button type="button" id="lock-lang-btn" class="lang-toggle-btn">' + esc(t('lang_btn')) + '</button>' +
+        '</div>' +
+        '<form id="lock-form" class="lock-card' + (state.lockShake ? ' shake' : '') + '" autocomplete="off">' +
+          '<div class="lock-icon-ring">' + icon('lock', 30) + '</div>' +
+          '<h1 style="font-size:21px;font-weight:800;color:#0F172A;margin-bottom:6px;">' + esc(titleTxt) + '</h1>' +
+          '<p style="font-size:13px;color:#64748B;margin-bottom:20px;line-height:1.45;">' + esc(subTxt) + '</p>' +
+          '<div style="text-align:left;">' +
+            '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
+            '<div style="display:flex;gap:8px;align-items:center;">' +
+              '<input id="lock-code-inp" type="' + (state.lockShowCode ? 'text' : 'password') + '" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '" autocomplete="off" autofocus />' +
+              '<button type="button" id="lock-eye-btn" class="btn btn-outline" style="padding:10px 12px;font-size:11.5px;white-space:nowrap;">' + (state.lockShowCode ? 'Hide' : 'Show') + '</button>' +
+            '</div>' +
+          '</div>' +
+          (state.lockError
+            ? '<div id="lock-err-msg" class="lock-error-box">' + icon('ban', 15) + '<span>' + esc(state.lockError) + '</span></div>'
+            : '') +
+          '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;">' +
+            icon('shield', 16) + '<span>' + esc(btnTxt) + '</span>' +
+          '</button>' +
+          '<div style="margin-top:16px;font-size:11px;color:#94A3B8;display:flex;align-items:center;justify-content:center;gap:5px;">' +
+            icon('shield', 12) + '<span>Protected Workspace &middot; Session Lock Active</span>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+
+      document.getElementById('app').innerHTML = html;
+      state.lockShake = false;
+
+      var inp = document.getElementById('lock-code-inp');
+      if (inp) {
+        inp.focus();
+        inp.oninput = function () {
+          if (state.lockError) {
+            state.lockError = '';
+            var errEl = document.getElementById('lock-err-msg');
+            if (errEl) errEl.remove();
+          }
+        };
+      }
+      var langBtn = document.getElementById('lock-lang-btn');
+      if (langBtn) langBtn.onclick = toggleLanguage;
+      var eyeBtn = document.getElementById('lock-eye-btn');
+      if (eyeBtn) eyeBtn.onclick = function () {
+        var cur = inp ? inp.value : '';
+        state.lockShowCode = !state.lockShowCode;
+        renderLockScreen();
+        var nInp = document.getElementById('lock-code-inp');
+        if (nInp) { nInp.value = cur; nInp.focus(); }
+      };
+      document.getElementById('lock-form').onsubmit = function (e) {
+        e.preventDefault();
+        var entered = (document.getElementById('lock-code-inp').value || '').trim();
+        var expected = getConfiguredAccessCode();
+        if (!entered) {
+          state.lockError = state.lang === 'am' ? 'እባክዎ የመግቢያ ኮድ ያስገቡ።' : 'Please enter the access code.';
+          state.lockShake = true;
+          renderLockScreen();
+          return;
+        }
+        if (entered !== expected) {
+          state.lockError = state.lang === 'am'
+            ? 'የተሳሳተ የመግቢያ ኮድ። እባክዎ እንደገና ይሞክሩ።'
+            : 'Incorrect access code. Please try again.';
+          state.lockShake = true;
+          renderLockScreen();
+          var rInp = document.getElementById('lock-code-inp');
+          if (rInp) { rInp.value = ''; rInp.focus(); }
+          return;
+        }
+        state.lockError = '';
+        state.lockShake = false;
+        unlockAppSession();
+        recordAudit('AUTH', null, 'Workspace unlocked with access code', { source: 'LockScreen' });
+        renderApp();
+        if (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
+          getSbClient();
+          openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
+        }
+      };
+    }
+
+    function renderApp(forceLockRender) {
+      if (!isAccessUnlocked()) {
+        state.drawerOpen = false;
+        state.modal = null;
+        var dr = document.getElementById('drawer-root'); if (dr) dr.innerHTML = '';
+        var mr = document.getElementById('modal-root'); if (mr) mr.innerHTML = '';
+        if (!forceLockRender && document.getElementById('lock-form')) return;
+        renderLockScreen();
+        return;
+      }
       var bot = getActiveBot();
       if (bot) renderTableView(bot);
       else renderDashboard();
     }
 
     function openModal(type, extra) {
+      if (!isAccessUnlocked()) return;
       state.modal = Object.assign({ type: type }, extra || {});
       renderModal();
     }
@@ -3370,7 +3559,7 @@
 
     function renderModal() {
       var root = document.getElementById('modal-root');
-      if (!state.modal) { root.innerHTML = ''; return; }
+      if (!isAccessUnlocked() || !state.modal) { root.innerHTML = ''; return; }
       var m = state.modal;
       if (m.type === 'column') renderColumnModal(m);
       else if (m.type === 'settings') renderBotSettingsModal(m);
@@ -3386,6 +3575,73 @@
       else if (m.type === 'file_history') renderFileHistoryModal(m);
       else if (m.type === 'add_folder') renderAddFolderModal(m);
       else if (m.type === 'image_preview') renderImagePreviewModal(m);
+      else if (m.type === 'access_code') renderAccessCodeModal(m);
+    }
+
+    function renderAccessCodeModal(m) {
+      var isAm = state.lang === 'am';
+      var curCode = getConfiguredAccessCode();
+      var enabled = isAccessLockEnabled();
+      if (m.showCodes === undefined) m.showCodes = false;
+      var inpType = m.showCodes ? 'text' : 'password';
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:440px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('lock', 19) + '<h2 style="font-size:15.5px;font-weight:700;">' + (isAm ? 'የመግቢያ ኮድ እና የመቆለፊያ ቅንብር' : 'Lock Screen &amp; Change Code') + '</h2></div>' +
+          '<button class="icon-btn" id="acc-close">' + icon('close', 18) + '</button></header>' +
+        '<form id="acc-form" class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
+          (m.statusMsg ? '<div style="padding:9px 12px;border-radius:10px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>' : '') +
+          '<label style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;cursor:pointer;">' +
+            '<div><div style="font-size:13px;font-weight:800;color:#0D47A1;">' + (isAm ? 'ሲከፈት የመግቢያ ኮድ መቆለፊያ አብራ' : 'Require Lock Screen on Open') + '</div>' +
+            '<div style="font-size:11px;color:#475569;">' + (isAm ? 'አዲስ ተጠቃሚ ሲከፍት ኮድ ይጠይቃል' : 'Ask for access code when opening a new session') + '</div></div>' +
+            '<input type="checkbox" id="acc-enabled" ' + (enabled ? 'checked' : '') + ' style="width:18px;height:18px;" />' +
+          '</label>' +
+          '<div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">' +
+              '<label class="field-label" style="margin:0;" for="acc-new-code">' + (isAm ? 'አዲስ የመግቢያ ኮድ' : 'New Lock Screen Access Code') + '</label>' +
+              '<button type="button" id="acc-toggle-vis" style="font-size:11.5px;font-weight:700;color:#1976D2;">' + (m.showCodes ? 'Hide' : 'Show') + '</button>' +
+            '</div>' +
+            '<input id="acc-new-code" type="' + inpType + '" class="form-input mono" value="' + esc(curCode) + '" placeholder="e.g. 1234" required />' +
+          '</div>' +
+          '<div>' +
+            '<label class="field-label" for="acc-confirm-code">' + (isAm ? 'ኮዱን ያረጋግጡ' : 'Confirm Access Code') + '</label>' +
+            '<input id="acc-confirm-code" type="' + inpType + '" class="form-input mono" value="' + esc(curCode) + '" placeholder="Re-enter access code" required />' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button type="button" id="acc-reset-default" class="btn btn-outline" style="flex:1;font-size:12px;">Reset to 1234</button>' +
+            '<button type="button" id="acc-lock-now" class="btn btn-outline" style="flex:1;font-size:12px;color:#0D47A1;border-color:#93C5FD;background:#EFF6FF;">' + icon('lock', 14) + '<span>Lock Screen Now</span></button>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;padding-top:4px;">' +
+            '<button type="button" id="acc-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+            '<button type="submit" class="btn btn-dark-blue" style="flex:1;">Save Code &amp; Option</button>' +
+          '</div>' +
+        '</form></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('acc-close').onclick = closeModal;
+      document.getElementById('acc-cancel').onclick = closeModal;
+      document.getElementById('acc-toggle-vis').onclick = function () { m.showCodes = !m.showCodes; renderAccessCodeModal(m); };
+      document.getElementById('acc-reset-default').onclick = function () {
+        document.getElementById('acc-new-code').value = '1234';
+        document.getElementById('acc-confirm-code').value = '1234';
+        showToast('Entered default code 1234 — click Save to apply');
+      };
+      document.getElementById('acc-lock-now').onclick = lockAppNow;
+      document.getElementById('acc-form').onsubmit = function (e) {
+        e.preventDefault();
+        if (!guardWriteAction('Update Lock Screen Settings')) return;
+        var c1 = (document.getElementById('acc-new-code').value || '').trim();
+        var c2 = (document.getElementById('acc-confirm-code').value || '').trim();
+        var en = !!document.getElementById('acc-enabled').checked;
+        if (!c1) { m.statusType = 'error'; m.statusMsg = 'Access code cannot be empty.'; renderAccessCodeModal(m); return; }
+        if (c1 !== c2) { m.statusType = 'error'; m.statusMsg = 'Access codes do not match. Please confirm again.'; renderAccessCodeModal(m); return; }
+        state.adminConfig.accessLockEnabled = en;
+        setConfiguredAccessCode(c1);
+        recordAudit('AUTH', null, 'Updated lock screen option (' + (en ? 'ON' : 'OFF') + ') & access code', { source: 'Menu' });
+        closeModal();
+        showToast('Lock screen code saved (' + (en ? 'Lock ON' : 'Lock OFF') + ')');
+      };
     }
 
     function renderImagePreviewModal(m) {
@@ -3614,15 +3870,26 @@
     function renderBotSettingsModal(m) {
       var bot = m.bot;
       var folders = getAllFolders();
-      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:440px;" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('bot', 20) + '<h2 style="font-size:16px;font-weight:700;">Bot Settings &amp; Properties</h2></div>' +
+      var curCode = getConfiguredAccessCode();
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:460px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('settings', 20) + '<h2 style="font-size:16px;font-weight:700;">' + (bot ? 'Bot &amp; App Settings' : 'App Security Settings') + '</h2></div>' +
           '<button class="icon-btn" id="set-close">' + icon('close', 18) + '</button></header>' +
         '<form id="set-form" class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
-          '<div><label class="field-label">Bot / Table Name</label><input id="set-name" class="form-input" value="' + esc(bot.name) + '" required /></div>' +
-          '<div><label class="field-label">Folder</label><input id="set-folder" list="dl-folders" class="form-input" value="' + esc(bot.folder || 'General') + '" /><datalist id="dl-folders">' + folders.map(function (f) { return '<option value="' + esc(f) + '">'; }).join('') + '</datalist></div>' +
-          '<div><label class="field-label">Description</label><input id="set-desc" class="form-input" value="' + esc(bot.description || '') + '" /></div>' +
-          '<div><label class="field-label">Telegram Bot Token (@BotFather)</label><input id="set-tok" type="password" class="form-input mono" placeholder="Optional: paste @BotFather token" value="' + esc(bot.telegramToken || '') + '" /></div>' +
-          '<div style="display:flex;gap:8px;padding-top:6px;">' +
+          (bot
+            ? '<div><label class="field-label">Bot / Table Name</label><input id="set-name" class="form-input" value="' + esc(bot.name) + '" required /></div>' +
+              '<div><label class="field-label">Folder</label><input id="set-folder" list="dl-folders" class="form-input" value="' + esc(bot.folder || 'General') + '" /><datalist id="dl-folders">' + folders.map(function (f) { return '<option value="' + esc(f) + '">'; }).join('') + '</datalist></div>' +
+              '<div><label class="field-label">Description</label><input id="set-desc" class="form-input" value="' + esc(bot.description || '') + '" /></div>' +
+              '<div><label class="field-label">Telegram Bot Token (@BotFather)</label><input id="set-tok" type="password" class="form-input mono" placeholder="Optional: paste @BotFather token" value="' + esc(bot.telegramToken || '') + '" /></div>'
+            : '') +
+          '<div style="padding:12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+              '<label class="field-label" style="margin:0;color:#0D47A1;" for="set-access-code">' + icon('lock', 12) + ' App Lock Access Code</label>' +
+              '<button type="button" id="set-lock-now" class="btn btn-outline" style="padding:3px 9px;font-size:11px;color:#0D47A1;border-color:#93C5FD;">Lock Now</button>' +
+            '</div>' +
+            '<input id="set-access-code" type="text" class="form-input mono" value="' + esc(curCode) + '" placeholder="e.g. 1234" required />' +
+            '<div style="font-size:11px;color:#475569;">Required whenever a new browser session opens the app.</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;padding-top:4px;">' +
             '<button type="button" id="set-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
             '<button type="submit" class="btn btn-dark-blue" style="flex:1;">Save Settings</button>' +
           '</div></form></div></div>';
@@ -3631,19 +3898,25 @@
       document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('set-close').onclick = closeModal;
       document.getElementById('set-cancel').onclick = closeModal;
+      document.getElementById('set-lock-now').onclick = lockAppNow;
       document.getElementById('set-form').onsubmit = function (e) {
         e.preventDefault();
-        if (!guardWriteAction('Save Bot Settings')) return;
-        bot.name = document.getElementById('set-name').value.trim() || 'New Bot';
-        bot.folder = document.getElementById('set-folder').value.trim() || 'General';
-        bot.description = document.getElementById('set-desc').value.trim();
-        bot.telegramToken = document.getElementById('set-tok').value.trim();
-        bot.botStatus = bot.telegramToken ? (bot.botStatus === 'online' ? 'online' : 'simulator') : 'simulator';
-        bot.updatedAt = new Date().toISOString();
-        updateBot(bot, 'EDIT', 'Updated settings for "' + bot.name + '"');
+        if (!guardWriteAction('Save Settings')) return;
+        var newCodeRaw = (document.getElementById('set-access-code').value || '').trim();
+        if (!newCodeRaw) { showToast('Access code cannot be empty'); return; }
+        var savedCode = setConfiguredAccessCode(newCodeRaw);
+        if (bot) {
+          bot.name = document.getElementById('set-name').value.trim() || 'New Bot';
+          bot.folder = document.getElementById('set-folder').value.trim() || 'General';
+          bot.description = document.getElementById('set-desc').value.trim();
+          bot.telegramToken = document.getElementById('set-tok').value.trim();
+          bot.botStatus = bot.telegramToken ? (bot.botStatus === 'online' ? 'online' : 'simulator') : 'simulator';
+          bot.updatedAt = new Date().toISOString();
+          updateBot(bot, 'EDIT', 'Updated settings for "' + bot.name + '"');
+          if (bot.telegramToken) syncTelegramBot(bot, true);
+        }
         closeModal(); renderApp();
-        if (bot.telegramToken) syncTelegramBot(bot, true);
-        showToast('Saved settings for "' + bot.name + '"');
+        showToast(bot ? ('Saved settings & access code for "' + bot.name + '"') : ('Saved app access code (' + savedCode + ')'));
       };
     }
 
@@ -5124,6 +5397,15 @@
               '<button id="cfg-cyber-save" class="btn btn-green" style="font-size:12px;">Save Cyber Manager</button>' +
             '</div>' +
           '</div>' +
+          '<div style="padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="font-weight:800;font-size:13px;color:#0D47A1;display:flex;align-items:center;gap:6px;">' + icon('lock', 15) + '<span>Access Code Lock Screen (Session Lock)</span></div>' +
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+              '<input id="cfg-access-code" class="form-input mono" style="flex:1;min-width:150px;" value="' + esc(getConfiguredAccessCode()) + '" placeholder="Access code (default 1234)" />' +
+              '<button id="cfg-access-save" class="btn btn-dark-blue" style="font-size:12px;">Save Access Code</button>' +
+              '<button id="cfg-lock-now" class="btn btn-outline" style="font-size:12px;color:#0D47A1;">Lock Now</button>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#475569;">Default is 1234. Asked on every new browser session before showing tables or menus.</div>' +
+          '</div>' +
           '<div style="padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
             '<div style="font-weight:800;font-size:13px;color:#0F172A;">Immediate Sync Method (Browser Open &amp; Telegram Open)</div>' +
             '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Immediate sync on Browser Open / Tab Focus</span><input type="checkbox" id="cfg-sync-open" ' + (state.adminConfig.autoSyncOnOpen ? 'checked' : '') + ' /></label>' +
@@ -5229,6 +5511,17 @@
           renderApp(); renderAdminModal(m);
           showToast('Manager of Cyber Security set to ' + nv);
         };
+        var accSaveBtn = document.getElementById('cfg-access-save');
+        if (accSaveBtn) accSaveBtn.onclick = function () {
+          var nv = (document.getElementById('cfg-access-code').value || '').trim();
+          if (!nv) { showToast('Access code cannot be empty'); return; }
+          var saved = setConfiguredAccessCode(nv);
+          recordAudit('AUTH', null, 'Updated workspace access code', { source: 'Admin' });
+          renderAdminModal(m);
+          showToast('Access code updated to "' + saved + '"');
+        };
+        var accLockBtn = document.getElementById('cfg-lock-now');
+        if (accLockBtn) accLockBtn.onclick = lockAppNow;
         document.getElementById('cfg-sync-open').onchange = function (e) { state.adminConfig.autoSyncOnOpen = e.target.checked; saveAdminState(); };
         document.getElementById('cfg-tg-poll').onchange = function (e) { state.adminConfig.telegramAutoPoll = e.target.checked; saveAdminState(); };
         document.getElementById('cfg-dash-strip').onchange = function (e) { state.adminConfig.showDashboardActivity = e.target.checked; saveAdminState(); renderApp(); };
@@ -6248,7 +6541,7 @@
     renderApp();
     startTelegramAutoPoll();
     startLiveDateWatcher();
-    if (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
+    if (isAccessUnlocked() && window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
       getSbClient();
       openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
     }
