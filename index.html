@@ -50,12 +50,20 @@
     }
     .header-inner {
       max-width: 1200px; margin: 0 auto;
-      padding: 0 16px; height: 56px;
-      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 14px; min-height: 54px; height: auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px 12px; flex-wrap: wrap;
     }
-    .header-left, .header-right { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .header-left { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .header-right {
+      display: flex; align-items: center; gap: 6px;
+      flex-wrap: wrap; justify-content: flex-end; max-width: 100%;
+    }
+    @media (max-width: 780px) {
+      .header-right { width: 100%; justify-content: flex-start; }
+    }
     .icon-btn {
-      width: 36px; height: 36px; border-radius: 999px;
+      width: 34px; height: 34px; border-radius: 999px;
       display: inline-flex; align-items: center; justify-content: center;
       color: #fff; transition: background 0.15s;
       flex-shrink: 0;
@@ -68,7 +76,7 @@
     .sync-pill {
       display: inline-flex; align-items: center; gap: 6px;
       background: rgba(10, 42, 102, 0.55); padding: 3px 9px; border-radius: 999px;
-      font-size: 11px; font-weight: 600; color: #DBEAFE;
+      font-size: 11px; font-weight: 600; color: #DBEAFE; white-space: nowrap;
     }
     .sync-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
     .dot-synced { background: #34D399; }
@@ -78,15 +86,16 @@
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
     .header-action-btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 6px 11px; border-radius: 8px;
-      background: rgba(21,101,192,0.9); border: 1px solid rgba(147,197,253,0.4);
-      color: #fff; font-size: 12px; font-weight: 700; transition: background 0.15s;
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 10px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+      background: rgba(21,101,192,0.9); border: 1px solid rgba(147,197,253,0.42);
+      color: #fff; font-size: 11.5px; font-weight: 700; transition: background 0.15s;
     }
     .header-action-btn:hover { background: #1976D2; }
     .header-select {
-      background: var(--blue-mid); color: #fff; font-size: 12px; font-weight: 600;
-      padding: 6px 8px; border-radius: 6px; border: none; outline: none; cursor: pointer;
+      background: var(--blue-mid); color: #fff; font-size: 11.5px; font-weight: 600;
+      padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(147,197,253,0.35);
+      outline: none; cursor: pointer; flex-shrink: 0;
     }
     .search-bar-wrap {
       background: var(--blue-mid); padding: 8px 16px; border-top: 1px solid rgba(255,255,255,0.18);
@@ -100,17 +109,17 @@
       width: 100%; border: none; outline: none; font-size: 13px; background: transparent;
     }
 
-    /* Folder Tabs Bar */
+    /* Folder Tabs Bar (Positioned Underneath Homepage Hero) */
     .folders-bar {
       background: linear-gradient(90deg, #103F9A 0%, #1565C0 60%, #0E7490 100%);
-      padding: 9px 16px;
-      border-top: 1px solid rgba(255,255,255,0.14);
-      overflow-x: auto; scrollbar-width: none;
+      padding: 11px 14px;
+      border-radius: 14px;
+      margin-bottom: 18px;
+      box-shadow: 0 6px 18px rgba(13, 71, 161, 0.16);
+      border: 1px solid rgba(147, 197, 253, 0.3);
     }
-    .folders-bar::-webkit-scrollbar { display: none; }
     .folders-inner {
-      max-width: 1168px; margin: 0 auto;
-      display: flex; align-items: center; gap: 7px;
+      display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
     }
     .folder-tab {
       padding: 6px 13px; border-radius: 999px; font-size: 12px; font-weight: 700;
@@ -3042,25 +3051,7 @@
         '</div></div>';
       }
 
-      var healthSummary = analyzeFolderHealth().summary;
-      html += '<div class="folders-bar"><div class="folders-inner">' +
-        '<span style="font-size:11px;font-weight:700;color:#BFDBFE;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;margin-right:4px;flex-shrink:0;">' +
-        '<span style="color:#FCD34D">' + icon('folder', 13) + '</span>' + esc(t('folders')) + '</span>' +
-        '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">' + esc(t('all_folders')) + ' <span class="folder-count">' + state.bots.length + '</span></button>';
-
-      folders.forEach(function (f) {
-        var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
-        var fLocked = isFolderLocked(f);
-        var fUnlocked = isFolderUnlocked(f);
-        var lockMark = fLocked ? (fUnlocked ? ' 🔓' : ' 🔒') : '';
-        html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + lockMark + ' <span class="folder-count">' + cnt + '</span></button>';
-      });
-      html += '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Create a new folder (e.g. Folder B)">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>';
-      html += '<button type="button" class="folder-tab" id="btn-folder-lock-bar" style="background:rgba(245,158,11,0.22);border-color:rgba(253,230,138,0.45);" title="Folder Lock &amp; Change Code">' + icon('lock', 12) + ' <span>Folder Lock</span></button>';
-      html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>' + esc(t('history_restore')) + '</span>' +
-        ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
-      '</button>';
-      html += '</div></div></header>';
+      html += '</header>';
 
       html += '<main class="dashboard-main">';
 
@@ -3103,6 +3094,26 @@
           assetImgHtml(BRAND_ASSETS.posterAdama, 'maed-poster-box', "MA'ED Table Salt Poster", "MA'ED Table Salt — Adama, Ethiopia") +
         '</div>' +
       '</section>';
+
+      var healthSummary = analyzeFolderHealth().summary;
+      html += '<section class="folders-bar" aria-label="Homepage Folders"><div class="folders-inner">' +
+        '<span style="font-size:11px;font-weight:700;color:#BFDBFE;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;margin-right:4px;flex-shrink:0;">' +
+        '<span style="color:#FCD34D">' + icon('folder', 13) + '</span>' + esc(t('folders')) + '</span>' +
+        '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">' + esc(t('all_folders')) + ' <span class="folder-count">' + state.bots.length + '</span></button>';
+
+      folders.forEach(function (f) {
+        var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
+        var fLocked = isFolderLocked(f);
+        var fUnlocked = isFolderUnlocked(f);
+        var lockMark = fLocked ? (fUnlocked ? ' 🔓' : ' 🔒') : '';
+        html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + lockMark + ' <span class="folder-count">' + cnt + '</span></button>';
+      });
+      html += '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Create a new folder (e.g. Folder B)">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>';
+      html += '<button type="button" class="folder-tab" id="btn-folder-lock-bar" style="background:rgba(245,158,11,0.22);border-color:rgba(253,230,138,0.45);" title="Folder Lock &amp; Change Code">' + icon('lock', 12) + ' <span>Folder Lock</span></button>';
+      html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>' + esc(t('history_restore')) + '</span>' +
+        ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
+      '</button>';
+      html += '</div></section>';
 
 
       if (state.adminConfig.showDashboardActivity) {
