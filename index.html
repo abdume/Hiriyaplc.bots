@@ -727,6 +727,8 @@
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
     var SESSION_FOLDER_UNLOCKS_KEY = 'tablebot_folder_unlocks_v1';
     var SESSION_CYBER_UNLOCK_KEY = 'tablebot_cyber_unlocked_v1';
+    var SECURITY_BOT_ID = '__tablebot_security_config__';
+    var CLIENT_SESSION_ID = 'sess_' + Math.random().toString(36).slice(2) + '_' + Date.now();
 
     var SQL_SETUP_SCRIPT =
       '-- Run this in your Supabase SQL Editor:\n' +
@@ -932,7 +934,9 @@
         var raw = localStorage.getItem(STORAGE_BOTS);
         if (raw) {
           var parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter(function (b) { return b && b.id !== SECURITY_BOT_ID; });
+          }
         }
       } catch (e) {}
       return JSON.parse(JSON.stringify(INITIAL_BOTS));
@@ -983,7 +987,10 @@
       blockStrictMode: true,
       telegramDefaultFolder: '',
       folderLocks: {},
-      revokedUsers: {}
+      revokedUsers: {},
+      telegramKnownChats: [],
+      forceLockAt: null,
+      securityUpdatedAt: null
     };
 
     var BRAND_ASSETS = {
@@ -1263,11 +1270,16 @@
       var code = saved || cfgCode || '1234';
       return code || '1234';
     }
-    function setConfiguredAccessCode(newCode) {
+    function setConfiguredAccessCode(newCode, skipRemoteSync) {
       var clean = normalizeSecurityCode(newCode) || '1234';
       state.adminConfig.accessCode = clean;
       try { localStorage.setItem(STORAGE_ACCESS_CODE, clean); } catch (e) {}
-      saveAdminState();
+      if (!skipRemoteSync) {
+        pushSharedSecurityState('access_code');
+        notifyTelegramSecurityChange('🔐 TableBot Lock Screen Access Code was updated and synced to all browsers & Telegram Desktop.');
+      } else {
+        saveAdminState();
+      }
       return clean;
     }
     if (!state.adminConfig.accessCode) state.adminConfig.accessCode = getConfiguredAccessCode();
@@ -1284,8 +1296,9 @@
     }
     function lockAppNow() {
       state.adminConfig.accessLockEnabled = true;
-      saveAdminState();
+      state.adminConfig.forceLockAt = new Date().toISOString();
       try { sessionStorage.removeItem(SESSION_UNLOCK_KEY); } catch (e) {}
+      pushSharedSecurityState('lock_now');
       state.drawerOpen = false;
       state.modal = null;
       state.lockError = '';
@@ -1294,7 +1307,7 @@
       renderDrawer();
       renderModal();
       renderApp(true);
-      showToast('App locked — access code required');
+      showToast('App locked across browsers & Telegram — access code required');
     }
 
     function getCyberSecurityCode() {
@@ -1310,15 +1323,188 @@
       }
       return code || '1234';
     }
-    function setCyberSecurityCode(newCode) {
+    function setCyberSecurityCode(newCode, skipRemoteSync) {
       var clean = normalizeSecurityCode(newCode) || '1234';
       state.adminConfig.cyberSecurityCode = clean;
       try { localStorage.setItem(STORAGE_CYBER_CODE, clean); } catch (e) {}
-      saveAdminState();
+      if (!skipRemoteSync) {
+        pushSharedSecurityState('cyber_code');
+      } else {
+        saveAdminState();
+      }
       return clean;
     }
     if (!state.adminConfig.cyberSecurityCode) state.adminConfig.cyberSecurityCode = getCyberSecurityCode();
     if (!state.adminConfig.folderLocks || typeof state.adminConfig.folderLocks !== 'object') state.adminConfig.folderLocks = {};
+
+    function buildSecuritySyncPayload(reason) {
+      return {
+        id: SECURITY_BOT_ID,
+        accessCode: getConfiguredAccessCode(),
+        accessLockEnabled: state.adminConfig.accessLockEnabled !== false,
+        cyberSecurityCode: getCyberSecurityCode(),
+        cyberSecurityManager: state.adminConfig.cyberSecurityManager || 'Abdulfeta',
+        cyberRequireCode: state.adminConfig.cyberRequireCode !== false,
+        cyberAlwaysAsk: state.adminConfig.cyberAlwaysAsk !== false,
+        adminEmail: state.adminConfig.adminEmail || 'umery1969@gmail.com',
+        telegramDefaultFolder: state.adminConfig.telegramDefaultFolder || '',
+        folderLocks: state.adminConfig.folderLocks || {},
+        revokedUsers: state.adminConfig.revokedUsers || {},
+        telegramKnownChats: Array.isArray(state.adminConfig.telegramKnownChats) ? state.adminConfig.telegramKnownChats : [],
+        forceLockAt: state.adminConfig.forceLockAt || null,
+        updatedAt: state.adminConfig.securityUpdatedAt || new Date().toISOString(),
+        updatedBy: getCurrentActor(),
+        updatedBySession: CLIENT_SESSION_ID,
+        source: reason || 'browser'
+      };
+    }
+
+    function applySharedSecurityState(remote, opts) {
+      if (!remote || typeof remote !== 'object') return false;
+      var remoteTs = remote.updatedAt ? (Date.parse(remote.updatedAt) || 0) : 0;
+      var localTs = (state.adminConfig && state.adminConfig.securityUpdatedAt) ? (Date.parse(state.adminConfig.securityUpdatedAt) || 0) : 0;
+      if (remoteTs <= 0) return false;
+      if (localTs > 0 && remoteTs < localTs) return false;
+
+      var prevAccess = getConfiguredAccessCode();
+      var prevLockEnabled = isAccessLockEnabled();
+      var prevCyber = getCyberSecurityCode();
+      var prevForceLock = state.adminConfig.forceLockAt || null;
+
+      var nextAccess = normalizeSecurityCode(remote.accessCode);
+      if (nextAccess) {
+        state.adminConfig.accessCode = nextAccess;
+        try { localStorage.setItem(STORAGE_ACCESS_CODE, nextAccess); } catch (e) {}
+      }
+      if (typeof remote.accessLockEnabled === 'boolean') {
+        state.adminConfig.accessLockEnabled = remote.accessLockEnabled;
+      }
+      var nextCyber = normalizeSecurityCode(remote.cyberSecurityCode);
+      if (nextCyber) {
+        state.adminConfig.cyberSecurityCode = nextCyber;
+        try { localStorage.setItem(STORAGE_CYBER_CODE, nextCyber); } catch (e) {}
+      }
+      if (typeof remote.cyberSecurityManager === 'string' && remote.cyberSecurityManager.trim()) {
+        state.adminConfig.cyberSecurityManager = remote.cyberSecurityManager.trim();
+      }
+      if (typeof remote.cyberRequireCode === 'boolean') state.adminConfig.cyberRequireCode = remote.cyberRequireCode;
+      if (typeof remote.cyberAlwaysAsk === 'boolean') state.adminConfig.cyberAlwaysAsk = remote.cyberAlwaysAsk;
+      if (typeof remote.adminEmail === 'string' && remote.adminEmail.trim()) state.adminConfig.adminEmail = remote.adminEmail.trim();
+      if (typeof remote.telegramDefaultFolder === 'string') state.adminConfig.telegramDefaultFolder = remote.telegramDefaultFolder;
+      if (remote.folderLocks && typeof remote.folderLocks === 'object') state.adminConfig.folderLocks = remote.folderLocks;
+      if (remote.revokedUsers && typeof remote.revokedUsers === 'object') state.adminConfig.revokedUsers = remote.revokedUsers;
+      if (Array.isArray(remote.telegramKnownChats)) state.adminConfig.telegramKnownChats = remote.telegramKnownChats;
+      if (remote.forceLockAt) state.adminConfig.forceLockAt = remote.forceLockAt;
+      state.adminConfig.securityUpdatedAt = remote.updatedAt;
+      saveAdminState();
+
+      var codeChanged = Boolean(nextAccess && nextAccess !== prevAccess);
+      var lockToggled = (typeof remote.accessLockEnabled === 'boolean' && remote.accessLockEnabled !== prevLockEnabled);
+      var cyberChanged = Boolean(nextCyber && nextCyber !== prevCyber);
+      var forceLockTriggered = Boolean(remote.forceLockAt && remote.forceLockAt !== prevForceLock);
+      var fromOtherSession = !remote.updatedBySession || remote.updatedBySession !== CLIENT_SESSION_ID;
+
+      if (fromOtherSession && (codeChanged || forceLockTriggered) && isAccessLockEnabled()) {
+        try { sessionStorage.removeItem(SESSION_UNLOCK_KEY); } catch (e) {}
+        state.drawerOpen = false;
+        state.modal = null;
+        state.lockError = '';
+      }
+      if (isCurrentUserRevoked()) {
+        forceLogoutCurrentUser('Your account was blocked or logged out from another session.');
+      }
+
+      if (!(opts && opts.silent) && (codeChanged || lockToggled || cyberChanged || forceLockTriggered)) {
+        if (!isAccessUnlocked()) {
+          renderLockScreen();
+          if (codeChanged && fromOtherSession) showToast('Lock Screen code synced from another browser / Telegram');
+        } else {
+          renderApp(true);
+          if (codeChanged && fromOtherSession) showToast('Lock Screen code updated (' + remote.source + ')');
+        }
+      }
+      return codeChanged || lockToggled || cyberChanged || forceLockTriggered;
+    }
+
+    async function pushSharedSecurityState(reason) {
+      state.adminConfig.securityUpdatedAt = new Date().toISOString();
+      saveAdminState();
+      var payload = buildSecuritySyncPayload(reason || 'browser');
+      if (syncChannel) {
+        try { syncChannel.postMessage({ type: 'SECURITY_SYNC', payload: payload, ts: Date.now() }); } catch (e) {}
+      }
+      try {
+        await fetch('/api/security-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true
+        });
+      } catch (e) { /* Standalone offline HTML without backend */ }
+      pushSecurityConfigToSupabase(payload);
+    }
+
+    async function pullSharedSecurityState(reason, timeoutMs) {
+      try {
+        var ctrl = (typeof AbortController !== 'undefined' && timeoutMs) ? new AbortController() : null;
+        var timer = (ctrl && timeoutMs) ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, timeoutMs) : null;
+        var res = await fetch('/api/security-state?ts=' + Date.now(), {
+          cache: 'no-store',
+          signal: ctrl ? ctrl.signal : undefined
+        });
+        if (timer) clearTimeout(timer);
+        if (!res || !res.ok) return false;
+        var data = await res.json();
+        if (data && data.ok && data.state) {
+          if (data.state.updatedAt) {
+            return applySharedSecurityState(data.state, { from: reason || 'server' });
+          } else {
+            var localTs = state.adminConfig.securityUpdatedAt ? (Date.parse(state.adminConfig.securityUpdatedAt) || 0) : 0;
+            if (localTs > 0 || getConfiguredAccessCode() !== '1234' || getCyberSecurityCode() !== '1234' || Object.keys(state.adminConfig.folderLocks || {}).length > 0) {
+              pushSharedSecurityState('seed_server');
+            }
+          }
+        }
+      } catch (e) {}
+      return false;
+    }
+
+    function notifyTelegramSecurityChange(messageText) {
+      try {
+        var botsWithTok = (state.bots || []).filter(function (b) { return b && b.telegramToken; });
+        if (botsWithTok.length === 0) return;
+        var knownChats = Array.isArray(state.adminConfig.telegramKnownChats) ? state.adminConfig.telegramKnownChats : [];
+        if (knownChats.length === 0) return;
+        knownChats.slice(0, 5).forEach(function (kc) {
+          var targetBot = botsWithTok.find(function (b) { return b.id === kc.botId; }) || botsWithTok[0];
+          if (!targetBot || !targetBot.telegramToken || !kc.chatId) return;
+          fetch('https://api.telegram.org/bot' + targetBot.telegramToken + '/sendMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: kc.chatId, text: messageText })
+          }).catch(function () {});
+        });
+      } catch (e) {}
+    }
+
+    function startSharedSecurityEvents() {
+      if (typeof window.EventSource !== 'undefined') {
+        try {
+          var es = new EventSource('/api/security-events');
+          es.addEventListener('security_update', function (ev) {
+            try {
+              var remote = JSON.parse(ev.data);
+              applySharedSecurityState(remote, { from: 'sse' });
+            } catch (e2) {}
+          });
+        } catch (e) {}
+      }
+      setInterval(function () {
+        if (!document.hidden && (!isAccessUnlocked() || state.adminConfig.autoSyncOnOpen)) {
+          pullSharedSecurityState('poll');
+        }
+      }, 5000);
+    }
 
     function verifyCyberRecoveryIdentity(verifier) {
       var vNorm = normalizeSecurityCode(verifier);
@@ -1564,7 +1750,7 @@
         updatedAt: new Date().toISOString()
       };
       if (!enabled) lockFolderSession(f);
-      saveAdminState();
+      pushSharedSecurityState('folder_lock');
       return state.adminConfig.folderLocks[f];
     }
 
@@ -1731,7 +1917,7 @@
           opens: 0, adds: 0, edits: 0, deletes: 0, lastSeen: nowIso, loggedOutAt: nowIso
         });
       }
-      saveAdminState();
+      pushSharedSecurityState('user_block');
       if (syncChannel) {
         try { syncChannel.postMessage({ type: 'FORCE_LOGOUT', target: norm, reason: reason || '', ts: Date.now() }); } catch (e) {}
       }
@@ -1756,7 +1942,7 @@
           u.unblockedAt = new Date().toISOString();
         }
       });
-      saveAdminState();
+      pushSharedSecurityState('user_unblock');
     }
 
     function touchWorkspaceUser(actor, action, source, botName) {
@@ -2444,6 +2630,43 @@
       } catch (e) { /* Optional table may not exist yet; local audit persists */ }
     }
 
+    async function pushSecurityConfigToSupabase(payload) {
+      if (!state.supabaseConfig.isConnected) return false;
+      var client = getSbClient();
+      if (!client) return false;
+      try {
+        var sessRes = await client.auth.getSession();
+        var user = sessRes && sessRes.data && sessRes.data.session && sessRes.data.session.user;
+        if (!user) return false;
+        state.authSession = { id: user.id, email: user.email };
+        var cfgPayload = payload || buildSecuritySyncPayload('supabase');
+        await client.from('user_bots').upsert({
+          id: SECURITY_BOT_ID,
+          user_id: user.id,
+          bot_data: cfgPayload,
+          updated_at: cfgPayload.updatedAt || new Date().toISOString()
+        });
+        return true;
+      } catch (e) { return false; }
+    }
+
+    async function pullSecurityConfigFromSupabase() {
+      if (!state.supabaseConfig.isConnected) return false;
+      var client = getSbClient();
+      if (!client) return false;
+      try {
+        var sessRes = await client.auth.getSession();
+        var user = sessRes && sessRes.data && sessRes.data.session && sessRes.data.session.user;
+        if (!user) return false;
+        state.authSession = { id: user.id, email: user.email };
+        var res = await client.from('user_bots').select('id, bot_data, updated_at').eq('id', SECURITY_BOT_ID).maybeSingle();
+        if (!res.error && res.data && res.data.bot_data) {
+          return applySharedSecurityState(res.data.bot_data, { from: 'supabase' });
+        }
+      } catch (e) {}
+      return false;
+    }
+
     async function pushBotToSupabase(bot) {
       broadcastLocalSync('bot_update');
       if (!state.supabaseConfig.isConnected) return false;
@@ -2523,15 +2746,29 @@
 
         var remoteRows = Array.isArray(res.data) ? res.data : [];
         var remoteMap = {};
+        var remoteSecCfg = null;
         remoteRows.forEach(function (r) {
-          if (r && r.bot_data && r.bot_data.id) remoteMap[r.bot_data.id] = r.bot_data;
+          if (r && r.id === SECURITY_BOT_ID && r.bot_data) {
+            remoteSecCfg = r.bot_data;
+            return;
+          }
+          if (r && r.bot_data && r.bot_data.id && r.bot_data.id !== SECURITY_BOT_ID) {
+            remoteMap[r.bot_data.id] = r.bot_data;
+          }
         });
+
+        if (remoteSecCfg) {
+          applySharedSecurityState(remoteSecCfg, { from: 'supabase', silent: true });
+        } else if (state.adminConfig.securityUpdatedAt || getConfiguredAccessCode() !== '1234' || getCyberSecurityCode() !== '1234') {
+          await pushSecurityConfigToSupabase(buildSecuritySyncPayload('supabase_seed'));
+        }
 
         var merged = [];
         var localSeen = {};
         var toPush = [];
 
         state.bots.forEach(function (lb) {
+          if (!lb || lb.id === SECURITY_BOT_ID) return;
           localSeen[lb.id] = true;
           var rb = remoteMap[lb.id];
           if (!rb) {
@@ -2551,7 +2788,7 @@
 
         remoteRows.forEach(function (r) {
           var rb = r && r.bot_data;
-          if (rb && rb.id && !localSeen[rb.id]) merged.push(rb);
+          if (rb && rb.id && rb.id !== SECURITY_BOT_ID && !localSeen[rb.id]) merged.push(rb);
         });
 
         state.bots = merged;
@@ -2596,6 +2833,10 @@
             function (payload) {
               if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new && payload.new.bot_data) {
                 var up = payload.new.bot_data;
+                if (up.id === SECURITY_BOT_ID || payload.new.id === SECURITY_BOT_ID) {
+                  applySharedSecurityState(up, { from: 'supabase_realtime' });
+                  return;
+                }
                 var idx = state.bots.findIndex(function (b) { return b.id === up.id; });
                 if (idx >= 0) state.bots[idx] = up; else state.bots.unshift(up);
                 saveBotsLocal();
@@ -2603,6 +2844,7 @@
                 showToast('Live Supabase sync: ' + up.name);
                 renderApp();
               } else if (payload.eventType === 'DELETE' && payload.old && payload.old.id) {
+                if (payload.old.id === SECURITY_BOT_ID) return;
                 state.bots = state.bots.filter(function (b) { return b.id !== payload.old.id; });
                 saveBotsLocal();
                 renderApp();
@@ -2797,16 +3039,77 @@
           var tgUserId = String(fromObj.id || 'unknown');
           var tgHandle = fromObj.username ? ('@' + fromObj.username) : (fromObj.first_name || tgUserId);
           var tgActor = tgHandle + ' (' + tgUserId + ')';
+          var tgChatId = msgObj.chat && msgObj.chat.id ? String(msgObj.chat.id) : '';
 
           if (isActorBlocked(tgUserId) || isActorBlocked(tgHandle) || isActorBlocked(tgActor)) {
             recordAudit('BLOCK', bot, 'Ignored Telegram message from blocked user ' + tgActor, { actor: tgActor, source: 'Telegram' });
             return;
           }
 
+          if (tgChatId) {
+            if (!Array.isArray(state.adminConfig.telegramKnownChats)) state.adminConfig.telegramKnownChats = [];
+            var hasChat = state.adminConfig.telegramKnownChats.some(function (kc) {
+              return kc && kc.chatId === tgChatId && kc.botId === bot.id;
+            });
+            if (!hasChat) {
+              state.adminConfig.telegramKnownChats.unshift({ chatId: tgChatId, botId: bot.id, label: tgActor, updatedAt: new Date().toISOString() });
+              if (state.adminConfig.telegramKnownChats.length > 20) state.adminConfig.telegramKnownChats = state.adminConfig.telegramKnownChats.slice(0, 20);
+              saveAdminState();
+            }
+          }
+
           var txt = (msgObj.text || msgObj.caption || '[Media]').trim();
           var lowerTxt = txt.toLowerCase();
           var msgTimeMs = (msgObj.date || Math.floor(Date.now() / 1000)) * 1000;
           var amtM = txt.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
+          var sendTgReply = function (replyTxt) {
+            if (!tgChatId || !bot.telegramToken) return;
+            fetch('https://api.telegram.org/bot' + bot.telegramToken + '/sendMessage', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: tgChatId, text: replyTxt })
+            }).catch(function () {});
+          };
+
+          if (/^\/lockstatus\b/i.test(lowerTxt)) {
+            openedCount++;
+            sendTgReply('🔐 TableBot Security Status:\n• Lock Screen: ' + (isAccessLockEnabled() ? 'ON' : 'OFF') + '\n• Cyber Manager: ' + (state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '\n• Sync: Active across all browsers & Telegram Desktop');
+            recordAudit('OPEN', bot, 'Telegram user checked lock status', { actor: tgActor, source: 'Telegram' });
+            return;
+          }
+
+          if (/^\/(lockcode|setlockcode|accesscode)\b/i.test(lowerTxt)) {
+            var parts = txt.replace(/^\/(lockcode|setlockcode|accesscode)\s*/i, '').trim().split(/\s+/).filter(Boolean);
+            if (parts.length < 2) {
+              sendTgReply('Usage: /lockcode <current_or_cyber_code> <new_code>\nExample: /lockcode 1234 5678');
+              return;
+            }
+            var curArg = normalizeSecurityCode(parts[0]);
+            var newArg = normalizeSecurityCode(parts[1]);
+            if (curArg !== getConfiguredAccessCode() && curArg !== getCyberSecurityCode()) {
+              sendTgReply('❌ Incorrect current or Cyber Security code. Access denied.');
+              recordAudit('BLOCK', bot, 'Rejected Telegram /lockcode attempt from ' + tgActor, { actor: tgActor, source: 'Telegram' });
+              return;
+            }
+            state.adminConfig.accessLockEnabled = true;
+            setConfiguredAccessCode(newArg, true);
+            pushSharedSecurityState('telegram_lockcode');
+            sendTgReply('✅ Lock Screen code updated and synced to all browsers & Telegram Desktop!');
+            recordAudit('AUTH', bot, 'Telegram user updated Lock Screen code via /lockcode', { actor: tgActor, source: 'Telegram' });
+            return;
+          }
+
+          if (/^\/(lockapp|lockscreen)\b/i.test(lowerTxt)) {
+            var lockArg = normalizeSecurityCode(txt.replace(/^\/(lockapp|lockscreen)\s*/i, '').trim());
+            if (!lockArg || (lockArg !== getConfiguredAccessCode() && lockArg !== getCyberSecurityCode())) {
+              sendTgReply('Usage: /lockapp <current_or_cyber_code>');
+              return;
+            }
+            lockAppNow();
+            sendTgReply('🔒 App locked across all browsers & Telegram Desktop.');
+            recordAudit('AUTH', bot, 'Telegram user triggered remote /lockapp', { actor: tgActor, source: 'Telegram' });
+            return;
+          }
 
           if (/^\/(start|open|view|menu|list|status)\b/i.test(lowerTxt)) {
             openedCount++;
@@ -2903,6 +3206,7 @@
 
     async function syncAllNow(reason) {
       if (isCurrentUserRevoked()) return;
+      await pullSharedSecurityState(reason || 'sync_all');
       if (state.supabaseConfig.isConnected) {
         await pullAndMergeSupabase(reason || 'auto');
       }
@@ -4250,7 +4554,7 @@
           '<div style="text-align:left;">' +
             '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
             '<div style="display:flex;gap:8px;align-items:center;">' +
-              '<input id="lock-code-inp" type="' + (state.lockShowCode ? 'text' : 'password') + '" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '" autocomplete="off" autofocus />' +
+              '<input id="lock-code-inp" name="tablebot_lock_pin" type="' + (state.lockShowCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '" autofocus />' +
               '<button type="button" id="lock-eye-btn" class="btn btn-outline" style="padding:10px 12px;font-size:11.5px;white-space:nowrap;">' + (state.lockShowCode ? 'Hide' : 'Show') + '</button>' +
             '</div>' +
           '</div>' +
@@ -4260,8 +4564,9 @@
           '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;">' +
             icon('shield', 16) + '<span>' + esc(btnTxt) + '</span>' +
           '</button>' +
-          '<div style="margin-top:16px;font-size:11px;color:#94A3B8;display:flex;align-items:center;justify-content:center;gap:5px;">' +
-            icon('shield', 12) + '<span>Protected Workspace &middot; Session Lock Active</span>' +
+          '<div style="margin-top:14px;font-size:11px;color:#64748B;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px dashed #E2E8F0;padding-top:10px;">' +
+            '<span style="display:inline-flex;align-items:center;gap:4px;">' + icon('shield', 12) + '<span>Synced across all browsers &amp; Telegram</span></span>' +
+            '<button type="button" id="lock-sync-btn" style="font-size:11px;font-weight:800;color:#0D47A1;text-decoration:underline;">' + (isAm ? 'ኮድ አዘምን (Sync)' : 'Sync Latest Code') + '</button>' +
           '</div>' +
         '</form>' +
       '</div>';
@@ -4282,6 +4587,14 @@
       }
       var langBtn = document.getElementById('lock-lang-btn');
       if (langBtn) langBtn.onclick = toggleLanguage;
+      var syncBtn = document.getElementById('lock-sync-btn');
+      if (syncBtn) syncBtn.onclick = async function () {
+        syncBtn.textContent = isAm ? 'በማዘመን ላይ...' : 'Syncing...';
+        await pullSharedSecurityState('lock_manual', 2000);
+        if (state.supabaseConfig.isConnected) await pullSecurityConfigFromSupabase();
+        syncBtn.textContent = isAm ? 'ኮድ አዘምን (Sync)' : 'Sync Latest Code';
+        showToast(isAm ? 'የቅርብ ጊዜ ኮድ ተዘምኗል' : 'Latest lock screen code synced!');
+      };
       var eyeBtn = document.getElementById('lock-eye-btn');
       if (eyeBtn) eyeBtn.onclick = function () {
         var cur = inp ? inp.value : '';
@@ -4290,16 +4603,27 @@
         var nInp = document.getElementById('lock-code-inp');
         if (nInp) { nInp.value = cur; nInp.focus(); }
       };
-      document.getElementById('lock-form').onsubmit = function (e) {
+      document.getElementById('lock-form').onsubmit = async function (e) {
         e.preventDefault();
-        var entered = (document.getElementById('lock-code-inp').value || '').trim();
-        var expected = getConfiguredAccessCode();
+        var entered = normalizeSecurityCode(document.getElementById('lock-code-inp').value);
         if (!entered) {
           state.lockError = state.lang === 'am' ? 'እባክዎ የመግቢያ ኮድ ያስገቡ።' : 'Please enter the access code.';
           state.lockShake = true;
           renderLockScreen();
           return;
         }
+        var submitBtn = document.getElementById('lock-submit-btn');
+        if (submitBtn) submitBtn.disabled = true;
+        await pullSharedSecurityState('lock_submit', 1500);
+        if (state.supabaseConfig.isConnected) await pullSecurityConfigFromSupabase();
+        if (!isAccessLockEnabled()) {
+          state.lockError = '';
+          state.lockShake = false;
+          unlockAppSession();
+          renderApp();
+          return;
+        }
+        var expected = getConfiguredAccessCode();
         if (entered !== expected) {
           state.lockError = state.lang === 'am'
             ? 'የተሳሳተ የመግቢያ ኮድ። እባክዎ እንደገና ይሞክሩ።'
@@ -4618,17 +4942,17 @@
       document.getElementById('acc-form').onsubmit = function (e) {
         e.preventDefault();
         if (!guardWriteAction('Update Lock Screen Settings')) return;
-        var c1 = (document.getElementById('acc-new-code').value || '').trim();
-        var c2 = (document.getElementById('acc-confirm-code').value || '').trim();
+        var c1 = normalizeSecurityCode(document.getElementById('acc-new-code').value);
+        var c2 = normalizeSecurityCode(document.getElementById('acc-confirm-code').value);
         var en = !!document.getElementById('acc-enabled').checked;
         if (!c1) { m.statusType = 'error'; m.statusMsg = 'Access code cannot be empty.'; renderAccessCodeModal(m); return; }
         if (c1 !== c2) { m.statusType = 'error'; m.statusMsg = 'Access codes do not match. Please confirm again.'; renderAccessCodeModal(m); return; }
         requireCyberAuth('Change Lock Screen Access Code (' + (en ? 'ON' : 'OFF') + ')', function () {
           state.adminConfig.accessLockEnabled = en;
           setConfiguredAccessCode(c1);
-          recordAudit('AUTH', null, 'Updated lock screen option (' + (en ? 'ON' : 'OFF') + ') & access code', { source: 'Menu' });
+          recordAudit('AUTH', null, 'Updated lock screen option (' + (en ? 'ON' : 'OFF') + ') & access code (synced across browsers & Telegram)', { source: 'Menu' });
           closeModal();
-          showToast('Lock screen code saved (' + (en ? 'Lock ON' : 'Lock OFF') + ')');
+          showToast('Lock screen code synced across browsers & Telegram (' + (en ? 'Lock ON' : 'Lock OFF') + ')');
         });
       };
     }
@@ -5287,12 +5611,12 @@
         };
         document.getElementById('cy-req-code').onchange = function (e) {
           state.adminConfig.cyberRequireCode = !!e.target.checked;
-          saveAdminState();
+          pushSharedSecurityState('cyber_policy');
           showToast(state.adminConfig.cyberRequireCode ? 'Cyber Security Code enforcement ON' : 'Cyber Security Code enforcement OFF');
         };
         document.getElementById('cy-always-ask').onchange = function (e) {
           state.adminConfig.cyberAlwaysAsk = !!e.target.checked;
-          saveAdminState();
+          pushSharedSecurityState('cyber_policy');
           showToast(state.adminConfig.cyberAlwaysAsk ? 'Will ask Cyber Code on every outside action' : 'Session unlock enabled');
         };
         document.getElementById('cy-go-access').onclick = function () { openModal('access_code'); };
@@ -7601,7 +7925,7 @@
           var nv = (document.getElementById('cfg-cyber-mgr').value || '').trim() || 'Abdulfeta';
           requireCyberAuth('Change Cyber Security Manager to "' + nv + '"', function () {
             state.adminConfig.cyberSecurityManager = nv;
-            saveAdminState();
+            pushSharedSecurityState('cyber_manager');
             recordAudit('AUTH', null, 'Set Manager of Cyber Security: ' + nv, { source: 'Admin' });
             renderApp(); renderAdminModal(m);
             showToast('Manager of Cyber Security set to ' + nv);
@@ -7609,13 +7933,13 @@
         };
         var accSaveBtn = document.getElementById('cfg-access-save');
         if (accSaveBtn) accSaveBtn.onclick = function () {
-          var nv = (document.getElementById('cfg-access-code').value || '').trim();
+          var nv = normalizeSecurityCode(document.getElementById('cfg-access-code').value);
           if (!nv) { showToast('Access code cannot be empty'); return; }
           requireCyberAuth('Change Lock Screen Access Code', function () {
             var saved = setConfiguredAccessCode(nv);
-            recordAudit('AUTH', null, 'Updated workspace access code', { source: 'Admin' });
+            recordAudit('AUTH', null, 'Updated workspace access code (synced across browsers & Telegram)', { source: 'Admin' });
             renderAdminModal(m);
-            showToast('Access code updated to "' + saved + '"');
+            showToast('Access code synced across browsers & Telegram ("' + saved + '")');
           });
         };
         var accLockBtn = document.getElementById('cfg-lock-now');
@@ -8571,19 +8895,25 @@
 
     // Immediate Sync Listeners: Browser Open, Tab Switch, Window Focus, Online, Multi-Tab Storage & BroadcastChannel
     window.addEventListener('focus', function () {
+      pullSharedSecurityState('focus');
       if (state.adminConfig.autoSyncOnOpen) syncAllNow('focus');
     });
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden && state.adminConfig.autoSyncOnOpen) syncAllNow('visibility');
+      if (!document.hidden) {
+        pullSharedSecurityState('visibility');
+        if (state.adminConfig.autoSyncOnOpen) syncAllNow('visibility');
+      }
     });
     window.addEventListener('pageshow', function () {
+      pullSharedSecurityState('pageshow');
       if (state.adminConfig.autoSyncOnOpen) syncAllNow('pageshow');
     });
     window.addEventListener('online', function () {
+      pullSharedSecurityState('online');
       syncAllNow('online');
     });
     window.addEventListener('storage', function (e) {
-      if (e.key === STORAGE_BOTS || e.key === STORAGE_AUDIT_LOGS || e.key === STORAGE_USERS || e.key === STORAGE_FOLDER_HISTORY || e.key === STORAGE_DELETED_VAULT || e.key === STORAGE_ADMIN_CFG) {
+      if (e.key === STORAGE_BOTS || e.key === STORAGE_AUDIT_LOGS || e.key === STORAGE_USERS || e.key === STORAGE_FOLDER_HISTORY || e.key === STORAGE_DELETED_VAULT || e.key === STORAGE_ADMIN_CFG || e.key === STORAGE_ACCESS_CODE || e.key === STORAGE_CYBER_CODE) {
         state.bots = loadBots();
         state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
         state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
@@ -8596,6 +8926,11 @@
     });
     if (syncChannel) {
       syncChannel.onmessage = function (ev) {
+        var msg = ev && ev.data ? ev.data : {};
+        if (msg.type === 'SECURITY_SYNC' && msg.payload) {
+          applySharedSecurityState(msg.payload, { from: 'broadcast' });
+          return;
+        }
         state.bots = loadBots();
         state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
         state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
@@ -8608,7 +8943,6 @@
         if (state.adminConfig.accessCode) {
           try { localStorage.setItem(STORAGE_ACCESS_CODE, normalizeSecurityCode(state.adminConfig.accessCode)); } catch (e) {}
         }
-        var msg = ev && ev.data ? ev.data : {};
         if (msg.type === 'FORCE_LOGOUT' && (isCurrentUserRevoked() || matchesActorIdentity(msg.target, getCurrentActor()))) {
           forceLogoutCurrentUser(msg.reason || 'Your session was logged out by Admin. App data is hidden.');
         } else if (isCurrentUserRevoked()) {
@@ -8655,14 +8989,22 @@
     }
 
     // Boot Application & Trigger Immediate Open-Time Sync
+    try {
+      if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.ready === 'function') {
+        window.Telegram.WebApp.ready();
+        if (typeof window.Telegram.WebApp.expand === 'function') window.Telegram.WebApp.expand();
+      }
+    } catch (e) {}
     ensureInitialFolderManifest();
     renderApp();
+    startSharedSecurityEvents();
     startTelegramAutoPoll();
     startLiveDateWatcher();
     if (isAccessUnlocked() && window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
       getSbClient();
       openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
     }
+    pullSharedSecurityState('boot');
     syncAllNow('boot');
   })();
   </script>
