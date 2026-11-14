@@ -665,12 +665,35 @@
       border-radius: 10px; padding: 9px 12px; font-size: 12.5px; font-weight: 700;
       margin-top: 10px; text-align: left; display: flex; align-items: center; gap: 7px;
     }
+    .cyber-prompt-backdrop {
+      position: fixed; inset: 0; background: rgba(7, 19, 43, 0.72);
+      z-index: 65; display: flex; align-items: center; justify-content: center;
+      padding: 16px; backdrop-filter: blur(3px);
+    }
+    .folder-lock-banner {
+      background: linear-gradient(135deg, #FFF7ED 0%, #FEF3C7 100%);
+      border: 1px solid #FCD34D; border-radius: 14px;
+      padding: 16px 18px; margin-bottom: 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .folder-locked-panel {
+      background: #fff; border: 2px solid #F59E0B; border-radius: 18px;
+      padding: 28px 22px; max-width: 440px; margin: 22px auto; text-align: center;
+      box-shadow: 0 14px 36px rgba(180, 83, 9, 0.14);
+    }
+    .cyber-panel-hero {
+      background: linear-gradient(135deg, #064E3B 0%, #0F766E 50%, #0D47A1 100%);
+      color: #fff; border-radius: 14px; padding: 14px 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
   <div id="drawer-root"></div>
   <div id="modal-root"></div>
+  <div id="cyber-prompt-root"></div>
   <div id="toast-root"></div>
 
   <script>
@@ -691,7 +714,10 @@
     var STORAGE_CUSTOM_FOLDERS = 'tablebot_custom_folders';
     var STORAGE_LANG = 'tablebot_ui_lang';
     var STORAGE_ACCESS_CODE = 'tablebot_access_code';
+    var STORAGE_CYBER_CODE = 'tablebot_cyber_security_code';
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
+    var SESSION_FOLDER_UNLOCKS_KEY = 'tablebot_folder_unlocks_v1';
+    var SESSION_CYBER_UNLOCK_KEY = 'tablebot_cyber_unlocked_v1';
 
     var SQL_SETUP_SCRIPT =
       '-- Run this in your Supabase SQL Editor:\n' +
@@ -937,6 +963,9 @@
       adminEmail: 'umery1969@gmail.com',
       cyberSecurityManager: 'Abdulfeta',
       cyberSecurityTitle: 'Manager of Cyber Security',
+      cyberSecurityCode: '1234',
+      cyberRequireCode: true,
+      cyberAlwaysAsk: true,
       accessCode: '1234',
       accessLockEnabled: true,
       autoSyncOnOpen: true,
@@ -944,6 +973,7 @@
       showDashboardActivity: true,
       blockStrictMode: true,
       telegramDefaultFolder: '',
+      folderLocks: {},
       revokedUsers: {}
     };
 
@@ -1191,7 +1221,8 @@
       tableReportCollapsed: false,
       // Drawer & Modals
       drawerOpen: false,
-      modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin', ... }
+      modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin'|'cyber_control'|'folder_lock'|'folder_unlock_prompt', ... }
+      cyberPrompt: null,
       toastTimer: null,
       lockError: '',
       lockShowCode: false,
@@ -1245,6 +1276,186 @@
       showToast('App locked — access code required');
     }
 
+    function getCyberSecurityCode() {
+      var saved = '';
+      try { saved = localStorage.getItem(STORAGE_CYBER_CODE) || ''; } catch (e) {}
+      var cfgCode = state && state.adminConfig && state.adminConfig.cyberSecurityCode ? String(state.adminConfig.cyberSecurityCode) : '';
+      var code = (saved || cfgCode || '1234').trim();
+      return code || '1234';
+    }
+    function setCyberSecurityCode(newCode) {
+      var clean = String(newCode || '').trim() || '1234';
+      state.adminConfig.cyberSecurityCode = clean;
+      try { localStorage.setItem(STORAGE_CYBER_CODE, clean); } catch (e) {}
+      saveAdminState();
+      return clean;
+    }
+    if (!state.adminConfig.cyberSecurityCode) state.adminConfig.cyberSecurityCode = getCyberSecurityCode();
+    if (!state.adminConfig.folderLocks || typeof state.adminConfig.folderLocks !== 'object') state.adminConfig.folderLocks = {};
+
+    function isCyberSessionUnlocked() {
+      try { return sessionStorage.getItem(SESSION_CYBER_UNLOCK_KEY) === '1'; } catch (e) { return false; }
+    }
+    function unlockCyberSession() {
+      try { sessionStorage.setItem(SESSION_CYBER_UNLOCK_KEY, '1'); } catch (e) {}
+    }
+    function lockCyberSession() {
+      try { sessionStorage.removeItem(SESSION_CYBER_UNLOCK_KEY); } catch (e) {}
+    }
+
+    function requireCyberAuth(actionLabel, onAuthorized) {
+      if (state.adminConfig.cyberRequireCode === false) {
+        if (typeof onAuthorized === 'function') onAuthorized();
+        return;
+      }
+      if (state.adminConfig.cyberAlwaysAsk === false && isCyberSessionUnlocked()) {
+        if (typeof onAuthorized === 'function') onAuthorized();
+        return;
+      }
+      state.cyberPrompt = {
+        actionLabel: actionLabel || 'Protected Security Control',
+        onAuthorized: onAuthorized,
+        error: '',
+        showCode: false,
+        shake: false
+      };
+      renderCyberPromptOverlay();
+    }
+
+    function renderCyberPromptOverlay() {
+      var root = document.getElementById('cyber-prompt-root');
+      if (!root) return;
+      var cp = state.cyberPrompt;
+      if (!cp || !isAccessUnlocked() || isCurrentUserRevoked()) {
+        root.innerHTML = '';
+        return;
+      }
+      var mgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
+      var isAm = state.lang === 'am';
+      root.innerHTML = '<div class="cyber-prompt-backdrop" id="cp-bg">' +
+        '<form id="cp-form" class="modal-card narrow' + (cp.shake ? ' shake' : '') + '" style="max-width:420px;box-shadow:0 24px 60px rgba(0,0,0,0.45);" autocomplete="off">' +
+          '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
+            '<div style="display:flex;align-items:center;gap:9px;">' + icon('shield', 20) +
+              '<div><h2 style="font-size:15px;font-weight:800;">' + esc(mgr) + ' &mdash; Cyber Security Code</h2>' +
+              '<div style="font-size:11px;color:#A7F3D0;">Authorization required before executing action</div></div>' +
+            '</div>' +
+            '<button type="button" class="icon-btn" id="cp-close">' + icon('close', 18) + '</button>' +
+          '</header>' +
+          '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
+            '<div style="padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;font-size:12px;color:#0F172A;">' +
+              '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:#1D4ED8;margin-bottom:2px;">Protected Control Action</div>' +
+              '<div style="font-weight:700;">' + esc(cp.actionLabel) + '</div>' +
+            '</div>' +
+            '<div>' +
+              '<label class="field-label" for="cp-code-inp">' + (isAm ? 'የአብዱልፈታ የሳይበር ደህንነት ኮድ ያስገቡ' : 'Enter ' + esc(mgr) + "'s Cyber Security Code") + '</label>' +
+              '<div style="display:flex;gap:8px;align-items:center;">' +
+                '<input id="cp-code-inp" type="' + (cp.showCode ? 'text' : 'password') + '" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;" placeholder="Enter Cyber Security Code..." autofocus />' +
+                '<button type="button" id="cp-eye" class="btn btn-outline" style="padding:9px 11px;font-size:11.5px;">' + (cp.showCode ? 'Hide' : 'Show') + '</button>' +
+              '</div>' +
+            '</div>' +
+            (cp.error ? '<div id="cp-err" class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(cp.error) + '</span></div>' : '') +
+            '<div style="display:flex;gap:8px;margin-top:4px;">' +
+              '<button type="button" id="cp-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+              '<button type="submit" id="cp-submit" class="btn btn-green" style="flex:1.4;">' + icon('shield', 15) + '<span>Verify &amp; Continue</span></button>' +
+            '</div>' +
+          '</div>' +
+        '</form></div>';
+
+      cp.shake = false;
+      var inp = document.getElementById('cp-code-inp');
+      if (inp) inp.focus();
+      var closePrompt = function () { state.cyberPrompt = null; renderCyberPromptOverlay(); };
+      document.getElementById('cp-bg').onclick = closePrompt;
+      document.getElementById('cp-form').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('cp-close').onclick = closePrompt;
+      document.getElementById('cp-cancel').onclick = closePrompt;
+      document.getElementById('cp-eye').onclick = function () {
+        var cur = inp ? inp.value : '';
+        cp.showCode = !cp.showCode;
+        renderCyberPromptOverlay();
+        var nInp = document.getElementById('cp-code-inp');
+        if (nInp) { nInp.value = cur; nInp.focus(); }
+      };
+      document.getElementById('cp-form').onsubmit = function (e) {
+        e.preventDefault();
+        var entered = (document.getElementById('cp-code-inp').value || '').trim();
+        var expected = getCyberSecurityCode();
+        if (!entered) {
+          cp.error = 'Please enter ' + mgr + "'s Cyber Security Code.";
+          cp.shake = true;
+          renderCyberPromptOverlay();
+          return;
+        }
+        if (entered !== expected) {
+          cp.error = 'Incorrect Cyber Security Code (' + mgr + '). Permission denied.';
+          cp.shake = true;
+          recordAudit('BLOCK', getActiveBot(), 'Denied protected action "' + cp.actionLabel + '" — wrong Cyber Security Code', { source: 'Security' });
+          renderCyberPromptOverlay();
+          return;
+        }
+        var cb = cp.onAuthorized;
+        var act = cp.actionLabel;
+        state.cyberPrompt = null;
+        unlockCyberSession();
+        recordAudit('AUTH', getActiveBot(), mgr + ' Cyber Security Code verified for: ' + act, { actor: mgr, source: 'Security' });
+        renderCyberPromptOverlay();
+        if (typeof cb === 'function') cb();
+      };
+    }
+
+    // Folder Lock Helpers
+    function getSessionFolderUnlocks() {
+      try {
+        var raw = sessionStorage.getItem(SESSION_FOLDER_UNLOCKS_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) { return {}; }
+    }
+    function getFolderLock(folderName) {
+      var f = String(folderName || '').trim() || 'General';
+      var map = (state.adminConfig && state.adminConfig.folderLocks) ? state.adminConfig.folderLocks : {};
+      return map[f] || null;
+    }
+    function isFolderLocked(folderName) {
+      if (!folderName || folderName === 'all') return false;
+      var fl = getFolderLock(folderName);
+      return Boolean(fl && fl.enabled && fl.code);
+    }
+    function isFolderUnlocked(folderName) {
+      if (!isFolderLocked(folderName)) return true;
+      var unlocks = getSessionFolderUnlocks();
+      return Boolean(unlocks[String(folderName || '').trim() || 'General']);
+    }
+    function unlockFolderSession(folderName, enteredCode) {
+      var f = String(folderName || '').trim() || 'General';
+      var fl = getFolderLock(f);
+      if (!fl || !fl.enabled) return true;
+      if (String(enteredCode || '').trim() !== String(fl.code || '').trim()) return false;
+      var unlocks = getSessionFolderUnlocks();
+      unlocks[f] = true;
+      try { sessionStorage.setItem(SESSION_FOLDER_UNLOCKS_KEY, JSON.stringify(unlocks)); } catch (e) {}
+      recordAudit('AUTH', null, 'Unlocked folder "' + f + '" with folder code', { source: 'FolderLock' });
+      return true;
+    }
+    function lockFolderSession(folderName) {
+      var f = String(folderName || '').trim() || 'General';
+      var unlocks = getSessionFolderUnlocks();
+      delete unlocks[f];
+      try { sessionStorage.setItem(SESSION_FOLDER_UNLOCKS_KEY, JSON.stringify(unlocks)); } catch (e) {}
+    }
+    function setFolderLock(folderName, enabled, code) {
+      var f = String(folderName || '').trim() || 'General';
+      if (!state.adminConfig.folderLocks || typeof state.adminConfig.folderLocks !== 'object') state.adminConfig.folderLocks = {};
+      var cleanCode = String(code || '').trim() || (state.adminConfig.folderLocks[f] && state.adminConfig.folderLocks[f].code) || '1234';
+      state.adminConfig.folderLocks[f] = {
+        enabled: !!enabled,
+        code: cleanCode,
+        updatedAt: new Date().toISOString()
+      };
+      if (!enabled) lockFolderSession(f);
+      saveAdminState();
+      return state.adminConfig.folderLocks[f];
+    }
+
     function toggleLanguage() {
       state.lang = state.lang === 'am' ? 'en' : 'am';
       try { localStorage.setItem(STORAGE_LANG, state.lang); } catch (e) {}
@@ -1295,7 +1506,58 @@
       return false;
     }
 
+    function formatRemainingBlockTime(expiresAt) {
+      if (!expiresAt) return 'Permanent';
+      var diff = Number(expiresAt) - Date.now();
+      if (isNaN(diff) || diff <= 0) return 'Expired';
+      var totalSec = Math.ceil(diff / 1000);
+      var days = Math.floor(totalSec / 86400);
+      var hrs = Math.floor((totalSec % 86400) / 3600);
+      var mins = Math.floor((totalSec % 3600) / 60);
+      var secs = totalSec % 60;
+      if (days > 0) return days + 'd ' + hrs + 'h left';
+      if (hrs > 0) return hrs + 'h ' + mins + 'm left';
+      if (mins > 0) return mins + 'm ' + secs + 's left';
+      return secs + 's left';
+    }
+
+    function cleanupExpiredBlocks() {
+      var now = Date.now();
+      var changed = false;
+      var expiredNames = [];
+      var revokedMap = (state.adminConfig && state.adminConfig.revokedUsers) ? state.adminConfig.revokedUsers : {};
+      Object.keys(revokedMap).forEach(function (k) {
+        var entry = revokedMap[k];
+        if (entry && entry.expiresAt && now >= Number(entry.expiresAt)) {
+          delete revokedMap[k];
+          expiredNames.push(k);
+          changed = true;
+        }
+      });
+      state.workspaceUsers.forEach(function (u) {
+        if (u.blocked) {
+          var isExp = (u.blockExpiresAt && now >= Number(u.blockExpiresAt)) ||
+            expiredNames.some(function (en) { return matchesActorIdentity(u.id, en) || matchesActorIdentity(u.label, en); });
+          if (isExp) {
+            u.blocked = false;
+            u.blockExpiresAt = null;
+            u.blockDurationMins = 0;
+            u.unblockedAt = new Date().toISOString();
+            changed = true;
+          }
+        }
+      });
+      if (changed) {
+        saveAdminState();
+        if (expiredNames.length > 0) {
+          recordAudit('AUTH', null, 'Timed block expired — auto-unblocked: ' + expiredNames.join(', '), { source: 'Security' });
+        }
+      }
+      return changed;
+    }
+
     function isActorBlocked(identifier) {
+      cleanupExpiredBlocks();
       if (!identifier) return false;
       var norm = String(identifier).trim().toLowerCase();
       var revokedMap = (state.adminConfig && state.adminConfig.revokedUsers) ? state.adminConfig.revokedUsers : {};
@@ -1321,29 +1583,40 @@
       state.authSession = null;
       state.drawerOpen = false;
       state.modal = null;
+      state.cyberPrompt = null;
       state.activeBotId = null;
       state.syncStatus = 'auth_required';
       try { sessionStorage.removeItem(SESSION_UNLOCK_KEY); } catch (e3) {}
       state.revokedNotice = reason || ('Session for "' + cur + '" was logged out and access was revoked by Admin.');
     }
 
-    function revokeAndBlockUser(identifier, reason) {
+    function revokeAndBlockUser(identifier, reason, durationMins) {
       if (!identifier) return;
       var raw = String(identifier).trim();
       var norm = raw.toLowerCase();
       var nowIso = new Date().toISOString();
+      var mins = parseFloat(durationMins) || 0;
+      var expiresAt = mins > 0 ? (Date.now() + Math.round(mins * 60000)) : null;
       if (!state.adminConfig.revokedUsers || typeof state.adminConfig.revokedUsers !== 'object') state.adminConfig.revokedUsers = {};
-      state.adminConfig.revokedUsers[norm] = { at: nowIso, reason: reason || 'Transmitted / Blocked by Admin' };
+      state.adminConfig.revokedUsers[norm] = {
+        at: nowIso,
+        reason: reason || 'Transmitted / Blocked by Cyber Control',
+        expiresAt: expiresAt,
+        durationMins: mins
+      };
       var existing = state.workspaceUsers.find(function (u) {
         return matchesActorIdentity(u.id, norm) || matchesActorIdentity(u.label, norm);
       });
       if (existing) {
         existing.blocked = true;
         existing.loggedOutAt = nowIso;
+        existing.blockExpiresAt = expiresAt;
+        existing.blockDurationMins = mins;
       } else {
         state.workspaceUsers.unshift({
           id: raw, label: raw, role: 'blocked', source: raw.indexOf('@') === 0 || /^\d+$/.test(raw) ? 'Telegram' : 'Manual',
-          blocked: true, opens: 0, adds: 0, edits: 0, deletes: 0, lastSeen: nowIso, loggedOutAt: nowIso
+          blocked: true, blockExpiresAt: expiresAt, blockDurationMins: mins,
+          opens: 0, adds: 0, edits: 0, deletes: 0, lastSeen: nowIso, loggedOutAt: nowIso
         });
       }
       saveAdminState();
@@ -1364,7 +1637,12 @@
         });
       }
       state.workspaceUsers.forEach(function (u) {
-        if (matchesActorIdentity(u.id, norm) || matchesActorIdentity(u.label, norm)) u.blocked = false;
+        if (matchesActorIdentity(u.id, norm) || matchesActorIdentity(u.label, norm)) {
+          u.blocked = false;
+          u.blockExpiresAt = null;
+          u.blockDurationMins = 0;
+          u.unblockedAt = new Date().toISOString();
+        }
       });
       saveAdminState();
     }
@@ -2628,34 +2906,36 @@
       if (!guardWriteAction('Delete Bot')) return;
       var target = state.bots.find(function (b) { return b.id === botId; });
       if (!target) return;
-      // Auto-archive deleted bot into Deleted/Missing Vault & Folder History (retains 3m+ restore)
-      state.deletedVault.unshift({
-        id: 'del_' + Date.now(),
-        folder: target.folder || 'General',
-        botId: target.id,
-        botName: target.name,
-        deletedAt: new Date().toISOString(),
-        deletedBy: getCurrentActor(),
-        rowCount: (target.rows || []).length,
-        colCount: (target.columns || []).length,
-        reason: 'Bot table deleted',
-        botSnapshot: JSON.parse(JSON.stringify(target))
-      });
-      if (state.deletedVault.length > 120) state.deletedVault = state.deletedVault.slice(0, 120);
-      recordFolderSnapshot(target, 'DELETED', 'Deleted "' + target.name + '" (' + (target.rows || []).length + ' rows backed up to Restore Vault)', true);
+      requireCyberAuth('Delete Bot Table "' + target.name + '"', async function () {
+        // Auto-archive deleted bot into Deleted/Missing Vault & Folder History (retains 3m+ restore)
+        state.deletedVault.unshift({
+          id: 'del_' + Date.now(),
+          folder: target.folder || 'General',
+          botId: target.id,
+          botName: target.name,
+          deletedAt: new Date().toISOString(),
+          deletedBy: getCurrentActor(),
+          rowCount: (target.rows || []).length,
+          colCount: (target.columns || []).length,
+          reason: 'Bot table deleted',
+          botSnapshot: JSON.parse(JSON.stringify(target))
+        });
+        if (state.deletedVault.length > 120) state.deletedVault = state.deletedVault.slice(0, 120);
+        recordFolderSnapshot(target, 'DELETED', 'Deleted "' + target.name + '" (' + (target.rows || []).length + ' rows backed up to Restore Vault)', true);
 
-      state.bots = state.bots.filter(function (b) { return b.id !== botId; });
-      if (state.activeBotId === botId) state.activeBotId = null;
-      saveBotsLocal();
-      saveVaultState();
-      recordAudit('DELETE', target, 'Deleted bot table "' + target.name + '"');
-      broadcastLocalSync('delete_bot');
-      if (state.supabaseConfig.isConnected && state.authSession) {
-        var client = getSbClient();
-        if (client) { try { await client.from('user_bots').delete().eq('id', botId); } catch (e) {} }
-      }
-      showToast('Deleted "' + target.name + '" (saved in Backup & Restore Vault)');
-      renderApp();
+        state.bots = state.bots.filter(function (b) { return b.id !== botId; });
+        if (state.activeBotId === botId) state.activeBotId = null;
+        saveBotsLocal();
+        saveVaultState();
+        recordAudit('DELETE', target, 'Deleted bot table "' + target.name + '"');
+        broadcastLocalSync('delete_bot');
+        if (state.supabaseConfig.isConnected && state.authSession) {
+          var client = getSbClient();
+          if (client) { try { await client.from('user_bots').delete().eq('id', botId); } catch (e) {} }
+        }
+        showToast('Deleted "' + target.name + '" (saved in Backup & Restore Vault)');
+        renderApp();
+      });
     }
 
     function duplicateBot(botId) {
@@ -2770,9 +3050,13 @@
 
       folders.forEach(function (f) {
         var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
-        html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + ' <span class="folder-count">' + cnt + '</span></button>';
+        var fLocked = isFolderLocked(f);
+        var fUnlocked = isFolderUnlocked(f);
+        var lockMark = fLocked ? (fUnlocked ? ' 🔓' : ' 🔒') : '';
+        html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + lockMark + ' <span class="folder-count">' + cnt + '</span></button>';
       });
       html += '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Create a new folder (e.g. Folder B)">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>';
+      html += '<button type="button" class="folder-tab" id="btn-folder-lock-bar" style="background:rgba(245,158,11,0.22);border-color:rgba(253,230,138,0.45);" title="Folder Lock &amp; Change Code">' + icon('lock', 12) + ' <span>Folder Lock</span></button>';
       html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>' + esc(t('history_restore')) + '</span>' +
         ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
       '</button>';
@@ -2870,55 +3154,90 @@
         html += '</section>';
       }
 
-      html += '<div class="grid-meta"><span class="grid-meta-title">' +
-        (state.filterType === 'all' ? esc(t('all_bot_tables')) : state.filterType.toUpperCase() + ' Bot Tables') + ' (' + filtered.length + ')' +
-        '</span><span style="color:#94A3B8">' + esc(t('tap_card')) + '</span></div>';
+      var selFolder = state.selectedFolder || 'all';
+      var selFolderNeedsUnlock = selFolder !== 'all' && isFolderLocked(selFolder) && !isFolderUnlocked(selFolder);
+      if (selFolder !== 'all' && isFolderLocked(selFolder) && isFolderUnlocked(selFolder)) {
+        html += '<div class="folder-lock-banner">' +
+          '<div style="display:flex;align-items:center;gap:10px;">' +
+            '<span style="color:#B45309;display:inline-flex;">' + icon('lock', 18) + '</span>' +
+            '<div><div style="font-weight:800;font-size:13px;color:#78350F;">Folder "' + esc(selFolder) + '" is Unlocked for this Session</div>' +
+            '<div style="font-size:11px;color:#92400E;">You can re-lock this folder or change its folder code anytime.</div></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button type="button" id="dash-lock-cur-folder" class="btn btn-outline" style="font-size:11.5px;border-color:#F59E0B;color:#92400E;background:#fff;">' + icon('lock', 13) + '<span>Lock Folder Now</span></button>' +
+            '<button type="button" id="dash-folder-lock-settings" class="btn btn-dark-blue" style="font-size:11.5px;">Change Folder Code</button>' +
+          '</div>' +
+        '</div>';
+      }
 
-      if (filtered.length === 0) {
-        html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:40px auto;border:1px solid #E2E8F0;">' +
-          '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1976D2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
-          '<h3 style="font-weight:700;font-size:17px;margin-bottom:6px;">No bot tables found</h3>' +
-          '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Create a new Telegram bot table or clear your search filter.</p>' +
-          '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
+      if (selFolderNeedsUnlock) {
+        html += '<div class="folder-locked-panel">' +
+          '<div class="lock-icon-ring" style="background:linear-gradient(135deg,#D97706,#B45309);margin-bottom:12px;">' + icon('lock', 30) + '</div>' +
+          '<h2 style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:6px;">Folder Locked: "' + esc(selFolder) + '"</h2>' +
+          '<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;">Enter this folder\'s access code to view tables and summaries inside "' + esc(selFolder) + '".</p>' +
+          '<form id="dash-folder-unlock-form" style="display:flex;flex-direction:column;gap:10px;text-align:left;" autocomplete="off">' +
+            '<input id="dash-folder-code-inp" type="password" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;text-align:center;" placeholder="Enter folder code..." autofocus />' +
+            (state.folderUnlockError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(state.folderUnlockError) + '</span></div>' : '') +
+            '<button type="submit" class="btn btn-dark-blue" style="width:100%;padding:11px;">' + icon('lock', 15) + '<span>Unlock Folder</span></button>' +
+          '</form>' +
+          '<button type="button" id="dash-folder-lock-settings" class="btn btn-outline" style="width:100%;margin-top:10px;font-size:12px;">Change / Manage Folder Lock Code (Abdulfeta)</button>' +
+        '</div>';
       } else {
-        html += '<div class="bot-grid">';
-        var cardAccents = ['#1D4ED8', '#059669', '#7C3AED', '#D97706', '#0891B2', '#E11D48'];
-        filtered.forEach(function (b, bIdx) {
-          var stCls = b.botStatus === 'online' ? 'chip-online' : 'chip-sim';
-          var stTxt = b.botStatus === 'online' ? 'ONLINE' : 'SIMULATOR';
-          var topAccent = b.botStatus === 'online' ? '#10B981' : cardAccents[bIdx % cardAccents.length];
-          html += '<div class="bot-card" data-open-bot="' + esc(b.id) + '" style="border-top-color:' + topAccent + ';">' +
-            '<div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;">' +
-              '<div style="min-width:0;flex:1;">' +
-                '<div class="bot-card-title truncate">' + esc(b.name) + '</div>' +
-                '<div class="bot-card-desc">' + esc(b.description || 'Telegram Bot Table') + '</div>' +
-              '</div>' +
-              '<button class="icon-btn" style="color:#94A3B8;width:30px;height:30px;" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 17) + '</button>';
+        html += '<div class="grid-meta"><span class="grid-meta-title">' +
+          (state.filterType === 'all' ? esc(t('all_bot_tables')) : state.filterType.toUpperCase() + ' Bot Tables') + ' (' + filtered.length + ')' +
+          '</span><span style="color:#94A3B8">' + esc(t('tap_card')) + '</span></div>';
 
-          if (state.activeCardMenuId === b.id) {
-            html += '<div class="dropdown-menu" data-stop-card="1">' +
-              '<button class="dropdown-item" data-menu-action="history" data-bot-id="' + esc(b.id) + '">' + icon('history', 14) + '<span>File Version History</span></button>' +
-              '<button class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename / Settings</span></button>' +
-              '<button class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
-              '<button class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
-              '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
-              '<button class="dropdown-item danger" data-menu-action="del" data-bot-id="' + esc(b.id) + '">' + icon('trash', 14) + '<span>Delete Table</span></button>' +
-            '</div>';
-          }
+        if (filtered.length === 0) {
+          html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:40px auto;border:1px solid #E2E8F0;">' +
+            '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1976D2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
+            '<h3 style="font-weight:700;font-size:17px;margin-bottom:6px;">No bot tables found</h3>' +
+            '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Create a new Telegram bot table or clear your search filter.</p>' +
+            '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
+        } else {
+          html += '<div class="bot-grid">';
+          var cardAccents = ['#1D4ED8', '#059669', '#7C3AED', '#D97706', '#0891B2', '#E11D48'];
+          filtered.forEach(function (b, bIdx) {
+            var stCls = b.botStatus === 'online' ? 'chip-online' : 'chip-sim';
+            var stTxt = b.botStatus === 'online' ? 'ONLINE' : 'SIMULATOR';
+            var topAccent = b.botStatus === 'online' ? '#10B981' : cardAccents[bIdx % cardAccents.length];
+            var bFolder = b.folder || 'General';
+            var cardFolderLocked = isFolderLocked(bFolder) && !isFolderUnlocked(bFolder);
+            html += '<div class="bot-card" data-open-bot="' + esc(b.id) + '" style="border-top-color:' + (cardFolderLocked ? '#D97706' : topAccent) + ';">' +
+              '<div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;">' +
+                '<div style="min-width:0;flex:1;">' +
+                  '<div class="bot-card-title truncate">' + (cardFolderLocked ? '🔒 ' : '') + esc(b.name) + '</div>' +
+                  '<div class="bot-card-desc">' + esc(b.description || 'Telegram Bot Table') + '</div>' +
+                '</div>' +
+                '<button class="icon-btn" style="color:#94A3B8;width:30px;height:30px;" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 17) + '</button>';
 
-          html += '</div><div class="badges-row">' +
-            '<span class="status-chip ' + stCls + '"><span style="width:6px;height:6px;border-radius:999px;background:currentColor;"></span>' + stTxt + '</span>' +
-            (b.webhookActive ? '<span class="status-chip" style="background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;">' + icon('zap', 10) + ' WEBHOOK</span>' : '') +
-            (b.folder ? '<span class="status-chip chip-folder">' + icon('folder', 11) + ' ' + esc(b.folder) + '</span>' : '') +
-            (b.botUsername ? '<span class="status-chip chip-user">' + esc(b.botUsername) + '</span>' : '') +
-            (b.lastEditedBy ? '<span class="status-chip chip-user" title="Last edited by">' + esc(b.lastEditedBy) + '</span>' : '') +
-          '</div></div>' +
-          '<div class="card-footer">' +
-            '<span><strong>' + b.rows.length + '</strong> rows &nbsp;·&nbsp; <strong>' + b.columns.length + '</strong> cols &nbsp;·&nbsp; ' + timeAgo(b.updatedAt) + '</span>' +
-            '<span class="quick-table-btn" title="Open Table">' + icon('table', 16) + '</span>' +
-          '</div></div>';
-        });
-        html += '</div>';
+            if (state.activeCardMenuId === b.id) {
+              html += '<div class="dropdown-menu" data-stop-card="1">' +
+                '<button class="dropdown-item" data-menu-action="history" data-bot-id="' + esc(b.id) + '">' + icon('history', 14) + '<span>File Version History</span></button>' +
+                '<button class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename / Settings</span></button>' +
+                '<button class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
+                '<button class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
+                '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
+                '<button class="dropdown-item danger" data-menu-action="del" data-bot-id="' + esc(b.id) + '">' + icon('trash', 14) + '<span>Delete Table</span></button>' +
+              '</div>';
+            }
+
+            html += '</div><div class="badges-row">' +
+              '<span class="status-chip ' + stCls + '"><span style="width:6px;height:6px;border-radius:999px;background:currentColor;"></span>' + stTxt + '</span>' +
+              (cardFolderLocked ? '<span class="status-chip" style="background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;">' + icon('lock', 10) + ' FOLDER LOCKED</span>' : '') +
+              (b.webhookActive ? '<span class="status-chip" style="background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;">' + icon('zap', 10) + ' WEBHOOK</span>' : '') +
+              (b.folder ? '<span class="status-chip chip-folder">' + icon('folder', 11) + ' ' + esc(b.folder) + '</span>' : '') +
+              (b.botUsername ? '<span class="status-chip chip-user">' + esc(b.botUsername) + '</span>' : '') +
+              (b.lastEditedBy ? '<span class="status-chip chip-user" title="Last edited by">' + esc(b.lastEditedBy) + '</span>' : '') +
+            '</div></div>' +
+            '<div class="card-footer">' +
+              (cardFolderLocked
+                ? '<span style="color:#B45309;font-weight:700;">Tap to enter folder lock code</span>'
+                : '<span><strong>' + b.rows.length + '</strong> rows &nbsp;·&nbsp; <strong>' + b.columns.length + '</strong> cols &nbsp;·&nbsp; ' + timeAgo(b.updatedAt) + '</span>') +
+              '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'table', 16) + '</span>' +
+            '</div></div>';
+          });
+          html += '</div>';
+        }
       }
 
       var dashFolderScope = state.selectedFolder || 'all';
@@ -3009,7 +3328,7 @@
       var heroLangBtn = document.getElementById('hero-lang-toggle');
       if (heroLangBtn) heroLangBtn.onclick = toggleLanguage;
       var heroSecBtn = document.getElementById('hero-open-security');
-      if (heroSecBtn) heroSecBtn.onclick = function () { openModal('admin', { tab: 'transmit' }); };
+      if (heroSecBtn) heroSecBtn.onclick = function () { openModal('cyber_control', { tab: 'control' }); };
       var heroResetBtn = document.getElementById('hero-reset-today');
       if (heroResetBtn) heroResetBtn.onclick = function () { state.previewDayOffset = 0; renderDashboard(); };
       document.querySelectorAll('.day-chip[data-day-offset]').forEach(function (btn) {
@@ -3080,14 +3399,48 @@
       if (filterSel) filterSel.onchange = function (e) { state.filterType = e.target.value; renderDashboard(); };
 
       document.querySelectorAll('.folder-tab[data-folder]').forEach(function (btn) {
-        btn.onclick = function () { state.selectedFolder = btn.getAttribute('data-folder'); renderDashboard(); };
+        btn.onclick = function () {
+          state.folderUnlockError = '';
+          state.selectedFolder = btn.getAttribute('data-folder');
+          renderDashboard();
+        };
       });
+      var fldLockBarBtn = document.getElementById('btn-folder-lock-bar');
+      if (fldLockBarBtn) fldLockBarBtn.onclick = function () { openModal('folder_lock', { focusFolder: state.selectedFolder !== 'all' ? state.selectedFolder : '' }); };
+      var dashLockCurBtn = document.getElementById('dash-lock-cur-folder');
+      if (dashLockCurBtn) dashLockCurBtn.onclick = function () {
+        lockFolderSession(state.selectedFolder);
+        showToast('Locked folder "' + state.selectedFolder + '"');
+        renderDashboard();
+      };
+      var dashLockSetBtn = document.getElementById('dash-folder-lock-settings');
+      if (dashLockSetBtn) dashLockSetBtn.onclick = function () { openModal('folder_lock', { focusFolder: state.selectedFolder !== 'all' ? state.selectedFolder : '' }); };
+      var dashUnlockForm = document.getElementById('dash-folder-unlock-form');
+      if (dashUnlockForm) dashUnlockForm.onsubmit = function (e) {
+        e.preventDefault();
+        var entered = (document.getElementById('dash-folder-code-inp').value || '').trim();
+        if (unlockFolderSession(state.selectedFolder, entered)) {
+          state.folderUnlockError = '';
+          showToast('Unlocked folder "' + state.selectedFolder + '"');
+          renderDashboard();
+        } else {
+          state.folderUnlockError = 'Incorrect folder code for "' + state.selectedFolder + '". Try again.';
+          renderDashboard();
+        }
+      };
+
       var addFldBtn = document.getElementById('btn-add-folder');
       if (addFldBtn) addFldBtn.onclick = function () { openModal('add_folder'); };
       document.querySelectorAll('[data-open-bot]').forEach(function (card) {
         card.onclick = function () {
           state.activeCardMenuId = null;
           var bid = card.getAttribute('data-open-bot');
+          var candidate = state.bots.find(function (x) { return x.id === bid; });
+          var bFolder = candidate ? (candidate.folder || 'General') : 'General';
+          if (isFolderLocked(bFolder) && !isFolderUnlocked(bFolder)) {
+            openModal('folder_unlock_prompt', { folder: bFolder, pendingBotId: bid });
+            return;
+          }
           state.activeBotId = bid;
           state.selectedRowIds = {};
           state.editingCell = null;
@@ -3136,6 +3489,36 @@
 
     // Spreadsheet Table View
     function renderTableView(bot) {
+      var botFolder = bot.folder || 'General';
+      if (isFolderLocked(botFolder) && !isFolderUnlocked(botFolder)) {
+        document.getElementById('app').innerHTML = '<div style="min-height:100vh;background:#F1F5F9;display:flex;flex-direction:column;">' +
+          '<header class="app-header"><div class="header-inner">' +
+            '<div class="header-left"><button class="icon-btn" id="tbl-lock-back">' + icon('back', 22) + '</button><span style="font-weight:700;font-size:17px;">Folder Locked</span></div>' +
+          '</div></header>' +
+          '<div style="padding:24px;"><div class="folder-locked-panel">' +
+            '<div class="lock-icon-ring" style="background:linear-gradient(135deg,#D97706,#B45309);margin-bottom:12px;">' + icon('lock', 30) + '</div>' +
+            '<h2 style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:6px;">Folder "' + esc(botFolder) + '" is Locked</h2>' +
+            '<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;">Enter the folder lock code to open "' + esc(bot.name) + '".</p>' +
+            '<form id="tbl-folder-unlock-form" style="display:flex;flex-direction:column;gap:10px;" autocomplete="off">' +
+              '<input id="tbl-folder-code-inp" type="password" class="form-input mono" style="text-align:center;font-size:15px;letter-spacing:0.12em;" placeholder="Enter folder code..." autofocus />' +
+              (state.folderUnlockError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(state.folderUnlockError) + '</span></div>' : '') +
+              '<button type="submit" class="btn btn-dark-blue" style="width:100%;padding:11px;">' + icon('lock', 15) + '<span>Unlock &amp; Open Table</span></button>' +
+            '</form>' +
+          '</div></div></div>';
+        document.getElementById('tbl-lock-back').onclick = function () { state.activeBotId = null; state.folderUnlockError = ''; renderApp(); };
+        document.getElementById('tbl-folder-unlock-form').onsubmit = function (e) {
+          e.preventDefault();
+          var code = (document.getElementById('tbl-folder-code-inp').value || '').trim();
+          if (unlockFolderSession(botFolder, code)) {
+            state.folderUnlockError = '';
+            renderTableView(bot);
+          } else {
+            state.folderUnlockError = 'Incorrect folder code for "' + botFolder + '".';
+            renderTableView(bot);
+          }
+        };
+        return;
+      }
       var q = state.tableSearchQuery.toLowerCase();
       var visibleRows = bot.rows.filter(function (r) {
         if (!q) return true;
@@ -3469,11 +3852,13 @@
       if (delBtn) delBtn.onclick = function () {
         if (!guardWriteAction('Delete Selected Rows')) return;
         var delIds = Object.keys(state.selectedRowIds).filter(function (k) { return state.selectedRowIds[k]; });
-        bot.rows = bot.rows.filter(function (r) { return !state.selectedRowIds[r.id]; });
-        state.selectedRowIds = {};
-        bot.updatedAt = new Date().toISOString();
-        updateBot(bot, 'DELETE', 'Deleted ' + delIds.length + ' selected row(s)');
-        renderTableView(bot);
+        requireCyberAuth('Delete ' + delIds.length + ' Row(s) from "' + bot.name + '"', function () {
+          bot.rows = bot.rows.filter(function (r) { return !state.selectedRowIds[r.id]; });
+          state.selectedRowIds = {};
+          bot.updatedAt = new Date().toISOString();
+          updateBot(bot, 'DELETE', 'Deleted ' + delIds.length + ' selected row(s)');
+          renderTableView(bot);
+        });
       };
 
       document.getElementById('chk-select-all').onchange = function (e) {
@@ -3603,11 +3988,13 @@
         document.getElementById('more-clear').onclick = function () {
           state.showMoreMenu = false;
           if (!guardWriteAction('Clear All Rows')) return;
-          recordFolderSnapshot(bot, 'BACKUP', 'Pre-clear snapshot (' + bot.rows.length + ' rows)', true);
-          var prevCnt = bot.rows.length;
-          bot.rows = []; bot.updatedAt = new Date().toISOString();
-          updateBot(bot, 'DELETE', 'Cleared all ' + prevCnt + ' rows');
-          renderTableView(bot);
+          requireCyberAuth('Clear All Rows from "' + bot.name + '"', function () {
+            recordFolderSnapshot(bot, 'BACKUP', 'Pre-clear snapshot (' + bot.rows.length + ' rows)', true);
+            var prevCnt = bot.rows.length;
+            bot.rows = []; bot.updatedAt = new Date().toISOString();
+            updateBot(bot, 'DELETE', 'Cleared all ' + prevCnt + ' rows');
+            renderTableView(bot);
+          });
         };
       }
 
@@ -3650,7 +4037,9 @@
           '<div class="drawer-nav">' +
             '<button class="drawer-item" id="drawer-lang-toggle"><span class="drawer-item-left"><span style="color:#0F766E;font-weight:800;font-size:13px;">አማ/EN</span><span><div><div style="font-weight:700;">Language / ቋንቋ (Amharic)</div><div style="font-size:11px;color:#64748B;">Current: ' + (state.lang === 'am' ? 'አማርኛ (Amharic)' : 'English') + '</div></div></span></span><span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;">' + (state.lang === 'am' ? 'አማ' : 'EN') + '</span></button>' +
             '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>' + esc(t('manage_bots')) + '</span></span></button>' +
-            '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('admin_menu')) + '</div><div style="font-size:11px;color:#64748B;">Cyber Security: ' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '</div></div></span></span>' +
+            '<button class="drawer-item" data-nav="cyber_control"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:800;color:#065F46;">Cyber Control Panel (' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ')</div><div style="font-size:11px;color:#64748B;">Transmit, Terminate, Block/Timed Unblock &amp; Cyber Code</div></div></span></span>' +
+              '<span class="pill-badge" style="background:#047857;color:#fff;font-size:10px;">SEC</span></button>' +
+            '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('admin_menu')) + '</div><div style="font-size:11px;color:#64748B;">Activity logs, users &amp; sync</div></div></span></span>' +
               (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;">' + blockedCount + ' BLK</span>' : '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;font-size:10px;">' + state.auditLogs.length + '</span>') + '</button>' +
             '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#E65100;padding:4px;border-radius:6px;display:inline-flex;">' + icon('chart', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('reports_nav')) + '</div><div style="font-size:11px;color:#64748B;">Customer ledger, paid &amp; balances</div></div></span></span></button>' +
             '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
@@ -3668,6 +4057,8 @@
             '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>' + esc(t('export_html')) + '</span></span></button>' +
             '<button class="drawer-item" data-nav="access_code"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('lock', 16) + '</span><span><div><div style="font-weight:700;">' + (state.lang === 'am' ? 'የመግቢያ ኮድ እና መቆለፊያ' : 'Lock Screen &amp; Change Code') + '</div><div style="font-size:11px;color:#64748B;">' + (state.lang === 'am' ? 'ኮድ ቀይር ወይም መቆለፊያን አስተካክል' : 'Change lock code or lock screen option') + '</div></div></span></span>' +
               '<span class="pill-badge" style="background:' + (isAccessLockEnabled() ? '#059669' : '#64748B') + ';color:#fff;font-size:10px;">' + (isAccessLockEnabled() ? 'ON' : 'OFF') + '</span></button>' +
+            '<button class="drawer-item" data-nav="folder_lock"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#B45309;padding:4px;border-radius:6px;display:inline-flex;">' + icon('lock', 16) + '</span><span><div><div style="font-weight:700;">' + (state.lang === 'am' ? 'የአቃፊ ኮድ መቆለፊያ' : 'Folder Lock &amp; Change Code') + '</div><div style="font-size:11px;color:#64748B;">Lock individual folders &amp; change folder codes</div></div></span></span>' +
+              '<span class="pill-badge" style="background:#D97706;color:#fff;font-size:10px;">' + Object.keys(state.adminConfig.folderLocks || {}).filter(function (k) { return state.adminConfig.folderLocks[k] && state.adminConfig.folderLocks[k].enabled; }).length + '</span></button>' +
             '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>' + esc(t('bot_settings')) + '</span></span></button>' +
             '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>' + esc(t('share_app')) + '</span></span></button>' +
             '<button class="drawer-item" data-nav="help"><span class="drawer-item-left"><span style="color:#64748B">' + icon('help', 19) + '</span><span>' + esc(t('help_guide')) + '</span></span></button>' +
@@ -3703,8 +4094,10 @@
           var v = btn.getAttribute('data-nav');
           state.drawerOpen = false; renderDrawer();
           if (v === 'all_bots') { state.activeBotId = null; renderApp(); }
+          else if (v === 'cyber_control') openModal('cyber_control', { tab: 'control' });
           else if (v === 'admin') openModal('admin', { tab: 'logs' });
           else if (v === 'access_code') openModal('access_code');
+          else if (v === 'folder_lock') openModal('folder_lock');
           else if (v === 'reports') openModal('reports');
           else if (v === 'login') openModal('supabase', { authTab: 'login' });
           else if (v === 'forgot') openModal('supabase', { authTab: 'forgot' });
@@ -3871,6 +4264,7 @@
     }
 
     function renderApp(forceLockRender) {
+      cleanupExpiredBlocks();
       if (isCurrentUserRevoked()) {
         if (state.authSession) {
           try { var c = getSbClient(); if (c && c.auth) c.auth.signOut().catch(function () {}); } catch (e) {}
@@ -3929,6 +4323,9 @@
       else if (m.type === 'add_folder') renderAddFolderModal(m);
       else if (m.type === 'image_preview') renderImagePreviewModal(m);
       else if (m.type === 'access_code') renderAccessCodeModal(m);
+      else if (m.type === 'cyber_control') renderCyberControlModal(m);
+      else if (m.type === 'folder_lock') renderFolderLockModal(m);
+      else if (m.type === 'folder_unlock_prompt') renderFolderUnlockPromptModal(m);
     }
 
     function renderTelegramFolderModal(m) {
@@ -4112,12 +4509,606 @@
         var en = !!document.getElementById('acc-enabled').checked;
         if (!c1) { m.statusType = 'error'; m.statusMsg = 'Access code cannot be empty.'; renderAccessCodeModal(m); return; }
         if (c1 !== c2) { m.statusType = 'error'; m.statusMsg = 'Access codes do not match. Please confirm again.'; renderAccessCodeModal(m); return; }
-        state.adminConfig.accessLockEnabled = en;
-        setConfiguredAccessCode(c1);
-        recordAudit('AUTH', null, 'Updated lock screen option (' + (en ? 'ON' : 'OFF') + ') & access code', { source: 'Menu' });
-        closeModal();
-        showToast('Lock screen code saved (' + (en ? 'Lock ON' : 'Lock OFF') + ')');
+        requireCyberAuth('Change Lock Screen Access Code (' + (en ? 'ON' : 'OFF') + ')', function () {
+          state.adminConfig.accessLockEnabled = en;
+          setConfiguredAccessCode(c1);
+          recordAudit('AUTH', null, 'Updated lock screen option (' + (en ? 'ON' : 'OFF') + ') & access code', { source: 'Menu' });
+          closeModal();
+          showToast('Lock screen code saved (' + (en ? 'Lock ON' : 'Lock OFF') + ')');
+        });
       };
+    }
+
+    function renderFolderUnlockPromptModal(m) {
+      var folder = m.folder || 'General';
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:410px;" id="m-card">' +
+        '<header class="modal-header" style="background:linear-gradient(135deg,#B45309,#D97706);">' +
+          '<div style="display:flex;align-items:center;gap:8px;">' + icon('lock', 19) + '<h2 style="font-size:15.5px;font-weight:700;">Folder Locked: ' + esc(folder) + '</h2></div>' +
+          '<button class="icon-btn" id="fup-close">' + icon('close', 18) + '</button>' +
+        '</header>' +
+        '<form id="fup-form" class="modal-body" style="display:flex;flex-direction:column;gap:12px;" autocomplete="off">' +
+          '<div style="font-size:12.5px;color:#475569;">Folder <strong>"' + esc(folder) + '"</strong> is protected by a folder lock code. Enter the folder code to unlock and open this table.</div>' +
+          '<input id="fup-code" type="password" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;text-align:center;" placeholder="Enter folder lock code..." autofocus />' +
+          (m.error ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(m.error) + '</span></div>' : '') +
+          '<div style="display:flex;gap:8px;">' +
+            '<button type="button" id="fup-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+            '<button type="submit" class="btn btn-dark-blue" style="flex:1.4;">Unlock Folder</button>' +
+          '</div>' +
+        '</form></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('fup-close').onclick = closeModal;
+      document.getElementById('fup-cancel').onclick = closeModal;
+      var inp = document.getElementById('fup-code');
+      if (inp) inp.focus();
+      document.getElementById('fup-form').onsubmit = function (e) {
+        e.preventDefault();
+        var code = (document.getElementById('fup-code').value || '').trim();
+        if (!unlockFolderSession(folder, code)) {
+          m.error = 'Incorrect folder code for "' + folder + '". Try again.';
+          renderFolderUnlockPromptModal(m);
+          return;
+        }
+        var bid = m.pendingBotId;
+        closeModal();
+        if (bid) {
+          state.activeBotId = bid;
+          state.selectedRowIds = {};
+          state.editingCell = null;
+          state.tableSearchQuery = '';
+          var targetBot = getActiveBot();
+          if (targetBot) {
+            recordAudit('OPEN', targetBot, 'Opened table "' + targetBot.name + '"', { source: 'Browser' });
+            if (targetBot.telegramToken) syncTelegramBot(targetBot, true);
+            if (state.supabaseConfig.isConnected) pullAndMergeSupabase('bot_open');
+          }
+        }
+        showToast('Unlocked folder "' + folder + '"');
+        renderApp();
+      };
+    }
+
+    function renderFolderLockModal(m) {
+      var folders = getAllFolders();
+      var focusF = m.focusFolder || folders[0] || 'General';
+      if (folders.indexOf(focusF) === -1 && focusF) folders.unshift(focusF);
+      var curLock = getFolderLock(focusF) || { enabled: false, code: '1234' };
+      if (m.draftCode === undefined || m.lastFocusFolder !== focusF) {
+        m.draftCode = curLock.code || '1234';
+        m.draftEnabled = !!curLock.enabled;
+        m.lastFocusFolder = focusF;
+      }
+      if (m.showCodes === undefined) m.showCodes = false;
+      var mgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:600px;" id="m-card">' +
+        '<header class="modal-header" style="background:linear-gradient(135deg,#92400E,#D97706);">' +
+          '<div style="display:flex;align-items:center;gap:9px;">' + icon('lock', 20) +
+            '<div><h2 style="font-size:15.5px;font-weight:700;">Folder Lock &amp; Change Code</h2>' +
+            '<div style="font-size:11px;color:#FEF3C7;">Lock individual folders &amp; change folder codes (Protected by ' + esc(mgr) + ' Cyber Code)</div></div>' +
+          '</div>' +
+          '<button class="icon-btn" id="flm-close">' + icon('close', 18) + '</button>' +
+        '</header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
+          (m.statusMsg ? '<div style="padding:9px 12px;border-radius:10px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>' : '') +
+          '<form id="flm-form" style="padding:14px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:12px;display:flex;flex-direction:column;gap:11px;" autocomplete="off">' +
+            '<div style="font-size:13px;font-weight:800;color:#92400E;">Set or Change Folder Lock Code</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+              '<div><label class="field-label" for="flm-folder-sel">Select Folder</label>' +
+                '<select id="flm-folder-sel" class="form-select">' +
+                  folders.map(function (f) {
+                    var fl = getFolderLock(f);
+                    return '<option value="' + esc(f) + '"' + (f === focusF ? ' selected' : '') + '>' + esc(f) + (fl && fl.enabled ? ' [LOCKED]' : ' [OPEN]') + '</option>';
+                  }).join('') +
+                '</select></div>' +
+              '<div><label class="field-label" for="flm-enabled-wrap">Folder Lock Option</label>' +
+                '<label id="flm-enabled-wrap" style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:#fff;border:1px solid #FDE68A;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700;color:#78350F;">' +
+                  '<input type="checkbox" id="flm-enabled" ' + (m.draftEnabled ? 'checked' : '') + ' style="width:17px;height:17px;" />' +
+                  '<span>Enable Lock for "' + esc(focusF) + '"</span>' +
+                '</label></div>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+              '<div>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+                  '<label class="field-label" style="margin:0;" for="flm-code">Folder Code</label>' +
+                  '<button type="button" id="flm-vis" style="font-size:11px;font-weight:700;color:#B45309;">' + (m.showCodes ? 'Hide' : 'Show') + '</button>' +
+                '</div>' +
+                '<input id="flm-code" type="' + (m.showCodes ? 'text' : 'password') + '" class="form-input mono" value="' + esc(m.draftCode) + '" placeholder="Enter folder code" required />' +
+              '</div>' +
+              '<div>' +
+                '<label class="field-label" for="flm-code2">Confirm Folder Code</label>' +
+                '<input id="flm-code2" type="' + (m.showCodes ? 'text' : 'password') + '" class="form-input mono" value="' + esc(m.draftCode) + '" placeholder="Confirm folder code" required />' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+              '<button type="submit" class="btn btn-dark-blue" style="flex:1.4;">' + icon('shield', 14) + '<span>Save / Change Folder Code (' + esc(mgr) + ' Auth)</span></button>' +
+              '<button type="button" id="flm-lock-now" class="btn btn-outline" style="flex:1;border-color:#F59E0B;color:#92400E;">' + icon('lock', 14) + '<span>Lock Folder Now</span></button>' +
+            '</div>' +
+          '</form>' +
+          '<div>' +
+            '<div style="font-size:12.5px;font-weight:800;color:#0F172A;margin-bottom:8px;">All Folders Lock Status (' + folders.length + ')</div>' +
+            '<div style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;">' +
+              folders.map(function (f) {
+                var fLocked = isFolderLocked(f);
+                var fOpenNow = isFolderUnlocked(f);
+                var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
+                return '<div style="padding:10px 12px;border:1px solid ' + (fLocked ? '#FCD34D;background:#FFFBEB' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                  '<div>' +
+                    '<div style="display:flex;align-items:center;gap:6px;">' +
+                      '<span style="font-weight:800;font-size:13px;">' + (fLocked ? '🔒 ' : '📁 ') + esc(f) + '</span>' +
+                      '<span class="act-badge ' + (fLocked ? (fOpenNow ? 'act-auth' : 'act-block') : 'act-add') + '">' + (fLocked ? (fOpenNow ? 'LOCKED (SESSION OPEN)' : 'LOCKED') : 'NO LOCK') + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:11px;color:#64748B;margin-top:2px;">' + cnt + ' bot table(s) inside</div>' +
+                  '</div>' +
+                  '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                    '<button type="button" class="btn btn-outline flm-edit-btn" data-f="' + esc(f) + '" style="padding:5px 10px;font-size:11px;">Set / Change Code</button>' +
+                    (fLocked && fOpenNow ? '<button type="button" class="btn btn-outline flm-relock-btn" data-f="' + esc(f) + '" style="padding:5px 10px;font-size:11px;color:#B45309;border-color:#F59E0B;">Lock Now</button>' : '') +
+                    (fLocked ? '<button type="button" class="btn btn-red flm-disable-btn" data-f="' + esc(f) + '" style="padding:5px 10px;font-size:11px;">Remove Lock</button>' : '') +
+                  '</div>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+        '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('flm-close').onclick = closeModal;
+      document.getElementById('flm-folder-sel').onchange = function (e) {
+        m.focusFolder = e.target.value;
+        m.statusMsg = null;
+        renderFolderLockModal(m);
+      };
+      document.getElementById('flm-vis').onclick = function () {
+        m.draftCode = document.getElementById('flm-code').value;
+        m.draftEnabled = !!document.getElementById('flm-enabled').checked;
+        m.showCodes = !m.showCodes;
+        renderFolderLockModal(m);
+      };
+      document.getElementById('flm-lock-now').onclick = function () {
+        var c1 = (document.getElementById('flm-code').value || '').trim() || '1234';
+        if (!isFolderLocked(focusF)) {
+          requireCyberAuth('Enable & Lock Folder "' + focusF + '"', function () {
+            setFolderLock(focusF, true, c1);
+            lockFolderSession(focusF);
+            recordAudit('AUTH', null, 'Locked folder "' + focusF + '" with code', { source: 'FolderLock' });
+            m.statusType = 'success';
+            m.statusMsg = 'Folder "' + focusF + '" is now LOCKED.';
+            renderApp();
+            renderFolderLockModal(m);
+          });
+        } else {
+          lockFolderSession(focusF);
+          m.statusType = 'success';
+          m.statusMsg = 'Session lock applied for folder "' + focusF + '".';
+          renderApp();
+          renderFolderLockModal(m);
+        }
+      };
+      document.getElementById('flm-form').onsubmit = function (e) {
+        e.preventDefault();
+        if (!guardWriteAction('Save Folder Lock')) return;
+        var en = !!document.getElementById('flm-enabled').checked;
+        var c1 = (document.getElementById('flm-code').value || '').trim();
+        var c2 = (document.getElementById('flm-code2').value || '').trim();
+        if (!c1) { m.statusType = 'error'; m.statusMsg = 'Folder code cannot be empty.'; renderFolderLockModal(m); return; }
+        if (c1 !== c2) { m.statusType = 'error'; m.statusMsg = 'Folder codes do not match.'; renderFolderLockModal(m); return; }
+        requireCyberAuth((en ? 'Set / Change Folder Lock Code' : 'Disable Folder Lock') + ' for "' + focusF + '"', function () {
+          setFolderLock(focusF, en, c1);
+          if (en) lockFolderSession(focusF);
+          m.draftCode = c1;
+          m.draftEnabled = en;
+          recordAudit('AUTH', null, (en ? 'Enabled/Changed folder lock code' : 'Disabled folder lock') + ' for "' + focusF + '"', { source: 'FolderLock' });
+          m.statusType = 'success';
+          m.statusMsg = en ? ('Folder "' + focusF + '" lock code updated and folder locked.') : ('Folder lock disabled for "' + focusF + '".');
+          renderApp();
+          renderFolderLockModal(m);
+        });
+      };
+      document.querySelectorAll('.flm-edit-btn').forEach(function (b) {
+        b.onclick = function () { m.focusFolder = b.getAttribute('data-f'); m.statusMsg = null; renderFolderLockModal(m); };
+      });
+      document.querySelectorAll('.flm-relock-btn').forEach(function (b) {
+        b.onclick = function () {
+          var fn = b.getAttribute('data-f');
+          lockFolderSession(fn);
+          m.statusType = 'success';
+          m.statusMsg = 'Re-locked folder "' + fn + '".';
+          renderApp();
+          renderFolderLockModal(m);
+        };
+      });
+      document.querySelectorAll('.flm-disable-btn').forEach(function (b) {
+        b.onclick = function () {
+          var fn = b.getAttribute('data-f');
+          requireCyberAuth('Remove Folder Lock from "' + fn + '"', function () {
+            var existing = getFolderLock(fn);
+            setFolderLock(fn, false, existing ? existing.code : '1234');
+            recordAudit('AUTH', null, 'Removed folder lock for "' + fn + '"', { source: 'FolderLock' });
+            m.statusType = 'success';
+            m.statusMsg = 'Removed lock on folder "' + fn + '".';
+            renderApp();
+            renderFolderLockModal(m);
+          });
+        };
+      });
+    }
+
+    function renderCyberControlModal(m) {
+      var mgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
+      var needsGate = state.adminConfig.cyberRequireCode !== false && !m.cyberVerified &&
+        (state.adminConfig.cyberAlwaysAsk !== false || !isCyberSessionUnlocked());
+
+      if (needsGate) {
+        var gHtml = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:430px;" id="m-card">' +
+          '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
+            '<div style="display:flex;align-items:center;gap:9px;">' + icon('shield', 20) +
+              '<div><h2 style="font-size:15.5px;font-weight:800;">Cyber Control Panel (' + esc(mgr) + ')</h2>' +
+              '<div style="font-size:11px;color:#A7F3D0;">Security Code Verification Required</div></div>' +
+            '</div>' +
+            '<button class="icon-btn" id="cy-gate-close">' + icon('close', 18) + '</button>' +
+          '</header>' +
+          '<form id="cy-gate-form" class="modal-body" style="display:flex;flex-direction:column;gap:12px;" autocomplete="off">' +
+            '<div class="cyber-panel-hero">' +
+              '<div><div style="font-size:11px;color:#A7F3D0;font-weight:700;text-transform:uppercase;">Manager of Cyber Security</div>' +
+              '<div style="font-size:17px;font-weight:800;">' + esc(mgr) + '</div></div>' +
+              '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">PROTECTED</span>' +
+            '</div>' +
+            '<div style="font-size:12.5px;color:#475569;">Enter <strong>' + esc(mgr) + '</strong>\'s Cyber Security Code to access Transmit, Terminate, Timed Block/Unblock, User Delete, and Code Controls.</div>' +
+            '<div>' +
+              '<label class="field-label" for="cy-gate-inp">' + esc(mgr) + ' Cyber Security Code</label>' +
+              '<div style="display:flex;gap:8px;">' +
+                '<input id="cy-gate-inp" type="' + (m.gateShow ? 'text' : 'password') + '" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;" placeholder="Enter Cyber Code (default 1234)..." autofocus />' +
+                '<button type="button" id="cy-gate-eye" class="btn btn-outline" style="padding:9px 11px;font-size:11.5px;">' + (m.gateShow ? 'Hide' : 'Show') + '</button>' +
+              '</div>' +
+            '</div>' +
+            (m.gateError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(m.gateError) + '</span></div>' : '') +
+            '<div style="display:flex;gap:8px;">' +
+              '<button type="button" id="cy-gate-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+              '<button type="submit" class="btn btn-green" style="flex:1.4;">' + icon('shield', 15) + '<span>Unlock Cyber Panel</span></button>' +
+            '</div>' +
+          '</form></div></div>';
+        document.getElementById('modal-root').innerHTML = gHtml;
+        document.getElementById('m-bg').onclick = closeModal;
+        document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+        document.getElementById('cy-gate-close').onclick = closeModal;
+        document.getElementById('cy-gate-cancel').onclick = closeModal;
+        var gInp = document.getElementById('cy-gate-inp');
+        if (gInp) gInp.focus();
+        document.getElementById('cy-gate-eye').onclick = function () {
+          var v = gInp ? gInp.value : '';
+          m.gateShow = !m.gateShow;
+          renderCyberControlModal(m);
+          var n = document.getElementById('cy-gate-inp');
+          if (n) { n.value = v; n.focus(); }
+        };
+        document.getElementById('cy-gate-form').onsubmit = function (e) {
+          e.preventDefault();
+          var entered = (document.getElementById('cy-gate-inp').value || '').trim();
+          if (entered !== getCyberSecurityCode()) {
+            m.gateError = 'Incorrect Cyber Security Code for ' + mgr + '. Access denied.';
+            recordAudit('BLOCK', null, 'Failed Cyber Control Panel unlock attempt', { source: 'Security' });
+            renderCyberControlModal(m);
+            return;
+          }
+          m.gateError = '';
+          m.cyberVerified = true;
+          unlockCyberSession();
+          recordAudit('AUTH', null, mgr + ' unlocked Cyber Control Panel', { actor: mgr, source: 'Security' });
+          renderCyberControlModal(m);
+        };
+        return;
+      }
+
+      if (!m.tab) m.tab = 'control';
+      cleanupExpiredBlocks();
+      var userList = state.workspaceUsers.slice().sort(function (a, b) {
+        return (b.blocked ? 1 : 0) - (a.blocked ? 1 : 0) || new Date(b.lastSeen || 0).getTime() - new Date(a.lastSeen || 0).getTime();
+      });
+      var blockedUsers = userList.filter(function (u) { return u.blocked; });
+      var durationOpts = [
+        { v: '0', l: 'Permanent Block' },
+        { v: '10', l: 'Timed: 10 Minutes' },
+        { v: '30', l: 'Timed: 30 Minutes' },
+        { v: '60', l: 'Timed: 1 Hour' },
+        { v: '360', l: 'Timed: 6 Hours' },
+        { v: '1440', l: 'Timed: 24 Hours' },
+        { v: 'custom', l: 'Custom Minutes...' }
+      ];
+
+      var bodyHtml = '';
+      if (m.tab === 'control') {
+        bodyHtml = '<div style="padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="font-weight:800;font-size:13.5px;color:#0D47A1;display:flex;align-items:center;gap:6px;">' + icon('swap', 16) + '<span>' + esc(mgr) + ' Transmit, Terminate &amp; User Control</span></div>' +
+          '<div style="font-size:11.5px;color:#334155;">Transmit bots &amp; rows from an unwanted user, terminate/logout them immediately (hiding all app data), or delete user rows &amp; records.</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div><label class="field-label">Target / Unwanted User</label><select id="cy-tr-src" class="form-select">' +
+              userList.map(function (u) { return '<option value="' + esc(u.id) + '">' + esc(u.label) + (u.blocked ? ' [BLOCKED]' : '') + '</option>'; }).join('') +
+            '</select></div>' +
+            '<div><label class="field-label">Transmit Data To</label><input id="cy-tr-dst" class="form-input" value="' + esc(state.adminConfig.adminEmail || mgr) + '" /></div>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end;">' +
+            '<div><label class="field-label">Block / Timed Unblock Duration</label><select id="cy-tr-dur" class="form-select">' +
+              durationOpts.map(function (o) { return '<option value="' + o.v + '">' + o.l + '</option>'; }).join('') +
+            '</select></div>' +
+            '<div id="cy-tr-cust-wrap" style="display:none;"><label class="field-label">Custom Minutes</label><input id="cy-tr-cust-mins" type="number" min="1" class="form-input" value="15" /></div>' +
+          '</div>' +
+          '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#991B1B;background:#FEF2F2;border:1px solid #FECACA;padding:8px 10px;border-radius:8px;cursor:pointer;">' +
+            '<input type="checkbox" id="cy-tr-logout" checked style="width:16px;height:16px;" />' +
+            '<span>Terminate &amp; Force Logout user immediately on transmit (hide all app data)</span>' +
+          '</label>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button type="button" id="cy-btn-transmit" class="btn btn-dark-blue" style="flex:1;">' + icon('swap', 14) + '<span>Transmit &amp; Terminate</span></button>' +
+            '<button type="button" id="cy-btn-term-only" class="btn btn-outline" style="flex:1;color:#B91C1C;border-color:#FCA5A5;background:#FEF2F2;">' + icon('ban', 14) + '<span>Terminate / Block Only</span></button>' +
+            '<button type="button" id="cy-btn-del-user" class="btn btn-red" style="flex:1;">' + icon('trash', 14) + '<span>Delete User &amp; Rows</span></button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+          '<button type="button" id="cy-quick-lock-screen" class="btn btn-outline" style="justify-content:flex-start;padding:11px 12px;">' + icon('lock', 15) + '<span><strong>Lock Screen &amp; Change Code</strong></span></button>' +
+          '<button type="button" id="cy-quick-folder-lock" class="btn btn-outline" style="justify-content:flex-start;padding:11px 12px;">' + icon('folder', 15) + '<span><strong>Folder Lock &amp; Change Code</strong></span></button>' +
+        '</div>';
+      } else if (m.tab === 'block') {
+        bodyHtml = '<div style="padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
+          '<div style="font-size:12.5px;font-weight:800;color:#991B1B;">Block Unwanted User (Permanent or Timed Auto-Unblock)</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+            '<input id="cy-blk-inp" class="form-input" style="flex:1.5;min-width:190px;" placeholder="Email or Telegram @username / ID..." />' +
+            '<select id="cy-blk-dur" class="form-select" style="flex:1;min-width:145px;">' +
+              durationOpts.map(function (o) { return '<option value="' + o.v + '">' + o.l + '</option>'; }).join('') +
+            '</select>' +
+            '<input id="cy-blk-cust" type="number" min="1" class="form-input" style="width:90px;display:none;" placeholder="Mins" value="15" />' +
+            '<button type="button" id="cy-blk-add" class="btn btn-red">' + icon('ban', 14) + '<span>Block &amp; Logout</span></button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:12px;font-weight:800;color:#0F172A;">Blocked &amp; Active Users (' + blockedUsers.length + ' Blocked / ' + userList.length + ' Total)</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;">' +
+          userList.map(function (u) {
+            var revEntry = (state.adminConfig.revokedUsers || {})[String(u.id || '').toLowerCase()];
+            var expAt = u.blockExpiresAt || (revEntry && revEntry.expiresAt) || null;
+            var remTxt = u.blocked ? (expAt ? ('TIMED · ' + formatRemainingBlockTime(expAt)) : 'PERMANENT BLOCK') : 'ACTIVE';
+            return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+              '<div style="min-width:0;flex:1;">' +
+                '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                  '<span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
+                  '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-add') + '">' + esc(remTxt) + '</span>' +
+                  '<span style="font-size:10.5px;color:#64748B;">(' + esc(u.source || 'Browser') + ')</span>' +
+                '</div>' +
+                '<div class="mono" style="font-size:11px;color:#64748B;margin-top:2px;">Open:' + (u.opens || 0) + ' Add:' + (u.adds || 0) + ' Edit:' + (u.edits || 0) + ' Del:' + (u.deletes || 0) + ' &middot; Seen ' + timeAgo(u.lastSeen) + '</div>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                (u.blocked
+                  ? '<button type="button" class="btn btn-green cy-usr-unblk" data-uid="' + esc(u.id) + '" style="padding:5px 10px;font-size:11px;">Unblock Now</button>'
+                  : '<button type="button" class="btn btn-red cy-usr-blk" data-uid="' + esc(u.id) + '" style="padding:5px 10px;font-size:11px;">Block</button>') +
+                '<button type="button" class="btn btn-outline cy-usr-del" data-uid="' + esc(u.id) + '" style="padding:5px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
+              '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+      } else {
+        if (m.showCyberCodes === undefined) m.showCyberCodes = false;
+        var ct = m.showCyberCodes ? 'text' : 'password';
+        bodyHtml = '<form id="cy-code-form" style="padding:14px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;display:flex;flex-direction:column;gap:10px;" autocomplete="off">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<div style="font-size:13px;font-weight:800;color:#065F46;">Create / Change ' + esc(mgr) + ' Cyber Security Code</div>' +
+            '<button type="button" id="cy-code-vis" style="font-size:11.5px;font-weight:700;color:#047857;">' + (m.showCyberCodes ? 'Hide' : 'Show') + '</button>' +
+          '</div>' +
+          '<div><label class="field-label">Cyber Security Manager Name</label><input id="cy-mgr-name" class="form-input" value="' + esc(mgr) + '" required /></div>' +
+          '<div><label class="field-label">Current Cyber Security Code</label><input id="cy-old-code" type="' + ct + '" class="form-input mono" placeholder="Enter current Cyber Code..." required /></div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div><label class="field-label">New Cyber Security Code</label><input id="cy-new-code" type="' + ct + '" class="form-input mono" placeholder="New Cyber Code" required /></div>' +
+            '<div><label class="field-label">Confirm New Code</label><input id="cy-new-code2" type="' + ct + '" class="form-input mono" placeholder="Confirm New Code" required /></div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button type="submit" class="btn btn-green" style="flex:1.4;">Save New Cyber Security Code</button>' +
+            '<button type="button" id="cy-reset-1234" class="btn btn-outline" style="flex:1;font-size:11.5px;">Fill Default (1234)</button>' +
+          '</div>' +
+        '</form>' +
+        '<div style="padding:12px 14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
+          '<div style="font-size:12.5px;font-weight:800;color:#0F172A;">Cyber Security Enforcement Policy</div>' +
+          '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Require Cyber Code on Block, Terminate, Delete &amp; Code Changes</span><input type="checkbox" id="cy-req-code" ' + (state.adminConfig.cyberRequireCode !== false ? 'checked' : '') + ' /></label>' +
+          '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Ask Cyber Code every time on outside menus &amp; buttons</span><input type="checkbox" id="cy-always-ask" ' + (state.adminConfig.cyberAlwaysAsk !== false ? 'checked' : '') + ' /></label>' +
+          '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">' +
+            '<button type="button" id="cy-go-access" class="btn btn-outline" style="flex:1;font-size:12px;">Open Lock Screen &amp; Change Code</button>' +
+            '<button type="button" id="cy-go-folder" class="btn btn-outline" style="flex:1;font-size:12px;">Open Folder Lock &amp; Change Code</button>' +
+          '</div>' +
+        '</div>';
+      }
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:650px;" id="m-card">' +
+        '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
+          '<div style="display:flex;align-items:center;gap:10px;">' + icon('shield', 21) +
+            '<div><h2 style="font-size:16px;font-weight:800;">Cyber Control Panel &mdash; ' + esc(mgr) + '</h2>' +
+            '<div style="font-size:11px;color:#A7F3D0;">Transmit, Terminate, Block/Timed Unblock, Delete User &amp; App Code Security</div></div>' +
+          '</div>' +
+          '<button class="icon-btn" id="cy-close">' + icon('close', 18) + '</button>' +
+        '</header>' +
+        '<div class="admin-tabs">' +
+          '<button class="admin-tab-btn ' + (m.tab === 'control' ? 'active' : '') + '" data-cytab="control">Transmit &amp; Terminate</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'block' ? 'active' : '') + '" data-cytab="block">Block &amp; Timed Unblock (' + blockedUsers.length + ')</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'codes' ? 'active' : '') + '" data-cytab="codes">Cyber Code &amp; App Locks</button>' +
+        '</div>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
+          (m.statusMsg ? '<div style="padding:9px 12px;border-radius:10px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>' : '') +
+          bodyHtml +
+        '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('cy-close').onclick = closeModal;
+      document.querySelectorAll('[data-cytab]').forEach(function (b) {
+        b.onclick = function () { m.tab = b.getAttribute('data-cytab'); m.statusMsg = null; renderCyberControlModal(m); };
+      });
+
+      var resolveDurationMins = function (selEl, custEl) {
+        if (!selEl) return 0;
+        if (selEl.value === 'custom') return Math.max(1, parseFloat(custEl ? custEl.value : '15') || 15);
+        return parseFloat(selEl.value) || 0;
+      };
+
+      if (m.tab === 'control') {
+        var trDur = document.getElementById('cy-tr-dur');
+        var trCustWrap = document.getElementById('cy-tr-cust-wrap');
+        trDur.onchange = function () { trCustWrap.style.display = trDur.value === 'custom' ? 'block' : 'none'; };
+
+        document.getElementById('cy-btn-transmit').onclick = function () {
+          var src = document.getElementById('cy-tr-src').value;
+          var dst = (document.getElementById('cy-tr-dst').value || '').trim() || mgr;
+          var doLogout = !!document.getElementById('cy-tr-logout').checked;
+          var mins = resolveDurationMins(trDur, document.getElementById('cy-tr-cust-mins'));
+          var movedBots = 0, movedRows = 0;
+          state.bots.forEach(function (b) {
+            var ch = false;
+            if (b.createdBy === src || b.lastEditedBy === src) { b.createdBy = dst; b.lastEditedBy = dst; ch = true; movedBots++; }
+            b.rows.forEach(function (r) { if (r._actor === src) { r._actor = dst; ch = true; movedRows++; } });
+            if (ch) { b.updatedAt = new Date().toISOString(); pushBotToSupabase(b); }
+          });
+          saveBotsLocal();
+          if (doLogout && src) {
+            revokeAndBlockUser(src, mgr + ' transmitted data to "' + dst + '" and terminated "' + src + '". App data hidden.', mins);
+          }
+          recordAudit('TRANSMIT', null, mgr + ' Cyber Control transmitted ' + movedBots + ' bot(s) & ' + movedRows + ' row(s) from "' + src + '" -> "' + dst + '"' + (doLogout ? (' & terminated (' + (mins > 0 ? mins + 'm' : 'Permanent') + ')') : ''), { actor: mgr, source: 'Security' });
+          m.statusType = 'success';
+          m.statusMsg = 'Transmitted ' + movedBots + ' bot(s), ' + movedRows + ' row(s) to ' + dst + (doLogout ? (' & terminated "' + src + '"') : '') + '.';
+          renderApp(true);
+          if (!isCurrentUserRevoked()) renderCyberControlModal(m);
+        };
+
+        document.getElementById('cy-btn-term-only').onclick = function () {
+          var src = document.getElementById('cy-tr-src').value;
+          if (!src) return;
+          var mins = resolveDurationMins(trDur, document.getElementById('cy-tr-cust-mins'));
+          revokeAndBlockUser(src, mgr + ' terminated & blocked "' + src + '". App data hidden.', mins);
+          recordAudit('BLOCK', null, mgr + ' terminated "' + src + '" (' + (mins > 0 ? mins + 'm timed' : 'Permanent') + ')', { actor: mgr, source: 'Security' });
+          m.statusType = 'success';
+          m.statusMsg = 'Terminated & blocked "' + src + '" (' + (mins > 0 ? (mins + ' min timed unblock') : 'Permanent') + ').';
+          renderApp(true);
+          if (!isCurrentUserRevoked()) renderCyberControlModal(m);
+        };
+
+        document.getElementById('cy-btn-del-user').onclick = function () {
+          var src = document.getElementById('cy-tr-src').value;
+          if (!src) return;
+          var mins = resolveDurationMins(trDur, document.getElementById('cy-tr-cust-mins'));
+          var removedRows = 0;
+          state.bots.forEach(function (b) {
+            var before = b.rows.length;
+            b.rows = b.rows.filter(function (r) { return r._actor !== src; });
+            if (b.rows.length !== before) { removedRows += (before - b.rows.length); b.updatedAt = new Date().toISOString(); pushBotToSupabase(b); }
+          });
+          saveBotsLocal();
+          revokeAndBlockUser(src, mgr + ' deleted rows & terminated user "' + src + '".', mins);
+          state.workspaceUsers = state.workspaceUsers.filter(function (u) { return !matchesActorIdentity(u.id, src); });
+          saveAdminState();
+          recordAudit('DELETE', null, mgr + ' deleted user "' + src + '" & removed ' + removedRows + ' row(s)', { actor: mgr, source: 'Security' });
+          m.statusType = 'success';
+          m.statusMsg = 'Deleted user "' + src + '" and removed ' + removedRows + ' row(s).';
+          renderApp(true);
+          if (!isCurrentUserRevoked()) renderCyberControlModal(m);
+        };
+
+        document.getElementById('cy-quick-lock-screen').onclick = function () { openModal('access_code'); };
+        document.getElementById('cy-quick-folder-lock').onclick = function () { openModal('folder_lock'); };
+      } else if (m.tab === 'block') {
+        var blkDur = document.getElementById('cy-blk-dur');
+        var blkCust = document.getElementById('cy-blk-cust');
+        blkDur.onchange = function () { blkCust.style.display = blkDur.value === 'custom' ? 'inline-block' : 'none'; };
+        document.getElementById('cy-blk-add').onclick = function () {
+          var v = (document.getElementById('cy-blk-inp').value || '').trim();
+          if (!v) return;
+          var mins = resolveDurationMins(blkDur, blkCust);
+          revokeAndBlockUser(v, mgr + ' blocked "' + v + '" (' + (mins > 0 ? mins + 'm' : 'Permanent') + '). App data hidden.', mins);
+          recordAudit('BLOCK', null, mgr + ' blocked "' + v + '" (' + (mins > 0 ? mins + 'm timed' : 'Permanent') + ')', { actor: mgr, source: 'Security' });
+          m.statusType = 'success';
+          m.statusMsg = 'Blocked & logged out "' + v + '" (' + (mins > 0 ? ('Auto-unblocks in ' + mins + 'm') : 'Permanent') + ').';
+          renderApp(true);
+          if (!isCurrentUserRevoked()) renderCyberControlModal(m);
+        };
+        document.querySelectorAll('.cy-usr-unblk').forEach(function (b) {
+          b.onclick = function () {
+            var uid = b.getAttribute('data-uid');
+            unblockWorkspaceUser(uid);
+            recordAudit('BLOCK', null, mgr + ' unblocked user "' + uid + '"', { actor: mgr, source: 'Security' });
+            m.statusType = 'success';
+            m.statusMsg = 'Unblocked "' + uid + '" immediately.';
+            renderApp(true);
+            renderCyberControlModal(m);
+          };
+        });
+        document.querySelectorAll('.cy-usr-blk').forEach(function (b) {
+          b.onclick = function () {
+            var uid = b.getAttribute('data-uid');
+            var mins = resolveDurationMins(blkDur, blkCust);
+            revokeAndBlockUser(uid, mgr + ' blocked "' + uid + '".', mins);
+            recordAudit('BLOCK', null, mgr + ' blocked "' + uid + '" (' + (mins > 0 ? mins + 'm timed' : 'Permanent') + ')', { actor: mgr, source: 'Security' });
+            m.statusType = 'success';
+            m.statusMsg = 'Blocked "' + uid + '" (' + (mins > 0 ? ('Auto-unblocks in ' + mins + 'm') : 'Permanent') + ').';
+            renderApp(true);
+            if (!isCurrentUserRevoked()) renderCyberControlModal(m);
+          };
+        });
+        document.querySelectorAll('.cy-usr-del').forEach(function (b) {
+          b.onclick = function () {
+            var uid = b.getAttribute('data-uid');
+            if (String(uid).toLowerCase() === String(mgr).toLowerCase() || String(uid).toLowerCase() === 'abdulfeta') {
+              m.statusType = 'error';
+              m.statusMsg = 'Cannot delete Manager of Cyber Security (' + mgr + ').';
+              renderCyberControlModal(m);
+              return;
+            }
+            state.workspaceUsers = state.workspaceUsers.filter(function (u) { return !matchesActorIdentity(u.id, uid); });
+            if (state.adminConfig.revokedUsers) delete state.adminConfig.revokedUsers[String(uid).toLowerCase()];
+            saveAdminState();
+            recordAudit('DELETE', null, mgr + ' removed user record "' + uid + '"', { actor: mgr, source: 'Security' });
+            m.statusType = 'success';
+            m.statusMsg = 'Deleted user record "' + uid + '".';
+            renderApp(true);
+            renderCyberControlModal(m);
+          };
+        });
+      } else {
+        document.getElementById('cy-code-vis').onclick = function () { m.showCyberCodes = !m.showCyberCodes; renderCyberControlModal(m); };
+        document.getElementById('cy-reset-1234').onclick = function () {
+          document.getElementById('cy-new-code').value = '1234';
+          document.getElementById('cy-new-code2').value = '1234';
+          showToast('Filled default code 1234 — enter current code and click Save');
+        };
+        document.getElementById('cy-code-form').onsubmit = function (e) {
+          e.preventDefault();
+          var newMgr = (document.getElementById('cy-mgr-name').value || '').trim() || 'Abdulfeta';
+          var oldC = (document.getElementById('cy-old-code').value || '').trim();
+          var n1 = (document.getElementById('cy-new-code').value || '').trim();
+          var n2 = (document.getElementById('cy-new-code2').value || '').trim();
+          if (oldC !== getCyberSecurityCode()) {
+            m.statusType = 'error';
+            m.statusMsg = 'Current Cyber Security Code is incorrect.';
+            renderCyberControlModal(m);
+            return;
+          }
+          if (!n1) { m.statusType = 'error'; m.statusMsg = 'New Cyber Security Code cannot be empty.'; renderCyberControlModal(m); return; }
+          if (n1 !== n2) { m.statusType = 'error'; m.statusMsg = 'New Cyber Security Codes do not match.'; renderCyberControlModal(m); return; }
+          state.adminConfig.cyberSecurityManager = newMgr;
+          setCyberSecurityCode(n1);
+          recordAudit('AUTH', null, newMgr + ' updated Cyber Security Code', { actor: newMgr, source: 'Security' });
+          m.statusType = 'success';
+          m.statusMsg = 'Cyber Security Code & Manager (' + newMgr + ') saved!';
+          renderApp();
+          renderCyberControlModal(m);
+        };
+        document.getElementById('cy-req-code').onchange = function (e) {
+          state.adminConfig.cyberRequireCode = !!e.target.checked;
+          saveAdminState();
+          showToast(state.adminConfig.cyberRequireCode ? 'Cyber Security Code enforcement ON' : 'Cyber Security Code enforcement OFF');
+        };
+        document.getElementById('cy-always-ask').onchange = function (e) {
+          state.adminConfig.cyberAlwaysAsk = !!e.target.checked;
+          saveAdminState();
+          showToast(state.adminConfig.cyberAlwaysAsk ? 'Will ask Cyber Code on every outside action' : 'Session unlock enabled');
+        };
+        document.getElementById('cy-go-access').onclick = function () { openModal('access_code'); };
+        document.getElementById('cy-go-folder').onclick = function () { openModal('folder_lock'); };
+      }
     }
 
     function renderImagePreviewModal(m) {
@@ -4411,19 +5402,26 @@
         if (!guardWriteAction('Save Settings')) return;
         var newCodeRaw = (document.getElementById('set-access-code').value || '').trim();
         if (!newCodeRaw) { showToast('Access code cannot be empty'); return; }
-        var savedCode = setConfiguredAccessCode(newCodeRaw);
-        if (bot) {
-          bot.name = document.getElementById('set-name').value.trim() || 'New Bot';
-          bot.folder = document.getElementById('set-folder').value.trim() || 'General';
-          bot.description = document.getElementById('set-desc').value.trim();
-          bot.telegramToken = document.getElementById('set-tok').value.trim();
-          bot.botStatus = bot.telegramToken ? (bot.botStatus === 'online' ? 'online' : 'simulator') : 'simulator';
-          bot.updatedAt = new Date().toISOString();
-          updateBot(bot, 'EDIT', 'Updated settings for "' + bot.name + '"');
-          if (bot.telegramToken) syncTelegramBot(bot, true);
+        var applySettingsSave = function () {
+          var savedCode = setConfiguredAccessCode(newCodeRaw);
+          if (bot) {
+            bot.name = document.getElementById('set-name').value.trim() || 'New Bot';
+            bot.folder = document.getElementById('set-folder').value.trim() || 'General';
+            bot.description = document.getElementById('set-desc').value.trim();
+            bot.telegramToken = document.getElementById('set-tok').value.trim();
+            bot.botStatus = bot.telegramToken ? (bot.botStatus === 'online' ? 'online' : 'simulator') : 'simulator';
+            bot.updatedAt = new Date().toISOString();
+            updateBot(bot, 'EDIT', 'Updated settings for "' + bot.name + '"');
+            if (bot.telegramToken) syncTelegramBot(bot, true);
+          }
+          closeModal(); renderApp();
+          showToast(bot ? ('Saved settings & access code for "' + bot.name + '"') : ('Saved app access code (' + savedCode + ')'));
+        };
+        if (newCodeRaw !== getConfiguredAccessCode()) {
+          requireCyberAuth('Change Lock Screen Access Code in Settings', applySettingsSave);
+        } else {
+          applySettingsSave();
         }
-        closeModal(); renderApp();
-        showToast(bot ? ('Saved settings & access code for "' + bot.name + '"') : ('Saved app access code (' + savedCode + ')'));
       };
     }
 
@@ -6184,19 +7182,34 @@
               }).join('')) +
           '</tbody></table></div>';
       } else if (m.tab === 'users') {
+        cleanupExpiredBlocks();
         tabContent = '<div style="padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
-          '<input id="adm-block-inp" class="form-input" style="flex:1;min-width:200px;" placeholder="Block & logout unwanted email or Telegram @username / ID..." />' +
-          '<button id="adm-block-add" class="btn btn-red">' + icon('ban', 14) + '<span>Block &amp; Logout User</span></button>' +
+          '<input id="adm-block-inp" class="form-input" style="flex:1.5;min-width:190px;" placeholder="Block & logout unwanted email or Telegram @username / ID..." />' +
+          '<select id="adm-block-dur" class="form-select" style="flex:1;min-width:140px;">' +
+            '<option value="0">Permanent Block</option>' +
+            '<option value="10">Timed: 10 Minutes</option>' +
+            '<option value="30">Timed: 30 Minutes</option>' +
+            '<option value="60">Timed: 1 Hour</option>' +
+            '<option value="360">Timed: 6 Hours</option>' +
+            '<option value="1440">Timed: 24 Hours</option>' +
+            '<option value="custom">Custom Minutes...</option>' +
+          '</select>' +
+          '<input id="adm-block-cust" type="number" min="1" class="form-input" style="width:82px;display:none;" value="15" placeholder="Min" />' +
+          '<button id="adm-block-add" class="btn btn-red">' + icon('ban', 14) + '<span>Block &amp; Logout</span></button>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;">' +
           userList.map(function (u) {
+            var revE = (state.adminConfig.revokedUsers || {})[String(u.id || '').toLowerCase()];
+            var expAt = u.blockExpiresAt || (revE && revE.expiresAt) || null;
+            var blkLbl = u.blocked ? (expAt ? ('TIMED · ' + formatRemainingBlockTime(expAt)) : 'BLOCKED / LOGGED OUT') : (u.role || 'editor');
             return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
-              '<div><div style="display:flex;align-items:center;gap:6px;"><span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
-                '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-edit') + '">' + (u.blocked ? 'BLOCKED / LOGGED OUT' : esc(u.role || 'editor')) + '</span>' +
+              '<div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
+                '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-edit') + '">' + esc(blkLbl) + '</span>' +
                 '<span style="font-size:10.5px;color:#64748B;">(' + esc(u.source || 'Browser') + ')</span></div>' +
                 '<div class="mono" style="font-size:11px;color:#64748B;margin-top:3px;">Opens: <strong>' + (u.opens || 0) + '</strong> &middot; Adds: <strong>' + (u.adds || 0) + '</strong> &middot; Edits: <strong>' + (u.edits || 0) + '</strong> &middot; Deletes: <strong>' + (u.deletes || 0) + '</strong> &middot; Seen ' + timeAgo(u.lastSeen) + '</div></div>' +
               '<div style="display:flex;gap:6px;">' +
                 '<button class="btn ' + (u.blocked ? 'btn-green' : 'btn-red') + ' adm-tog-blk" data-uid="' + esc(u.id) + '" style="padding:5px 11px;font-size:11px;">' + (u.blocked ? 'Unblock User' : 'Block & Logout') + '</button>' +
+                '<button class="btn btn-outline adm-del-usr" data-uid="' + esc(u.id) + '" style="padding:5px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
               '</div></div>';
           }).join('') +
         '</div>';
@@ -6282,14 +7295,25 @@
           showToast('Audit log history cleared');
         };
       } else if (m.tab === 'users') {
+        var admDur = document.getElementById('adm-block-dur');
+        var admCust = document.getElementById('adm-block-cust');
+        if (admDur && admCust) admDur.onchange = function () { admCust.style.display = admDur.value === 'custom' ? 'inline-block' : 'none'; };
+        var getAdmMins = function () {
+          if (!admDur) return 0;
+          if (admDur.value === 'custom') return Math.max(1, parseFloat(admCust ? admCust.value : '15') || 15);
+          return parseFloat(admDur.value) || 0;
+        };
         document.getElementById('adm-block-add').onclick = function () {
           var v = document.getElementById('adm-block-inp').value.trim();
           if (!v) return;
-          revokeAndBlockUser(v, 'User "' + v + '" was blocked and logged out by Admin. App data hidden.');
-          recordAudit('BLOCK', null, 'Admin blocked & logged out unwanted user "' + v + '"', { source: 'Admin' });
-          renderApp(true);
-          if (!isCurrentUserRevoked()) renderAdminModal(m);
-          showToast('Blocked & logged out "' + v + '"');
+          var mins = getAdmMins();
+          requireCyberAuth('Block & Logout User "' + v + '"' + (mins > 0 ? ' (' + mins + 'm)' : ''), function () {
+            revokeAndBlockUser(v, 'User "' + v + '" was blocked and logged out. App data hidden.', mins);
+            recordAudit('BLOCK', null, 'Blocked & logged out unwanted user "' + v + '"' + (mins > 0 ? ' (' + mins + 'm timed)' : ''), { source: 'Admin' });
+            renderApp(true);
+            if (!isCurrentUserRevoked()) renderAdminModal(m);
+            showToast('Blocked & logged out "' + v + '"' + (mins > 0 ? (' (' + mins + 'm timed)') : ''));
+          });
         };
         document.querySelectorAll('.adm-tog-blk').forEach(function (b) {
           b.onclick = function () {
@@ -6297,80 +7321,113 @@
             var u = state.workspaceUsers.find(function (x) { return x.id === uid; });
             if (!u) return;
             if (u.blocked) {
-              unblockWorkspaceUser(u.id);
-              recordAudit('BLOCK', null, 'Unblocked user ' + u.label, { source: 'Admin' });
-              showToast('Unblocked ' + u.label);
+              requireCyberAuth('Unblock User "' + u.label + '"', function () {
+                unblockWorkspaceUser(u.id);
+                recordAudit('BLOCK', null, 'Unblocked user ' + u.label, { source: 'Admin' });
+                showToast('Unblocked ' + u.label);
+                renderApp(true);
+                if (!isCurrentUserRevoked()) renderAdminModal(m);
+              });
             } else {
-              revokeAndBlockUser(u.id, 'User "' + u.label + '" was blocked and logged out by Admin. App data hidden.');
-              recordAudit('BLOCK', null, 'Blocked & logged out unwanted user ' + u.label, { source: 'Admin' });
-              showToast('Blocked & logged out ' + u.label);
+              var mins = getAdmMins();
+              requireCyberAuth('Block & Logout User "' + u.label + '"', function () {
+                revokeAndBlockUser(u.id, 'User "' + u.label + '" was blocked and logged out. App data hidden.', mins);
+                recordAudit('BLOCK', null, 'Blocked & logged out unwanted user ' + u.label + (mins > 0 ? ' (' + mins + 'm)' : ''), { source: 'Admin' });
+                showToast('Blocked & logged out ' + u.label);
+                renderApp(true);
+                if (!isCurrentUserRevoked()) renderAdminModal(m);
+              });
             }
-            renderApp(true);
-            if (!isCurrentUserRevoked()) renderAdminModal(m);
+          };
+        });
+        document.querySelectorAll('.adm-del-usr').forEach(function (b) {
+          b.onclick = function () {
+            var uid = b.getAttribute('data-uid');
+            if (String(uid).toLowerCase() === 'abdulfeta' || String(uid).toLowerCase() === String(state.adminConfig.cyberSecurityManager || '').toLowerCase()) {
+              showToast('Cannot delete Manager of Cyber Security');
+              return;
+            }
+            requireCyberAuth('Delete User "' + uid + '" & Records', function () {
+              state.workspaceUsers = state.workspaceUsers.filter(function (x) { return !matchesActorIdentity(x.id, uid); });
+              if (state.adminConfig.revokedUsers) delete state.adminConfig.revokedUsers[String(uid).toLowerCase()];
+              saveAdminState();
+              recordAudit('DELETE', null, 'Deleted user record "' + uid + '"', { source: 'Admin' });
+              renderApp(true);
+              renderAdminModal(m);
+              showToast('Deleted user "' + uid + '"');
+            });
           };
         });
       } else {
-        document.getElementById('tr-transfer-btn').onclick = async function () {
+        document.getElementById('tr-transfer-btn').onclick = function () {
           var src = document.getElementById('tr-src').value;
           var dst = document.getElementById('tr-dst').value.trim() || getCurrentActor();
           var logoutOnTransmit = !!document.getElementById('tr-logout-src').checked;
-          var movedBots = 0, movedRows = 0;
-          state.bots.forEach(function (b) {
-            var changed = false;
-            if (b.createdBy === src || b.lastEditedBy === src) { b.createdBy = dst; b.lastEditedBy = dst; changed = true; movedBots++; }
-            b.rows.forEach(function (r) {
-              if (r._actor === src) { r._actor = dst; changed = true; movedRows++; }
+          requireCyberAuth('Transmit Data & Terminate "' + src + '"', function () {
+            var movedBots = 0, movedRows = 0;
+            state.bots.forEach(function (b) {
+              var changed = false;
+              if (b.createdBy === src || b.lastEditedBy === src) { b.createdBy = dst; b.lastEditedBy = dst; changed = true; movedBots++; }
+              b.rows.forEach(function (r) {
+                if (r._actor === src) { r._actor = dst; changed = true; movedRows++; }
+              });
+              if (changed) { b.updatedAt = new Date().toISOString(); pushBotToSupabase(b); }
             });
-            if (changed) { b.updatedAt = new Date().toISOString(); pushBotToSupabase(b); }
+            saveBotsLocal();
+            if (logoutOnTransmit && src) {
+              revokeAndBlockUser(src, 'Data transmitted to "' + dst + '" and unwanted user "' + src + '" was logged out. All app data hidden.');
+            }
+            recordAudit('TRANSMIT', null, 'Transmitted ' + movedBots + ' bot(s) & ' + movedRows + ' row(s) from "' + src + '" -> "' + dst + '"' + (logoutOnTransmit ? ' (Unwanted user logged out)' : ''), { source: 'Admin' });
+            renderApp(true);
+            if (!isCurrentUserRevoked()) renderAdminModal(m);
+            showToast('Transmitted ownership to ' + dst + (logoutOnTransmit ? ' & logged out ' + src : ''));
           });
-          saveBotsLocal();
-          if (logoutOnTransmit && src) {
-            revokeAndBlockUser(src, 'Data transmitted to "' + dst + '" and unwanted user "' + src + '" was logged out. All app data hidden.');
-          }
-          recordAudit('TRANSMIT', null, 'Transmitted ' + movedBots + ' bot(s) & ' + movedRows + ' row(s) from "' + src + '" -> "' + dst + '"' + (logoutOnTransmit ? ' (Unwanted user logged out)' : ''), { source: 'Admin' });
-          renderApp(true);
-          if (!isCurrentUserRevoked()) renderAdminModal(m);
-          showToast('Transmitted ownership to ' + dst + (logoutOnTransmit ? ' & logged out ' + src : ''));
         };
-        document.getElementById('tr-purge-btn').onclick = async function () {
+        document.getElementById('tr-purge-btn').onclick = function () {
           var src = document.getElementById('tr-src').value;
           var logoutOnTransmit = !!document.getElementById('tr-logout-src').checked;
-          var removedRows = 0;
-          state.bots.forEach(function (b) {
-            var before = b.rows.length;
-            b.rows = b.rows.filter(function (r) { return r._actor !== src; });
-            if (b.rows.length !== before) {
-              removedRows += (before - b.rows.length);
-              b.updatedAt = new Date().toISOString();
-              pushBotToSupabase(b);
+          requireCyberAuth('Delete User Rows & Logout "' + src + '"', function () {
+            var removedRows = 0;
+            state.bots.forEach(function (b) {
+              var before = b.rows.length;
+              b.rows = b.rows.filter(function (r) { return r._actor !== src; });
+              if (b.rows.length !== before) {
+                removedRows += (before - b.rows.length);
+                b.updatedAt = new Date().toISOString();
+                pushBotToSupabase(b);
+              }
+            });
+            saveBotsLocal();
+            if (logoutOnTransmit && src) {
+              revokeAndBlockUser(src, 'Rows deleted and unwanted user "' + src + '" was logged out. All app data hidden.');
             }
+            recordAudit('DELETE', null, 'Purged ' + removedRows + ' unwanted row(s) by "' + src + '"' + (logoutOnTransmit ? ' (User logged out)' : ''), { source: 'Admin' });
+            renderApp(true);
+            if (!isCurrentUserRevoked()) renderAdminModal(m);
+            showToast('Deleted ' + removedRows + ' row(s) created by ' + src);
           });
-          saveBotsLocal();
-          if (logoutOnTransmit && src) {
-            revokeAndBlockUser(src, 'Rows deleted and unwanted user "' + src + '" was logged out. All app data hidden.');
-          }
-          recordAudit('DELETE', null, 'Purged ' + removedRows + ' unwanted row(s) by "' + src + '"' + (logoutOnTransmit ? ' (User logged out)' : ''), { source: 'Admin' });
-          renderApp(true);
-          if (!isCurrentUserRevoked()) renderAdminModal(m);
-          showToast('Deleted ' + removedRows + ' row(s) created by ' + src);
         };
         var cySaveBtn = document.getElementById('cfg-cyber-save');
         if (cySaveBtn) cySaveBtn.onclick = function () {
           var nv = (document.getElementById('cfg-cyber-mgr').value || '').trim() || 'Abdulfeta';
-          state.adminConfig.cyberSecurityManager = nv;
-          saveAdminState();
-          recordAudit('AUTH', null, 'Set Manager of Cyber Security: ' + nv, { source: 'Admin' });
-          renderApp(); renderAdminModal(m);
-          showToast('Manager of Cyber Security set to ' + nv);
+          requireCyberAuth('Change Cyber Security Manager to "' + nv + '"', function () {
+            state.adminConfig.cyberSecurityManager = nv;
+            saveAdminState();
+            recordAudit('AUTH', null, 'Set Manager of Cyber Security: ' + nv, { source: 'Admin' });
+            renderApp(); renderAdminModal(m);
+            showToast('Manager of Cyber Security set to ' + nv);
+          });
         };
         var accSaveBtn = document.getElementById('cfg-access-save');
         if (accSaveBtn) accSaveBtn.onclick = function () {
           var nv = (document.getElementById('cfg-access-code').value || '').trim();
           if (!nv) { showToast('Access code cannot be empty'); return; }
-          var saved = setConfiguredAccessCode(nv);
-          recordAudit('AUTH', null, 'Updated workspace access code', { source: 'Admin' });
-          renderAdminModal(m);
-          showToast('Access code updated to "' + saved + '"');
+          requireCyberAuth('Change Lock Screen Access Code', function () {
+            var saved = setConfiguredAccessCode(nv);
+            recordAudit('AUTH', null, 'Updated workspace access code', { source: 'Admin' });
+            renderAdminModal(m);
+            showToast('Access code updated to "' + saved + '"');
+          });
         };
         var accLockBtn = document.getElementById('cfg-lock-now');
         if (accLockBtn) accLockBtn.onclick = lockAppNow;
@@ -7375,6 +8432,11 @@
     });
 
     function refreshWelcomeDateIfNeeded() {
+      if (cleanupExpiredBlocks()) {
+        renderApp(true);
+        if (state.modal && state.modal.type === 'cyber_control') renderCyberControlModal(state.modal);
+        else if (state.modal && state.modal.type === 'admin') renderAdminModal(state.modal);
+      }
       var curYmd = getLocalYmd(new Date());
       if (state.lastRenderedYmd && state.lastRenderedYmd !== curYmd) {
         state.previewDayOffset = 0;
