@@ -30,7 +30,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       font-family: 'Inter', 'Noto Sans Ethiopic', 'Roboto', 'Nyala', 'Abyssinica SIL', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg-app);
+      background: linear-gradient(180deg, #EEF4FF 0%, #F6F8FC 48%, #F0FDF4 100%);
       color: var(--text-main);
       -webkit-font-smoothing: antialiased;
       min-height: 100vh;
@@ -44,8 +44,9 @@
     /* Top App Bar */
     .app-header {
       position: sticky; top: 0; z-index: 40;
-      background: var(--blue-dark); color: #fff;
-      box-shadow: 0 2px 8px rgba(13,71,161,0.22);
+      background: linear-gradient(90deg, #0A2E7A 0%, #0D47A1 55%, #1565C0 100%);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(13,71,161,0.24);
     }
     .header-inner {
       max-width: 1200px; margin: 0 auto;
@@ -101,25 +102,27 @@
 
     /* Folder Tabs Bar */
     .folders-bar {
-      background: var(--blue-mid); padding: 8px 16px;
-      border-top: 1px solid rgba(255,255,255,0.12);
+      background: linear-gradient(90deg, #103F9A 0%, #1565C0 60%, #0E7490 100%);
+      padding: 9px 16px;
+      border-top: 1px solid rgba(255,255,255,0.14);
       overflow-x: auto; scrollbar-width: none;
     }
     .folders-bar::-webkit-scrollbar { display: none; }
     .folders-inner {
       max-width: 1168px; margin: 0 auto;
-      display: flex; align-items: center; gap: 6px;
+      display: flex; align-items: center; gap: 7px;
     }
     .folder-tab {
-      padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+      padding: 6px 13px; border-radius: 999px; font-size: 12px; font-weight: 700;
       white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(13,71,161,0.55); color: #DBEAFE; transition: all 0.15s;
+      background: rgba(10, 36, 99, 0.52); color: #E0F2FE; border: 1px solid rgba(255,255,255,0.14);
+      transition: all 0.16s;
     }
-    .folder-tab:hover { background: rgba(13,71,161,0.8); }
-    .folder-tab.active { background: #fff; color: var(--blue-dark); box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+    .folder-tab:hover { background: rgba(10, 36, 99, 0.8); transform: translateY(-1px); }
+    .folder-tab.active { background: #fff; color: var(--blue-dark); border-color: #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.18); }
     .folder-count {
       font-size: 10px; padding: 1px 6px; border-radius: 999px;
-      background: rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.2);
     }
     .folder-tab.active .folder-count { background: #DBEAFE; color: var(--blue-dark); }
 
@@ -129,44 +132,47 @@
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 14px; font-size: 12px;
     }
-    .grid-meta-title { font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .grid-meta-title { font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #334155; }
     .bot-grid {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px;
     }
-    @media (min-width: 900px) { .bot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+    @media (min-width: 900px) { .bot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; } }
     @media (max-width: 560px) { .bot-grid { grid-template-columns: 1fr; } }
 
     .bot-card {
-      background: var(--surface); border-radius: 12px; padding: 16px;
-      border: 1px solid #E8EDF3;
-      box-shadow: 0 2px 6px rgba(15,23,42,0.06);
+      background: linear-gradient(180deg, #FFFFFF 0%, #FAFCFF 100%);
+      border-radius: 16px; padding: 16px;
+      border: 1px solid #E2E8F0;
+      border-top: 4px solid #1976D2;
+      box-shadow: 0 4px 14px rgba(15,23,42,0.06);
       display: flex; flex-direction: column; justify-content: space-between;
-      cursor: pointer; position: relative; transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer; position: relative; transition: transform 0.18s, box-shadow 0.18s;
     }
-    .bot-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(13,71,161,0.12); }
-    .bot-card-title { font-size: 16px; font-weight: 700; color: var(--blue-dark); margin-bottom: 4px; }
+    .bot-card:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(13,71,161,0.14); }
+    .bot-card-title { font-size: 16px; font-weight: 800; color: var(--blue-dark); margin-bottom: 4px; }
     .bot-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
     .status-chip {
       display: inline-flex; align-items: center; gap: 5px;
-      font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
       text-transform: uppercase;
     }
-    .chip-online { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
-    .chip-sim { background: #EFF6FF; color: var(--blue-mid); border: 1px solid #BFDBFE; }
-    .chip-folder { background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; text-transform: none; }
-    .chip-user { background: #F8FAFC; color: #475569; border: 1px solid #E2E8F0; font-family: monospace; text-transform: none; }
+    .chip-online { background: #DCFCE7; color: #047857; border: 1px solid #86EFAC; }
+    .chip-sim { background: #E0F2FE; color: #0369A1; border: 1px solid #7DD3FC; }
+    .chip-folder { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; text-transform: none; }
+    .chip-user { background: #F3E8FF; color: #6B21A8; border: 1px solid #E9D5FF; font-family: monospace; text-transform: none; }
     .card-footer {
-      margin-top: 14px; padding-top: 10px; border-top: 1px solid #F1F5F9;
+      margin-top: 14px; padding-top: 10px; border-top: 1px solid #E2E8F0;
       display: flex; align-items: center; justify-content: space-between;
-      font-size: 11px; color: #94A3B8;
+      font-size: 11px; color: #64748B;
     }
     .quick-table-btn {
-      width: 32px; height: 32px; border-radius: 999px;
-      background: #EFF6FF; color: var(--blue-primary);
-      display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s;
+      width: 34px; height: 34px; border-radius: 999px;
+      background: linear-gradient(135deg, #EFF6FF, #DBEAFE); color: var(--blue-primary);
+      display: inline-flex; align-items: center; justify-content: center; transition: all 0.16s;
+      box-shadow: 0 2px 6px rgba(25,118,210,0.14);
     }
-    .bot-card:hover .quick-table-btn { background: var(--blue-primary); color: #fff; }
+    .bot-card:hover .quick-table-btn { background: linear-gradient(135deg, #1976D2, #0D47A1); color: #fff; transform: scale(1.08); }
 
     /* Context Dropdown Menu */
     .dropdown-menu {
@@ -347,41 +353,97 @@
     .day-chip-num { font-size: 13px; font-weight: 800; line-height: 1.1; }
     .folder-summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .dash-summary-wrap {
-      background: #fff; border: 1px solid #CBD5E1; border-radius: 16px;
-      margin-bottom: 16px; box-shadow: 0 3px 12px rgba(13,71,161,0.06); overflow: hidden;
+      background: #fff; border: 1px solid #BFDBFE; border-radius: 20px;
+      margin-bottom: 18px; box-shadow: 0 10px 30px rgba(13,71,161,0.1); overflow: hidden;
     }
     .dash-summary-head {
-      background: linear-gradient(90deg, #0D47A1 0%, #1565C0 65%, #1976D2 100%);
-      color: #fff; padding: 10px 16px;
-      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+      background: linear-gradient(90deg, #0F172A 0%, #1E3A8A 48%, #0F766E 100%);
+      color: #fff; padding: 13px 18px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
     }
     .dash-sum-cards {
-      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
-      padding: 12px 16px; background: #F8FAFC;
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px;
+      padding: 16px; background: linear-gradient(180deg, #F8FAFC 0%, #EFF6FF 100%);
     }
     @media (max-width: 820px) { .dash-sum-cards { grid-template-columns: 1fr; } }
     .dash-sum-card {
-      background: #fff; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 12px 14px;
-      cursor: pointer; transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+      border-radius: 16px; padding: 15px 16px; color: #fff;
+      position: relative; overflow: hidden; cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 10px 24px rgba(15,23,42,0.14);
+      transition: transform 0.18s, box-shadow 0.18s, filter 0.18s;
     }
-    .dash-sum-card:hover { border-color: #1976D2; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(25,118,210,0.1); }
-    .dash-sum-card.active { border-color: #0D47A1; background: #EFF6FF; }
+    .dash-sum-card::after {
+      content: ''; position: absolute; right: -24px; top: -24px;
+      width: 96px; height: 96px; border-radius: 999px;
+      background: rgba(255,255,255,0.12); pointer-events: none;
+    }
+    .dash-sum-card:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(15,23,42,0.22); filter: brightness(1.03); }
+    .dash-sum-card.active { outline: 3px solid #FBBF24; outline-offset: 2px; }
+    .sum-card-daily {
+      background: linear-gradient(135deg, #1E3A8A 0%, #1D4ED8 52%, #0284C7 100%);
+    }
+    .sum-card-weekly {
+      background: linear-gradient(135deg, #064E3B 0%, #059669 54%, #0D9488 100%);
+    }
+    .sum-card-monthly {
+      background: linear-gradient(135deg, #4C1D95 0%, #7C3AED 55%, #C026D3 100%);
+    }
+    .sum-card-top {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      position: relative; z-index: 1;
+    }
+    .sum-card-icon-badge {
+      width: 30px; height: 30px; border-radius: 10px;
+      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.28);
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .sum-card-pill {
+      font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px;
+      background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.26);
+      white-space: nowrap;
+    }
     .dash-sum-metrics {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; margin-top: 8px;
-      font-size: 11.5px;
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px;
+      position: relative; z-index: 1;
+    }
+    .sum-stat-tile {
+      background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px; padding: 7px 10px;
+      backdrop-filter: blur(4px);
+    }
+    .sum-stat-lbl {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+      color: rgba(255,255,255,0.82); display: block;
+    }
+    .sum-stat-val {
+      font-size: 13.5px; font-weight: 800; color: #fff; margin-top: 1px; display: block;
+    }
+    .sum-progress-wrap {
+      margin-top: 10px; position: relative; z-index: 1;
+    }
+    .sum-progress-track {
+      height: 6px; border-radius: 999px; background: rgba(255,255,255,0.22); overflow: hidden;
+    }
+    .sum-progress-fill {
+      height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, #FDE68A 0%, #86EFAC 100%);
+      transition: width 0.25s ease;
     }
     .dash-day-breakdown {
-      border-top: 1px solid #E2E8F0; background: #fff; overflow-x: auto;
+      border-top: 1px solid #CBD5E1; background: #fff; overflow-x: auto;
     }
     .folder-summary-table th {
-      background: #F1F5F9; color: #334155; font-size: 11px; font-weight: 800;
-      text-transform: uppercase; padding: 8px 12px; border-bottom: 1px solid #CBD5E1; text-align: left;
+      background: linear-gradient(90deg, #EFF6FF 0%, #F5F3FF 100%);
+      color: #1E3A8A; font-size: 11px; font-weight: 800;
+      text-transform: uppercase; padding: 9px 12px; border-bottom: 1px solid #CBD5E1; text-align: left;
     }
-    .folder-summary-table td { padding: 8px 12px; border-bottom: 1px solid #F1F5F9; color: #1E293B; }
-    .folder-summary-table tbody tr:hover { background: #F8FAFC; }
+    .folder-summary-table td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; color: #1E293B; }
+    .folder-summary-table tbody tr:hover { background: #F0F9FF; }
     .folder-summary-table tfoot td {
-      background: #EFF6FF; color: #0D47A1; font-weight: 800; padding: 9px 12px;
-      border-top: 2px solid #93C5FD;
+      background: linear-gradient(90deg, #DBEAFE 0%, #E0E7FF 55%, #DCFCE7 100%);
+      color: #0F172A; font-weight: 800; padding: 10px 12px;
+      border-top: 2px solid #60A5FA;
     }
 
     /* Sticky Summary Footer & Bottom Toolbar */
@@ -2616,10 +2678,12 @@
           '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
       } else {
         html += '<div class="bot-grid">';
-        filtered.forEach(function (b) {
+        var cardAccents = ['#1D4ED8', '#059669', '#7C3AED', '#D97706', '#0891B2', '#E11D48'];
+        filtered.forEach(function (b, bIdx) {
           var stCls = b.botStatus === 'online' ? 'chip-online' : 'chip-sim';
           var stTxt = b.botStatus === 'online' ? 'ONLINE' : 'SIMULATOR';
-          html += '<div class="bot-card" data-open-bot="' + esc(b.id) + '">' +
+          var topAccent = b.botStatus === 'online' ? '#10B981' : cardAccents[bIdx % cardAccents.length];
+          html += '<div class="bot-card" data-open-bot="' + esc(b.id) + '" style="border-top-color:' + topAccent + ';">' +
             '<div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;">' +
               '<div style="min-width:0;flex:1;">' +
                 '<div class="bot-card-title truncate">' + esc(b.name) + '</div>' +
@@ -2660,44 +2724,30 @@
       var dashDays = groupReportItemsByDay(dashWeekly.filtered);
       var todayDmyStr = formatDmyDate(new Date());
 
-      html += '<section class="dash-summary-wrap" style="margin-top:20px;">' +
+      html += '<section class="dash-summary-wrap" style="margin-top:22px;">' +
         '<div class="dash-summary-head">' +
-          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-            '<span style="color:#FCD34D;display:inline-flex;">' + icon('chart', 18) + '</span>' +
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<span class="sum-card-icon-badge" style="color:#FDE68A;">' + icon('chart', 18) + '</span>' +
             '<div>' +
-              '<div style="font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+              '<div style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
                 '<span>Summary Cards &mdash; Daily, Weekly &amp; Monthly</span>' +
-                '<span class="pill-badge" style="background:rgba(255,255,255,0.22);font-size:10.5px;">' + (dashFolderScope === 'all' ? 'All Folders' : 'Folder: ' + esc(dashFolderScope)) + '</span>' +
+                '<span class="pill-badge" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.28);font-size:10.5px;">' + (dashFolderScope === 'all' ? 'All Folders' : 'Folder: ' + esc(dashFolderScope)) + '</span>' +
               '</div>' +
-              '<div style="font-size:11px;color:#DBEAFE;">Automatic Quantity, Paid Sum &amp; Remaining Balance calculated by Day (' + esc(todayDmyStr) + '), Week &amp; Month</div>' +
+              '<div style="font-size:11px;color:#BAE6FD;">Automatic Quantity, Paid Sum &amp; Remaining Balance calculated by Day (' + esc(todayDmyStr) + '), Week &amp; Month</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-            '<button type="button" id="dash-sum-days-btn" class="btn" style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:4px 10px;font-size:11px;">' + (state.dashDayBreakdownOpen ? 'Hide Days' : 'Daily/Weekly Rows') + '</button>' +
-            '<button type="button" id="dash-sum-open-rep" class="btn" style="background:#F59E0B;color:#fff;padding:4px 10px;font-size:11px;">' + icon('chart', 12) + '<span>Open Reports</span></button>' +
-            '<button type="button" id="dash-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:4px 9px;font-size:11px;">' + (state.dashSummaryCollapsed ? 'Show' : 'Hide') + '</button>' +
+            '<button type="button" id="dash-sum-days-btn" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:5px 11px;font-size:11px;">' + (state.dashDayBreakdownOpen ? 'Hide Days' : 'Daily/Weekly Rows') + '</button>' +
+            '<button type="button" id="dash-sum-open-rep" class="btn" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff;padding:5px 11px;font-size:11px;box-shadow:0 2px 8px rgba(245,158,11,0.35);">' + icon('chart', 12) + '<span>Open Reports</span></button>' +
+            '<button type="button" id="dash-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:5px 10px;font-size:11px;">' + (state.dashSummaryCollapsed ? 'Show' : 'Hide') + '</button>' +
           '</div>' +
         '</div>';
 
       if (!state.dashSummaryCollapsed) {
-        var renderPeriodSumCard = function (title, badge, data, perKey, accentColor) {
-          return '<div class="dash-sum-card" data-open-rper="' + perKey + '">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
-              '<span style="font-weight:800;font-size:13px;color:' + accentColor + ';">' + esc(title) + '</span>' +
-              '<span class="pill-badge" style="background:#EFF6FF;color:#0D47A1;font-size:10px;">' + esc(badge) + ' &middot; ' + data.met.rowCount + ' rows</span>' +
-            '</div>' +
-            '<div class="dash-sum-metrics">' +
-              '<div><span style="color:#64748B;">Quantity Sum:</span> <strong class="mono" style="color:#6D28D9;font-size:13px;">' + data.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</strong></div>' +
-              '<div><span style="color:#64748B;">Total Amt:</span> <strong class="mono" style="color:#0D47A1;">$' + data.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-              '<div><span style="color:#15803D;">Paid Sum:</span> <strong class="mono" style="color:#15803D;">$' + data.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-              '<div><span style="color:#C2410C;">Remaining:</span> <strong class="mono" style="color:#C2410C;">$' + data.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-            '</div>' +
-          '</div>';
-        };
         html += '<div class="dash-sum-cards">' +
-          renderPeriodSumCard('Daily Report', todayDmyStr, dashDaily, 'daily', '#0D47A1') +
-          renderPeriodSumCard('Weekly Sum', 'Last 7 Days', dashWeekly, 'weekly', '#047857') +
-          renderPeriodSumCard('Monthly Sum', 'This Month', dashMonthly, 'monthly', '#6D28D9') +
+          renderColorfulSummaryCard('Daily Report', todayDmyStr, dashDaily, 'daily', 'sum-card-daily', 'data-open-rper="daily"') +
+          renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', dashWeekly, 'weekly', 'sum-card-weekly', 'data-open-rper="weekly"') +
+          renderColorfulSummaryCard('Monthly Sum', 'This Month', dashMonthly, 'monthly', 'sum-card-monthly', 'data-open-rper="monthly"') +
         '</div>';
 
         if (state.dashDayBreakdownOpen) {
@@ -3050,24 +3100,10 @@
         '</div>';
 
       if (!state.tableReportCollapsed) {
-        var renderTblCard = function (title, badge, data, perKey, accentColor) {
-          return '<div class="dash-sum-card tbl-sum-card" data-open-rper="' + perKey + '">' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
-              '<span style="font-weight:800;font-size:12.5px;color:' + accentColor + ';">' + esc(title) + '</span>' +
-              '<span class="pill-badge" style="background:#EFF6FF;color:#0D47A1;font-size:10px;">' + esc(badge) + ' &middot; ' + data.met.rowCount + ' rows</span>' +
-            '</div>' +
-            '<div class="dash-sum-metrics">' +
-              '<div><span style="color:#64748B;">Quantity Sum:</span> <strong class="mono" style="color:#6D28D9;font-size:13px;">' + data.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</strong></div>' +
-              '<div><span style="color:#64748B;">Total Amt:</span> <strong class="mono" style="color:#0D47A1;">$' + data.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-              '<div><span style="color:#15803D;">Paid Sum:</span> <strong class="mono" style="color:#15803D;">$' + data.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-              '<div><span style="color:#C2410C;">Remaining:</span> <strong class="mono" style="color:#C2410C;">$' + data.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-            '</div>' +
-          '</div>';
-        };
         html += '<div class="dash-sum-cards">' +
-          renderTblCard('Daily Report', tblTodayDmy, tblDaily, 'daily', '#0D47A1') +
-          renderTblCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', '#047857') +
-          renderTblCard('Monthly Sum', 'This Month', tblMonthly, 'monthly', '#6D28D9') +
+          renderColorfulSummaryCard('Daily Report', tblTodayDmy, tblDaily, 'daily', 'sum-card-daily tbl-sum-card', 'data-open-rper="daily"') +
+          renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
+          renderColorfulSummaryCard('Monthly Sum', 'This Month', tblMonthly, 'monthly', 'sum-card-monthly tbl-sum-card', 'data-open-rper="monthly"') +
         '</div>' +
         '<div class="dash-day-breakdown"><table class="folder-summary-table">' +
           '<thead><tr><th>Date (Day)</th><th style="text-align:center;">Rows</th><th style="text-align:right;color:#6D28D9;">Quantity Sum</th><th style="text-align:right;">Total Amt</th><th style="text-align:right;color:#15803D;">Paid Sum</th><th style="text-align:right;color:#C2410C;">Remaining Balance</th></tr></thead><tbody>' +
@@ -4389,6 +4425,54 @@
       };
     }
 
+    function renderColorfulSummaryCard(title, badge, data, perKey, cardCls, dataAttr) {
+      var met = (data && data.met) ? data.met : { rowCount: 0, totalQuantity: 0, totalInvoiced: 0, totalPaid: 0, totalRemaining: 0, rate: 0 };
+      var iconName = perKey === 'daily' ? 'zap' : perKey === 'weekly' ? 'chart' : 'pie';
+      var pct = Math.min(100, Math.max(0, Number(met.rate) || 0));
+      var qtyStr = (Number(met.totalQuantity) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+      var invStr = '$' + (Number(met.totalInvoiced) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var paidStr = '$' + (Number(met.totalPaid) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var remStr = '$' + (Number(met.totalRemaining) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      var rowLabel = (met.rowCount || 0) + ' ' + ((met.rowCount || 0) === 1 ? 'row' : 'rows');
+
+      return '<div class="dash-sum-card ' + esc(cardCls || '') + '"' + (dataAttr ? ' ' + dataAttr : '') + ' role="button" tabindex="0">' +
+        '<div class="sum-card-top">' +
+          '<div style="display:flex;align-items:center;gap:9px;min-width:0;">' +
+            '<span class="sum-card-icon-badge">' + icon(iconName, 16) + '</span>' +
+            '<span style="font-size:14px;font-weight:800;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(title || '') + '</span>' +
+          '</div>' +
+          '<span class="sum-card-pill">' + esc(badge || '') + ' &middot; ' + esc(rowLabel) + '</span>' +
+        '</div>' +
+        '<div class="dash-sum-metrics">' +
+          '<div class="sum-stat-tile">' +
+            '<span class="sum-stat-lbl">Quantity Sum</span>' +
+            '<span class="sum-stat-val mono" style="color:#FDE68A;">' + esc(qtyStr) + '</span>' +
+          '</div>' +
+          '<div class="sum-stat-tile">' +
+            '<span class="sum-stat-lbl">Total Amt</span>' +
+            '<span class="sum-stat-val mono" style="color:#FFFFFF;">' + esc(invStr) + '</span>' +
+          '</div>' +
+          '<div class="sum-stat-tile">' +
+            '<span class="sum-stat-lbl">Paid Sum</span>' +
+            '<span class="sum-stat-val mono" style="color:#86EFAC;">' + esc(paidStr) + '</span>' +
+          '</div>' +
+          '<div class="sum-stat-tile">' +
+            '<span class="sum-stat-lbl">Remaining</span>' +
+            '<span class="sum-stat-val mono" style="color:#FDBA74;">' + esc(remStr) + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="sum-progress-wrap">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;font-weight:700;color:rgba(255,255,255,0.88);margin-bottom:4px;">' +
+            '<span>Collection Rate</span>' +
+            '<span class="mono">' + pct.toFixed(0) + '%</span>' +
+          '</div>' +
+          '<div class="sum-progress-track">' +
+            '<div class="sum-progress-fill" style="width:' + pct.toFixed(1) + '%;"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+
     function renderReportsModal(m) {
       if (!m.period) m.period = 'all';
       if (!m.folder) m.folder = 'all';
@@ -4489,30 +4573,15 @@
             '</div>' +
           '</div>' +
           '<div class="dash-sum-cards" style="padding:0;background:transparent;">' +
-            [
-              { key: 'daily', title: 'Daily Summary (' + formatDmyDate(refNow) + ')', data: repDaily, color: '#0D47A1' },
-              { key: 'weekly', title: 'Weekly Summary (Last 7 Days)', data: repWeekly, color: '#047857' },
-              { key: 'monthly', title: 'Monthly Summary (This Month)', data: repMonthly, color: '#6D28D9' }
-            ].map(function (sc) {
-              return '<div class="dash-sum-card ' + (m.period === sc.key ? 'active' : '') + '" data-rper="' + sc.key + '">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-                  '<strong style="font-size:13px;color:' + sc.color + ';">' + esc(sc.title) + '</strong>' +
-                  '<span class="pill-badge" style="background:#EFF6FF;color:#0D47A1;font-size:10px;">' + sc.data.met.rowCount + ' rows</span>' +
-                '</div>' +
-                '<div class="dash-sum-metrics">' +
-                  '<div><span style="color:#64748B;">Qty Sum:</span> <strong class="mono" style="color:#6D28D9;font-size:13px;">' + sc.data.met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</strong></div>' +
-                  '<div><span style="color:#64748B;">Total:</span> <strong class="mono">$' + sc.data.met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-                  '<div><span style="color:#2E7D32;">Paid Sum:</span> <strong class="mono" style="color:#2E7D32;">$' + sc.data.met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-                  '<div><span style="color:#E65100;">Remaining:</span> <strong class="mono" style="color:#E65100;">$' + sc.data.met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</strong></div>' +
-                '</div>' +
-              '</div>';
-            }).join('') +
+            renderColorfulSummaryCard('Daily Summary', formatDmyDate(refNow), repDaily, 'daily', 'sum-card-daily' + (m.period === 'daily' ? ' active' : ''), 'data-rper="daily"') +
+            renderColorfulSummaryCard('Weekly Summary', 'Last 7 Days', repWeekly, 'weekly', 'sum-card-weekly' + (m.period === 'weekly' ? ' active' : ''), 'data-rper="weekly"') +
+            renderColorfulSummaryCard('Monthly Summary', 'This Month', repMonthly, 'monthly', 'sum-card-monthly' + (m.period === 'monthly' ? ' active' : ''), 'data-rper="monthly"') +
           '</div>' +
           '<div class="kpi-grid" style="margin-bottom:0;">' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Quantity Sum (' + esc(m.period.toUpperCase()) + ')</div><div class="kpi-val" style="color:#6D28D9;">' + met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">' + filtered.length + ' rows summed across ' + dayGroups.length + ' day(s)</div></div>' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Total Data / Amt</div><div class="kpi-val">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">Across ' + foldersToShow.length + ' folder(s)</div></div>' +
-            '<div class="kpi-card"><div class="field-label" style="margin:0;">Paid Sum</div><div class="kpi-val" style="color:#2E7D32;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:10.5px;color:#64748B;margin-top:4px;">Collection: ' + met.rate.toFixed(1) + '%</div></div>' +
-            '<div class="kpi-card" style="border-color:#FDBA74;background:#FFFBEB;"><div class="field-label" style="margin:0;color:#E65100;">Remaining Balance</div><div class="kpi-val" style="color:#E65100;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#9A3412;margin-top:4px;">' + met.balCount + ' accounts owe balance</div></div>' +
+            '<div class="kpi-card" style="border-top:4px solid #7C3AED;background:linear-gradient(180deg,#F5F3FF 0%,#FFFFFF 100%);"><div class="field-label" style="margin:0;color:#5B21B6;">Quantity Sum (' + esc(m.period.toUpperCase()) + ')</div><div class="kpi-val" style="color:#6D28D9;">' + met.totalQuantity.toLocaleString('en-US', { maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">' + filtered.length + ' rows summed across ' + dayGroups.length + ' day(s)</div></div>' +
+            '<div class="kpi-card" style="border-top:4px solid #1D4ED8;background:linear-gradient(180deg,#EFF6FF 0%,#FFFFFF 100%);"><div class="field-label" style="margin:0;color:#1E40AF;">Total Data / Amt</div><div class="kpi-val" style="color:#0D47A1;">$' + met.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">Across ' + foldersToShow.length + ' folder(s)</div></div>' +
+            '<div class="kpi-card" style="border-top:4px solid #059669;background:linear-gradient(180deg,#ECFDF5 0%,#FFFFFF 100%);"><div class="field-label" style="margin:0;color:#065F46;">Paid Sum</div><div class="kpi-val" style="color:#059669;">$' + met.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:10.5px;color:#047857;margin-top:4px;font-weight:700;">Collection: ' + met.rate.toFixed(1) + '%</div></div>' +
+            '<div class="kpi-card" style="border-top:4px solid #EA580C;background:linear-gradient(180deg,#FFF7ED 0%,#FFFBEB 100%);border-color:#FDBA74;"><div class="field-label" style="margin:0;color:#C2410C;">Remaining Balance</div><div class="kpi-val" style="color:#EA580C;">$' + met.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</div><div style="font-size:11px;color:#9A3412;margin-top:4px;">' + met.balCount + ' accounts owe balance</div></div>' +
           '</div>' +
           '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
             '<div style="padding:10px 16px;background:linear-gradient(90deg,#F5F3FF 0%,#F8FAFC 100%);border-bottom:1px solid #CBD5E1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
