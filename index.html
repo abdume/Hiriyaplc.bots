@@ -261,7 +261,7 @@
     .sheet-table th.frozen-col { z-index: 30; }
     .sheet-table td {
       border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
-      padding: 8px 12px; vertical-align: middle;
+      padding: 8px 12px; vertical-align: middle; height: 38px;
     }
     .sheet-table tr:nth-child(even) td:not(.frozen-col) { background: #FAFBFC; }
     .sheet-table tr:hover td:not(.frozen-col) { background: #EFF6FF; }
@@ -271,6 +271,23 @@
       width: 100%; padding: 6px 8px; border: 2px solid var(--blue-primary);
       border-radius: 4px; outline: none; font-size: 13px; background: #fff;
     }
+    .date-picker-pop {
+      display: flex; align-items: center; gap: 4px; flex-wrap: nowrap;
+      background: #fff; border: 2px solid var(--blue-primary); border-radius: 6px;
+      padding: 2px 4px; box-shadow: 0 6px 18px rgba(13,71,161,0.18);
+    }
+    .date-picker-pop .cell-edit-input {
+      border: none; padding: 3px 4px; min-width: 126px; font-size: 12.5px; background: transparent;
+    }
+    .dp-mini-btn {
+      padding: 3px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 700;
+      border: 1px solid #CBD5E1; background: #F8FAFC; color: #1E293B;
+      white-space: nowrap; cursor: pointer; flex-shrink: 0;
+    }
+    .dp-mini-btn:hover { background: #EFF6FF; border-color: #93C5FD; }
+    .dp-mini-btn.dp-ok { background: #059669; border-color: #059669; color: #fff; }
+    .dp-mini-btn.dp-today { background: #EFF6FF; border-color: #93C5FD; color: #0D47A1; }
+    .dp-mini-btn.dp-clear { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
     .add-row-bar {
       padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
@@ -316,8 +333,19 @@
     .cyber-badge {
       display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap;
       background: rgba(15,23,42,0.48); border: 1px solid rgba(252,211,77,0.55);
-      padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #FEF3C7;
+      padding: 5px 12px 5px 6px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #FEF3C7;
     }
+    .abdulfeta-avatar {
+      object-fit: cover; object-position: center 20%;
+      border-radius: 999px; border: 2px solid #34D399;
+      background: #fff; flex-shrink: 0; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.24); transition: transform 0.15s;
+    }
+    .abdulfeta-avatar:hover { transform: scale(1.06); }
+    .abdulfeta-avatar-sm { width: 26px; height: 26px; }
+    .abdulfeta-avatar-md { width: 38px; height: 38px; }
+    .abdulfeta-avatar-lg { width: 48px; height: 48px; }
+    .abdulfeta-avatar-xl { width: 58px; height: 58px; }
     .lang-toggle-btn {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 5px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 800;
@@ -996,7 +1024,8 @@
     var BRAND_ASSETS = {
       logoWhiteStars: '/assets/aistudio/file_000000003a3c8210ac093d7bf55b2a9c_7f2565a5.png',
       logoGreenStars: '/assets/aistudio/file_000000002e1481f4b0a098ac50b472ae_e5f32c46.png',
-      posterAdama: '/assets/aistudio/file_000000007c048210acefecd95c486656_e7fa0c87.png'
+      posterAdama: '/assets/aistudio/file_000000007c048210acefecd95c486656_e7fa0c87.png',
+      abdulfetaPhoto: '/assets/aistudio/IMG_20261115_175858_499_9a85135f.jpg'
     };
 
     var I18N = {
@@ -1565,7 +1594,8 @@
       root.innerHTML = '<div class="cyber-prompt-backdrop" id="cp-bg">' +
         '<div class="modal-card narrow' + (cp.shake ? ' shake' : '') + '" id="cp-card" style="max-width:430px;box-shadow:0 24px 60px rgba(0,0,0,0.45);">' +
           '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
-            '<div style="display:flex;align-items:center;gap:9px;">' + icon('shield', 20) +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', mgr, mgr + ' — Manager of Cyber Security') +
               '<div><h2 style="font-size:15px;font-weight:800;">' + esc(mgr) + ' &mdash; Cyber Security Code</h2>' +
               '<div style="font-size:11px;color:#A7F3D0;">Authorization required before executing action</div></div>' +
             '</div>' +
@@ -2445,7 +2475,19 @@
             }
           });
         }
-        return anyVal ? rowTotal : 0;
+        return anyVal ? rowTotal : NaN;
+      }
+      if (rawStr.charAt(0) !== '=' && bot && bot.columns) {
+        var hasAnyNumInput = bot.columns.some(function (oc) {
+          if (oc.id === col.id) return false;
+          if (oc.type === 'amount' || oc.type === 'number') return !isNaN(parseNumSafe(row[oc.id]));
+          if (oc.type === 'formula') {
+            var ov = row[oc.id];
+            return ov !== undefined && ov !== null && String(ov).trim() !== '';
+          }
+          return false;
+        });
+        if (!hasAnyNumInput) return NaN;
       }
       var resolved = expr;
       if (bot && bot.columns) {
@@ -2498,11 +2540,11 @@
           var pnum = parseNumSafe(val);
           if (!isNaN(pnum)) return formatNumericValue(pnum, col);
         }
-        if (val === undefined || val === null || val === '') return '—';
+        if (val === undefined || val === null || val === '') return '';
         return String(val);
       }
-      if (val === undefined || val === null || val === '') return '—';
-      if (col.type === 'amount' || col.type === 'number') {
+      if (val === undefined || val === null || val === '') return '';
+      if (col && (col.type === 'amount' || col.type === 'number')) {
         var num = parseNumSafe(val);
         if (isNaN(num)) return String(val);
         return formatNumericValue(num, col);
@@ -3488,7 +3530,8 @@
           '<div style="font-size:12px;color:#E2E8F0;line-height:1.45;">' + esc(t('welcome_tagline')) + '</div>' +
           '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;">' +
             '<div class="cyber-badge">' +
-              '<span style="color:#34D399;display:inline-flex;">' + icon('shield', 15) + '</span>' +
+              assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-sm', secMgr, secMgr + ' — Manager of Cyber Security') +
+              '<span style="color:#34D399;display:inline-flex;">' + icon('shield', 14) + '</span>' +
               '<span>' + esc(t('cyber_mgr_title')) + ': <strong style="color:#fff;">' + esc(secMgr) + '</strong></span>' +
               '<span style="background:#10B981;color:#fff;font-size:10px;padding:1px 7px;border-radius:999px;">' + esc(t('cyber_protected')) + '</span>' +
             '</div>' +
@@ -4031,7 +4074,18 @@
             var isDtCol = isDateCol && (col.dateFormat === 'dmy_time' || col.dateFormat === 'iso');
             var itype = isDateCol ? (isDtCol ? 'datetime-local' : 'date') : ((col.type === 'amount' || col.type === 'number') ? 'number' : 'text');
             var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
-            html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" /></td>';
+            if (isDateCol) {
+              html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:210px;' + align + '">' +
+                '<div id="date-picker-pop" class="date-picker-pop">' +
+                  '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" />' +
+                  '<button type="button" id="dp-open-btn" class="dp-mini-btn" title="Open Date Picker">📅</button>' +
+                  '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today">Today</button>' +
+                  '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
+                  '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="Save Date">✓</button>' +
+                '</div></td>';
+            } else {
+              html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" /></td>';
+            }
           } else {
             var isAmt = col.type === 'amount';
             var isFrm = col.type === 'formula';
@@ -4249,12 +4303,17 @@
       document.getElementById('btn-bar-add-col').onclick = addColFn;
       document.getElementById('tb-cols').onclick = addColFn;
 
+      if (window._tbDateOutsideClick) {
+        document.removeEventListener('click', window._tbDateOutsideClick);
+        window._tbDateOutsideClick = null;
+      }
+
       document.getElementById('btn-add-row').onclick = function () {
         if (!guardWriteAction('Add Row')) return;
         var nowIso = new Date().toISOString();
         var nr = { id: 'row_' + Date.now(), _actor: getCurrentActor(), _createdAt: nowIso, _updatedAt: nowIso };
         bot.columns.forEach(function (c) {
-          if (c.type === 'amount' || c.type === 'number') nr[c.id] = 0;
+          if (c.type === 'amount' || c.type === 'number') nr[c.id] = '';
           else if (c.type === 'formula') nr[c.id] = '';
           else if (c.type === 'checkbox') nr[c.id] = false;
           else if (c.type === 'date') nr[c.id] = c.autoInsertDate !== false ? formatAutoDateStr(c, nowIso) : '';
@@ -4318,75 +4377,129 @@
         };
       });
 
+      var activeInp = document.getElementById('active-cell-input');
+      var commitActiveCell = function (overrideVal, allowBlankDate, skipRender) {
+        var ed = state.editingCell;
+        if (!ed || !activeInp) return;
+        state.editingCell = null;
+        if (window._tbDateOutsideClick) {
+          document.removeEventListener('click', window._tbDateOutsideClick);
+          window._tbDateOutsideClick = null;
+        }
+        if (!guardWriteAction('Edit Cell')) { if (!skipRender) renderTableView(bot); return; }
+        var col = bot.columns.find(function (c) { return c.id === ed.colId; });
+        var raw = overrideVal !== undefined ? String(overrideVal) : activeInp.value;
+        var parsed = raw;
+        if (col && (col.type === 'amount' || col.type === 'number')) {
+          if (String(raw || '').trim() === '') {
+            parsed = '';
+          } else {
+            var num = parseFloat(raw.replace(/[^0-9.-]/g, ''));
+            parsed = isNaN(num) ? '' : num;
+          }
+        } else if (col && col.type === 'date') {
+          if (String(raw || '').trim() === '') {
+            parsed = '';
+          } else {
+            parsed = formatAutoDateStr(col, parseFlexibleDate(raw));
+          }
+        }
+        var oldVal = '';
+        var nowIso = new Date().toISOString();
+        bot.rows.forEach(function (r) {
+          if (r.id === ed.rowId) {
+            oldVal = r[ed.colId];
+            r[ed.colId] = parsed;
+            r._actor = getCurrentActor();
+            r._updatedAt = nowIso;
+            if (col && col.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
+              autoFillRowDates(bot, r, nowIso, ed.colId);
+            }
+          }
+        });
+        bot.updatedAt = nowIso;
+        if (String(oldVal === undefined || oldVal === null ? '' : oldVal) !== String(parsed)) {
+          updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"');
+        }
+        if (!skipRender) renderTableView(bot);
+      };
+
       document.querySelectorAll('.cell-clickable').forEach(function (td) {
-        td.onclick = function () {
+        td.onclick = function (e) {
+          e.stopPropagation();
+          if (state.editingCell && activeInp) {
+            commitActiveCell(undefined, false, true);
+          }
           var rid = td.getAttribute('data-row-id');
           var cid = td.getAttribute('data-col-id');
           var colObj = bot.columns.find(function (c) { return c.id === cid; });
-          var rowObj = bot.rows.find(function (r) { return r.id === rid; });
-          if (colObj && colObj.type === 'date' && colObj.autoInsertDate !== false && rowObj && (!rowObj[cid] || String(rowObj[cid]).trim() === '')) {
-            rowObj[cid] = formatAutoDateStr(colObj, new Date());
-          }
           state.editingCell = { rowId: rid, colId: cid };
           renderTableView(bot);
           var ci = document.getElementById('active-cell-input');
           if (ci) {
             ci.focus();
             if (colObj && colObj.type === 'date') {
-              if (typeof ci.showPicker === 'function') { try { ci.showPicker(); } catch (e) {} }
+              if (typeof ci.showPicker === 'function') { try { ci.showPicker(); } catch (err) {} }
             } else {
-              try { ci.select(); } catch (e2) {}
+              try { ci.select(); } catch (err2) {}
             }
           }
         };
       });
 
-      var activeInp = document.getElementById('active-cell-input');
       if (activeInp && state.editingCell) {
-        var commitCell = function () {
-          var ed = state.editingCell;
-          if (!ed) return;
-          state.editingCell = null;
-          if (!guardWriteAction('Edit Cell')) { renderTableView(bot); return; }
-          var col = bot.columns.find(function (c) { return c.id === ed.colId; });
-          var raw = activeInp.value;
-          var parsed = raw;
-          if (col && (col.type === 'amount' || col.type === 'number')) {
-            var num = parseFloat(raw.replace(/[^0-9.-]/g, ''));
-            parsed = isNaN(num) ? 0 : num;
-          } else if (col && col.type === 'date') {
-            if (String(raw || '').trim() === '') {
-              parsed = col.autoInsertDate !== false ? formatAutoDateStr(col, new Date()) : '';
-            } else {
-              parsed = formatAutoDateStr(col, parseFlexibleDate(raw));
+        var isDateEdit = activeInp.type === 'date' || activeInp.type === 'datetime-local';
+        if (isDateEdit) {
+          var editCol = bot.columns.find(function (c) { return c.id === state.editingCell.colId; });
+          var openBtn = document.getElementById('dp-open-btn');
+          var todayBtn = document.getElementById('dp-today-btn');
+          var clearBtn = document.getElementById('dp-clear-btn');
+          var okBtn = document.getElementById('dp-ok-btn');
+          if (openBtn) openBtn.onclick = function (e) {
+            e.stopPropagation();
+            activeInp.focus();
+            if (typeof activeInp.showPicker === 'function') { try { activeInp.showPicker(); } catch (err) {} }
+          };
+          if (todayBtn) todayBtn.onclick = function (e) {
+            e.stopPropagation();
+            var tVal = toPickerInputValue(new Date(), editCol);
+            activeInp.value = tVal;
+            commitActiveCell(tVal, false);
+          };
+          if (clearBtn) clearBtn.onclick = function (e) {
+            e.stopPropagation();
+            activeInp.value = '';
+            commitActiveCell('', true);
+          };
+          if (okBtn) okBtn.onclick = function (e) {
+            e.stopPropagation();
+            commitActiveCell();
+          };
+          var popEl = document.getElementById('date-picker-pop');
+          if (popEl) popEl.onclick = function (e) { e.stopPropagation(); };
+          var outsideHandler = function (e) {
+            if (e.target && e.target.closest && e.target.closest('#date-picker-pop')) return;
+            commitActiveCell();
+          };
+          window._tbDateOutsideClick = outsideHandler;
+          setTimeout(function () {
+            if (window._tbDateOutsideClick === outsideHandler) {
+              document.addEventListener('click', outsideHandler);
             }
-          }
-          var oldVal = '';
-          var nowIso = new Date().toISOString();
-          bot.rows.forEach(function (r) {
-            if (r.id === ed.rowId) {
-              oldVal = r[ed.colId];
-              r[ed.colId] = parsed;
-              r._actor = getCurrentActor();
-              r._updatedAt = nowIso;
-              if (String(parsed).trim() !== '' && String(parsed) !== '0') {
-                autoFillRowDates(bot, r, nowIso, ed.colId);
-              }
-            }
-          });
-          bot.updatedAt = nowIso;
-          if (String(oldVal) !== String(parsed)) {
-            updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"');
-          }
-          renderTableView(bot);
-        };
-        if (activeInp.type === 'date' || activeInp.type === 'datetime-local') {
-          activeInp.onchange = commitCell;
+          }, 0);
+        } else {
+          activeInp.onblur = function () { commitActiveCell(); };
         }
-        activeInp.onblur = commitCell;
         activeInp.onkeydown = function (e) {
-          if (e.key === 'Enter') commitCell();
-          else if (e.key === 'Escape') { state.editingCell = null; renderTableView(bot); }
+          if (e.key === 'Enter') { e.preventDefault(); commitActiveCell(); }
+          else if (e.key === 'Escape') {
+            state.editingCell = null;
+            if (window._tbDateOutsideClick) {
+              document.removeEventListener('click', window._tbDateOutsideClick);
+              window._tbDateOutsideClick = null;
+            }
+            renderTableView(bot);
+          }
         };
       }
 
@@ -4447,7 +4560,8 @@
               (loggedIn ? 'Cloud Session Active' : cfg.isConnected ? 'Supabase Configured (Sign In)' : 'Local Storage Mode') + '</div>' +
             '<div style="font-size:11px;opacity:0.85;">' + (loggedIn ? 'Logged In as' : 'Active Profile') + '</div>' +
             '<div class="truncate" style="font-weight:700;font-size:14px;">' + esc(activeEmail) + '</div>' +
-            '<div style="margin-top:6px;font-size:11px;background:rgba(15,23,42,0.45);padding:4px 8px;border-radius:8px;display:inline-flex;align-items:center;gap:5px;color:#FEF3C7;">' +
+            '<div style="margin-top:6px;font-size:11px;background:rgba(15,23,42,0.45);padding:4px 9px 4px 5px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;color:#FEF3C7;">' +
+              assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-sm', state.adminConfig.cyberSecurityManager || 'Abdulfeta', (state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ' — Manager of Cyber Security') +
               '<span style="color:#34D399;display:inline-flex;">' + icon('shield', 12) + '</span>' +
               '<span>' + esc(t('cyber_mgr_title')) + ': <strong>' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '</strong></span>' +
             '</div>' +
@@ -4455,7 +4569,7 @@
           '<div class="drawer-nav">' +
             '<button class="drawer-item" id="drawer-lang-toggle"><span class="drawer-item-left"><span style="color:#0F766E;font-weight:800;font-size:13px;">አማ/EN</span><span><div><div style="font-weight:700;">Language / ቋንቋ (Amharic)</div><div style="font-size:11px;color:#64748B;">Current: ' + (state.lang === 'am' ? 'አማርኛ (Amharic)' : 'English') + '</div></div></span></span><span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;">' + (state.lang === 'am' ? 'አማ' : 'EN') + '</span></button>' +
             '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>' + esc(t('manage_bots')) + '</span></span></button>' +
-            '<button class="drawer-item" data-nav="cyber_control"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:800;color:#065F46;">Cyber Control Panel (' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ')</div><div style="font-size:11px;color:#64748B;">Transmit, Terminate, Block/Timed Unblock &amp; Cyber Code</div></div></span></span>' +
+            '<button class="drawer-item" data-nav="cyber_control"><span class="drawer-item-left">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', state.adminConfig.cyberSecurityManager || 'Abdulfeta', (state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ' — Manager of Cyber Security') + '<span><div><div style="font-weight:800;color:#065F46;">Cyber Control Panel (' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ')</div><div style="font-size:11px;color:#64748B;">Transmit, Terminate, Block/Timed Unblock &amp; Cyber Code</div></div></span></span>' +
               '<span class="pill-badge" style="background:#047857;color:#fff;font-size:10px;">SEC</span></button>' +
             '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('admin_menu')) + '</div><div style="font-size:11px;color:#64748B;">Activity logs, users &amp; sync</div></div></span></span>' +
               (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;">' + blockedCount + ' BLK</span>' : '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;font-size:10px;">' + state.auditLogs.length + '</span>') + '</button>' +
@@ -5182,7 +5296,8 @@
       if (needsGate) {
         var gHtml = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:440px;" id="m-card">' +
           '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
-            '<div style="display:flex;align-items:center;gap:9px;">' + icon('shield', 20) +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', mgr, mgr + ' — Manager of Cyber Security') +
               '<div><h2 style="font-size:15.5px;font-weight:800;">Cyber Control Panel (' + esc(mgr) + ')</h2>' +
               '<div style="font-size:11px;color:#A7F3D0;">Security Code Verification Required</div></div>' +
             '</div>' +
@@ -5190,8 +5305,11 @@
           '</header>' +
           '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
             '<div class="cyber-panel-hero">' +
-              '<div><div style="font-size:11px;color:#A7F3D0;font-weight:700;text-transform:uppercase;">Manager of Cyber Security</div>' +
-              '<div style="font-size:17px;font-weight:800;">' + esc(mgr) + '</div></div>' +
+              '<div style="display:flex;align-items:center;gap:12px;">' +
+                assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-lg', mgr, mgr + ' — Manager of Cyber Security') +
+                '<div><div style="font-size:11px;color:#A7F3D0;font-weight:700;text-transform:uppercase;">Manager of Cyber Security</div>' +
+                '<div style="font-size:17px;font-weight:800;">' + esc(mgr) + '</div></div>' +
+              '</div>' +
               '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">PROTECTED</span>' +
             '</div>' +
             (!m.gateRecoveryOpen ? (
@@ -5430,7 +5548,8 @@
 
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:650px;" id="m-card">' +
         '<header class="modal-header" style="background:linear-gradient(135deg,#064E3B,#0D47A1);">' +
-          '<div style="display:flex;align-items:center;gap:10px;">' + icon('shield', 21) +
+          '<div style="display:flex;align-items:center;gap:10px;">' +
+            assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', mgr, mgr + ' — Manager of Cyber Security') +
             '<div><h2 style="font-size:16px;font-weight:800;">Cyber Control Panel &mdash; ' + esc(mgr) + '</h2>' +
             '<div style="font-size:11px;color:#A7F3D0;">Transmit, Terminate, Block/Timed Unblock, Delete User &amp; App Code Security</div></div>' +
           '</div>' +
@@ -6137,9 +6256,8 @@
     }
 
     function toPickerInputValue(rawVal, col) {
-      var d = (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '')
-        ? parseFlexibleDate(rawVal)
-        : new Date();
+      if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') return '';
+      var d = parseFlexibleDate(rawVal);
       var fmt = (col && col.dateFormat) ? col.dateFormat : 'dmy';
       if (fmt === 'dmy_time' || fmt === 'iso') {
         var hh = String(d.getHours()).padStart(2, '0');
@@ -7715,11 +7833,15 @@
             var revE = (state.adminConfig.revokedUsers || {})[String(u.id || '').toLowerCase()];
             var expAt = u.blockExpiresAt || (revE && revE.expiresAt) || null;
             var blkLbl = u.blocked ? (expAt ? ('TIMED · ' + formatRemainingBlockTime(expAt)) : 'BLOCKED / LOGGED OUT') : (u.role || 'editor');
+            var isCyberMgrUser = matchesActorIdentity(u.id, 'abdulfeta') || matchesActorIdentity(u.label, 'abdulfeta') || matchesActorIdentity(u.id, state.adminConfig.cyberSecurityManager);
             return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
-              '<div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
-                '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-edit') + '">' + esc(blkLbl) + '</span>' +
-                '<span style="font-size:10.5px;color:#64748B;">(' + esc(u.source || 'Browser') + ')</span></div>' +
-                '<div class="mono" style="font-size:11px;color:#64748B;margin-top:3px;">Opens: <strong>' + (u.opens || 0) + '</strong> &middot; Adds: <strong>' + (u.adds || 0) + '</strong> &middot; Edits: <strong>' + (u.edits || 0) + '</strong> &middot; Deletes: <strong>' + (u.deletes || 0) + '</strong> &middot; Seen ' + timeAgo(u.lastSeen) + '</div></div>' +
+              '<div style="display:flex;align-items:center;gap:10px;">' +
+                (isCyberMgrUser ? assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', u.label, u.label + ' — Manager of Cyber Security') : '') +
+                '<div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
+                  '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-edit') + '">' + esc(blkLbl) + '</span>' +
+                  '<span style="font-size:10.5px;color:#64748B;">(' + esc(u.source || 'Browser') + ')</span></div>' +
+                  '<div class="mono" style="font-size:11px;color:#64748B;margin-top:3px;">Opens: <strong>' + (u.opens || 0) + '</strong> &middot; Adds: <strong>' + (u.adds || 0) + '</strong> &middot; Edits: <strong>' + (u.edits || 0) + '</strong> &middot; Deletes: <strong>' + (u.deletes || 0) + '</strong> &middot; Seen ' + timeAgo(u.lastSeen) + '</div></div>' +
+              '</div>' +
               '<div style="display:flex;gap:6px;">' +
                 '<button class="btn ' + (u.blocked ? 'btn-green' : 'btn-red') + ' adm-tog-blk" data-uid="' + esc(u.id) + '" style="padding:5px 11px;font-size:11px;">' + (u.blocked ? 'Unblock User' : 'Block & Logout') + '</button>' +
                 '<button class="btn btn-outline adm-del-usr" data-uid="' + esc(u.id) + '" style="padding:5px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
@@ -7745,7 +7867,7 @@
             '<button id="tr-purge-btn" class="btn btn-red" style="flex:1;">' + icon('trash', 14) + '<span>Delete Rows &amp; Logout User</span></button>' +
           '</div></div>' +
           '<div style="padding:14px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
-            '<div style="font-weight:800;font-size:13px;color:#065F46;display:flex;align-items:center;gap:6px;">' + icon('shield', 15) + '<span>' + esc(t('cyber_mgr_title')) + ' Designation</span></div>' +
+            '<div style="font-weight:800;font-size:13px;color:#065F46;display:flex;align-items:center;gap:8px;">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-sm', state.adminConfig.cyberSecurityManager || 'Abdulfeta', (state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ' — Manager of Cyber Security') + '<span>' + esc(t('cyber_mgr_title')) + ' Designation</span></div>' +
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               '<input id="cfg-cyber-mgr" class="form-input" style="flex:1;min-width:180px;" value="' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '" placeholder="Manager of Cyber Security name" />' +
               '<button id="cfg-cyber-save" class="btn btn-green" style="font-size:12px;">Save Cyber Manager</button>' +
@@ -7769,8 +7891,9 @@
           '</div>';
       }
 
+      var admMgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + icon('shield', 21) + '<div><h2 style="font-size:16px;font-weight:700;">Admin &amp; Cyber Security Control Center</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(t('cyber_mgr_title')) + ': <strong style="color:#FDE68A;">' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '</strong> &middot; Block Unwanted Users &amp; Instant Transmit</div></div></div>' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', admMgr, admMgr + ' — Manager of Cyber Security') + '<div><h2 style="font-size:16px;font-weight:700;">Admin &amp; Cyber Security Control Center</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(t('cyber_mgr_title')) + ': <strong style="color:#FDE68A;">' + esc(admMgr) + '</strong> &middot; Block Unwanted Users &amp; Instant Transmit</div></div></div>' +
           '<button class="icon-btn" id="adm-close">' + icon('close', 18) + '</button></header>' +
         '<div class="admin-tabs">' +
           '<button class="admin-tab-btn ' + (m.tab === 'logs' ? 'active' : '') + '" data-admtab="logs">Activity Dashboard (' + state.auditLogs.length + ')</button>' +

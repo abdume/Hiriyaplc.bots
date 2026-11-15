@@ -44,7 +44,20 @@ interface SharedSecurityState {
 }
 
 const STATE_FILE = path.resolve(process.cwd(), '.tablebot-security.json');
-const PORT = Number(process.env.PORT) || 3000;
+function resolveAppPort(): number {
+  const idx = process.argv.indexOf('--port');
+  if (idx !== -1 && process.argv[idx + 1]) {
+    const parsed = Number(process.argv[idx + 1]);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  const eqArg = process.argv.find((a) => a.startsWith('--port='));
+  if (eqArg) {
+    const parsed = Number(eqArg.split('=')[1]);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 3000;
+}
+const PORT = resolveAppPort();
 
 const DEFAULT_SECURITY_STATE: SharedSecurityState = {
   accessCode: '1234',
