@@ -752,6 +752,9 @@
     var STORAGE_LANG = 'tablebot_ui_lang';
     var STORAGE_ACCESS_CODE = 'tablebot_access_code';
     var STORAGE_CYBER_CODE = 'tablebot_cyber_security_code';
+    var STORAGE_DEVICE_ID = 'tablebot_device_uid_v1';
+    var STORAGE_GUEST_ACTOR = 'tablebot_device_actor_v1';
+    var STORAGE_TG_WEB_USER = 'tablebot_tg_webapp_user_v1';
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
     var SESSION_FOLDER_UNLOCKS_KEY = 'tablebot_folder_unlocks_v1';
     var SESSION_CYBER_UNLOCK_KEY = 'tablebot_cyber_unlocked_v1';
@@ -970,6 +973,113 @@
       return JSON.parse(JSON.stringify(INITIAL_BOTS));
     }
 
+    function getClientDeviceId() {
+      try {
+        var existing = localStorage.getItem(STORAGE_DEVICE_ID);
+        if (existing && existing.trim()) return existing.trim();
+        var nextId = 'dev_' + Math.random().toString(36).slice(2, 8) + '_' + Date.now().toString(36);
+        localStorage.setItem(STORAGE_DEVICE_ID, nextId);
+        return nextId;
+      } catch (e) {
+        return 'dev_mem_' + CLIENT_SESSION_ID.slice(-8);
+      }
+    }
+
+    function getTelegramWebAppUser() {
+      try {
+        var qs = new URLSearchParams(window.location.search || '');
+        var hashQs = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+        var qId = qs.get('tg_id') || hashQs.get('tg_id');
+        var qUser = qs.get('tg_user') || hashQs.get('tg_user');
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+          var tu = window.Telegram.WebApp.initDataUnsafe.user;
+          if (tu && tu.id) {
+            var info = {
+              id: String(tu.id),
+              username: tu.username ? ('@' + tu.username.replace(/^@/, '')) : '',
+              firstName: tu.first_name || '',
+              lastName: tu.last_name || ''
+            };
+            try { localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify(info)); } catch (e0) {}
+            return info;
+          }
+        }
+        if (qId) {
+          var qInfo = {
+            id: String(qId).trim(),
+            username: qUser ? ('@' + String(qUser).trim().replace(/^@/, '')) : '',
+            firstName: qUser ? String(qUser).trim() : '',
+            lastName: ''
+          };
+          try { localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify(qInfo)); } catch (e1) {}
+          return qInfo;
+        }
+        var savedRaw = localStorage.getItem(STORAGE_TG_WEB_USER);
+        if (savedRaw) {
+          var parsed = JSON.parse(savedRaw);
+          if (parsed && parsed.id) return parsed;
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    function detectClientDeviceInfo() {
+      var ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+      var tgUser = getTelegramWebAppUser();
+      var isTgWeb = Boolean(tgUser || (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || /telegram/i.test(ua));
+      var os = 'Desktop';
+      var platform = 'Browser';
+      if (/iphone/i.test(ua)) { os = 'iPhone'; platform = 'Phone'; }
+      else if (/ipad/i.test(ua)) { os = 'iPad'; platform = 'Phone'; }
+      else if (/android/i.test(ua)) { os = 'Android Phone'; platform = 'Phone'; }
+      else if (/windows/i.test(ua)) { os = 'Windows PC'; }
+      else if (/macintosh|mac os x/i.test(ua)) { os = 'Mac'; }
+      else if (/linux/i.test(ua)) { os = 'Linux'; }
+
+      var browser = 'Browser';
+      if (isTgWeb) {
+        browser = /mobile|android|iphone|ipad/i.test(ua) ? 'Telegram Mobile' : 'Telegram Desktop';
+        platform = 'Telegram';
+      } else if (/edg\//i.test(ua)) browser = 'Edge';
+      else if (/samsungbrowser/i.test(ua)) browser = 'Samsung Browser';
+      else if (/opr\/|opera/i.test(ua)) browser = 'Opera';
+      else if (/chrome|crios/i.test(ua)) browser = 'Chrome';
+      else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+      else if (/safari/i.test(ua)) browser = 'Safari';
+
+      return {
+        deviceId: getClientDeviceId(),
+        platform: platform,
+        source: platform === 'Telegram' ? 'Telegram' : (platform === 'Phone' ? 'Phone Browser' : 'Desktop Browser'),
+        deviceLabel: os + ' · ' + browser,
+        telegramUser: tgUser
+      };
+    }
+
+    function getDefaultActorForDevice() {
+      var tgUser = getTelegramWebAppUser();
+      if (tgUser && tgUser.id) {
+        var tgName = tgUser.username || tgUser.firstName || ('TG-' + tgUser.id);
+        return tgName + ' (' + tgUser.id + ')';
+      }
+      try {
+        var storedGuest = localStorage.getItem(STORAGE_GUEST_ACTOR);
+        if (storedGuest && storedGuest.trim()) return storedGuest.trim();
+        var hasLegacyWorkspace = Boolean(localStorage.getItem(STORAGE_BOTS) || localStorage.getItem(STORAGE_AUDIT_LOGS));
+        if (hasLegacyWorkspace) return 'umery1969@gmail.com';
+        var devInfo = detectClientDeviceInfo();
+        var shortTag = getClientDeviceId().replace(/^dev_/, '').slice(-4).toUpperCase();
+        var prefix = devInfo.platform === 'Phone'
+          ? (devInfo.deviceLabel.indexOf('iPhone') !== -1 ? 'iPhone-User' : 'Android-Phone')
+          : 'Browser-User';
+        var generated = prefix + '-' + shortTag;
+        localStorage.setItem(STORAGE_GUEST_ACTOR, generated);
+        return generated;
+      } catch (e) {
+        return 'Browser-User';
+      }
+    }
+
     function loadSupabaseConfig() {
       try {
         var qs = new URLSearchParams(window.location.search || '');
@@ -988,7 +1098,9 @@
       } catch (e) {}
       var url = localStorage.getItem(STORAGE_SB_URL) || '';
       var key = localStorage.getItem(STORAGE_SB_KEY) || '';
-      var email = localStorage.getItem(STORAGE_SB_EMAIL) || 'umery1969@gmail.com';
+      var storedEmail = '';
+      try { storedEmail = (localStorage.getItem(STORAGE_SB_EMAIL) || '').trim(); } catch (e2) {}
+      var email = storedEmail || getDefaultActorForDevice();
       return { url: url, anonKey: key, userEmail: email, isConnected: Boolean(url && key) };
     }
 
@@ -1271,7 +1383,11 @@
       toastTimer: null,
       lockError: '',
       lockShowCode: false,
-      lockShake: false
+      lockShake: false,
+      serverBlockInfo: null,
+      lastHeartbeatAt: 0,
+      adminUserFilter: 'all',
+      cyberUserFilter: 'all'
     };
     state.syncStatus = state.supabaseConfig.isConnected ? 'syncing' : 'local';
     if (!state.adminConfig.cyberSecurityManager) state.adminConfig.cyberSecurityManager = 'Abdulfeta';
@@ -1516,6 +1632,190 @@
       } catch (e) {}
     }
 
+    function mergeServerActivityState(data) {
+      if (!data || typeof data !== 'object') return;
+      var dirty = false;
+      if (Array.isArray(data.users) && data.users.length > 0) {
+        var userMap = {};
+        var mergedUsers = [];
+        data.users.forEach(function (su) {
+          if (!su || !su.id) return;
+          var key = String(su.id).toLowerCase();
+          userMap[key] = Object.assign({}, su);
+          mergedUsers.push(userMap[key]);
+        });
+        (state.workspaceUsers || []).forEach(function (lu) {
+          if (!lu || !lu.id) return;
+          var key = String(lu.id).toLowerCase();
+          if (!userMap[key]) {
+            mergedUsers.push(lu);
+          } else {
+            var su = userMap[key];
+            if ((lu.activeSeconds || 0) > (su.activeSeconds || 0)) su.activeSeconds = lu.activeSeconds;
+            if ((lu.opens || 0) > (su.opens || 0)) su.opens = lu.opens;
+            if ((lu.adds || 0) > (su.adds || 0)) su.adds = lu.adds;
+            if ((lu.edits || 0) > (su.edits || 0)) su.edits = lu.edits;
+            if ((lu.deletes || 0) > (su.deletes || 0)) su.deletes = lu.deletes;
+            if (lu.blocked && !su.blocked && (!su.unblockedAt || new Date(lu.loggedOutAt || 0) > new Date(su.unblockedAt || 0))) {
+              su.blocked = true;
+              su.blockExpiresAt = lu.blockExpiresAt || su.blockExpiresAt || null;
+              su.blockDurationMins = lu.blockDurationMins || su.blockDurationMins || 0;
+            }
+          }
+        });
+        state.workspaceUsers = mergedUsers;
+        dirty = true;
+      }
+      if (Array.isArray(data.logs)) {
+        var byId = {};
+        data.logs.forEach(function (sl) { if (sl && sl.id) byId[sl.id] = sl; });
+        (state.auditLogs || []).forEach(function (ll) { if (ll && ll.id && !byId[ll.id]) byId[ll.id] = ll; });
+        state.auditLogs = Object.keys(byId).map(function (k) { return byId[k]; }).sort(function (a, b) {
+          return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
+        }).slice(0, 250);
+        dirty = true;
+      }
+      if (data.blockStatus && typeof data.blockStatus === 'object') {
+        state.serverBlockInfo = data.blockStatus;
+        if (data.blockStatus.blocked) {
+          forceLogoutCurrentUser(data.blockStatus.reason || 'Your phone / account was blocked by Admin / Cyber Security. All app data is hidden.');
+        } else if (state.revokedNotice && !isCurrentUserRevoked()) {
+          state.revokedNotice = '';
+          state.revokedSwitchError = '';
+        }
+      } else if (isCurrentUserRevoked()) {
+        forceLogoutCurrentUser('Your phone / account was blocked by Admin / Cyber Security. All app data is hidden.');
+      } else if (state.revokedNotice && !isCurrentUserRevoked()) {
+        state.revokedNotice = '';
+        state.revokedSwitchError = '';
+      }
+      if (dirty) saveAdminState();
+      refreshLiveActivityViews();
+    }
+
+    function refreshLiveActivityViews() {
+      if (isCurrentUserRevoked()) {
+        renderApp(true);
+        return;
+      }
+      if (!isAccessUnlocked()) return;
+      if (state.modal && state.modal.type === 'admin' && !state.modal._typingSearch) {
+        var admSrch = document.getElementById('adm-search');
+        var admInp = document.getElementById('adm-block-inp');
+        if (document.activeElement !== admSrch && document.activeElement !== admInp) {
+          renderAdminModal(state.modal);
+        }
+      } else if (state.modal && state.modal.type === 'cyber_control' && !state.modal.gateRecoveryOpen) {
+        var cyInp = document.getElementById('cy-blk-inp');
+        if (document.activeElement !== cyInp && document.activeElement !== document.getElementById('cy-gate-inp')) {
+          renderCyberControlModal(state.modal);
+        }
+      } else if (!state.activeBotId && !state.modal) {
+        renderDashboardActivityStripOnly();
+      }
+    }
+
+    async function pullServerActivityState(reason) {
+      try {
+        var dev = detectClientDeviceInfo();
+        var actor = getCurrentActor();
+        var tgU = dev.telegramUser;
+        var qs = 'actor=' + encodeURIComponent(actor) +
+          '&deviceId=' + encodeURIComponent(dev.deviceId) +
+          (tgU && tgU.id ? ('&telegramId=' + encodeURIComponent(tgU.id)) : '') +
+          (tgU && tgU.username ? ('&telegramUsername=' + encodeURIComponent(tgU.username)) : '') +
+          '&ts=' + Date.now();
+        var res = await fetch('/api/activity-state?' + qs, { cache: 'no-store' });
+        if (!res || !res.ok) return false;
+        var data = await res.json();
+        if (data && data.ok) {
+          mergeServerActivityState(data);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
+    async function pushActivityHeartbeat(explicitDeltaSec) {
+      try {
+        var now = Date.now();
+        var delta = typeof explicitDeltaSec === 'number'
+          ? explicitDeltaSec
+          : (state.lastHeartbeatAt > 0 ? Math.min(30, Math.max(0, Math.round((now - state.lastHeartbeatAt) / 1000))) : 5);
+        state.lastHeartbeatAt = now;
+        var dev = detectClientDeviceInfo();
+        var actor = getCurrentActor();
+        var tgU = dev.telegramUser;
+        var res = await fetch('/api/activity/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            actor: actor,
+            label: actor,
+            deviceId: dev.deviceId,
+            deviceLabel: dev.deviceLabel,
+            platform: dev.platform,
+            source: dev.source,
+            telegramId: tgU ? tgU.id : '',
+            telegramUsername: tgU ? tgU.username : '',
+            deltaSeconds: document.hidden ? 0 : delta
+          })
+        });
+        if (!res || !res.ok) return false;
+        var data = await res.json();
+        if (data && data.ok) {
+          if (data.securityState && data.securityState.updatedAt) {
+            applySharedSecurityState(data.securityState, { from: 'heartbeat', silent: true });
+          }
+          mergeServerActivityState(data);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
+    async function pushActivityLogToServer(entryOrEntries) {
+      try {
+        var dev = detectClientDeviceInfo();
+        var arr = Array.isArray(entryOrEntries) ? entryOrEntries : [entryOrEntries];
+        await fetch('/api/activity/log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify({
+            actor: getCurrentActor(),
+            deviceId: dev.deviceId,
+            deviceLabel: dev.deviceLabel,
+            platform: dev.platform,
+            source: dev.source,
+            telegramId: dev.telegramUser ? dev.telegramUser.id : '',
+            telegramUsername: dev.telegramUser ? dev.telegramUser.username : '',
+            entries: arr
+          })
+        });
+      } catch (e) {}
+    }
+
+    async function postServerBlockAction(payload) {
+      try {
+        var res = await fetch('/api/activity/block', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: JSON.stringify(payload)
+        });
+        if (!res || !res.ok) return false;
+        var data = await res.json();
+        if (data && data.ok) {
+          if (data.state) applySharedSecurityState(data.state, { from: 'server_block', silent: true });
+          mergeServerActivityState(data);
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
     function startSharedSecurityEvents() {
       if (typeof window.EventSource !== 'undefined') {
         try {
@@ -1524,13 +1824,21 @@
             try {
               var remote = JSON.parse(ev.data);
               applySharedSecurityState(remote, { from: 'sse' });
+              if (isCurrentUserRevoked()) renderApp(true);
             } catch (e2) {}
+          });
+          es.addEventListener('activity_update', function (ev) {
+            try {
+              var act = JSON.parse(ev.data);
+              mergeServerActivityState(act);
+            } catch (e3) {}
           });
         } catch (e) {}
       }
       setInterval(function () {
-        if (!document.hidden && (!isAccessUnlocked() || state.adminConfig.autoSyncOnOpen)) {
+        if (!document.hidden && (!isAccessUnlocked() || state.adminConfig.autoSyncOnOpen || isCurrentUserRevoked())) {
           pullSharedSecurityState('poll');
+          pullServerActivityState('poll');
         }
       }, 5000);
     }
@@ -1821,7 +2129,11 @@
 
     function getCurrentActor() {
       if (state.authSession && state.authSession.email) return state.authSession.email;
-      return state.supabaseConfig.userEmail || 'umery1969@gmail.com';
+      var tgU = getTelegramWebAppUser();
+      if (tgU && tgU.id && (!state.supabaseConfig.userEmail || state.supabaseConfig.userEmail.indexOf(tgU.id) !== -1)) {
+        return (tgU.username || tgU.firstName || ('TG-' + tgU.id)) + ' (' + tgU.id + ')';
+      }
+      return state.supabaseConfig.userEmail || getDefaultActorForDevice();
     }
 
     function matchesActorIdentity(a, b) {
@@ -1832,6 +2144,17 @@
       var stripParens = function (s) { return s.replace(/\s*\([^)]*\)\s*/g, '').trim(); };
       if (stripParens(na) && stripParens(na) === stripParens(nb)) return true;
       return false;
+    }
+
+    function matchesUserRecordKey(u, key) {
+      if (!u || !key) return false;
+      return matchesActorIdentity(u.id, key) ||
+        matchesActorIdentity(u.actor, key) ||
+        matchesActorIdentity(u.label, key) ||
+        (u.telegramId && matchesActorIdentity(u.telegramId, key)) ||
+        (u.telegramUsername && matchesActorIdentity(u.telegramUsername, key)) ||
+        (u.deviceId && matchesActorIdentity(u.deviceId, key)) ||
+        (Array.isArray(u.deviceIds) && u.deviceIds.some(function (d) { return matchesActorIdentity(d, key); }));
     }
 
     function formatRemainingBlockTime(expiresAt) {
@@ -1847,6 +2170,45 @@
       if (hrs > 0) return hrs + 'h ' + mins + 'm left';
       if (mins > 0) return mins + 'm ' + secs + 's left';
       return secs + 's left';
+    }
+
+    function formatRealDateTime(dateStr) {
+      if (!dateStr) return '—';
+      try {
+        var d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateStr);
+        var dd = String(d.getDate()).padStart(2, '0');
+        var mm = String(d.getMonth() + 1).padStart(2, '0');
+        var yyyy = d.getFullYear();
+        var hh24 = d.getHours();
+        var ap = hh24 >= 12 ? 'PM' : 'AM';
+        var hh12 = hh24 % 12 || 12;
+        var min = String(d.getMinutes()).padStart(2, '0');
+        var sec = String(d.getSeconds()).padStart(2, '0');
+        return dd + '/' + mm + '/' + yyyy + ' · ' + String(hh12).padStart(2, '0') + ':' + min + ':' + sec + ' ' + ap;
+      } catch (e) {
+        return String(dateStr);
+      }
+    }
+
+    function formatDurationUsed(totalSeconds) {
+      var s = Math.max(0, Math.round(Number(totalSeconds) || 0));
+      if (s < 60) return s + 's';
+      var mins = Math.floor(s / 60);
+      var remS = s % 60;
+      if (mins < 60) return mins + 'm ' + remS + 's';
+      var hrs = Math.floor(mins / 60);
+      var remM = mins % 60;
+      if (hrs < 24) return hrs + 'h ' + remM + 'm';
+      var days = Math.floor(hrs / 24);
+      return days + 'd ' + (hrs % 24) + 'h';
+    }
+
+    function isUserOnlineNow(lastSeenStr) {
+      if (!lastSeenStr) return false;
+      var ms = Date.parse(lastSeenStr);
+      if (!ms || isNaN(ms)) return false;
+      return (Date.now() - ms) <= 45000;
     }
 
     function cleanupExpiredBlocks() {
@@ -1865,7 +2227,7 @@
       state.workspaceUsers.forEach(function (u) {
         if (u.blocked) {
           var isExp = (u.blockExpiresAt && now >= Number(u.blockExpiresAt)) ||
-            expiredNames.some(function (en) { return matchesActorIdentity(u.id, en) || matchesActorIdentity(u.label, en); });
+            expiredNames.some(function (en) { return matchesUserRecordKey(u, en); });
           if (isExp) {
             u.blocked = false;
             u.blockExpiresAt = null;
@@ -1891,14 +2253,35 @@
       var revokedMap = (state.adminConfig && state.adminConfig.revokedUsers) ? state.adminConfig.revokedUsers : {};
       if (Object.keys(revokedMap).some(function (k) { return matchesActorIdentity(k, norm); })) return true;
       return state.workspaceUsers.some(function (u) {
-        return u.blocked && (matchesActorIdentity(u.id, norm) || matchesActorIdentity(u.label, norm));
+        return u.blocked && matchesUserRecordKey(u, norm);
       });
     }
 
     function isCurrentUserRevoked() {
+      cleanupExpiredBlocks();
+      if (state.serverBlockInfo && state.serverBlockInfo.blocked) {
+        if (!state.serverBlockInfo.expiresAt || Date.now() < Number(state.serverBlockInfo.expiresAt)) {
+          return true;
+        }
+      }
       var cur = getCurrentActor();
       var sbEm = (state.authSession && state.authSession.email) ? state.authSession.email : (state.supabaseConfig && state.supabaseConfig.userEmail ? state.supabaseConfig.userEmail : '');
-      return isActorBlocked(cur) || (sbEm && isActorBlocked(sbEm));
+      var devId = getClientDeviceId();
+      var tgU = getTelegramWebAppUser();
+      return isActorBlocked(cur) ||
+        (sbEm && isActorBlocked(sbEm)) ||
+        isActorBlocked(devId) ||
+        Boolean(tgU && tgU.id && isActorBlocked(tgU.id)) ||
+        Boolean(tgU && tgU.username && isActorBlocked(tgU.username));
+    }
+
+    function isCurrentDeviceStrictlyBlocked() {
+      if (state.serverBlockInfo && state.serverBlockInfo.blocked && state.serverBlockInfo.deviceBlocked) return true;
+      var devId = getClientDeviceId();
+      var tgU = getTelegramWebAppUser();
+      return isActorBlocked(devId) ||
+        Boolean(tgU && tgU.id && isActorBlocked(tgU.id)) ||
+        Boolean(tgU && tgU.username && isActorBlocked(tgU.username));
     }
 
     function forceLogoutCurrentUser(reason) {
@@ -1926,28 +2309,62 @@
       var mins = parseFloat(durationMins) || 0;
       var expiresAt = mins > 0 ? (Date.now() + Math.round(mins * 60000)) : null;
       if (!state.adminConfig.revokedUsers || typeof state.adminConfig.revokedUsers !== 'object') state.adminConfig.revokedUsers = {};
-      state.adminConfig.revokedUsers[norm] = {
-        at: nowIso,
-        reason: reason || 'Transmitted / Blocked by Cyber Control',
-        expiresAt: expiresAt,
-        durationMins: mins
-      };
-      var existing = state.workspaceUsers.find(function (u) {
-        return matchesActorIdentity(u.id, norm) || matchesActorIdentity(u.label, norm);
+
+      var matchedUsers = state.workspaceUsers.filter(function (u) {
+        return matchesUserRecordKey(u, norm);
       });
-      if (existing) {
-        existing.blocked = true;
-        existing.loggedOutAt = nowIso;
-        existing.blockExpiresAt = expiresAt;
-        existing.blockDurationMins = mins;
+      var blockKeys = [norm];
+      var linkedTgId = '';
+      var linkedTgUser = '';
+      var linkedDeviceIds = [];
+      matchedUsers.forEach(function (mu) {
+        if (mu.id) blockKeys.push(String(mu.id).toLowerCase());
+        if (mu.actor) blockKeys.push(String(mu.actor).toLowerCase());
+        if (mu.telegramId) { linkedTgId = mu.telegramId; blockKeys.push(String(mu.telegramId).toLowerCase()); }
+        if (mu.telegramUsername) { linkedTgUser = mu.telegramUsername; blockKeys.push(String(mu.telegramUsername).toLowerCase()); }
+        if (mu.deviceId) { linkedDeviceIds.push(mu.deviceId); blockKeys.push(String(mu.deviceId).toLowerCase()); }
+        if (Array.isArray(mu.deviceIds)) {
+          mu.deviceIds.forEach(function (d) {
+            if (d) { linkedDeviceIds.push(d); blockKeys.push(String(d).toLowerCase()); }
+          });
+        }
+      });
+
+      blockKeys.forEach(function (bk) {
+        state.adminConfig.revokedUsers[bk] = {
+          at: nowIso,
+          reason: reason || 'Transmitted / Blocked by Cyber Control',
+          expiresAt: expiresAt,
+          durationMins: mins
+        };
+      });
+
+      if (matchedUsers.length > 0) {
+        matchedUsers.forEach(function (existing) {
+          existing.blocked = true;
+          existing.loggedOutAt = nowIso;
+          existing.blockExpiresAt = expiresAt;
+          existing.blockDurationMins = mins;
+        });
       } else {
         state.workspaceUsers.unshift({
-          id: raw, label: raw, role: 'blocked', source: raw.indexOf('@') === 0 || /^\d+$/.test(raw) ? 'Telegram' : 'Manual',
+          id: raw, label: raw, actor: raw, role: 'blocked', source: raw.indexOf('@') === 0 || /^\d+$/.test(raw) ? 'Telegram' : 'Manual',
+          platform: raw.indexOf('@') === 0 || /^\d+$/.test(raw) ? 'Telegram' : 'Browser',
           blocked: true, blockExpiresAt: expiresAt, blockDurationMins: mins,
-          opens: 0, adds: 0, edits: 0, deletes: 0, lastSeen: nowIso, loggedOutAt: nowIso
+          opens: 0, adds: 0, edits: 0, deletes: 0, activeSeconds: 0, firstSeen: nowIso, lastSeen: nowIso, loggedOutAt: nowIso
         });
       }
       pushSharedSecurityState('user_block');
+      postServerBlockAction({
+        mode: 'block',
+        target: raw,
+        telegramId: linkedTgId,
+        telegramUsername: linkedTgUser,
+        deviceIds: linkedDeviceIds,
+        byActor: getCurrentActor(),
+        durationMins: mins,
+        reason: reason || 'Blocked & forced logout by Admin / Cyber Control. App data hidden.'
+      });
       if (syncChannel) {
         try { syncChannel.postMessage({ type: 'FORCE_LOGOUT', target: norm, reason: reason || '', ts: Date.now() }); } catch (e) {}
       }
@@ -1959,46 +2376,94 @@
     function unblockWorkspaceUser(identifier) {
       if (!identifier) return;
       var norm = String(identifier).trim().toLowerCase();
+      var matchedUsers = state.workspaceUsers.filter(function (u) { return matchesUserRecordKey(u, norm); });
+      var linkedTgId = '';
+      var linkedTgUser = '';
+      var linkedDeviceIds = [];
+      var keysToClear = [norm];
+      matchedUsers.forEach(function (mu) {
+        if (mu.id) keysToClear.push(String(mu.id).toLowerCase());
+        if (mu.actor) keysToClear.push(String(mu.actor).toLowerCase());
+        if (mu.telegramId) { linkedTgId = mu.telegramId; keysToClear.push(String(mu.telegramId).toLowerCase()); }
+        if (mu.telegramUsername) { linkedTgUser = mu.telegramUsername; keysToClear.push(String(mu.telegramUsername).toLowerCase()); }
+        if (mu.deviceId) { linkedDeviceIds.push(mu.deviceId); keysToClear.push(String(mu.deviceId).toLowerCase()); }
+        if (Array.isArray(mu.deviceIds)) mu.deviceIds.forEach(function (d) { if (d) { linkedDeviceIds.push(d); keysToClear.push(String(d).toLowerCase()); } });
+      });
+
       if (state.adminConfig.revokedUsers) {
         Object.keys(state.adminConfig.revokedUsers).forEach(function (k) {
-          if (matchesActorIdentity(k, norm)) delete state.adminConfig.revokedUsers[k];
+          if (keysToClear.some(function (ck) { return matchesActorIdentity(k, ck); })) delete state.adminConfig.revokedUsers[k];
         });
       }
-      state.workspaceUsers.forEach(function (u) {
-        if (matchesActorIdentity(u.id, norm) || matchesActorIdentity(u.label, norm)) {
-          u.blocked = false;
-          u.blockExpiresAt = null;
-          u.blockDurationMins = 0;
-          u.unblockedAt = new Date().toISOString();
-        }
+      matchedUsers.forEach(function (u) {
+        u.blocked = false;
+        u.blockExpiresAt = null;
+        u.blockDurationMins = 0;
+        u.unblockedAt = new Date().toISOString();
       });
+      if (state.serverBlockInfo && state.serverBlockInfo.blocked && isCurrentUserRevoked() === false) {
+        state.serverBlockInfo = { blocked: false, deviceBlocked: false };
+      }
       pushSharedSecurityState('user_unblock');
+      postServerBlockAction({
+        mode: 'unblock',
+        target: identifier,
+        telegramId: linkedTgId,
+        telegramUsername: linkedTgUser,
+        deviceIds: linkedDeviceIds,
+        byActor: getCurrentActor()
+      });
     }
 
-    function touchWorkspaceUser(actor, action, source, botName) {
+    function touchWorkspaceUser(actor, action, source, botName, meta) {
       if (!actor) return;
+      meta = meta || {};
       var norm = String(actor).trim();
       var lower = norm.toLowerCase();
+      var dev = detectClientDeviceInfo();
+      var isTg = source === 'Telegram' || Boolean(meta.telegramId);
       var u = state.workspaceUsers.find(function (x) {
-        return String(x.id || '').toLowerCase() === lower || String(x.label || '').toLowerCase() === lower;
+        return (meta.telegramId && x.telegramId && String(x.telegramId) === String(meta.telegramId)) ||
+          String(x.id || '').toLowerCase() === lower ||
+          String(x.label || '').toLowerCase() === lower;
       });
+      var nowIso = new Date().toISOString();
       if (!u) {
         u = {
           id: norm,
           label: norm,
+          actor: norm,
           role: lower === String(state.adminConfig.adminEmail || '').toLowerCase() ? 'admin' : 'editor',
-          source: source || 'Browser',
+          source: isTg ? 'Telegram' : (source || dev.source),
+          platform: isTg ? 'Telegram' : (meta.platform || dev.platform),
+          deviceId: isTg ? '' : (meta.deviceId || dev.deviceId),
+          deviceIds: isTg ? [] : [meta.deviceId || dev.deviceId],
+          deviceLabel: isTg ? 'Telegram Bot / User' : (meta.deviceLabel || dev.deviceLabel),
+          telegramId: meta.telegramId || (dev.telegramUser && !isTg ? dev.telegramUser.id : ''),
+          telegramUsername: meta.telegramUsername || (dev.telegramUser && !isTg ? dev.telegramUser.username : ''),
           blocked: false,
           opens: 0,
           adds: 0,
           edits: 0,
           deletes: 0,
-          lastSeen: new Date().toISOString()
+          activeSeconds: 0,
+          firstSeen: nowIso,
+          lastSeen: nowIso
         };
         state.workspaceUsers.push(u);
       }
-      u.lastSeen = new Date().toISOString();
-      if (source) u.source = source;
+      u.lastSeen = nowIso;
+      if (!u.firstSeen) u.firstSeen = nowIso;
+      if (meta.telegramId) u.telegramId = meta.telegramId;
+      if (meta.telegramUsername) u.telegramUsername = meta.telegramUsername;
+      if (!isTg && (meta.deviceId || dev.deviceId)) {
+        var did = meta.deviceId || dev.deviceId;
+        u.deviceId = did;
+        if (!Array.isArray(u.deviceIds)) u.deviceIds = [];
+        if (u.deviceIds.indexOf(did) === -1) u.deviceIds.push(did);
+        u.deviceLabel = meta.deviceLabel || dev.deviceLabel;
+      }
+      if (source) u.source = isTg ? 'Telegram' : (u.source || dev.source);
       if (action) u.lastAction = action;
       if (botName) u.lastBotName = botName;
       if (action === 'OPEN') u.opens = (u.opens || 0) + 1;
@@ -2009,8 +2474,10 @@
 
     function recordAudit(action, bot, summary, extra) {
       extra = extra || {};
+      var dev = detectClientDeviceInfo();
       var actor = extra.actor || getCurrentActor();
-      var source = extra.source || 'Browser';
+      var source = extra.source || dev.source || 'Browser';
+      var isTg = source === 'Telegram' || Boolean(extra.telegramId);
       var bName = bot ? bot.name : (extra.botName || 'Workspace');
       var entry = {
         id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -2018,6 +2485,11 @@
         actor: actor,
         action: action,
         source: source,
+        platform: isTg ? 'Telegram' : (extra.platform || dev.platform),
+        deviceId: isTg ? (extra.deviceId || '') : (extra.deviceId || dev.deviceId),
+        deviceLabel: isTg ? (extra.deviceLabel || 'Telegram App / Bot') : (extra.deviceLabel || dev.deviceLabel),
+        telegramId: extra.telegramId || (dev.telegramUser && !isTg ? dev.telegramUser.id : ''),
+        telegramUsername: extra.telegramUsername || (dev.telegramUser && !isTg ? dev.telegramUser.username : ''),
         botId: bot ? bot.id : (extra.botId || ''),
         botName: bName,
         summary: summary || '',
@@ -2026,16 +2498,17 @@
       };
       state.auditLogs.unshift(entry);
       if (state.auditLogs.length > 250) state.auditLogs = state.auditLogs.slice(0, 250);
-      touchWorkspaceUser(actor, action, source, bName);
+      touchWorkspaceUser(actor, action, source, bName, entry);
       saveAdminState();
       pushAuditLogToSupabase(entry);
+      pushActivityLogToServer(entry);
     }
 
     function guardWriteAction(actionLabel) {
       var actor = getCurrentActor();
-      if (isActorBlocked(actor)) {
-        recordAudit('BLOCK', getActiveBot(), 'Blocked user "' + actor + '" attempted: ' + actionLabel, { actor: actor, source: 'Browser' });
-        forceLogoutCurrentUser('Your account (' + actor + ') is blocked and logged out. App data is hidden.');
+      if (isCurrentUserRevoked() || isActorBlocked(actor)) {
+        recordAudit('BLOCK', getActiveBot(), 'Blocked user "' + actor + '" attempted: ' + actionLabel, { actor: actor });
+        forceLogoutCurrentUser('Your phone / account (' + actor + ') is blocked and logged out. All app data is hidden.');
         renderApp(true);
         return false;
       }
@@ -3079,12 +3552,30 @@
 
           var fromObj = msgObj.from || msgObj.chat || {};
           var tgUserId = String(fromObj.id || 'unknown');
-          var tgHandle = fromObj.username ? ('@' + fromObj.username) : (fromObj.first_name || tgUserId);
+          var tgUsername = fromObj.username ? ('@' + fromObj.username) : '';
+          var tgHandle = tgUsername || (fromObj.first_name || tgUserId);
           var tgActor = tgHandle + ' (' + tgUserId + ')';
           var tgChatId = msgObj.chat && msgObj.chat.id ? String(msgObj.chat.id) : '';
+          var tgMeta = {
+            actor: tgActor,
+            source: 'Telegram',
+            platform: 'Telegram',
+            telegramId: tgUserId,
+            telegramUsername: tgUsername,
+            deviceLabel: 'Telegram App / Bot'
+          };
+          var sendTgReply = function (replyTxt) {
+            if (!tgChatId || !bot.telegramToken) return;
+            fetch('https://api.telegram.org/bot' + bot.telegramToken + '/sendMessage', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: tgChatId, text: replyTxt })
+            }).catch(function () {});
+          };
 
-          if (isActorBlocked(tgUserId) || isActorBlocked(tgHandle) || isActorBlocked(tgActor)) {
-            recordAudit('BLOCK', bot, 'Ignored Telegram message from blocked user ' + tgActor, { actor: tgActor, source: 'Telegram' });
+          if (isActorBlocked(tgUserId) || (tgUsername && isActorBlocked(tgUsername)) || isActorBlocked(tgActor)) {
+            sendTgReply('⛔ Access Blocked by Admin / Cyber Security. Your Telegram ID (' + tgUserId + ') is blocked from using TableBot.');
+            recordAudit('BLOCK', bot, 'Rejected & notified blocked Telegram user ' + tgActor, tgMeta);
             return;
           }
 
@@ -3104,19 +3595,11 @@
           var lowerTxt = txt.toLowerCase();
           var msgTimeMs = (msgObj.date || Math.floor(Date.now() / 1000)) * 1000;
           var amtM = txt.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
-          var sendTgReply = function (replyTxt) {
-            if (!tgChatId || !bot.telegramToken) return;
-            fetch('https://api.telegram.org/bot' + bot.telegramToken + '/sendMessage', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ chat_id: tgChatId, text: replyTxt })
-            }).catch(function () {});
-          };
 
           if (/^\/lockstatus\b/i.test(lowerTxt)) {
             openedCount++;
             sendTgReply('🔐 TableBot Security Status:\n• Lock Screen: ' + (isAccessLockEnabled() ? 'ON' : 'OFF') + '\n• Cyber Manager: ' + (state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '\n• Sync: Active across all browsers & Telegram Desktop');
-            recordAudit('OPEN', bot, 'Telegram user checked lock status', { actor: tgActor, source: 'Telegram' });
+            recordAudit('OPEN', bot, 'Telegram user checked lock status', tgMeta);
             return;
           }
 
@@ -3130,14 +3613,14 @@
             var newArg = normalizeSecurityCode(parts[1]);
             if (curArg !== getConfiguredAccessCode() && curArg !== getCyberSecurityCode()) {
               sendTgReply('❌ Incorrect current or Cyber Security code. Access denied.');
-              recordAudit('BLOCK', bot, 'Rejected Telegram /lockcode attempt from ' + tgActor, { actor: tgActor, source: 'Telegram' });
+              recordAudit('BLOCK', bot, 'Rejected Telegram /lockcode attempt from ' + tgActor, tgMeta);
               return;
             }
             state.adminConfig.accessLockEnabled = true;
             setConfiguredAccessCode(newArg, true);
             pushSharedSecurityState('telegram_lockcode');
             sendTgReply('✅ Lock Screen code updated and synced to all browsers & Telegram Desktop!');
-            recordAudit('AUTH', bot, 'Telegram user updated Lock Screen code via /lockcode', { actor: tgActor, source: 'Telegram' });
+            recordAudit('AUTH', bot, 'Telegram user updated Lock Screen code via /lockcode', tgMeta);
             return;
           }
 
@@ -3149,13 +3632,13 @@
             }
             lockAppNow();
             sendTgReply('🔒 App locked across all browsers & Telegram Desktop.');
-            recordAudit('AUTH', bot, 'Telegram user triggered remote /lockapp', { actor: tgActor, source: 'Telegram' });
+            recordAudit('AUTH', bot, 'Telegram user triggered remote /lockapp', tgMeta);
             return;
           }
 
           if (/^\/(start|open|view|menu|list|status)\b/i.test(lowerTxt)) {
             openedCount++;
-            recordAudit('OPEN', bot, 'Telegram user opened bot via "' + txt.slice(0, 40) + '"', { actor: tgActor, source: 'Telegram' });
+            recordAudit('OPEN', bot, 'Telegram user opened bot via "' + txt.slice(0, 40) + '"', tgMeta);
             return;
           }
 
@@ -3178,9 +3661,9 @@
             if (delIdx !== -1) {
               var removedRow = bot.rows.splice(delIdx, 1)[0];
               deletedCount++;
-              recordAudit('DELETE', bot, 'Telegram user deleted row ' + (removedRow ? removedRow.id : '') + ' via "' + txt.slice(0, 40) + '"', { actor: tgActor, source: 'Telegram' });
+              recordAudit('DELETE', bot, 'Telegram user deleted row ' + (removedRow ? removedRow.id : '') + ' via "' + txt.slice(0, 40) + '"', tgMeta);
             } else {
-              recordAudit('DELETE', bot, 'Telegram user sent "' + txt.slice(0, 40) + '" (no matching row)', { actor: tgActor, source: 'Telegram' });
+              recordAudit('DELETE', bot, 'Telegram user sent "' + txt.slice(0, 40) + '" (no matching row)', tgMeta);
             }
             return;
           }
@@ -3202,7 +3685,7 @@
               targetRow._updatedAt = new Date().toISOString();
             }
             editedCount++;
-            recordAudit('EDIT', bot, 'Telegram user edited row: "' + editTxt.slice(0, 50) + '"', { actor: tgActor, source: 'Telegram' });
+            recordAudit('EDIT', bot, 'Telegram user edited row: "' + editTxt.slice(0, 50) + '"', tgMeta);
             return;
           }
 
@@ -3217,7 +3700,7 @@
           bot.rows.unshift(nr);
           existingRowIds[rid] = true;
           addedCount++;
-          recordAudit('ADD', bot, 'Telegram message logged: "' + txt.slice(0, 50) + '"', { actor: tgActor, source: 'Telegram' });
+          recordAudit('ADD', bot, 'Telegram message logged: "' + txt.slice(0, 50) + '"', tgMeta);
         });
 
         if (maxUpdId > 0) {
@@ -3566,53 +4049,74 @@
       html += '</div></section>';
 
 
-      if (state.adminConfig.showDashboardActivity) {
-        var tgUsers = state.workspaceUsers.filter(function (u) {
-          return u.source === 'Telegram' || String(u.id || '').indexOf('@') !== -1 || /^\d+$/.test(String(u.id || ''));
+      function buildDashboardAuditStripHtml() {
+        var recentChanges = state.auditLogs.slice(0, 6);
+        var activeUsers = (state.workspaceUsers || []).filter(function (u) {
+          return u && u.id && String(u.id).toLowerCase() !== 'abdulfeta' &&
+            (u.source !== 'Security' || u.blocked || isUserOnlineNow(u.lastSeen));
+        }).sort(function (a, b) {
+          var onA = isUserOnlineNow(a.lastSeen) ? 1 : 0;
+          var onB = isUserOnlineNow(b.lastSeen) ? 1 : 0;
+          if (onA !== onB) return onB - onA;
+          return new Date(b.lastSeen || 0).getTime() - new Date(a.lastSeen || 0).getTime();
         });
-        html += '<section class="audit-strip">' +
+        var liveCount = activeUsers.filter(function (u) { return isUserOnlineNow(u.lastSeen) && !u.blocked; }).length;
+        var sHtml = '<section id="dash-audit-strip" class="audit-strip">' +
           '<div class="audit-strip-head">' +
             '<div style="display:flex;align-items:center;gap:8px;">' +
               '<span style="color:#0D47A1">' + icon('shield', 17) + '</span>' +
-              '<div><div style="font-size:13px;font-weight:800;color:#0D47A1;">Admin Live Changes &amp; Telegram User Activity</div>' +
-              '<div style="font-size:11px;color:#64748B;">Actor: <strong>' + esc(getCurrentActor()) + '</strong>' + (state.lastSyncAt ? ' &middot; Cloud synced ' + timeAgo(state.lastSyncAt) : '') + (state.lastTgSyncAt ? ' &middot; TG checked ' + timeAgo(state.lastTgSyncAt) : '') + '</div></div>' +
+              '<div><div style="font-size:13px;font-weight:800;color:#0D47A1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span>Admin Live Phones, Browsers &amp; Telegram Activity</span>' +
+                (liveCount > 0 ? '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">● ' + liveCount + ' LIVE NOW</span>' : '') +
+              '</div>' +
+              '<div style="font-size:11px;color:#64748B;">This Device: <strong>' + esc(getCurrentActor()) + '</strong> (' + esc(detectClientDeviceInfo().deviceLabel) + ')' + (state.lastSyncAt ? ' &middot; Cloud ' + formatRealDateTime(state.lastSyncAt) : '') + '</div></div>' +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:6px;">' +
               '<button id="strip-sync-now" class="btn btn-outline" style="padding:5px 10px;font-size:11px;">' + icon('refresh', 13) + '<span>Sync Now</span></button>' +
-              '<button id="strip-open-admin" class="btn btn-dark-blue" style="padding:5px 11px;font-size:11px;">' + icon('shield', 13) + '<span>Admin &amp; Transmit (' + state.auditLogs.length + ')</span></button>' +
+              '<button id="strip-open-admin" class="btn btn-dark-blue" style="padding:5px 11px;font-size:11px;">' + icon('shield', 13) + '<span>Admin (' + activeUsers.length + ' Users &middot; ' + state.auditLogs.length + ')</span></button>' +
               '<button id="strip-hide" class="btn btn-outline" style="padding:5px 8px;font-size:11px;" title="Hide strip">✕</button>' +
             '</div>' +
           '</div>';
-        if (tgUsers.length > 0) {
-          html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' +
-            tgUsers.slice(0, 6).map(function (tu) {
-              return '<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:8px;font-size:11px;border:1px solid ' + (tu.blocked ? '#FECACA;background:#FEF2F2;color:#B91C1C;' : '#BAE6FD;background:#F0F9FF;color:#0369A1;') + '">' +
-                '<span style="font-weight:800;">' + esc(tu.label) + '</span>' +
-                '<span class="mono" style="font-size:10px;">Open:' + (tu.opens || 0) + ' Add:' + (tu.adds || 0) + ' Edit:' + (tu.edits || 0) + ' Del:' + (tu.deletes || 0) + '</span>' +
-                (tu.blocked ? '<span class="act-badge act-block">BLOCKED</span>' : '') +
+        if (activeUsers.length > 0) {
+          sHtml += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' +
+            activeUsers.slice(0, 8).map(function (tu) {
+              var on = isUserOnlineNow(tu.lastSeen) && !tu.blocked;
+              var devIcon = tu.platform === 'Telegram' ? '✈️' : tu.platform === 'Phone' ? '📱' : '💻';
+              return '<div style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:8px;font-size:11px;border:1px solid ' + (tu.blocked ? '#FECACA;background:#FEF2F2;color:#B91C1C;' : on ? '#86EFAC;background:#F0FDF4;color:#166534;' : '#BAE6FD;background:#F0F9FF;color:#0369A1;') + '">' +
+                (on ? '<span style="width:7px;height:7px;border-radius:999px;background:#10B981;display:inline-block;"></span>' : '') +
+                '<span>' + devIcon + '</span>' +
+                '<span style="font-weight:800;">' + esc(tu.label || tu.id) + '</span>' +
+                (tu.telegramId ? '<span class="mono" style="font-size:10px;background:rgba(2,132,199,0.12);padding:1px 5px;border-radius:4px;">TG:' + esc(tu.telegramId) + '</span>' : '') +
+                '<span class="mono" style="font-size:10px;">Use: ' + formatDurationUsed(tu.activeSeconds || 0) + ' &middot; ' + formatRealDateTime(tu.lastSeen) + '</span>' +
+                (tu.blocked ? '<span class="act-badge act-block">BLOCKED</span>' : (on ? '<span class="act-badge act-add">LIVE</span>' : '')) +
               '</div>';
             }).join('') +
           '</div>';
         }
         if (recentChanges.length === 0) {
-          html += '<div style="font-size:12px;color:#64748B;padding:6px 2px;">No user open/add/edit/delete changes logged yet. Any browser or Telegram bot activity will appear here immediately.</div>';
+          sHtml += '<div style="font-size:12px;color:#64748B;padding:6px 2px;">No user open/add/edit/delete changes logged yet. Any phone, browser or Telegram activity appears here live with real date &amp; time.</div>';
         } else {
-          html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+          sHtml += '<div style="display:flex;flex-direction:column;gap:6px;">';
           recentChanges.forEach(function (lg) {
             var acCls = lg.action === 'ADD' ? 'act-add' : lg.action === 'EDIT' ? 'act-edit' : lg.action === 'DELETE' ? 'act-delete' : lg.action === 'OPEN' ? 'act-open' : lg.action === 'BLOCK' ? 'act-block' : lg.action === 'TRANSMIT' ? 'act-transmit' : 'act-auth';
-            html += '<div class="audit-feed-row">' +
+            sHtml += '<div class="audit-feed-row">' +
               '<div style="display:flex;align-items:center;gap:7px;min-width:0;flex:1;">' +
                 '<span class="act-badge ' + acCls + '">' + esc(lg.action) + '</span>' +
                 '<span style="font-weight:700;color:#0F172A;">' + esc(lg.actor) + '</span>' +
-                '<span style="font-size:10.5px;background:#EFF6FF;color:#1565C0;padding:1px 6px;border-radius:4px;font-weight:600;">' + esc(lg.source || 'Browser') + '</span>' +
+                '<span style="font-size:10.5px;background:#EFF6FF;color:#1565C0;padding:1px 6px;border-radius:4px;font-weight:600;">' + esc(lg.deviceLabel || lg.source || 'Browser') + '</span>' +
+                (lg.telegramId ? '<span class="mono" style="font-size:10px;background:#E0F2FE;color:#0369A1;padding:1px 5px;border-radius:4px;">TG:' + esc(lg.telegramId) + '</span>' : '') +
                 '<span class="truncate" style="color:#475569;">' + esc(lg.botName) + ': ' + esc(lg.summary) + '</span>' +
               '</div>' +
-              '<span class="mono" style="font-size:10.5px;color:#94A3B8;white-space:nowrap;">' + timeAgo(lg.timestamp) + '</span>' +
+              '<span class="mono" style="font-size:10.5px;color:#475569;white-space:nowrap;">' + formatRealDateTime(lg.timestamp) + '</span>' +
             '</div>';
           });
-          html += '</div>';
+          sHtml += '</div>';
         }
-        html += '</section>';
+        sHtml += '</section>';
+        return sHtml;
+      }
+
+      if (state.adminConfig.showDashboardActivity) {
+        html += buildDashboardAuditStripHtml();
       }
 
       var selFolder = state.selectedFolder || 'all';
@@ -4762,26 +5266,37 @@
 
     function renderRevokedLoggedOutScreen() {
       var cur = getCurrentActor();
-      var canGuestFallback = !isActorBlocked('guest@tablebot.local');
+      var dev = detectClientDeviceInfo();
+      var tgU = dev.telegramUser;
+      var strictDevBlocked = isCurrentDeviceStrictlyBlocked();
+      var canGuestFallback = !strictDevBlocked && !isActorBlocked('guest@tablebot.local');
+      var expAt = state.serverBlockInfo && state.serverBlockInfo.expiresAt ? state.serverBlockInfo.expiresAt : null;
       var html = '<div class="lock-screen" style="background:linear-gradient(135deg,#450A0A 0%,#7F1D1D 52%,#1E293B 100%);">' +
-        '<div class="lock-card" style="max-width:430px;">' +
+        '<div class="lock-card" style="max-width:440px;">' +
           '<div class="lock-icon-ring" style="background:#FEE2E2;color:#DC2626;">' + icon('ban', 30) + '</div>' +
-          '<h1 style="font-size:20px;font-weight:800;color:#991B1B;margin-bottom:6px;">Account Logged Out &amp; Access Removed</h1>' +
+          '<h1 style="font-size:20px;font-weight:800;color:#991B1B;margin-bottom:6px;">Access Blocked &amp; Data Hidden</h1>' +
           '<p style="font-size:12.5px;color:#475569;margin-bottom:14px;line-height:1.5;">' +
-            esc(state.revokedNotice || ('Your user ("' + cur + '") was blocked or transmitted out by Admin. You have been logged out and all app data is hidden.')) +
+            esc(state.revokedNotice || ('Your user ("' + cur + '") was blocked or transmitted out by Admin / Cyber Security. You have been logged out and all app data is hidden.')) +
           '</p>' +
-          '<div style="padding:10px 12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;font-size:11.5px;color:#991B1B;margin-bottom:14px;text-align:left;">' +
-            '<strong>Security Notice:</strong> Active user <code>' + esc(cur) + '</code> cannot view any tables, folders, bots, reports, or menus.' +
+          '<div style="padding:10px 12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;font-size:11.5px;color:#991B1B;margin-bottom:14px;text-align:left;display:flex;flex-direction:column;gap:4px;">' +
+            '<div><strong>User / Phone:</strong> <code>' + esc(cur) + '</code> (' + esc(dev.deviceLabel) + ')</div>' +
+            '<div><strong>Device ID:</strong> <code>' + esc(dev.deviceId) + '</code>' + (tgU && tgU.id ? (' &middot; <strong>TG ID:</strong> <code>' + esc(tgU.id) + '</code>') : '') + '</div>' +
+            '<div><strong>Block Status:</strong> ' + (expAt ? ('Timed Block &mdash; <strong>' + esc(formatRemainingBlockTime(expAt)) + '</strong> (Expires ' + esc(formatRealDateTime(new Date(expAt).toISOString())) + ')') : '<strong>Permanent until Unblocked by Admin / Abdulfeta</strong>') + '</div>' +
           '</div>' +
-          (state.revokedSwitchError ? '<div class="lock-error-box" style="margin-bottom:10px;">' + icon('ban', 14) + '<span>' + esc(state.revokedSwitchError) + '</span></div>' : '') +
-          '<form id="revoked-switch-form" style="display:flex;flex-direction:column;gap:8px;text-align:left;">' +
-            '<label class="field-label" style="margin:0;">Sign In / Switch to Authorized Account</label>' +
-            '<div style="display:flex;gap:6px;">' +
-              '<input id="revoked-switch-email" type="email" class="form-input" placeholder="authorized-user@example.com" required />' +
-              '<button type="submit" class="btn btn-dark-blue" style="white-space:nowrap;">Switch</button>' +
-            '</div>' +
-          '</form>' +
-          (canGuestFallback ? '<button type="button" id="revoked-guest-btn" class="btn btn-outline" style="width:100%;margin-top:10px;">Reset to Guest Session</button>' : '') +
+          (!strictDevBlocked ? (
+            (state.revokedSwitchError ? '<div class="lock-error-box" style="margin-bottom:10px;">' + icon('ban', 14) + '<span>' + esc(state.revokedSwitchError) + '</span></div>' : '') +
+            '<form id="revoked-switch-form" style="display:flex;flex-direction:column;gap:8px;text-align:left;">' +
+              '<label class="field-label" style="margin:0;">Sign In / Switch to Authorized Account</label>' +
+              '<div style="display:flex;gap:6px;">' +
+                '<input id="revoked-switch-email" type="email" class="form-input" placeholder="authorized-user@example.com" required />' +
+                '<button type="submit" class="btn btn-dark-blue" style="white-space:nowrap;">Switch</button>' +
+              '</div>' +
+            '</form>' +
+            (canGuestFallback ? '<button type="button" id="revoked-guest-btn" class="btn btn-outline" style="width:100%;margin-top:10px;">Reset to Guest Session</button>' : '')
+          ) : (
+            '<div style="font-size:11.5px;color:#64748B;margin-bottom:10px;">This phone / Telegram ID is blocked on the server. When Admin or Abdulfeta unblocks you, access restores automatically.</div>' +
+            '<button type="button" id="revoked-recheck-btn" class="btn btn-outline" style="width:100%;">' + icon('refresh', 14) + '<span>Check Unblock Status Now</span></button>'
+          )) +
         '</div>' +
       '</div>';
 
@@ -4791,17 +5306,18 @@
         e.preventDefault();
         var nextEm = (document.getElementById('revoked-switch-email').value || '').trim();
         if (!nextEm) return;
-        if (isActorBlocked(nextEm)) {
-          state.revokedSwitchError = 'Account "' + nextEm + '" is also blocked. Use a different authorized email.';
+        if (isActorBlocked(nextEm) || isCurrentDeviceStrictlyBlocked()) {
+          state.revokedSwitchError = 'Account "' + nextEm + '" or this device is blocked.';
           renderRevokedLoggedOutScreen();
           return;
         }
         state.revokedSwitchError = '';
         state.revokedNotice = '';
+        state.serverBlockInfo = { blocked: false, deviceBlocked: false };
         state.authSession = null;
         localStorage.setItem(STORAGE_SB_EMAIL, nextEm);
         state.supabaseConfig = loadSupabaseConfig();
-        recordAudit('AUTH', null, 'Switched away from logged-out session to "' + nextEm + '"', { actor: nextEm, source: 'Browser' });
+        recordAudit('AUTH', null, 'Switched away from logged-out session to "' + nextEm + '"', { actor: nextEm });
         renderApp(true);
       };
       var gBtn = document.getElementById('revoked-guest-btn');
@@ -4811,6 +5327,15 @@
         state.authSession = null;
         localStorage.setItem(STORAGE_SB_EMAIL, 'guest@tablebot.local');
         state.supabaseConfig = loadSupabaseConfig();
+        renderApp(true);
+      };
+      var rcBtn = document.getElementById('revoked-recheck-btn');
+      if (rcBtn) rcBtn.onclick = async function () {
+        rcBtn.disabled = true;
+        await pullSharedSecurityState('revoked_recheck');
+        await pullServerActivityState('revoked_recheck');
+        if (!isCurrentUserRevoked()) showToast('Your access was unblocked!');
+        else showToast('Still blocked by Admin / Cyber Control');
         renderApp(true);
       };
     }
@@ -5481,10 +6006,18 @@
           '<button type="button" id="cy-quick-folder-lock" class="btn btn-outline" style="justify-content:flex-start;padding:11px 12px;">' + icon('folder', 15) + '<span><strong>Folder Lock &amp; Change Code</strong></span></button>' +
         '</div>';
       } else if (m.tab === 'block') {
+        var cyFiltered = userList.filter(function (u) {
+          var uf = state.cyberUserFilter || 'all';
+          if (uf === 'live') return isUserOnlineNow(u.lastSeen) && !u.blocked;
+          if (uf === 'phones') return u.platform === 'Phone' || u.platform === 'Browser' || u.source === 'Phone Browser' || u.source === 'Desktop Browser';
+          if (uf === 'telegram') return u.platform === 'Telegram' || u.source === 'Telegram' || Boolean(u.telegramId);
+          if (uf === 'blocked') return Boolean(u.blocked);
+          return true;
+        });
         bodyHtml = '<div style="padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
-          '<div style="font-size:12.5px;font-weight:800;color:#991B1B;">Block Unwanted User (Permanent or Timed Auto-Unblock)</div>' +
+          '<div style="font-size:12.5px;font-weight:800;color:#991B1B;">Block Unwanted Phone, Browser or Telegram ID (Permanent or Timed Auto-Unblock)</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
-            '<input id="cy-blk-inp" class="form-input" style="flex:1.5;min-width:190px;" placeholder="Email or Telegram @username / ID..." />' +
+            '<input id="cy-blk-inp" class="form-input" style="flex:1.5;min-width:190px;" placeholder="Email, Phone Device ID, or Telegram @username / ID..." />' +
             '<select id="cy-blk-dur" class="form-select" style="flex:1;min-width:145px;">' +
               durationOpts.map(function (o) { return '<option value="' + o.v + '">' + o.l + '</option>'; }).join('') +
             '</select>' +
@@ -5492,29 +6025,44 @@
             '<button type="button" id="cy-blk-add" class="btn btn-red">' + icon('ban', 14) + '<span>Block &amp; Logout</span></button>' +
           '</div>' +
         '</div>' +
-        '<div style="font-size:12px;font-weight:800;color:#0F172A;">Blocked &amp; Active Users (' + blockedUsers.length + ' Blocked / ' + userList.length + ' Total)</div>' +
-        '<div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;">' +
-          userList.map(function (u) {
-            var revEntry = (state.adminConfig.revokedUsers || {})[String(u.id || '').toLowerCase()];
-            var expAt = u.blockExpiresAt || (revEntry && revEntry.expiresAt) || null;
-            var remTxt = u.blocked ? (expAt ? ('TIMED · ' + formatRemainingBlockTime(expAt)) : 'PERMANENT BLOCK') : 'ACTIVE';
-            return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
-              '<div style="min-width:0;flex:1;">' +
-                '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-                  '<span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
-                  '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-add') + '">' + esc(remTxt) + '</span>' +
-                  '<span style="font-size:10.5px;color:#64748B;">(' + esc(u.source || 'Browser') + ')</span>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+          '<div style="font-size:12px;font-weight:800;color:#0F172A;">Connected Phones, Browsers &amp; Telegram IDs (' + cyFiltered.length + ' / ' + userList.length + ')</div>' +
+          '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+            [{ k: 'all', l: 'All' }, { k: 'live', l: 'Live Now' }, { k: 'phones', l: 'Phones & Browsers' }, { k: 'telegram', l: 'Telegram IDs' }, { k: 'blocked', l: 'Blocked (' + blockedUsers.length + ')' }].map(function (fp) {
+              var act = (state.cyberUserFilter || 'all') === fp.k;
+              return '<button type="button" class="cy-uf-btn btn ' + (act ? 'btn-dark-blue' : 'btn-outline') + '" data-cyuf="' + fp.k + '" style="padding:4px 9px;font-size:10.5px;">' + fp.l + '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:8px;max-height:330px;overflow-y:auto;">' +
+          (cyFiltered.length === 0
+            ? '<div style="padding:18px;text-align:center;color:#94A3B8;font-size:12px;">No users match this filter yet.</div>'
+            : cyFiltered.map(function (u) {
+              var revEntry = (state.adminConfig.revokedUsers || {})[String(u.id || '').toLowerCase()];
+              var expAt = u.blockExpiresAt || (revEntry && revEntry.expiresAt) || null;
+              var remTxt = u.blocked ? (expAt ? ('TIMED · ' + formatRemainingBlockTime(expAt)) : 'PERMANENT BLOCK') : (isUserOnlineNow(u.lastSeen) ? 'LIVE NOW' : 'ACTIVE');
+              var isOn = isUserOnlineNow(u.lastSeen) && !u.blocked;
+              var devIcon = u.platform === 'Telegram' ? '✈️' : u.platform === 'Phone' ? '📱' : u.role === 'admin' ? '👑' : '💻';
+              return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : isOn ? '#86EFAC;background:#F0FDF4' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<div style="min-width:0;flex:1;">' +
+                  '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                    '<span>' + devIcon + '</span>' +
+                    '<span style="font-weight:800;font-size:13px;">' + esc(u.label) + '</span>' +
+                    '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-add') + '">' + esc(remTxt) + '</span>' +
+                    '<span style="font-size:10.5px;background:#EFF6FF;color:#1D4ED8;padding:1px 6px;border-radius:4px;font-weight:700;">' + esc(u.deviceLabel || u.source || 'Browser') + '</span>' +
+                    (u.telegramId ? '<span class="mono" style="font-size:10.5px;background:#E0F2FE;color:#0369A1;padding:1px 6px;border-radius:4px;font-weight:700;">TG ID: ' + esc(u.telegramId) + (u.telegramUsername ? ' (' + esc(u.telegramUsername) + ')' : '') + '</span>' : '') +
+                  '</div>' +
+                  '<div class="mono" style="font-size:10.5px;color:#475569;margin-top:4px;">Use Time: <strong>' + formatDurationUsed(u.activeSeconds || 0) + '</strong> &middot; Last: <strong>' + formatRealDateTime(u.lastSeen) + '</strong> (' + timeAgo(u.lastSeen) + ') &middot; First: ' + formatRealDateTime(u.firstSeen || u.lastSeen) + '</div>' +
+                  '<div class="mono" style="font-size:10.5px;color:#64748B;margin-top:2px;">Open:' + (u.opens || 0) + ' Add:' + (u.adds || 0) + ' Edit:' + (u.edits || 0) + ' Del:' + (u.deletes || 0) + (u.deviceId ? ' &middot; Device:' + esc(u.deviceId) : '') + (u.ip ? ' &middot; IP:' + esc(u.ip) : '') + '</div>' +
                 '</div>' +
-                '<div class="mono" style="font-size:11px;color:#64748B;margin-top:2px;">Open:' + (u.opens || 0) + ' Add:' + (u.adds || 0) + ' Edit:' + (u.edits || 0) + ' Del:' + (u.deletes || 0) + ' &middot; Seen ' + timeAgo(u.lastSeen) + '</div>' +
-              '</div>' +
-              '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-                (u.blocked
-                  ? '<button type="button" class="btn btn-green cy-usr-unblk" data-uid="' + esc(u.id) + '" style="padding:5px 10px;font-size:11px;">Unblock Now</button>'
-                  : '<button type="button" class="btn btn-red cy-usr-blk" data-uid="' + esc(u.id) + '" style="padding:5px 10px;font-size:11px;">Block</button>') +
-                '<button type="button" class="btn btn-outline cy-usr-del" data-uid="' + esc(u.id) + '" style="padding:5px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
-              '</div>' +
-            '</div>';
-          }).join('') +
+                '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                  (u.blocked
+                    ? '<button type="button" class="btn btn-green cy-usr-unblk" data-uid="' + esc(u.id) + '" style="padding:5px 10px;font-size:11px;">Unblock Now</button>'
+                    : '<button type="button" class="btn btn-red cy-usr-blk" data-uid="' + esc(u.id) + '" style="padding:5px 10px;font-size:11px;">Block &amp; Logout</button>') +
+                  '<button type="button" class="btn btn-outline cy-usr-del" data-uid="' + esc(u.id) + '" style="padding:5px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
+                '</div>' +
+              '</div>';
+            }).join('')) +
         '</div>';
       } else {
         if (m.showCyberCodes === undefined) m.showCyberCodes = false;
@@ -5646,6 +6194,12 @@
         var blkDur = document.getElementById('cy-blk-dur');
         var blkCust = document.getElementById('cy-blk-cust');
         blkDur.onchange = function () { blkCust.style.display = blkDur.value === 'custom' ? 'inline-block' : 'none'; };
+        document.querySelectorAll('.cy-uf-btn').forEach(function (fb) {
+          fb.onclick = function () {
+            state.cyberUserFilter = fb.getAttribute('data-cyuf') || 'all';
+            renderCyberControlModal(m);
+          };
+        });
         document.getElementById('cy-blk-add').onclick = function () {
           var v = (document.getElementById('cy-blk-inp').value || '').trim();
           if (!v) return;
@@ -5663,7 +6217,7 @@
             unblockWorkspaceUser(uid);
             recordAudit('BLOCK', null, mgr + ' unblocked user "' + uid + '"', { actor: mgr, source: 'Security' });
             m.statusType = 'success';
-            m.statusMsg = 'Unblocked "' + uid + '" immediately.';
+            m.statusMsg = 'Unblocked "' + uid + '" immediately across all phones & Telegram.';
             renderApp(true);
             renderCyberControlModal(m);
           };
@@ -5672,10 +6226,10 @@
           b.onclick = function () {
             var uid = b.getAttribute('data-uid');
             var mins = resolveDurationMins(blkDur, blkCust);
-            revokeAndBlockUser(uid, mgr + ' blocked "' + uid + '".', mins);
+            revokeAndBlockUser(uid, mgr + ' blocked "' + uid + '". App data hidden.', mins);
             recordAudit('BLOCK', null, mgr + ' blocked "' + uid + '" (' + (mins > 0 ? mins + 'm timed' : 'Permanent') + ')', { actor: mgr, source: 'Security' });
             m.statusType = 'success';
-            m.statusMsg = 'Blocked "' + uid + '" (' + (mins > 0 ? ('Auto-unblocks in ' + mins + 'm') : 'Permanent') + ').';
+            m.statusMsg = 'Blocked & logged out "' + uid + '" across phones & Telegram (' + (mins > 0 ? ('Auto-unblocks in ' + mins + 'm') : 'Permanent') + ').';
             renderApp(true);
             if (!isCurrentUserRevoked()) renderCyberControlModal(m);
           };
@@ -5689,9 +6243,17 @@
               renderCyberControlModal(m);
               return;
             }
+            var targetUser = state.workspaceUsers.find(function (u) { return matchesActorIdentity(u.id, uid); });
             state.workspaceUsers = state.workspaceUsers.filter(function (u) { return !matchesActorIdentity(u.id, uid); });
             if (state.adminConfig.revokedUsers) delete state.adminConfig.revokedUsers[String(uid).toLowerCase()];
             saveAdminState();
+            postServerBlockAction({
+              mode: 'delete',
+              target: uid,
+              telegramId: targetUser && targetUser.telegramId ? targetUser.telegramId : '',
+              deviceIds: targetUser && Array.isArray(targetUser.deviceIds) ? targetUser.deviceIds : [],
+              byActor: mgr
+            });
             recordAudit('DELETE', null, mgr + ' removed user record "' + uid + '"', { actor: mgr, source: 'Security' });
             m.statusType = 'success';
             m.statusMsg = 'Deleted user record "' + uid + '".';
@@ -7748,46 +8310,66 @@
       if (m.search === undefined) m.search = '';
 
       var userList = state.workspaceUsers.slice().sort(function (a, b) {
+        var onA = isUserOnlineNow(a.lastSeen) && !a.blocked ? 1 : 0;
+        var onB = isUserOnlineNow(b.lastSeen) && !b.blocked ? 1 : 0;
+        if (onA !== onB) return onB - onA;
         return new Date(b.lastSeen || 0).getTime() - new Date(a.lastSeen || 0).getTime();
       });
       var tgUsers = userList.filter(function (u) {
-        return u.source === 'Telegram' || String(u.id || '').indexOf('@') !== -1 || /^\d+$/.test(String(u.id || ''));
+        return u.source === 'Telegram' || u.platform === 'Telegram' || Boolean(u.telegramId) || String(u.id || '').indexOf('@') !== -1 || /^\d+$/.test(String(u.id || ''));
       });
+      var phoneUsers = userList.filter(function (u) {
+        return u.platform === 'Phone' || u.platform === 'Browser' || u.source === 'Phone Browser' || u.source === 'Desktop Browser';
+      });
+      var liveNowUsers = userList.filter(function (u) { return isUserOnlineNow(u.lastSeen) && !u.blocked; });
       var filteredLogs = state.auditLogs.filter(function (lg) {
         if (m.actionFilter !== 'ALL' && lg.action !== m.actionFilter) return false;
-        if (m.sourceFilter !== 'ALL' && (lg.source || 'Browser') !== m.sourceFilter) return false;
+        if (m.sourceFilter !== 'ALL') {
+          var sVal = lg.source || 'Browser';
+          if (m.sourceFilter === 'Browser' && sVal.indexOf('Browser') === -1) return false;
+          else if (m.sourceFilter !== 'Browser' && sVal !== m.sourceFilter) return false;
+        }
         if (m.userFilter !== 'ALL' && lg.actor !== m.userFilter) return false;
         if (m.search.trim()) {
           var q = m.search.toLowerCase();
-          if ((lg.actor || '').toLowerCase().indexOf(q) === -1 && (lg.botName || '').toLowerCase().indexOf(q) === -1 && (lg.summary || '').toLowerCase().indexOf(q) === -1) return false;
+          if ((lg.actor || '').toLowerCase().indexOf(q) === -1 &&
+              (lg.botName || '').toLowerCase().indexOf(q) === -1 &&
+              (lg.summary || '').toLowerCase().indexOf(q) === -1 &&
+              (lg.telegramId || '').toLowerCase().indexOf(q) === -1 &&
+              (lg.deviceLabel || '').toLowerCase().indexOf(q) === -1) return false;
         }
         return true;
       });
 
       var tabContent = '';
       if (m.tab === 'logs') {
-        var tgSummaryHtml = tgUsers.length > 0
-          ? '<div style="padding:10px 12px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:12px;">' +
-              '<div style="font-size:11.5px;font-weight:800;color:#0369A1;margin-bottom:7px;">Telegram Users Activity (Opens &middot; Adds &middot; Edits &middot; Deletes)</div>' +
-              '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
-                tgUsers.map(function (tu) {
-                  return '<button type="button" class="adm-tg-pick" data-uid="' + esc(tu.id) + '" style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:8px;font-size:11px;border:1px solid ' + (tu.blocked ? '#FECACA;background:#FEF2F2;color:#B91C1C;' : '#7DD3FC;background:#fff;color:#0F172A;') + '">' +
-                    '<strong>' + esc(tu.label) + '</strong>' +
-                    '<span class="mono" style="font-size:10px;color:#0369A1;">Open:' + (tu.opens || 0) + ' Add:' + (tu.adds || 0) + ' Edit:' + (tu.edits || 0) + ' Del:' + (tu.deletes || 0) + '</span>' +
-                    (tu.blocked ? '<span class="act-badge act-block">LOGGED OUT</span>' : '') +
-                  '</button>';
-                }).join('') +
-              '</div>' +
-            '</div>'
-          : '';
-        tabContent = tgSummaryHtml + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+        var liveDevicesHtml = '<div style="padding:10px 12px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:12px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:7px;">' +
+            '<div style="font-size:11.5px;font-weight:800;color:#0369A1;">All Connected Phones, Browsers &amp; Telegram IDs (' + liveNowUsers.length + ' Live Now &middot; ' + tgUsers.length + ' Telegram &middot; ' + phoneUsers.length + ' Devices)</div>' +
+            '<button type="button" id="adm-refresh-live" class="btn btn-outline" style="padding:3px 9px;font-size:10.5px;">' + icon('refresh', 12) + '<span>Refresh Live</span></button>' +
+          '</div>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:6px;">' +
+            userList.map(function (tu) {
+              var on = isUserOnlineNow(tu.lastSeen) && !tu.blocked;
+              var devIcon = tu.platform === 'Telegram' ? '✈️' : tu.platform === 'Phone' ? '📱' : '💻';
+              return '<button type="button" class="adm-tg-pick" data-uid="' + esc(tu.id) + '" style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:8px;font-size:11px;border:1px solid ' + (tu.blocked ? '#FECACA;background:#FEF2F2;color:#B91C1C;' : on ? '#86EFAC;background:#ECFDF5;color:#065F46;' : '#7DD3FC;background:#fff;color:#0F172A;') + '">' +
+                '<span>' + devIcon + '</span>' +
+                '<strong>' + esc(tu.label) + '</strong>' +
+                (tu.telegramId ? '<span class="mono" style="font-size:10px;background:#E0F2FE;color:#0369A1;padding:1px 4px;border-radius:4px;">TG:' + esc(tu.telegramId) + '</span>' : '') +
+                '<span class="mono" style="font-size:10px;color:#475569;">Use:' + formatDurationUsed(tu.activeSeconds || 0) + ' &middot; ' + formatRealDateTime(tu.lastSeen) + '</span>' +
+                (tu.blocked ? '<span class="act-badge act-block">BLOCKED</span>' : on ? '<span class="act-badge act-add">LIVE</span>' : '') +
+              '</button>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+        tabContent = liveDevicesHtml + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
           '<select id="adm-act-flt" class="form-select" style="width:auto;padding:6px 10px;font-size:12px;">' +
             ['ALL', 'OPEN', 'ADD', 'EDIT', 'DELETE', 'BLOCK', 'TRANSMIT', 'AUTH'].map(function (a) {
               return '<option value="' + a + '"' + (m.actionFilter === a ? ' selected' : '') + '>' + (a === 'ALL' ? 'All Actions' : a) + '</option>';
             }).join('') +
           '</select>' +
           '<select id="adm-src-flt" class="form-select" style="width:auto;padding:6px 10px;font-size:12px;">' +
-            ['ALL', 'Telegram', 'Browser', 'Admin'].map(function (s) {
+            ['ALL', 'Telegram', 'Phone Browser', 'Desktop Browser', 'Browser', 'Admin'].map(function (s) {
               return '<option value="' + s + '"' + (m.sourceFilter === s ? ' selected' : '') + '>' + (s === 'ALL' ? 'All Sources' : s) + '</option>';
             }).join('') +
           '</select>' +
@@ -7795,27 +8377,35 @@
             '<option value="ALL">All Users (' + userList.length + ')</option>' +
             userList.map(function (u) { return '<option value="' + esc(u.id) + '"' + (m.userFilter === u.id ? ' selected' : '') + '>' + esc(u.label) + '</option>'; }).join('') +
           '</select>' +
-          '<input id="adm-search" class="form-input" style="flex:1;min-width:150px;padding:6px 10px;font-size:12px;" placeholder="Search user, bot, change..." value="' + esc(m.search) + '" />' +
+          '<input id="adm-search" class="form-input" style="flex:1;min-width:150px;padding:6px 10px;font-size:12px;" placeholder="Search user, phone, Telegram ID, change..." value="' + esc(m.search) + '" />' +
           '<button id="adm-clear-logs" class="btn btn-outline" style="padding:6px 10px;font-size:11px;color:#DC2626;">Clear Logs</button>' +
         '</div>' +
         '<div style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;max-height:360px;overflow-y:auto;">' +
-          '<table class="report-table"><thead><tr><th>Action</th><th>User</th><th>Source</th><th>Bot / Table</th><th>Details</th><th>Time</th></tr></thead><tbody>' +
+          '<table class="report-table"><thead><tr><th>Action</th><th>User / Telegram ID</th><th>Phone / Source</th><th>Bot / Table</th><th>Details</th><th>Real Date &amp; Time</th></tr></thead><tbody>' +
           (filteredLogs.length === 0
             ? '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94A3B8;">No matching open/add/edit/delete records yet.</td></tr>'
-            : filteredLogs.slice(0, 100).map(function (lg) {
+            : filteredLogs.slice(0, 120).map(function (lg) {
                 var acCls = lg.action === 'ADD' ? 'act-add' : lg.action === 'EDIT' ? 'act-edit' : lg.action === 'DELETE' ? 'act-delete' : lg.action === 'OPEN' ? 'act-open' : lg.action === 'BLOCK' ? 'act-block' : lg.action === 'TRANSMIT' ? 'act-transmit' : 'act-auth';
                 return '<tr><td><span class="act-badge ' + acCls + '">' + esc(lg.action) + '</span></td>' +
-                  '<td style="font-weight:700;">' + esc(lg.actor) + '</td>' +
-                  '<td><span style="font-size:11px;background:#EFF6FF;color:#1565C0;padding:2px 6px;border-radius:4px;font-weight:600;">' + esc(lg.source || 'Browser') + '</span></td>' +
+                  '<td style="font-weight:700;"><div>' + esc(lg.actor) + '</div>' + (lg.telegramId ? '<div class="mono" style="font-size:10px;color:#0369A1;">TG ID: ' + esc(lg.telegramId) + '</div>' : '') + '</td>' +
+                  '<td><span style="font-size:11px;background:#EFF6FF;color:#1565C0;padding:2px 6px;border-radius:4px;font-weight:600;white-space:nowrap;">' + esc(lg.deviceLabel || lg.source || 'Browser') + '</span></td>' +
                   '<td style="font-weight:600;color:#0D47A1;">' + esc(lg.botName || 'Workspace') + '</td>' +
-                  '<td style="max-width:260px;">' + esc(lg.summary) + '</td>' +
-                  '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + timeAgo(lg.timestamp) + '</td></tr>';
+                  '<td style="max-width:250px;">' + esc(lg.summary) + '</td>' +
+                  '<td class="mono" style="font-size:10.5px;color:#334155;white-space:nowrap;"><div>' + formatRealDateTime(lg.timestamp) + '</div><div style="font-size:9.5px;color:#64748B;">' + timeAgo(lg.timestamp) + '</div></td></tr>';
               }).join('')) +
           '</tbody></table></div>';
       } else if (m.tab === 'users') {
         cleanupExpiredBlocks();
+        var uf = state.adminUserFilter || 'all';
+        var admFilteredUsers = userList.filter(function (u) {
+          if (uf === 'live') return isUserOnlineNow(u.lastSeen) && !u.blocked;
+          if (uf === 'phones') return u.platform === 'Phone' || u.platform === 'Browser' || u.source === 'Phone Browser' || u.source === 'Desktop Browser';
+          if (uf === 'telegram') return u.platform === 'Telegram' || u.source === 'Telegram' || Boolean(u.telegramId);
+          if (uf === 'blocked') return Boolean(u.blocked);
+          return true;
+        });
         tabContent = '<div style="padding:12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
-          '<input id="adm-block-inp" class="form-input" style="flex:1.5;min-width:190px;" placeholder="Block & logout unwanted email or Telegram @username / ID..." />' +
+          '<input id="adm-block-inp" class="form-input" style="flex:1.5;min-width:190px;" placeholder="Block & logout unwanted email, Phone Device ID, or Telegram @username / ID..." />' +
           '<select id="adm-block-dur" class="form-select" style="flex:1;min-width:140px;">' +
             '<option value="0">Permanent Block</option>' +
             '<option value="10">Timed: 10 Minutes</option>' +
@@ -7828,33 +8418,59 @@
           '<input id="adm-block-cust" type="number" min="1" class="form-input" style="width:82px;display:none;" value="15" placeholder="Min" />' +
           '<button id="adm-block-add" class="btn btn-red">' + icon('ban', 14) + '<span>Block &amp; Logout</span></button>' +
         '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+          '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+            [{ k: 'all', l: 'All (' + userList.length + ')' }, { k: 'live', l: 'Live Now (' + liveNowUsers.length + ')' }, { k: 'phones', l: 'Phones & Browsers (' + phoneUsers.length + ')' }, { k: 'telegram', l: 'Telegram IDs (' + tgUsers.length + ')' }, { k: 'blocked', l: 'Blocked (' + userList.filter(function (x) { return x.blocked; }).length + ')' }].map(function (p) {
+              return '<button type="button" class="adm-uf-pill btn ' + (uf === p.k ? 'btn-dark-blue' : 'btn-outline') + '" data-admuf="' + p.k + '" style="padding:4px 10px;font-size:11px;">' + p.l + '</button>';
+            }).join('') +
+          '</div>' +
+          '<button type="button" id="adm-users-sync" class="btn btn-outline" style="padding:4px 10px;font-size:11px;">' + icon('refresh', 12) + '<span>Refresh Phones</span></button>' +
+        '</div>' +
         '<div style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;">' +
-          userList.map(function (u) {
-            var revE = (state.adminConfig.revokedUsers || {})[String(u.id || '').toLowerCase()];
-            var expAt = u.blockExpiresAt || (revE && revE.expiresAt) || null;
-            var blkLbl = u.blocked ? (expAt ? ('TIMED · ' + formatRemainingBlockTime(expAt)) : 'BLOCKED / LOGGED OUT') : (u.role || 'editor');
-            var isCyberMgrUser = matchesActorIdentity(u.id, 'abdulfeta') || matchesActorIdentity(u.label, 'abdulfeta') || matchesActorIdentity(u.id, state.adminConfig.cyberSecurityManager);
-            return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
-              '<div style="display:flex;align-items:center;gap:10px;">' +
-                (isCyberMgrUser ? assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', u.label, u.label + ' — Manager of Cyber Security') : '') +
-                '<div><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-weight:700;font-size:13px;">' + esc(u.label) + '</span>' +
-                  '<span class="act-badge ' + (u.blocked ? 'act-block' : 'act-edit') + '">' + esc(blkLbl) + '</span>' +
-                  '<span style="font-size:10.5px;color:#64748B;">(' + esc(u.source || 'Browser') + ')</span></div>' +
-                  '<div class="mono" style="font-size:11px;color:#64748B;margin-top:3px;">Opens: <strong>' + (u.opens || 0) + '</strong> &middot; Adds: <strong>' + (u.adds || 0) + '</strong> &middot; Edits: <strong>' + (u.edits || 0) + '</strong> &middot; Deletes: <strong>' + (u.deletes || 0) + '</strong> &middot; Seen ' + timeAgo(u.lastSeen) + '</div></div>' +
-              '</div>' +
-              '<div style="display:flex;gap:6px;">' +
-                '<button class="btn ' + (u.blocked ? 'btn-green' : 'btn-red') + ' adm-tog-blk" data-uid="' + esc(u.id) + '" style="padding:5px 11px;font-size:11px;">' + (u.blocked ? 'Unblock User' : 'Block & Logout') + '</button>' +
-                '<button class="btn btn-outline adm-del-usr" data-uid="' + esc(u.id) + '" style="padding:5px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
-              '</div></div>';
-          }).join('') +
+          (admFilteredUsers.length === 0
+            ? '<div style="padding:22px;text-align:center;color:#94A3B8;font-size:12px;">No phones, browsers or Telegram users match this filter yet.</div>'
+            : admFilteredUsers.map(function (u) {
+              var revE = (state.adminConfig.revokedUsers || {})[String(u.id || '').toLowerCase()];
+              var expAt = u.blockExpiresAt || (revE && revE.expiresAt) || null;
+              var isOn = isUserOnlineNow(u.lastSeen) && !u.blocked;
+              var blkLbl = u.blocked ? (expAt ? ('TIMED · ' + formatRemainingBlockTime(expAt)) : 'BLOCKED / LOGGED OUT') : (isOn ? 'LIVE NOW' : (u.role || 'editor'));
+              var isCyberMgrUser = matchesActorIdentity(u.id, 'abdulfeta') || matchesActorIdentity(u.label, 'abdulfeta') || matchesActorIdentity(u.id, state.adminConfig.cyberSecurityManager);
+              var devIcon = u.platform === 'Telegram' ? '✈️' : u.platform === 'Phone' ? '📱' : isCyberMgrUser ? '' : '💻';
+              return '<div style="padding:10px 12px;border:1px solid ' + (u.blocked ? '#FECACA;background:#FEF2F2' : isOn ? '#86EFAC;background:#F0FDF4' : '#E2E8F0;background:#fff') + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
+                '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">' +
+                  (isCyberMgrUser ? assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', u.label, u.label + ' — Manager of Cyber Security') : '<span style="font-size:20px;">' + devIcon + '</span>') +
+                  '<div style="min-width:0;flex:1;"><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-weight:800;font-size:13px;">' + esc(u.label) + '</span>' +
+                    '<span class="act-badge ' + (u.blocked ? 'act-block' : isOn ? 'act-add' : 'act-edit') + '">' + esc(blkLbl) + '</span>' +
+                    '<span style="font-size:10.5px;background:#EFF6FF;color:#1D4ED8;padding:1px 6px;border-radius:4px;font-weight:700;">' + esc(u.deviceLabel || u.source || 'Browser') + '</span>' +
+                    (u.telegramId ? '<span class="mono" style="font-size:10.5px;background:#E0F2FE;color:#0369A1;padding:1px 6px;border-radius:4px;font-weight:700;">TG ID: ' + esc(u.telegramId) + (u.telegramUsername ? ' (' + esc(u.telegramUsername) + ')' : '') + '</span>' : '') +
+                  '</div>' +
+                  '<div class="mono" style="font-size:10.5px;color:#334155;margin-top:4px;">Use Time: <strong>' + formatDurationUsed(u.activeSeconds || 0) + '</strong> &middot; Last Used: <strong>' + formatRealDateTime(u.lastSeen) + '</strong> (' + timeAgo(u.lastSeen) + ') &middot; First: ' + formatRealDateTime(u.firstSeen || u.lastSeen) + '</div>' +
+                  '<div class="mono" style="font-size:10.5px;color:#64748B;margin-top:2px;">Opens: <strong>' + (u.opens || 0) + '</strong> &middot; Adds: <strong>' + (u.adds || 0) + '</strong> &middot; Edits: <strong>' + (u.edits || 0) + '</strong> &middot; Deletes: <strong>' + (u.deletes || 0) + '</strong>' + (u.deviceId ? ' &middot; ID: ' + esc(u.deviceId) : '') + (u.ip ? ' &middot; IP: ' + esc(u.ip) : '') + '</div></div>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;">' +
+                  '<button class="btn ' + (u.blocked ? 'btn-green' : 'btn-red') + ' adm-tog-blk" data-uid="' + esc(u.id) + '" style="padding:5px 11px;font-size:11px;">' + (u.blocked ? 'Unblock User' : 'Block & Logout') + '</button>' +
+                  '<button class="btn btn-outline adm-del-usr" data-uid="' + esc(u.id) + '" style="padding:5px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
+                '</div></div>';
+            }).join('')) +
         '</div>';
       } else {
-        tabContent = '<div style="padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
+        var myDev = detectClientDeviceInfo();
+        var myTg = myDev.telegramUser;
+        tabContent = '<div style="padding:14px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
+          '<div style="font-weight:800;font-size:13px;color:#065F46;">This Phone / Browser &amp; Telegram ID Identity Link</div>' +
+          '<div style="font-size:11.5px;color:#1E293B;">Active User: <strong>' + esc(getCurrentActor()) + '</strong> &middot; Device: <strong>' + esc(myDev.deviceLabel) + '</strong> &middot; Device ID: <code>' + esc(myDev.deviceId) + '</code></div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;">' +
+            '<input id="my-tg-id-inp" class="form-input mono" value="' + esc(myTg ? myTg.id : '') + '" placeholder="Link Telegram ID (e.g. 7482918)" />' +
+            '<input id="my-tg-user-inp" class="form-input" value="' + esc(myTg ? myTg.username : '') + '" placeholder="Telegram @username (optional)" />' +
+            '<button type="button" id="my-tg-link-btn" class="btn btn-green" style="font-size:12px;">Link Phone &amp; TG ID</button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
           '<div style="font-weight:800;font-size:13px;color:#0D47A1;">Unwanted User Data Transmit &amp; Immediate Logout Control</div>' +
-          '<div style="font-size:11.5px;color:#334155;">Transfer (transmit) all bots &amp; rows created by an unwanted user to the Admin, immediately log that user out, and hide all app data from them.</div>' +
+          '<div style="font-size:11.5px;color:#334155;">Transfer (transmit) all bots &amp; rows created by an unwanted user to the Admin, immediately log that user out across phones/Telegram, and hide all app data from them.</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
             '<div><label class="field-label">Source / Unwanted User</label><select id="tr-src" class="form-select">' +
-              userList.map(function (u) { return '<option value="' + esc(u.id) + '">' + esc(u.label) + (u.blocked ? ' [BLOCKED]' : '') + '</option>'; }).join('') +
+              userList.map(function (u) { return '<option value="' + esc(u.id) + '">' + esc(u.label) + (u.telegramId ? ' [TG:' + esc(u.telegramId) + ']' : '') + (u.blocked ? ' [BLOCKED]' : '') + '</option>'; }).join('') +
             '</select></div>' +
             '<div><label class="field-label">Transmit To Target User</label><input id="tr-dst" class="form-input" value="' + esc(state.adminConfig.adminEmail || getCurrentActor()) + '" /></div>' +
           '</div>' +
@@ -7893,7 +8509,7 @@
 
       var admMgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', admMgr, admMgr + ' — Manager of Cyber Security') + '<div><h2 style="font-size:16px;font-weight:700;">Admin &amp; Cyber Security Control Center</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(t('cyber_mgr_title')) + ': <strong style="color:#FDE68A;">' + esc(admMgr) + '</strong> &middot; Block Unwanted Users &amp; Instant Transmit</div></div></div>' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', admMgr, admMgr + ' — Manager of Cyber Security') + '<div><h2 style="font-size:16px;font-weight:700;">Admin &amp; Cyber Security Control Center</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(t('cyber_mgr_title')) + ': <strong style="color:#FDE68A;">' + esc(admMgr) + '</strong> &middot; Live Phones, Telegram IDs &amp; Block Control</div></div></div>' +
           '<button class="icon-btn" id="adm-close">' + icon('close', 18) + '</button></header>' +
         '<div class="admin-tabs">' +
           '<button class="admin-tab-btn ' + (m.tab === 'logs' ? 'active' : '') + '" data-admtab="logs">Activity Dashboard (' + state.auditLogs.length + ')</button>' +
@@ -7911,6 +8527,13 @@
       });
 
       if (m.tab === 'logs') {
+        var refLive = document.getElementById('adm-refresh-live');
+        if (refLive) refLive.onclick = async function () {
+          await pushActivityHeartbeat(0);
+          await pullServerActivityState('admin_manual');
+          renderAdminModal(m);
+          showToast('Live phone, browser & Telegram activity updated');
+        };
         document.getElementById('adm-act-flt').onchange = function (e) { m.actionFilter = e.target.value; renderAdminModal(m); };
         document.getElementById('adm-src-flt').onchange = function (e) { m.sourceFilter = e.target.value; renderAdminModal(m); };
         document.getElementById('adm-usr-flt').onchange = function (e) { m.userFilter = e.target.value; renderAdminModal(m); };
@@ -7926,14 +8549,29 @@
           var p = e.target.selectionStart; m.search = e.target.value; renderAdminModal(m);
           var el = document.getElementById('adm-search'); if (el) { el.focus(); el.setSelectionRange(p, p); }
         };
-        document.getElementById('adm-clear-logs').onclick = function () {
-          state.auditLogs = []; saveAdminState(); renderApp(); renderAdminModal(m);
+        document.getElementById('adm-clear-logs').onclick = async function () {
+          state.auditLogs = []; saveAdminState();
+          try { await fetch('/api/activity/clear-logs', { method: 'POST' }); } catch (e) {}
+          renderApp(); renderAdminModal(m);
           showToast('Audit log history cleared');
         };
       } else if (m.tab === 'users') {
         var admDur = document.getElementById('adm-block-dur');
         var admCust = document.getElementById('adm-block-cust');
         if (admDur && admCust) admDur.onchange = function () { admCust.style.display = admDur.value === 'custom' ? 'inline-block' : 'none'; };
+        var admUsersSync = document.getElementById('adm-users-sync');
+        if (admUsersSync) admUsersSync.onclick = async function () {
+          await pushActivityHeartbeat(0);
+          await pullServerActivityState('admin_users_refresh');
+          renderAdminModal(m);
+          showToast('Synced active phones & Telegram IDs');
+        };
+        document.querySelectorAll('.adm-uf-pill').forEach(function (p) {
+          p.onclick = function () {
+            state.adminUserFilter = p.getAttribute('data-admuf') || 'all';
+            renderAdminModal(m);
+          };
+        });
         var getAdmMins = function () {
           if (!admDur) return 0;
           if (admDur.value === 'custom') return Math.max(1, parseFloat(admCust ? admCust.value : '15') || 15);
@@ -7944,7 +8582,7 @@
           if (!v) return;
           var mins = getAdmMins();
           requireCyberAuth('Block & Logout User "' + v + '"' + (mins > 0 ? ' (' + mins + 'm)' : ''), function () {
-            revokeAndBlockUser(v, 'User "' + v + '" was blocked and logged out. App data hidden.', mins);
+            revokeAndBlockUser(v, 'User "' + v + '" was blocked and logged out across phones & Telegram. App data hidden.', mins);
             recordAudit('BLOCK', null, 'Blocked & logged out unwanted user "' + v + '"' + (mins > 0 ? ' (' + mins + 'm timed)' : ''), { source: 'Admin' });
             renderApp(true);
             if (!isCurrentUserRevoked()) renderAdminModal(m);
@@ -7967,7 +8605,7 @@
             } else {
               var mins = getAdmMins();
               requireCyberAuth('Block & Logout User "' + u.label + '"', function () {
-                revokeAndBlockUser(u.id, 'User "' + u.label + '" was blocked and logged out. App data hidden.', mins);
+                revokeAndBlockUser(u.id, 'User "' + u.label + '" was blocked and logged out across phones & Telegram. App data hidden.', mins);
                 recordAudit('BLOCK', null, 'Blocked & logged out unwanted user ' + u.label + (mins > 0 ? ' (' + mins + 'm)' : ''), { source: 'Admin' });
                 showToast('Blocked & logged out ' + u.label);
                 renderApp(true);
@@ -7984,9 +8622,17 @@
               return;
             }
             requireCyberAuth('Delete User "' + uid + '" & Records', function () {
+              var targetU = state.workspaceUsers.find(function (x) { return matchesActorIdentity(x.id, uid); });
               state.workspaceUsers = state.workspaceUsers.filter(function (x) { return !matchesActorIdentity(x.id, uid); });
               if (state.adminConfig.revokedUsers) delete state.adminConfig.revokedUsers[String(uid).toLowerCase()];
               saveAdminState();
+              postServerBlockAction({
+                mode: 'delete',
+                target: uid,
+                telegramId: targetU && targetU.telegramId ? targetU.telegramId : '',
+                deviceIds: targetU && Array.isArray(targetU.deviceIds) ? targetU.deviceIds : [],
+                byActor: getCurrentActor()
+              });
               recordAudit('DELETE', null, 'Deleted user record "' + uid + '"', { source: 'Admin' });
               renderApp(true);
               renderAdminModal(m);
@@ -7995,6 +8641,21 @@
           };
         });
       } else {
+        var tgLinkBtn = document.getElementById('my-tg-link-btn');
+        if (tgLinkBtn) tgLinkBtn.onclick = async function () {
+          var tid = (document.getElementById('my-tg-id-inp').value || '').trim();
+          var tun = (document.getElementById('my-tg-user-inp').value || '').trim();
+          if (tid) {
+            var cleanU = tun ? ('@' + tun.replace(/^@/, '')) : '';
+            localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify({ id: tid, username: cleanU, firstName: cleanU || tid, lastName: '' }));
+          } else {
+            localStorage.removeItem(STORAGE_TG_WEB_USER);
+          }
+          await pushActivityHeartbeat(1);
+          renderApp();
+          renderAdminModal(m);
+          showToast(tid ? ('Linked this phone to Telegram ID ' + tid) : 'Cleared Telegram ID link for this phone');
+        };
         document.getElementById('tr-transfer-btn').onclick = function () {
           var src = document.getElementById('tr-src').value;
           var dst = document.getElementById('tr-dst').value.trim() || getCurrentActor();
@@ -8011,7 +8672,7 @@
             });
             saveBotsLocal();
             if (logoutOnTransmit && src) {
-              revokeAndBlockUser(src, 'Data transmitted to "' + dst + '" and unwanted user "' + src + '" was logged out. All app data hidden.');
+              revokeAndBlockUser(src, 'Data transmitted to "' + dst + '" and unwanted user "' + src + '" was logged out across all phones & Telegram. All app data hidden.');
             }
             recordAudit('TRANSMIT', null, 'Transmitted ' + movedBots + ' bot(s) & ' + movedRows + ' row(s) from "' + src + '" -> "' + dst + '"' + (logoutOnTransmit ? ' (Unwanted user logged out)' : ''), { source: 'Admin' });
             renderApp(true);
@@ -8035,7 +8696,7 @@
             });
             saveBotsLocal();
             if (logoutOnTransmit && src) {
-              revokeAndBlockUser(src, 'Rows deleted and unwanted user "' + src + '" was logged out. All app data hidden.');
+              revokeAndBlockUser(src, 'Rows deleted and unwanted user "' + src + '" was logged out across all phones & Telegram. All app data hidden.');
             }
             recordAudit('DELETE', null, 'Purged ' + removedRows + ' unwanted row(s) by "' + src + '"' + (logoutOnTransmit ? ' (User logged out)' : ''), { source: 'Admin' });
             renderApp(true);
@@ -8073,6 +8734,8 @@
         document.getElementById('adm-force-sync').onclick = async function () {
           for (var i = 0; i < state.bots.length; i++) await pushBotToSupabase(state.bots[i]);
           await syncAllNow('manual');
+          await pushActivityHeartbeat(0);
+          await pullServerActivityState('force_sync');
           recordAudit('TRANSMIT', null, 'Forced immediate full sync across Browser, Telegram & Supabase', { source: 'Admin' });
           renderAdminModal(m);
         };
@@ -9016,23 +9679,38 @@
       showToast('Exported Standalone Single-File HTML');
     }
 
+    function renderDashboardActivityStripOnly() {
+      var curStrip = document.getElementById('dash-audit-strip');
+      if (!curStrip || !state.adminConfig.showDashboardActivity || state.activeBotId) return;
+      var activeUsers = (state.workspaceUsers || []).filter(function (u) {
+        return u && u.id && String(u.id).toLowerCase() !== 'abdulfeta' &&
+          (u.source !== 'Security' || u.blocked || isUserOnlineNow(u.lastSeen));
+      });
+      if (activeUsers.length === 0 && (!state.auditLogs || state.auditLogs.length === 0)) return;
+      renderDashboard();
+    }
+
     // Immediate Sync Listeners: Browser Open, Tab Switch, Window Focus, Online, Multi-Tab Storage & BroadcastChannel
     window.addEventListener('focus', function () {
       pullSharedSecurityState('focus');
+      pushActivityHeartbeat(1);
       if (state.adminConfig.autoSyncOnOpen) syncAllNow('focus');
     });
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) {
         pullSharedSecurityState('visibility');
+        pushActivityHeartbeat(1);
         if (state.adminConfig.autoSyncOnOpen) syncAllNow('visibility');
       }
     });
     window.addEventListener('pageshow', function () {
       pullSharedSecurityState('pageshow');
+      pushActivityHeartbeat(1);
       if (state.adminConfig.autoSyncOnOpen) syncAllNow('pageshow');
     });
     window.addEventListener('online', function () {
       pullSharedSecurityState('online');
+      pushActivityHeartbeat(1);
       syncAllNow('online');
     });
     window.addEventListener('storage', function (e) {
@@ -9111,6 +9789,15 @@
       setInterval(refreshWelcomeDateIfNeeded, 10000);
     }
 
+    function startActivityHeartbeatLoop() {
+      state.lastHeartbeatAt = Date.now();
+      setInterval(function () {
+        if (!document.hidden) {
+          pushActivityHeartbeat(12);
+        }
+      }, 12000);
+    }
+
     // Boot Application & Trigger Immediate Open-Time Sync
     try {
       if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.ready === 'function') {
@@ -9123,12 +9810,18 @@
     startSharedSecurityEvents();
     startTelegramAutoPoll();
     startLiveDateWatcher();
+    startActivityHeartbeatLoop();
     if (isAccessUnlocked() && window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
       getSbClient();
       openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
     }
     pullSharedSecurityState('boot');
+    pushActivityHeartbeat(1);
+    pullServerActivityState('boot');
     syncAllNow('boot');
+    if (state.auditLogs.length > 0) {
+      pushActivityLogToServer(state.auditLogs.slice(0, 30));
+    }
   })();
   </script>
 </body>
