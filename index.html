@@ -294,6 +294,83 @@
       display: flex; align-items: center; justify-content: space-between; gap: 6px;
     }
     .cell-amount { color: var(--orange-accent); font-weight: 700; font-family: ui-monospace, monospace; }
+    .sheet-table.is-selecting { user-select: none; -webkit-user-select: none; }
+    .sheet-table td.cell-menu-target { position: relative; }
+    .sheet-table td.cell-selected {
+      background: rgba(37, 99, 235, 0.14) !important;
+      box-shadow: inset 0 0 0 1px #60A5FA;
+    }
+    .sheet-table td.cell-anchor {
+      background: rgba(37, 99, 235, 0.2) !important;
+      box-shadow: inset 0 0 0 2px #1D4ED8;
+      z-index: 4;
+    }
+    .cell-sel-handle {
+      position: absolute; right: -4px; bottom: -4px; width: 11px; height: 11px;
+      background: #1D4ED8; border: 1.5px solid #fff; border-radius: 2px;
+      cursor: crosshair; z-index: 12; touch-action: none;
+      box-shadow: 0 1px 3px rgba(15,23,42,0.35);
+    }
+    .cell-sel-handle::after {
+      content: ''; position: absolute; inset: -8px;
+    }
+    .cell-comment-mark {
+      position: absolute; top: 0; right: 0; width: 0; height: 0;
+      border-style: solid; border-width: 0 9px 9px 0;
+      border-color: transparent #F59E0B transparent transparent;
+      pointer-events: none;
+    }
+    .cell-comment-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 9.5px; font-weight: 700; color: #B45309;
+      background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 4px;
+      padding: 0 4px; margin-left: 5px; vertical-align: middle;
+      max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .floating-cell-toolbar {
+      position: fixed; z-index: 90; max-width: calc(100vw - 16px);
+      background: #0F172A; color: #fff; border: 1px solid #334155;
+      border-radius: 12px; box-shadow: 0 16px 38px rgba(15,23,42,0.38);
+      padding: 6px 8px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .ftb-row {
+      display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+    }
+    .ftb-sel-info {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 800; color: #93C5FD;
+      background: rgba(30, 58, 138, 0.55); border: 1px solid rgba(96, 165, 250, 0.35);
+      padding: 4px 8px; border-radius: 7px; white-space: nowrap;
+    }
+    .ftb-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 700;
+      color: #F8FAFC; background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12); cursor: pointer;
+      white-space: nowrap; transition: background 0.12s, border-color 0.12s;
+    }
+    .ftb-btn:hover { background: rgba(59,130,246,0.34); border-color: #60A5FA; }
+    .ftb-btn.active { background: #2563EB; border-color: #93C5FD; color: #fff; }
+    .ftb-btn.danger { background: rgba(220,38,38,0.22); border-color: rgba(248,113,113,0.45); color: #FECACA; }
+    .ftb-btn.danger:hover { background: #DC2626; border-color: #FCA5A5; color: #fff; }
+    .ftb-close-btn {
+      margin-left: auto; padding: 4px 7px; border-radius: 7px;
+      color: #94A3B8; font-weight: 800; font-size: 12px; cursor: pointer;
+    }
+    .ftb-close-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .ftb-subpanel {
+      background: #1E293B; border: 1px solid #334155; border-radius: 9px;
+      padding: 8px; display: flex; flex-direction: column; gap: 6px;
+    }
+    .ftb-input {
+      width: 100%; background: #fff; color: #0F172A;
+      border: 1px solid #CBD5E1; border-radius: 6px;
+      padding: 6px 8px; font-size: 12.5px; outline: none;
+    }
+    .ftb-input:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+    .ftb-sub-actions {
+      display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+    }
     .cell-edit-input {
       width: 100%; padding: 6px 8px; border: 2px solid var(--blue-primary);
       border-radius: 4px; outline: none; font-size: 13px; background: #fff;
@@ -876,7 +953,12 @@
       upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
       history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
       restore: '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
-      excel: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9.5 12.5 5 5"/><path d="m14.5 12.5-5 5"/>'
+      excel: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9.5 12.5 5 5"/><path d="m14.5 12.5-5 5"/>',
+      scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" x2="8.12" y1="4" y2="15.88"/><line x1="14.47" x2="20" y1="14.48" y2="20"/><line x1="8.12" x2="12" y1="8.12" y2="12"/>',
+      clipboard: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+      comment: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+      eraser: '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+      fill: '<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>'
     };
 
     function icon(name, size) {
@@ -1406,6 +1488,13 @@
       cellMenu: null,
       cellClipboard: null,
       rowClipboard: null,
+      selectedRange: null, // { botId, anchorR, anchorC, focusR, focusC }
+      extraCells: {}, // { 'rowId::colId': true }
+      rangeClipboard: null, // { matrix, rowCount, colCount, tsv }
+      toolbarSubMode: null, // null | 'comment' | 'fill' | 'bulk_edit' | 'delete'
+      toolbarCommentDraft: '',
+      toolbarFillDraft: '',
+      toolbarEditDraft: '',
       editingTitle: false,
       showMoreMenu: false,
       tableReportScope: 'table',
@@ -4635,6 +4724,73 @@
       html += '<th id="th-add-col" style="min-width:124px;background:#EFF6FF;color:#0D47A1;cursor:pointer;text-align:center;" title="Click to add a new column"><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">' + icon('plus', 13) + '<span>Add Column</span></span></th>';
       html += '</tr></thead><tbody>';
 
+      function clearCellSelectionState() {
+        state.selectedRange = null;
+        state.extraCells = {};
+        state.toolbarSubMode = null;
+        state.toolbarCommentDraft = '';
+        state.toolbarFillDraft = '';
+        state.toolbarEditDraft = '';
+      }
+
+      if (state.selectedRange && state.selectedRange.botId !== bot.id) {
+        clearCellSelectionState();
+      }
+      if (state.selectedRange) {
+        if (visibleRows.length === 0 || bot.columns.length === 0) {
+          clearCellSelectionState();
+        } else {
+          state.selectedRange.anchorR = Math.max(0, Math.min(visibleRows.length - 1, state.selectedRange.anchorR));
+          state.selectedRange.focusR = Math.max(0, Math.min(visibleRows.length - 1, state.selectedRange.focusR));
+          state.selectedRange.anchorC = Math.max(0, Math.min(bot.columns.length - 1, state.selectedRange.anchorC));
+          state.selectedRange.focusC = Math.max(0, Math.min(bot.columns.length - 1, state.selectedRange.focusC));
+        }
+      }
+
+      var selBounds = state.selectedRange ? {
+        minR: Math.min(state.selectedRange.anchorR, state.selectedRange.focusR),
+        maxR: Math.max(state.selectedRange.anchorR, state.selectedRange.focusR),
+        minC: Math.min(state.selectedRange.anchorC, state.selectedRange.focusC),
+        maxC: Math.max(state.selectedRange.anchorC, state.selectedRange.focusC),
+        anchorR: state.selectedRange.anchorR,
+        anchorC: state.selectedRange.anchorC,
+        focusR: state.selectedRange.focusR,
+        focusC: state.selectedRange.focusC
+      } : null;
+
+      var getSelectedCellsMeta = function () {
+        var list = [];
+        var seen = {};
+        if (selBounds) {
+          for (var rr = selBounds.minR; rr <= selBounds.maxR; rr++) {
+            var rObj = visibleRows[rr];
+            if (!rObj) continue;
+            for (var cc = selBounds.minC; cc <= selBounds.maxC; cc++) {
+              var cObj = bot.columns[cc];
+              if (!cObj) continue;
+              var key = rObj.id + '::' + cObj.id;
+              seen[key] = true;
+              list.push({ row: rObj, col: cObj, rIdx: rr, cIdx: cc });
+            }
+          }
+        }
+        var extras = state.extraCells || {};
+        if (Object.keys(extras).length > 0) {
+          visibleRows.forEach(function (rObj, rr) {
+            bot.columns.forEach(function (cObj, cc) {
+              var key = rObj.id + '::' + cObj.id;
+              if (extras[key] && !seen[key]) {
+                seen[key] = true;
+                list.push({ row: rObj, col: cObj, rIdx: rr, cIdx: cc });
+              }
+            });
+          });
+        }
+        return list;
+      };
+
+      var selectedCellsMeta = getSelectedCellsMeta();
+
       visibleRows.forEach(function (row, idx) {
         var isSel = !!state.selectedRowIds[row.id];
         html += '<tr class="' + (isSel ? 'selected' : '') + '">' +
@@ -4644,15 +4800,30 @@
             '<button type="button" class="row-act-btn" data-row-menu="' + esc(row.id) + '" title="Row &amp; Cell Menu: Add, Delete, Copy, Paste">▾</button>' +
           '</div></td>';
 
-        bot.columns.forEach(function (col) {
+        bot.columns.forEach(function (col, cIdx) {
           var val = row[col.id];
           var isEd = state.editingCell && state.editingCell.rowId === row.id && state.editingCell.colId === col.id;
+          var inRect = selBounds && idx >= selBounds.minR && idx <= selBounds.maxR && cIdx >= selBounds.minC && cIdx <= selBounds.maxC;
+          var inExtra = !!(state.extraCells && state.extraCells[row.id + '::' + col.id]);
+          var isCellSel = !isEd && (inRect || inExtra);
+          var isAnchorCell = !isEd && selBounds && idx === selBounds.anchorR && cIdx === selBounds.anchorC;
+          var isHandleCell = !isEd && selBounds && idx === selBounds.maxR && cIdx === selBounds.maxC;
+          var cellSelClass = (isCellSel ? ' cell-selected' : '') + (isAnchorCell ? ' cell-anchor' : '');
+          var commentObj = row._comments && row._comments[col.id] ? row._comments[col.id] : null;
+          var commentMarkHtml = commentObj && commentObj.text ? '<span class="cell-comment-mark" title="Comment: ' + esc(commentObj.text) + '"></span>' : '';
+          var commentBadgeHtml = commentObj && commentObj.text ? '<span class="cell-comment-badge" title="' + esc(commentObj.text) + '">' + icon('comment', 9) + '<span>' + esc(commentObj.text) + '</span></span>' : '';
+          var handleHtml = isHandleCell ? '<span class="cell-sel-handle" id="cell-sel-handle" title="Drag to select cell range"></span>' : '';
+
           var st = col.style || {};
           var bg = !isEd && st.bgColor && st.bgColor !== '#FFFFFF' ? 'background:' + st.bgColor + ';' : '';
           var align = 'text-align:' + (st.align || (col.type === 'formula' || col.type === 'number' || col.type === 'amount' ? 'right' : 'left')) + ';';
 
           if (col.type === 'checkbox') {
-            html += '<td class="cell-menu-target" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" style="text-align:center;' + bg + '"><input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' /></td>';
+            html += '<td class="cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="text-align:center;' + bg + '">' +
+              commentMarkHtml +
+              '<input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' />' +
+              handleHtml +
+            '</td>';
           } else if (isEd) {
             var isDateCol = col.type === 'date';
             var isDtCol = isDateCol && (col.dateFormat === 'dmy_time' || col.dateFormat === 'iso');
@@ -4681,9 +4852,16 @@
             var color = isAmt ? '#E65100' : isFrm ? '#6D28D9' : isNum ? '#0D47A1' : (st.color || '#1E293B');
             var fw = (st.bold || isAmt || isFrm) ? '700' : '400';
             var fs = st.italic ? 'italic' : 'normal';
-            var titleTip = isFrm && col.formulaExpr ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to override, right-click for Add/Delete/Copy/Paste)"' : ' title="Click to edit, right-click or ▾ for Add/Delete/Copy/Paste"';
-            html += '<td class="cell-clickable cell-menu-target" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
-              '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col, row, bot)) + '</span></td>';
+            var commentTip = commentObj && commentObj.text ? ' | Comment: ' + commentObj.text : '';
+            var titleTip = isFrm && col.formulaExpr
+              ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to select, click again or double-click to edit)' + esc(commentTip) + '"'
+              : ' title="Click or drag to select cells; click selected cell or double-click to edit' + esc(commentTip) + '"';
+            html += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:cell;' + align + bg + '">' +
+              commentMarkHtml +
+              '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col, row, bot)) + '</span>' +
+              commentBadgeHtml +
+              handleHtml +
+            '</td>';
           }
         });
         html += '<td style="background:#F8FAFC;"></td>';
@@ -4719,7 +4897,7 @@
           '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
           (state.rowClipboard ? '<button type="button" class="btn btn-outline" id="btn-bar-paste-row" style="padding:7px 12px;font-size:12px;border-color:#86EFAC;color:#047857;background:#ECFDF5;">' + icon('copy', 13) + '<span>Paste Copied Row</span></button>' : '') +
         '</div>' +
-        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Tap ▾ or right-click cell for Add/Delete/Copy/Paste</span>' +
+        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Click or drag cells to select &middot; Double-click to edit</span>' +
       '</div>';
 
       // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report (never impacts + Add Row above)
@@ -4811,6 +4989,90 @@
       }
       html += '</div></div></div>';
 
+      // Floating Contextual Toolbar for Selected Cell / Multi-Cell Range
+      if (selectedCellsMeta.length > 0 && !state.editingCell) {
+        var selCountCells = selectedCellsMeta.length;
+        var selLabel = selBounds && Object.keys(state.extraCells || {}).length === 0
+          ? (selCountCells === 1 ? 'R' + (selBounds.minR + 1) + ' &middot; ' + esc(bot.columns[selBounds.minC].name) : (selBounds.maxR - selBounds.minR + 1) + '×' + (selBounds.maxC - selBounds.minC + 1) + ' (' + selCountCells + ')')
+          : selCountCells + ' cells';
+        var focusMeta = selectedCellsMeta[0];
+        if (selBounds) {
+          var foundAnchor = selectedCellsMeta.find(function (m) { return m.rIdx === selBounds.anchorR && m.cIdx === selBounds.anchorC; });
+          if (foundAnchor) focusMeta = foundAnchor;
+        }
+        var existingCmt = focusMeta && focusMeta.row._comments && focusMeta.row._comments[focusMeta.col.id] ? focusMeta.row._comments[focusMeta.col.id] : null;
+        var anyCommentSelected = selectedCellsMeta.some(function (m) { return m.row._comments && m.row._comments[m.col.id] && m.row._comments[m.col.id].text; });
+        var uniqueRowMap = {};
+        selectedCellsMeta.forEach(function (m) { uniqueRowMap[m.row.id] = true; });
+        var selUniqueRowsCount = Object.keys(uniqueRowMap).length;
+
+        html += '<div id="floating-cell-toolbar" class="floating-cell-toolbar" style="left:16px;top:96px;">' +
+          '<div class="ftb-row">' +
+            '<span class="ftb-sel-info">' + selLabel + '</span>' +
+            '<button type="button" class="ftb-btn" data-ftb="cut" title="Cut selected cells (Ctrl+X)">' + icon('scissors', 13) + '<span>Cut</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="copy" title="Copy selected cells (Ctrl+C)">' + icon('copy', 13) + '<span>Copy</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="paste" title="Paste into selected cell(s) (Ctrl+V)">' + icon('clipboard', 13) + '<span>Paste</span></button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'comment' ? ' active' : '') + '" data-ftb="comment" title="Add or view cell comment">' + icon('comment', 13) + '<span>Comment</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="clear" title="Clear cell contents (Del)">' + icon('eraser', 13) + '<span>Clear Contents</span></button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'fill' ? ' active' : '') + '" data-ftb="fill" title="Fill down, right, series, or custom value">' + icon('fill', 13) + '<span>Fill</span></button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'bulk_edit' ? ' active' : '') + '" data-ftb="edit" title="Edit selected cell(s) (Enter)">' + icon('edit', 13) + '<span>Edit</span></button>' +
+            '<button type="button" class="ftb-btn danger' + (state.toolbarSubMode === 'delete' ? ' active' : '') + '" data-ftb="delete" title="Delete row(s) or shift cells">' + icon('trash', 13) + '<span>Delete</span></button>' +
+            '<button type="button" class="ftb-close-btn" id="ftb-close" title="Clear selection (Esc)">✕</button>' +
+          '</div>';
+
+        if (state.toolbarSubMode === 'comment') {
+          html += '<div class="ftb-subpanel">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#FDE68A;">' +
+              '<span>Comment on ' + (selCountCells === 1 ? esc(focusMeta.col.name) + ' (Row #' + (focusMeta.rIdx + 1) + ')' : selCountCells + ' selected cells') + '</span>' +
+              (existingCmt && existingCmt.updatedAt ? '<span style="color:#94A3B8;font-size:10px;">' + esc(existingCmt.author || '') + ' &middot; ' + esc(formatTimeAgo(existingCmt.updatedAt)) + '</span>' : '') +
+            '</div>' +
+            '<textarea id="ftb-comment-input" class="ftb-input" rows="2" placeholder="Enter cell comment...">' + esc(state.toolbarCommentDraft || '') + '</textarea>' +
+            '<div class="ftb-sub-actions">' +
+              '<button type="button" class="ftb-btn active" id="ftb-save-comment">' + icon('check', 12) + '<span>Save Comment</span></button>' +
+              (anyCommentSelected ? '<button type="button" class="ftb-btn danger" id="ftb-remove-comment">' + icon('trash', 12) + '<span>Remove Comment</span></button>' : '') +
+              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Cancel</button>' +
+            '</div>' +
+          '</div>';
+        } else if (state.toolbarSubMode === 'fill') {
+          html += '<div class="ftb-subpanel">' +
+            '<div style="font-size:11px;color:#BAE6FD;">Fill ' + selCountCells + ' selected cell(s) automatically or with a custom value:</div>' +
+            '<div style="display:flex;gap:6px;align-items:center;">' +
+              '<input id="ftb-fill-input" type="text" class="ftb-input" value="' + esc(state.toolbarFillDraft || '') + '" placeholder="Value to fill into selected cells..." />' +
+              '<button type="button" class="ftb-btn active" id="ftb-fill-apply">' + icon('check', 12) + '<span>Apply</span></button>' +
+            '</div>' +
+            '<div class="ftb-sub-actions">' +
+              '<button type="button" class="ftb-btn" id="ftb-fill-down">↓ Fill Down</button>' +
+              '<button type="button" class="ftb-btn" id="ftb-fill-right">→ Fill Right</button>' +
+              '<button type="button" class="ftb-btn" id="ftb-fill-series"># Fill Series (1, 2, 3...)</button>' +
+              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Close</button>' +
+            '</div>' +
+          '</div>';
+        } else if (state.toolbarSubMode === 'bulk_edit') {
+          html += '<div class="ftb-subpanel">' +
+            '<div style="font-size:11px;color:#BAE6FD;">Editing ' + selCountCells + ' selected cells at once (or edit active cell inline):</div>' +
+            '<div style="display:flex;gap:6px;align-items:center;">' +
+              '<input id="ftb-bulk-edit-input" type="text" class="ftb-input" value="' + esc(state.toolbarEditDraft || '') + '" placeholder="New value for all ' + selCountCells + ' cells..." />' +
+              '<button type="button" class="ftb-btn active" id="ftb-bulk-edit-apply">' + icon('check', 12) + '<span>Apply to ' + selCountCells + '</span></button>' +
+            '</div>' +
+            '<div class="ftb-sub-actions">' +
+              '<button type="button" class="ftb-btn" id="ftb-edit-single-inline">' + icon('edit', 12) + '<span>Edit Active Cell Inline</span></button>' +
+              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Cancel</button>' +
+            '</div>' +
+          '</div>';
+        } else if (state.toolbarSubMode === 'delete') {
+          html += '<div class="ftb-subpanel">' +
+            '<div style="font-size:11px;color:#FECACA;">Choose what to delete for the ' + selCountCells + ' selected cell(s):</div>' +
+            '<div class="ftb-sub-actions">' +
+              '<button type="button" class="ftb-btn danger" id="ftb-del-rows-sel">' + icon('trash', 12) + '<span>Delete ' + selUniqueRowsCount + ' Row(s)</span></button>' +
+              '<button type="button" class="ftb-btn" id="ftb-del-shift-up">↑ Shift Cells Up</button>' +
+              '<button type="button" class="ftb-btn" id="ftb-del-clear-only">' + icon('eraser', 12) + '<span>Clear Cell Contents</span></button>' +
+              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Cancel</button>' +
+            '</div>' +
+          '</div>';
+        }
+        html += '</div>';
+      }
+
       if (state.cellMenu && state.cellMenu.rowId) {
         var cmRowIdx = bot.rows.findIndex(function (r) { return r.id === state.cellMenu.rowId; });
         if (cmRowIdx !== -1) {
@@ -4839,11 +5101,59 @@
       }
 
       document.getElementById('app').innerHTML = html;
-      bindTableEvents(bot, visibleRows);
+      bindTableEvents(bot, visibleRows, selBounds, selectedCellsMeta);
     }
 
-    function bindTableEvents(bot, visibleRows) {
-      document.getElementById('btn-table-back').onclick = function () { state.activeBotId = null; state.showMoreMenu = false; renderApp(); };
+    function cleanupTableGlobalListeners() {
+      if (window._tbDateOutsideClick) {
+        document.removeEventListener('click', window._tbDateOutsideClick);
+        window._tbDateOutsideClick = null;
+      }
+      if (window._tbCellMenuOutsideClick) {
+        document.removeEventListener('click', window._tbCellMenuOutsideClick);
+        window._tbCellMenuOutsideClick = null;
+      }
+      if (window._tbRangeMouseMove) {
+        window.removeEventListener('mousemove', window._tbRangeMouseMove);
+        window._tbRangeMouseMove = null;
+      }
+      if (window._tbRangeMouseUp) {
+        window.removeEventListener('mouseup', window._tbRangeMouseUp);
+        window._tbRangeMouseUp = null;
+      }
+      if (window._tbRangeTouchMove) {
+        window.removeEventListener('touchmove', window._tbRangeTouchMove);
+        window._tbRangeTouchMove = null;
+      }
+      if (window._tbRangeTouchEnd) {
+        window.removeEventListener('touchend', window._tbRangeTouchEnd);
+        window._tbRangeTouchEnd = null;
+      }
+      if (window._tbKeydownHandler) {
+        document.removeEventListener('keydown', window._tbKeydownHandler);
+        window._tbKeydownHandler = null;
+      }
+      if (window._tbResizeReposition) {
+        window.removeEventListener('resize', window._tbResizeReposition);
+        window._tbResizeReposition = null;
+      }
+      if (window._tbOutsideSelectionClick) {
+        document.removeEventListener('click', window._tbOutsideSelectionClick);
+        window._tbOutsideSelectionClick = null;
+      }
+    }
+
+    function bindTableEvents(bot, visibleRows, selBounds, selectedCellsMeta) {
+      cleanupTableGlobalListeners();
+      document.getElementById('btn-table-back').onclick = function () {
+        cleanupTableGlobalListeners();
+        state.activeBotId = null;
+        state.showMoreMenu = false;
+        state.selectedRange = null;
+        state.extraCells = {};
+        state.toolbarSubMode = null;
+        renderApp();
+      };
       var tLangBtn = document.getElementById('btn-table-lang');
       if (tLangBtn) tLangBtn.onclick = toggleLanguage;
       document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
@@ -4905,15 +5215,6 @@
       document.getElementById('th-add-col').onclick = addColFn;
       document.getElementById('btn-bar-add-col').onclick = addColFn;
       document.getElementById('tb-cols').onclick = addColFn;
-
-      if (window._tbDateOutsideClick) {
-        document.removeEventListener('click', window._tbDateOutsideClick);
-        window._tbDateOutsideClick = null;
-      }
-      if (window._tbCellMenuOutsideClick) {
-        document.removeEventListener('click', window._tbCellMenuOutsideClick);
-        window._tbCellMenuOutsideClick = null;
-      }
 
       var buildBlankRow = function () {
         var nowIso = new Date().toISOString();
@@ -5261,8 +5562,689 @@
         });
       }
 
-      document.querySelectorAll('.cell-clickable').forEach(function (td) {
-        td.onclick = function (e) {
+      var openCellEditor = function (rid, cid) {
+        var colObj = bot.columns.find(function (c) { return c.id === cid; });
+        if (!colObj || colObj.type === 'checkbox') return;
+        state.toolbarSubMode = null;
+        state.cellMenu = null;
+        state.editingCell = { rowId: rid, colId: cid };
+        renderTableView(bot);
+        var ci = document.getElementById('active-cell-input');
+        if (ci) {
+          ci.focus();
+          if (colObj.type === 'date') {
+            if (typeof ci.showPicker === 'function') { try { ci.showPicker(); } catch (err) {} }
+          } else {
+            try { ci.select(); } catch (err2) {}
+          }
+        }
+      };
+
+      var buildRangeClipboard = function (targets) {
+        if (!targets || targets.length === 0) return null;
+        var minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
+        targets.forEach(function (t) {
+          if (t.rIdx < minR) minR = t.rIdx;
+          if (t.rIdx > maxR) maxR = t.rIdx;
+          if (t.cIdx < minC) minC = t.cIdx;
+          if (t.cIdx > maxC) maxC = t.cIdx;
+        });
+        var rowCount = maxR - minR + 1;
+        var colCount = maxC - minC + 1;
+        var matrix = [];
+        var tsvLines = [];
+        var targetMap = {};
+        targets.forEach(function (t) { targetMap[t.rIdx + ':' + t.cIdx] = t; });
+        for (var rr = minR; rr <= maxR; rr++) {
+          var mRow = [];
+          var tParts = [];
+          for (var cc = minC; cc <= maxC; cc++) {
+            var m = targetMap[rr + ':' + cc];
+            if (m) {
+              var rawV = m.row[m.col.id];
+              var dispV = formatCell(rawV, m.col, m.row, bot);
+              mRow.push({ value: rawV, display: dispV, colType: m.col.type });
+              tParts.push(String(dispV !== undefined && dispV !== null ? dispV : (rawV || '')));
+            } else {
+              mRow.push({ value: '', display: '', colType: 'text' });
+              tParts.push('');
+            }
+          }
+          matrix.push(mRow);
+          tsvLines.push(tParts.join('\t'));
+        }
+        return {
+          matrix: matrix,
+          rowCount: rowCount,
+          colCount: colCount,
+          tsv: tsvLines.join('\n')
+        };
+      };
+
+      var copySelectedCellsAction = function (silentToast) {
+        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return false;
+        var rc = buildRangeClipboard(selectedCellsMeta);
+        if (!rc) return false;
+        state.rangeClipboard = rc;
+        var firstCell = selectedCellsMeta[0];
+        state.cellClipboard = {
+          value: firstCell.row[firstCell.col.id],
+          display: formatCell(firstCell.row[firstCell.col.id], firstCell.col, firstCell.row, bot),
+          colType: firstCell.col.type,
+          colName: firstCell.col.name
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(rc.tsv).catch(function () {});
+        }
+        if (!silentToast) showToast('Copied ' + selectedCellsMeta.length + ' cell' + (selectedCellsMeta.length === 1 ? '' : 's'));
+        return true;
+      };
+
+      var clearSelectedCellsAction = function (logLabel) {
+        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
+        if (!guardWriteAction(logLabel || 'Clear Contents')) return;
+        var nowIso = new Date().toISOString();
+        selectedCellsMeta.forEach(function (m) {
+          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
+          m.row._actor = getCurrentActor();
+          m.row._updatedAt = nowIso;
+        });
+        bot.updatedAt = nowIso;
+        state.toolbarSubMode = null;
+        updateBot(bot, 'EDIT', (logLabel || 'Cleared contents of') + ' ' + selectedCellsMeta.length + ' cell(s)');
+        renderTableView(bot);
+        if (!logLabel) showToast('Cleared ' + selectedCellsMeta.length + ' cell' + (selectedCellsMeta.length === 1 ? '' : 's'));
+      };
+
+      var cutSelectedCellsAction = function () {
+        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
+        if (!guardWriteAction('Cut Cells')) return;
+        if (!copySelectedCellsAction(true)) return;
+        var nowIso = new Date().toISOString();
+        selectedCellsMeta.forEach(function (m) {
+          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
+          m.row._actor = getCurrentActor();
+          m.row._updatedAt = nowIso;
+        });
+        bot.updatedAt = nowIso;
+        state.toolbarSubMode = null;
+        updateBot(bot, 'EDIT', 'Cut ' + selectedCellsMeta.length + ' cell(s)');
+        renderTableView(bot);
+        showToast('Cut ' + selectedCellsMeta.length + ' cell' + (selectedCellsMeta.length === 1 ? '' : 's'));
+      };
+
+      var pasteSelectedCellsAction = async function () {
+        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
+        if (!guardWriteAction('Paste Cells')) return;
+        var matrix = state.rangeClipboard ? state.rangeClipboard.matrix : null;
+        var osText = null;
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          try { osText = await navigator.clipboard.readText(); } catch (err) {}
+        }
+        if (osText !== null && osText !== undefined && osText !== '' && (!state.rangeClipboard || osText !== state.rangeClipboard.tsv)) {
+          var osRows = osText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+          if (osRows.length > 1 && osRows[osRows.length - 1] === '') osRows.pop();
+          matrix = osRows.map(function (line) {
+            return line.split('\t').map(function (cellTxt) {
+              return { value: cellTxt, display: cellTxt, colType: 'text' };
+            });
+          });
+        } else if (!matrix && state.cellClipboard) {
+          matrix = [[{ value: state.cellClipboard.value, display: state.cellClipboard.display, colType: state.cellClipboard.colType }]];
+        }
+        if (!matrix || matrix.length === 0 || matrix[0].length === 0) {
+          showToast('Clipboard is empty — Copy or Cut a cell first');
+          return;
+        }
+        var nowIso = new Date().toISOString();
+        var pastedCount = 0;
+        var isSingleSource = matrix.length === 1 && matrix[0].length === 1;
+        if (isSingleSource) {
+          var singleSrc = matrix[0][0].value;
+          selectedCellsMeta.forEach(function (m) {
+            var parsedVal = parseCellValueForCol(singleSrc, m.col);
+            m.row[m.col.id] = parsedVal;
+            m.row._actor = getCurrentActor();
+            m.row._updatedAt = nowIso;
+            if (m.col.type !== 'date' && String(parsedVal).trim() !== '' && String(parsedVal) !== '0') {
+              autoFillRowDates(bot, m.row, nowIso, m.col.id);
+            }
+            pastedCount++;
+          });
+        } else {
+          var startR = selBounds ? selBounds.minR : selectedCellsMeta[0].rIdx;
+          var startC = selBounds ? selBounds.minC : selectedCellsMeta[0].cIdx;
+          for (var dr = 0; dr < matrix.length; dr++) {
+            var tr = visibleRows[startR + dr];
+            if (!tr) continue;
+            for (var dc = 0; dc < matrix[dr].length; dc++) {
+              var tc = bot.columns[startC + dc];
+              if (!tc) continue;
+              var parsed = parseCellValueForCol(matrix[dr][dc].value, tc);
+              tr[tc.id] = parsed;
+              tr._actor = getCurrentActor();
+              tr._updatedAt = nowIso;
+              if (tc.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
+                autoFillRowDates(bot, tr, nowIso, tc.id);
+              }
+              pastedCount++;
+            }
+          }
+          state.selectedRange = {
+            botId: bot.id,
+            anchorR: startR,
+            anchorC: startC,
+            focusR: Math.min(visibleRows.length - 1, startR + matrix.length - 1),
+            focusC: Math.min(bot.columns.length - 1, startC + matrix[0].length - 1)
+          };
+          state.extraCells = {};
+        }
+        bot.updatedAt = nowIso;
+        state.toolbarSubMode = null;
+        updateBot(bot, 'EDIT', 'Pasted ' + pastedCount + ' cell(s)');
+        renderTableView(bot);
+        showToast('Pasted ' + pastedCount + ' cell' + (pastedCount === 1 ? '' : 's'));
+      };
+
+      var repositionFloatingToolbar = function () {
+        var ftb = document.getElementById('floating-cell-toolbar');
+        if (!ftb) return;
+        var selEls = document.querySelectorAll('td.cell-selected, td.cell-anchor');
+        if (!selEls || selEls.length === 0) { ftb.style.display = 'none'; return; }
+        var minTop = Infinity, maxBottom = -Infinity, minLeft = Infinity, maxRight = -Infinity;
+        selEls.forEach(function (el) {
+          var r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) return;
+          if (r.top < minTop) minTop = r.top;
+          if (r.bottom > maxBottom) maxBottom = r.bottom;
+          if (r.left < minLeft) minLeft = r.left;
+          if (r.right > maxRight) maxRight = r.right;
+        });
+        if (!isFinite(minTop)) { ftb.style.display = 'none'; return; }
+        ftb.style.display = 'flex';
+        var vw = window.innerWidth || 800;
+        var vh = window.innerHeight || 600;
+        var tbRect = ftb.getBoundingClientRect();
+        var tbW = tbRect.width || 320;
+        var tbH = tbRect.height || 46;
+        var centerX = (minLeft + maxRight) / 2;
+        var leftPx = Math.max(8, Math.min(vw - tbW - 8, Math.round(centerX - tbW / 2)));
+        var topPx = Math.round(minTop - tbH - 10);
+        if (topPx < 64) {
+          topPx = Math.round(maxBottom + 10);
+        }
+        var maxAllowedTop = Math.max(64, vh - tbH - 108);
+        topPx = Math.max(60, Math.min(maxAllowedTop, topPx));
+        ftb.style.left = leftPx + 'px';
+        ftb.style.top = topPx + 'px';
+      };
+
+      var ftbEl = document.getElementById('floating-cell-toolbar');
+      if (ftbEl) {
+        repositionFloatingToolbar();
+        var tblWrapEl = document.querySelector('.table-wrap');
+        if (tblWrapEl) tblWrapEl.onscroll = repositionFloatingToolbar;
+        window._tbResizeReposition = repositionFloatingToolbar;
+        window.addEventListener('resize', repositionFloatingToolbar);
+
+        ftbEl.onmousedown = function (e) { e.stopPropagation(); };
+        ftbEl.onclick = function (e) { e.stopPropagation(); };
+
+        var ftbCloseBtn = document.getElementById('ftb-close');
+        if (ftbCloseBtn) ftbCloseBtn.onclick = function () {
+          state.selectedRange = null;
+          state.extraCells = {};
+          state.toolbarSubMode = null;
+          renderTableView(bot);
+        };
+
+        ftbEl.querySelectorAll('[data-ftb]').forEach(function (btn) {
+          btn.onclick = function () {
+            var act = btn.getAttribute('data-ftb');
+            var focusMeta = selectedCellsMeta[0];
+            if (selBounds) {
+              var fa = selectedCellsMeta.find(function (m) { return m.rIdx === selBounds.anchorR && m.cIdx === selBounds.anchorC; });
+              if (fa) focusMeta = fa;
+            }
+            if (act === 'cut') {
+              cutSelectedCellsAction();
+            } else if (act === 'copy') {
+              copySelectedCellsAction();
+              state.toolbarSubMode = null;
+              renderTableView(bot);
+            } else if (act === 'paste') {
+              pasteSelectedCellsAction();
+            } else if (act === 'clear') {
+              clearSelectedCellsAction();
+            } else if (act === 'comment') {
+              if (state.toolbarSubMode === 'comment') {
+                state.toolbarSubMode = null;
+              } else {
+                state.toolbarSubMode = 'comment';
+                var existingC = focusMeta && focusMeta.row._comments && focusMeta.row._comments[focusMeta.col.id] ? focusMeta.row._comments[focusMeta.col.id].text : '';
+                state.toolbarCommentDraft = existingC || '';
+              }
+              renderTableView(bot);
+              var ci2 = document.getElementById('ftb-comment-input');
+              if (ci2) ci2.focus();
+            } else if (act === 'fill') {
+              if (state.toolbarSubMode === 'fill') {
+                state.toolbarSubMode = null;
+              } else {
+                state.toolbarSubMode = 'fill';
+                var rawF = focusMeta ? focusMeta.row[focusMeta.col.id] : '';
+                state.toolbarFillDraft = rawF !== undefined && rawF !== null ? String(rawF) : '';
+              }
+              renderTableView(bot);
+              var fi = document.getElementById('ftb-fill-input');
+              if (fi) { fi.focus(); try { fi.select(); } catch (e2) {} }
+            } else if (act === 'edit') {
+              if (!guardWriteAction('Edit Cell')) return;
+              if (selectedCellsMeta.length === 1 && focusMeta) {
+                if (focusMeta.col.type === 'checkbox') {
+                  var nowIsoCb = new Date().toISOString();
+                  focusMeta.row[focusMeta.col.id] = !focusMeta.row[focusMeta.col.id];
+                  focusMeta.row._actor = getCurrentActor();
+                  focusMeta.row._updatedAt = nowIsoCb;
+                  bot.updatedAt = nowIsoCb;
+                  updateBot(bot, 'EDIT', 'Toggled "' + focusMeta.col.name + '"');
+                  renderTableView(bot);
+                } else {
+                  openCellEditor(focusMeta.row.id, focusMeta.col.id);
+                }
+              } else {
+                if (state.toolbarSubMode === 'bulk_edit') {
+                  state.toolbarSubMode = null;
+                } else {
+                  state.toolbarSubMode = 'bulk_edit';
+                  var rawE = focusMeta ? focusMeta.row[focusMeta.col.id] : '';
+                  state.toolbarEditDraft = rawE !== undefined && rawE !== null ? String(rawE) : '';
+                }
+                renderTableView(bot);
+                var bi = document.getElementById('ftb-bulk-edit-input');
+                if (bi) { bi.focus(); try { bi.select(); } catch (e3) {} }
+              }
+            } else if (act === 'delete') {
+              if (!guardWriteAction('Delete')) return;
+              state.toolbarSubMode = state.toolbarSubMode === 'delete' ? null : 'delete';
+              renderTableView(bot);
+            }
+          };
+        });
+
+        var cancelSubBtn = document.getElementById('ftb-cancel-sub');
+        if (cancelSubBtn) cancelSubBtn.onclick = function () { state.toolbarSubMode = null; renderTableView(bot); };
+
+        // Comment Sub-Panel Handlers
+        var cmtInp = document.getElementById('ftb-comment-input');
+        if (cmtInp) cmtInp.oninput = function () { state.toolbarCommentDraft = cmtInp.value; };
+        var saveCmtBtn = document.getElementById('ftb-save-comment');
+        if (saveCmtBtn) saveCmtBtn.onclick = function () {
+          if (!guardWriteAction('Save Comment')) return;
+          var txt = (cmtInp ? cmtInp.value : state.toolbarCommentDraft || '').trim();
+          var nowIso = new Date().toISOString();
+          var actor = getCurrentActor();
+          selectedCellsMeta.forEach(function (m) {
+            if (!m.row._comments) m.row._comments = {};
+            if (txt) {
+              m.row._comments[m.col.id] = { text: txt, author: actor, updatedAt: nowIso };
+            } else {
+              delete m.row._comments[m.col.id];
+            }
+            m.row._updatedAt = nowIso;
+          });
+          bot.updatedAt = nowIso;
+          state.toolbarSubMode = null;
+          updateBot(bot, 'EDIT', (txt ? 'Commented on ' : 'Removed comment on ') + selectedCellsMeta.length + ' cell(s)');
+          renderTableView(bot);
+          showToast(txt ? 'Comment saved' : 'Comment removed');
+        };
+        var remCmtBtn = document.getElementById('ftb-remove-comment');
+        if (remCmtBtn) remCmtBtn.onclick = function () {
+          if (!guardWriteAction('Remove Comment')) return;
+          var nowIso = new Date().toISOString();
+          selectedCellsMeta.forEach(function (m) {
+            if (m.row._comments) delete m.row._comments[m.col.id];
+            m.row._updatedAt = nowIso;
+          });
+          bot.updatedAt = nowIso;
+          state.toolbarSubMode = null;
+          updateBot(bot, 'EDIT', 'Removed comment on ' + selectedCellsMeta.length + ' cell(s)');
+          renderTableView(bot);
+          showToast('Comment removed');
+        };
+
+        // Fill Sub-Panel Handlers
+        var fillInp = document.getElementById('ftb-fill-input');
+        if (fillInp) fillInp.oninput = function () { state.toolbarFillDraft = fillInp.value; };
+        var applyFillValFn = function (rawFillVal) {
+          if (!guardWriteAction('Fill Cells')) return;
+          var nowIso = new Date().toISOString();
+          selectedCellsMeta.forEach(function (m) {
+            var parsed = parseCellValueForCol(rawFillVal, m.col);
+            m.row[m.col.id] = parsed;
+            m.row._actor = getCurrentActor();
+            m.row._updatedAt = nowIso;
+            if (m.col.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
+              autoFillRowDates(bot, m.row, nowIso, m.col.id);
+            }
+          });
+          bot.updatedAt = nowIso;
+          state.toolbarSubMode = null;
+          updateBot(bot, 'EDIT', 'Filled ' + selectedCellsMeta.length + ' cell(s)');
+          renderTableView(bot);
+          showToast('Filled ' + selectedCellsMeta.length + ' cell(s)');
+        };
+        var fillApplyBtn = document.getElementById('ftb-fill-apply');
+        if (fillApplyBtn) fillApplyBtn.onclick = function () {
+          applyFillValFn(fillInp ? fillInp.value : state.toolbarFillDraft);
+        };
+        if (fillInp) fillInp.onkeydown = function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); applyFillValFn(fillInp.value); }
+        };
+        var fillDownBtn = document.getElementById('ftb-fill-down');
+        if (fillDownBtn) fillDownBtn.onclick = function () {
+          if (!guardWriteAction('Fill Down')) return;
+          if (!selBounds) { showToast('Select a range or row cell to Fill Down'); return; }
+          var srcR = selBounds.maxR > selBounds.minR ? selBounds.minR : (selBounds.minR > 0 ? selBounds.minR - 1 : -1);
+          if (srcR < 0 || !visibleRows[srcR]) { showToast('Select multiple rows or a row below existing data'); return; }
+          var nowIso = new Date().toISOString();
+          var srcRow = visibleRows[srcR];
+          var cnt = 0;
+          for (var rr = selBounds.minR; rr <= selBounds.maxR; rr++) {
+            if (rr === srcR || !visibleRows[rr]) continue;
+            for (var cc = selBounds.minC; cc <= selBounds.maxC; cc++) {
+              var colObj = bot.columns[cc];
+              if (!colObj) continue;
+              visibleRows[rr][colObj.id] = srcRow[colObj.id];
+              visibleRows[rr]._actor = getCurrentActor();
+              visibleRows[rr]._updatedAt = nowIso;
+              cnt++;
+            }
+          }
+          bot.updatedAt = nowIso;
+          state.toolbarSubMode = null;
+          updateBot(bot, 'EDIT', 'Filled down ' + cnt + ' cell(s)');
+          renderTableView(bot);
+          showToast('Filled down ' + cnt + ' cell(s)');
+        };
+        var fillRightBtn = document.getElementById('ftb-fill-right');
+        if (fillRightBtn) fillRightBtn.onclick = function () {
+          if (!guardWriteAction('Fill Right')) return;
+          if (!selBounds) { showToast('Select cells to Fill Right'); return; }
+          var srcC = selBounds.maxC > selBounds.minC ? selBounds.minC : (selBounds.minC > 0 ? selBounds.minC - 1 : -1);
+          if (srcC < 0 || !bot.columns[srcC]) { showToast('Select multiple columns or a column to the right'); return; }
+          var srcCol = bot.columns[srcC];
+          var nowIso = new Date().toISOString();
+          var cnt = 0;
+          for (var rr = selBounds.minR; rr <= selBounds.maxR; rr++) {
+            var rObj = visibleRows[rr];
+            if (!rObj) continue;
+            var rawSrc = rObj[srcCol.id];
+            for (var cc = selBounds.minC; cc <= selBounds.maxC; cc++) {
+              if (cc === srcC || !bot.columns[cc]) continue;
+              rObj[bot.columns[cc].id] = parseCellValueForCol(rawSrc, bot.columns[cc]);
+              rObj._actor = getCurrentActor();
+              rObj._updatedAt = nowIso;
+              cnt++;
+            }
+          }
+          bot.updatedAt = nowIso;
+          state.toolbarSubMode = null;
+          updateBot(bot, 'EDIT', 'Filled right ' + cnt + ' cell(s)');
+          renderTableView(bot);
+          showToast('Filled right ' + cnt + ' cell(s)');
+        };
+        var fillSeriesBtn = document.getElementById('ftb-fill-series');
+        if (fillSeriesBtn) fillSeriesBtn.onclick = function () {
+          if (!guardWriteAction('Fill Series')) return;
+          var nowIso = new Date().toISOString();
+          var firstMeta = selectedCellsMeta[0];
+          var firstRaw = firstMeta ? String(firstMeta.row[firstMeta.col.id] !== undefined && firstMeta.row[firstMeta.col.id] !== null ? firstMeta.row[firstMeta.col.id] : '').trim() : '';
+          var numOnly = /^-?\d+(\.\d+)?$/.test(firstRaw) ? parseFloat(firstRaw) : null;
+          var prefixMatch = firstRaw.match(/^(.*?)(\d+)$/);
+          selectedCellsMeta.forEach(function (m, idx2) {
+            var nextVal;
+            if (numOnly !== null) {
+              nextVal = numOnly + idx2;
+            } else if (prefixMatch) {
+              nextVal = prefixMatch[1] + (parseInt(prefixMatch[2], 10) + idx2);
+            } else {
+              nextVal = idx2 + 1;
+            }
+            var parsed = parseCellValueForCol(nextVal, m.col);
+            m.row[m.col.id] = parsed;
+            m.row._actor = getCurrentActor();
+            m.row._updatedAt = nowIso;
+          });
+          bot.updatedAt = nowIso;
+          state.toolbarSubMode = null;
+          updateBot(bot, 'EDIT', 'Filled series across ' + selectedCellsMeta.length + ' cell(s)');
+          renderTableView(bot);
+          showToast('Filled series (' + selectedCellsMeta.length + ' cells)');
+        };
+
+        // Bulk Edit Sub-Panel Handlers
+        var bulkEditInp = document.getElementById('ftb-bulk-edit-input');
+        if (bulkEditInp) bulkEditInp.oninput = function () { state.toolbarEditDraft = bulkEditInp.value; };
+        var bulkEditApply = document.getElementById('ftb-bulk-edit-apply');
+        if (bulkEditApply) bulkEditApply.onclick = function () {
+          applyFillValFn(bulkEditInp ? bulkEditInp.value : state.toolbarEditDraft);
+        };
+        if (bulkEditInp) bulkEditInp.onkeydown = function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); applyFillValFn(bulkEditInp.value); }
+        };
+        var editSingleInlineBtn = document.getElementById('ftb-edit-single-inline');
+        if (editSingleInlineBtn) editSingleInlineBtn.onclick = function () {
+          var fm = selectedCellsMeta[0];
+          if (selBounds) {
+            var fa2 = selectedCellsMeta.find(function (m) { return m.rIdx === selBounds.anchorR && m.cIdx === selBounds.anchorC; });
+            if (fa2) fm = fa2;
+          }
+          if (fm) openCellEditor(fm.row.id, fm.col.id);
+        };
+
+        // Delete Sub-Panel Handlers
+        var delRowsSelBtn = document.getElementById('ftb-del-rows-sel');
+        if (delRowsSelBtn) delRowsSelBtn.onclick = function () {
+          if (!guardWriteAction('Delete Selected Rows')) return;
+          var rIdSet = {};
+          selectedCellsMeta.forEach(function (m) { rIdSet[m.row.id] = true; });
+          var delCount = Object.keys(rIdSet).length;
+          requireCyberAuth('Delete ' + delCount + ' Row(s) from "' + bot.name + '"', function () {
+            bot.rows = bot.rows.filter(function (r) { return !rIdSet[r.id]; });
+            Object.keys(rIdSet).forEach(function (id) { delete state.selectedRowIds[id]; });
+            state.selectedRange = null;
+            state.extraCells = {};
+            state.toolbarSubMode = null;
+            bot.updatedAt = new Date().toISOString();
+            updateBot(bot, 'DELETE', 'Deleted ' + delCount + ' row(s) from selection');
+            renderTableView(bot);
+            showToast('Deleted ' + delCount + ' row(s)');
+          });
+        };
+        var delShiftUpBtn = document.getElementById('ftb-del-shift-up');
+        if (delShiftUpBtn) delShiftUpBtn.onclick = function () {
+          if (!guardWriteAction('Shift Cells Up')) return;
+          var byCol = {};
+          selectedCellsMeta.forEach(function (m) {
+            if (!byCol[m.cIdx]) byCol[m.cIdx] = [];
+            byCol[m.cIdx].push(m.rIdx);
+          });
+          var nowIso = new Date().toISOString();
+          Object.keys(byCol).forEach(function (cIdxStr) {
+            var cIdxNum = parseInt(cIdxStr, 10);
+            var colObj = bot.columns[cIdxNum];
+            if (!colObj) return;
+            var removeRowSet = {};
+            byCol[cIdxStr].forEach(function (ri) { removeRowSet[ri] = true; });
+            var keptValues = [];
+            for (var rr = 0; rr < visibleRows.length; rr++) {
+              if (!removeRowSet[rr]) keptValues.push(visibleRows[rr][colObj.id]);
+            }
+            for (var rr2 = 0; rr2 < visibleRows.length; rr2++) {
+              visibleRows[rr2][colObj.id] = rr2 < keptValues.length ? keptValues[rr2] : (colObj.type === 'checkbox' ? false : '');
+              visibleRows[rr2]._actor = getCurrentActor();
+              visibleRows[rr2]._updatedAt = nowIso;
+            }
+          });
+          bot.updatedAt = nowIso;
+          state.toolbarSubMode = null;
+          updateBot(bot, 'DELETE', 'Deleted & shifted ' + selectedCellsMeta.length + ' cell(s) up');
+          renderTableView(bot);
+          showToast('Deleted selected cells & shifted up');
+        };
+        var delClearOnlyBtn = document.getElementById('ftb-del-clear-only');
+        if (delClearOnlyBtn) delClearOnlyBtn.onclick = function () {
+          clearSelectedCellsAction('Deleted contents of');
+        };
+      }
+
+      // Single-cell click, Drag-to-Select Rectangular Range, Shift+Click, Ctrl/Cmd+Click, Double-Click
+      var dragCtx = null;
+      var sheetTableEl = document.querySelector('.sheet-table');
+      var allCellEls = Array.prototype.slice.call(document.querySelectorAll('td.cell-selectable'));
+
+      var paintDragPreview = function (aR, aC, fR, fC) {
+        var minR = Math.min(aR, fR), maxR = Math.max(aR, fR);
+        var minC = Math.min(aC, fC), maxC = Math.max(aC, fC);
+        allCellEls.forEach(function (cellEl) {
+          var cr = parseInt(cellEl.getAttribute('data-r-idx'), 10);
+          var cc = parseInt(cellEl.getAttribute('data-c-idx'), 10);
+          var inside = cr >= minR && cr <= maxR && cc >= minC && cc <= maxC;
+          cellEl.classList.toggle('cell-selected', inside);
+          cellEl.classList.toggle('cell-anchor', cr === aR && cc === aC);
+        });
+      };
+
+      var startRangeDrag = function (aR, aC, fR, fC, alreadySingle, startX, startY, fromHandle) {
+        dragCtx = {
+          anchorR: aR,
+          anchorC: aC,
+          focusR: fR,
+          focusC: fC,
+          alreadySingle: !!alreadySingle,
+          fromHandle: !!fromHandle,
+          moved: !!fromHandle,
+          startX: startX,
+          startY: startY
+        };
+        if (fromHandle && sheetTableEl) sheetTableEl.classList.add('is-selecting');
+
+        var onMouseMove = function (ev) {
+          if (!dragCtx) return;
+          var dist = Math.abs(ev.clientX - dragCtx.startX) + Math.abs(ev.clientY - dragCtx.startY);
+          var hitEl = document.elementFromPoint(ev.clientX, ev.clientY);
+          var tdHit = hitEl && hitEl.closest ? hitEl.closest('td.cell-selectable') : null;
+          if (!tdHit) return;
+          var hr = parseInt(tdHit.getAttribute('data-r-idx'), 10);
+          var hc = parseInt(tdHit.getAttribute('data-c-idx'), 10);
+          if (isNaN(hr) || isNaN(hc)) return;
+          if (!dragCtx.moved && (hr !== dragCtx.anchorR || hc !== dragCtx.anchorC || dist > 6)) {
+            dragCtx.moved = true;
+            if (sheetTableEl) sheetTableEl.classList.add('is-selecting');
+          }
+          if (dragCtx.moved && (hr !== dragCtx.focusR || hc !== dragCtx.focusC)) {
+            dragCtx.focusR = hr;
+            dragCtx.focusC = hc;
+            paintDragPreview(dragCtx.anchorR, dragCtx.anchorC, dragCtx.focusR, dragCtx.focusC);
+          }
+        };
+
+        var onMouseUp = function () {
+          var ctx = dragCtx;
+          dragCtx = null;
+          if (sheetTableEl) sheetTableEl.classList.remove('is-selecting');
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+          window._tbRangeMouseMove = null;
+          window._tbRangeMouseUp = null;
+          if (!ctx) return;
+          var targetRowObj = visibleRows[ctx.anchorR];
+          var targetColObj = bot.columns[ctx.anchorC];
+          if (!ctx.moved && ctx.alreadySingle && targetRowObj && targetColObj && targetColObj.type !== 'checkbox') {
+            openCellEditor(targetRowObj.id, targetColObj.id);
+            return;
+          }
+          state.selectedRange = {
+            botId: bot.id,
+            anchorR: ctx.anchorR,
+            anchorC: ctx.anchorC,
+            focusR: ctx.focusR,
+            focusC: ctx.focusC
+          };
+          state.extraCells = {};
+          state.toolbarSubMode = null;
+          renderTableView(bot);
+        };
+
+        window._tbRangeMouseMove = onMouseMove;
+        window._tbRangeMouseUp = onMouseUp;
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      };
+
+      var selHandleEl = document.getElementById('cell-sel-handle');
+      if (selHandleEl && selBounds) {
+        selHandleEl.onmousedown = function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          startRangeDrag(selBounds.anchorR, selBounds.anchorC, selBounds.focusR, selBounds.focusC, false, e.clientX, e.clientY, true);
+        };
+        selHandleEl.ontouchstart = function (e) {
+          if (!e.touches || !e.touches[0]) return;
+          e.preventDefault();
+          e.stopPropagation();
+          var tDrag = {
+            anchorR: selBounds.anchorR,
+            anchorC: selBounds.anchorC,
+            focusR: selBounds.focusR,
+            focusC: selBounds.focusC
+          };
+          if (sheetTableEl) sheetTableEl.classList.add('is-selecting');
+          var onTouchMove = function (ev) {
+            if (!ev.touches || !ev.touches[0]) return;
+            ev.preventDefault();
+            var pt = ev.touches[0];
+            var hit = document.elementFromPoint(pt.clientX, pt.clientY);
+            var tdHit = hit && hit.closest ? hit.closest('td.cell-selectable') : null;
+            if (!tdHit) return;
+            var hr = parseInt(tdHit.getAttribute('data-r-idx'), 10);
+            var hc = parseInt(tdHit.getAttribute('data-c-idx'), 10);
+            if (!isNaN(hr) && !isNaN(hc) && (hr !== tDrag.focusR || hc !== tDrag.focusC)) {
+              tDrag.focusR = hr;
+              tDrag.focusC = hc;
+              paintDragPreview(tDrag.anchorR, tDrag.anchorC, tDrag.focusR, tDrag.focusC);
+            }
+          };
+          var onTouchEnd = function () {
+            if (sheetTableEl) sheetTableEl.classList.remove('is-selecting');
+            window.removeEventListener('touchmove', onTouchMove);
+            window.removeEventListener('touchend', onTouchEnd);
+            window._tbRangeTouchMove = null;
+            window._tbRangeTouchEnd = null;
+            state.selectedRange = {
+              botId: bot.id,
+              anchorR: tDrag.anchorR,
+              anchorC: tDrag.anchorC,
+              focusR: tDrag.focusR,
+              focusC: tDrag.focusC
+            };
+            state.extraCells = {};
+            state.toolbarSubMode = null;
+            renderTableView(bot);
+          };
+          window._tbRangeTouchMove = onTouchMove;
+          window._tbRangeTouchEnd = onTouchEnd;
+          window.addEventListener('touchmove', onTouchMove, { passive: false });
+          window.addEventListener('touchend', onTouchEnd);
+        };
+      }
+
+      document.querySelectorAll('td.cell-selectable').forEach(function (td) {
+        td.onmousedown = function (e) {
+          if (e.button !== 0) return;
+          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
           e.stopPropagation();
           state.cellMenu = null;
           if (state.editingCell && activeInp) {
@@ -5270,20 +6252,147 @@
           }
           var rid = td.getAttribute('data-row-id');
           var cid = td.getAttribute('data-col-id');
-          var colObj = bot.columns.find(function (c) { return c.id === cid; });
-          state.editingCell = { rowId: rid, colId: cid };
-          renderTableView(bot);
-          var ci = document.getElementById('active-cell-input');
-          if (ci) {
-            ci.focus();
-            if (colObj && colObj.type === 'date') {
-              if (typeof ci.showPicker === 'function') { try { ci.showPicker(); } catch (err) {} }
-            } else {
-              try { ci.select(); } catch (err2) {}
-            }
+          var rIdx = parseInt(td.getAttribute('data-r-idx'), 10);
+          var cIdx = parseInt(td.getAttribute('data-c-idx'), 10);
+          if (isNaN(rIdx) || isNaN(cIdx)) return;
+
+          if (e.shiftKey && state.selectedRange && state.selectedRange.botId === bot.id) {
+            e.preventDefault();
+            state.selectedRange.focusR = rIdx;
+            state.selectedRange.focusC = cIdx;
+            state.toolbarSubMode = null;
+            renderTableView(bot);
+            return;
           }
+
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            var nextExtras = Object.assign({}, state.extraCells || {});
+            if (selBounds && Object.keys(nextExtras).length === 0) {
+              for (var rr = selBounds.minR; rr <= selBounds.maxR; rr++) {
+                for (var cc = selBounds.minC; cc <= selBounds.maxC; cc++) {
+                  if (visibleRows[rr] && bot.columns[cc]) {
+                    nextExtras[visibleRows[rr].id + '::' + bot.columns[cc].id] = true;
+                  }
+                }
+              }
+            }
+            var toggleKey = rid + '::' + cid;
+            if (nextExtras[toggleKey]) delete nextExtras[toggleKey];
+            else nextExtras[toggleKey] = true;
+            state.extraCells = nextExtras;
+            state.selectedRange = Object.keys(nextExtras).length > 0
+              ? { botId: bot.id, anchorR: rIdx, anchorC: cIdx, focusR: rIdx, focusC: cIdx }
+              : null;
+            if (state.selectedRange && !nextExtras[toggleKey]) {
+              state.selectedRange = null;
+            }
+            state.toolbarSubMode = null;
+            renderTableView(bot);
+            return;
+          }
+
+          var wasAlreadySingle = selBounds &&
+            selBounds.minR === selBounds.maxR &&
+            selBounds.minC === selBounds.maxC &&
+            selBounds.anchorR === rIdx &&
+            selBounds.anchorC === cIdx &&
+            Object.keys(state.extraCells || {}).length === 0;
+
+          paintDragPreview(rIdx, cIdx, rIdx, cIdx);
+          startRangeDrag(rIdx, cIdx, rIdx, cIdx, wasAlreadySingle, e.clientX, e.clientY, false);
+        };
+
+        td.ondblclick = function (e) {
+          if (e.target && e.target.closest && e.target.closest('.chk-cell')) return;
+          e.stopPropagation();
+          dragCtx = null;
+          var rid = td.getAttribute('data-row-id');
+          var cid = td.getAttribute('data-col-id');
+          openCellEditor(rid, cid);
         };
       });
+
+      // Click outside table cells / floating toolbar clears active cell selection
+      if (selectedCellsMeta.length > 0 && !state.editingCell) {
+        var outsideSelHandler = function (e) {
+          if (!e.target || !document.body.contains(e.target) || !e.target.closest) return;
+          if (e.target.closest('td.cell-selectable') || e.target.closest('#floating-cell-toolbar') || e.target.closest('#cell-context-menu') || e.target.closest('.modal-backdrop') || e.target.closest('.drawer-backdrop') || e.target.closest('.row-act-btn')) return;
+          state.selectedRange = null;
+          state.extraCells = {};
+          state.toolbarSubMode = null;
+          renderTableView(bot);
+        };
+        window._tbOutsideSelectionClick = outsideSelHandler;
+        setTimeout(function () {
+          if (window._tbOutsideSelectionClick === outsideSelHandler) {
+            document.addEventListener('click', outsideSelHandler);
+          }
+        }, 0);
+      }
+
+      // Keyboard navigation & shortcuts for selected cell(s)
+      var tableKeyHandler = function (e) {
+        if (state.modal || state.drawerOpen || state.editingTitle || state.editingCell) return;
+        var ae = document.activeElement;
+        if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
+
+        var ctrl = e.ctrlKey || e.metaKey;
+        if (e.key === 'Escape') {
+          state.selectedRange = null;
+          state.extraCells = {};
+          state.toolbarSubMode = null;
+          renderTableView(bot);
+          return;
+        }
+        if (ctrl && (e.key === 'c' || e.key === 'C')) {
+          e.preventDefault();
+          copySelectedCellsAction();
+          return;
+        }
+        if (ctrl && (e.key === 'x' || e.key === 'X')) {
+          e.preventDefault();
+          cutSelectedCellsAction();
+          return;
+        }
+        if (ctrl && (e.key === 'v' || e.key === 'V')) {
+          e.preventDefault();
+          pasteSelectedCellsAction();
+          return;
+        }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          clearSelectedCellsAction();
+          return;
+        }
+        if ((e.key === 'Enter' || e.key === 'F2') && selBounds) {
+          e.preventDefault();
+          var rEd = visibleRows[selBounds.anchorR];
+          var cEd = bot.columns[selBounds.anchorC];
+          if (rEd && cEd) openCellEditor(rEd.id, cEd.id);
+          return;
+        }
+        if (selBounds && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          e.preventDefault();
+          var dr = e.key === 'ArrowUp' ? -1 : (e.key === 'ArrowDown' ? 1 : 0);
+          var dc = e.key === 'ArrowLeft' ? -1 : (e.key === 'ArrowRight' ? 1 : 0);
+          var baseR = e.shiftKey ? selBounds.focusR : selBounds.anchorR;
+          var baseC = e.shiftKey ? selBounds.focusC : selBounds.anchorC;
+          var nr = Math.max(0, Math.min(visibleRows.length - 1, baseR + dr));
+          var nc = Math.max(0, Math.min(bot.columns.length - 1, baseC + dc));
+          if (e.shiftKey) {
+            state.selectedRange = { botId: bot.id, anchorR: selBounds.anchorR, anchorC: selBounds.anchorC, focusR: nr, focusC: nc };
+          } else {
+            state.selectedRange = { botId: bot.id, anchorR: nr, anchorC: nc, focusR: nr, focusC: nc };
+          }
+          state.extraCells = {};
+          state.toolbarSubMode = null;
+          renderTableView(bot);
+        }
+      };
+      window._tbKeydownHandler = tableKeyHandler;
+      document.addEventListener('keydown', tableKeyHandler);
 
       if (activeInp && state.editingCell) {
         var isDateEdit = activeInp.type === 'date' || activeInp.type === 'datetime-local';
@@ -5704,7 +6813,13 @@
       }
       var bot = getActiveBot();
       if (bot) renderTableView(bot);
-      else renderDashboard();
+      else {
+        cleanupTableGlobalListeners();
+        state.selectedRange = null;
+        state.extraCells = {};
+        state.toolbarSubMode = null;
+        renderDashboard();
+      }
     }
 
     function openModal(type, extra) {
