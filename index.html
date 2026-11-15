@@ -255,8 +255,8 @@
     .sheet-table th:hover { background: #EFF6FF; }
     .sheet-table th.frozen-col, .sheet-table td.frozen-col {
       position: sticky; left: 0; z-index: 25; background: #F1F5F9;
-      width: 54px; min-width: 54px; max-width: 54px; text-align: center;
-      border-right: 1px solid #CBD5E1;
+      width: 72px; min-width: 72px; max-width: 72px; text-align: center;
+      border-right: 1px solid #CBD5E1; padding: 6px 4px;
     }
     .sheet-table th.frozen-col { z-index: 30; }
     .sheet-table td {
@@ -266,6 +266,33 @@
     .sheet-table tr:nth-child(even) td:not(.frozen-col) { background: #FAFBFC; }
     .sheet-table tr:hover td:not(.frozen-col) { background: #EFF6FF; }
     .sheet-table tr.selected td:not(.frozen-col) { background: #DBEAFE; }
+    .row-act-btn {
+      width: 20px; height: 20px; border-radius: 5px; border: 1px solid #CBD5E1;
+      background: #fff; color: #334155; font-size: 11px; font-weight: 800;
+      display: inline-flex; align-items: center; justify-content: center;
+      line-height: 1; cursor: pointer; flex-shrink: 0;
+    }
+    .row-act-btn:hover { background: #DBEAFE; border-color: #60A5FA; color: #0D47A1; }
+    .cell-edit-wrap {
+      display: flex; align-items: center; gap: 3px; width: 100%;
+    }
+    .cell-menu-trigger {
+      padding: 4px 6px; border-radius: 4px; border: 1px solid #93C5FD;
+      background: #EFF6FF; color: #0D47A1; font-size: 11px; font-weight: 800;
+      cursor: pointer; flex-shrink: 0; line-height: 1;
+    }
+    .cell-menu-trigger:hover { background: #DBEAFE; }
+    .cell-dropdown-menu {
+      position: fixed; z-index: 95; width: 226px;
+      background: #fff; border: 1px solid #CBD5E1; border-radius: 12px;
+      box-shadow: 0 16px 36px rgba(15,23,42,0.22); padding: 5px 0;
+      max-height: 85vh; overflow-y: auto;
+    }
+    .cell-dropdown-head {
+      padding: 6px 12px; font-size: 10.5px; font-weight: 800; color: #0D47A1;
+      background: #EFF6FF; border-bottom: 1px solid #DBEAFE; margin-bottom: 3px;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    }
     .cell-amount { color: var(--orange-accent); font-weight: 700; font-family: ui-monospace, monospace; }
     .cell-edit-input {
       width: 100%; padding: 6px 8px; border: 2px solid var(--blue-primary);
@@ -1376,6 +1403,9 @@
       tableSearchQuery: '',
       selectedRowIds: {},
       editingCell: null,
+      cellMenu: null,
+      cellClipboard: null,
+      rowClipboard: null,
       editingTitle: false,
       showMoreMenu: false,
       tableReportScope: 'table',
@@ -3098,9 +3128,9 @@
             { id: 'col_name_' + id, name: 'Name / User', type: 'text', widthMultiplier: 1.2, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
             { id: 'col_item_' + id, name: 'Item / Detail', type: 'text', widthMultiplier: 1.3, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
             { id: 'col_qty_' + id, name: 'Quantity', type: 'number', widthMultiplier: 0.9, currency: 'None', thousandSeparator: true, decimals: 0, style: { bold: true, italic: false, align: 'right', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
-            { id: 'col_amt_' + id, name: 'Amount', type: 'amount', widthMultiplier: 1.0, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
-            { id: 'col_formula_' + id, name: 'Total Formula', type: 'formula', formulaExpr: 'Quantity * Amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#6D28D9', bgColor: '#FFFFFF' }, includeInGraph: true },
-            { id: 'col_date_' + id, name: 'Date', type: 'date', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
+            { id: 'col_amt_' + id, name: 'Amount', type: 'amount', widthMultiplier: 1.0, currency: 'None', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
+            { id: 'col_formula_' + id, name: 'Total Formula', type: 'formula', formulaExpr: 'Quantity * Amount', widthMultiplier: 1.1, currency: 'None', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#6D28D9', bgColor: '#FFFFFF' }, includeInGraph: true },
+            { id: 'col_date_' + id, name: 'Date', type: 'date', autoInsertDate: false, widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
           ],
           rows: []
         };
@@ -3848,8 +3878,8 @@
           { id: 'col_uid_' + id, name: 'User ID', type: 'text', widthMultiplier: 1.0, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: true },
           { id: 'col_uname_' + id, name: 'Username', type: 'text', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: true },
           { id: 'col_msg_' + id, name: 'Message', type: 'text', widthMultiplier: 1.5, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' }, includeInGraph: false },
-          { id: 'col_amt_' + id, name: 'Amount', type: 'amount', widthMultiplier: 1.1, currency: '$', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
-          { id: 'col_date_' + id, name: 'Date', type: 'date', autoInsertDate: true, widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
+          { id: 'col_amt_' + id, name: 'Amount', type: 'amount', widthMultiplier: 1.1, currency: 'None', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#E65100', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_date_' + id, name: 'Date', type: 'date', autoInsertDate: false, widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
         ],
         rows: []
       };
@@ -4608,9 +4638,10 @@
       visibleRows.forEach(function (row, idx) {
         var isSel = !!state.selectedRowIds[row.id];
         html += '<tr class="' + (isSel ? 'selected' : '') + '">' +
-          '<td class="frozen-col"><div style="display:flex;align-items:center;justify-content:center;gap:4px;">' +
+          '<td class="frozen-col" data-row-id="' + esc(row.id) + '"><div style="display:flex;align-items:center;justify-content:center;gap:3px;">' +
             '<input type="checkbox" class="chk-row" data-row-id="' + esc(row.id) + '" ' + (isSel ? 'checked' : '') + ' />' +
             '<span class="mono" style="font-size:11px;color:#64748B;">' + (idx + 1) + '</span>' +
+            '<button type="button" class="row-act-btn" data-row-menu="' + esc(row.id) + '" title="Row &amp; Cell Menu: Add, Delete, Copy, Paste">▾</button>' +
           '</div></td>';
 
         bot.columns.forEach(function (col) {
@@ -4621,23 +4652,27 @@
           var align = 'text-align:' + (st.align || (col.type === 'formula' || col.type === 'number' || col.type === 'amount' ? 'right' : 'left')) + ';';
 
           if (col.type === 'checkbox') {
-            html += '<td style="text-align:center;' + bg + '"><input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' /></td>';
+            html += '<td class="cell-menu-target" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" style="text-align:center;' + bg + '"><input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' /></td>';
           } else if (isEd) {
             var isDateCol = col.type === 'date';
             var isDtCol = isDateCol && (col.dateFormat === 'dmy_time' || col.dateFormat === 'iso');
             var itype = isDateCol ? (isDtCol ? 'datetime-local' : 'date') : ((col.type === 'amount' || col.type === 'number') ? 'number' : 'text');
             var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
             if (isDateCol) {
-              html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:210px;' + align + '">' +
+              html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:236px;' + align + '">' +
                 '<div id="date-picker-pop" class="date-picker-pop">' +
                   '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" />' +
                   '<button type="button" id="dp-open-btn" class="dp-mini-btn" title="Open Date Picker">📅</button>' +
                   '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today">Today</button>' +
                   '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
                   '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="Save Date">✓</button>' +
+                  '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
                 '</div></td>';
             } else {
-              html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" /></td>';
+              html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><div class="cell-edit-wrap" id="cell-edit-wrap">' +
+                '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" />' +
+                '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
+              '</div></td>';
             }
           } else {
             var isAmt = col.type === 'amount';
@@ -4646,8 +4681,8 @@
             var color = isAmt ? '#E65100' : isFrm ? '#6D28D9' : isNum ? '#0D47A1' : (st.color || '#1E293B');
             var fw = (st.bold || isAmt || isFrm) ? '700' : '400';
             var fs = st.italic ? 'italic' : 'normal';
-            var titleTip = isFrm && col.formulaExpr ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to override cell)"' : '';
-            html += '<td class="cell-clickable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
+            var titleTip = isFrm && col.formulaExpr ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to override, right-click for Add/Delete/Copy/Paste)"' : ' title="Click to edit, right-click or ▾ for Add/Delete/Copy/Paste"';
+            html += '<td class="cell-clickable cell-menu-target" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
               '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col, row, bot)) + '</span></td>';
           }
         });
@@ -4682,8 +4717,9 @@
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
           '<button class="btn btn-primary" id="btn-add-row" style="padding:7px 14px;font-size:12px;" title="Append Row">' + icon('plus', 15) + '<span>Add Row</span></button>' +
           '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
+          (state.rowClipboard ? '<button type="button" class="btn btn-outline" id="btn-bar-paste-row" style="padding:7px 12px;font-size:12px;border-color:#86EFAC;color:#047857;background:#ECFDF5;">' + icon('copy', 13) + '<span>Paste Copied Row</span></button>' : '') +
         '</div>' +
-        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns displayed</span>' +
+        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Tap ▾ or right-click cell for Add/Delete/Copy/Paste</span>' +
       '</div>';
 
       // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report (never impacts + Add Row above)
@@ -4775,6 +4811,33 @@
       }
       html += '</div></div></div>';
 
+      if (state.cellMenu && state.cellMenu.rowId) {
+        var cmRowIdx = bot.rows.findIndex(function (r) { return r.id === state.cellMenu.rowId; });
+        if (cmRowIdx !== -1) {
+          var cmCol = bot.columns.find(function (c) { return c.id === state.cellMenu.colId; }) || bot.columns[0];
+          var leftPx = Math.max(8, Math.min((window.innerWidth || 800) - 238, Number(state.cellMenu.x) || 40));
+          var topPx = Math.max(8, Math.min((window.innerHeight || 600) - 340, Number(state.cellMenu.y) || 120));
+          html += '<div id="cell-context-menu" class="cell-dropdown-menu" style="left:' + leftPx + 'px;top:' + topPx + 'px;">' +
+            '<div class="cell-dropdown-head">' +
+              '<span class="truncate">Row #' + (cmRowIdx + 1) + (cmCol ? ' &middot; ' + esc(cmCol.name) : '') + '</span>' +
+              '<button type="button" id="cm-close-x" style="color:#64748B;font-weight:800;">✕</button>' +
+            '</div>' +
+            '<button type="button" class="dropdown-item" data-cact="add_below">' + icon('plus', 14) + '<span>Add Row Below</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="add_above">' + icon('plus', 14) + '<span>Add Row Above</span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
+            (cmCol ? '<button type="button" class="dropdown-item" data-cact="copy_cell">' + icon('copy', 14) + '<span>Copy Cell</span></button>' : '') +
+            (cmCol ? '<button type="button" class="dropdown-item" data-cact="paste_cell">' + icon('check', 14) + '<span>Paste Cell' + (state.cellClipboard ? ' ("' + esc(String(state.cellClipboard.display || state.cellClipboard.value || '').slice(0, 12)) + '")' : '') + '</span></button>' : '') +
+            (cmCol ? '<button type="button" class="dropdown-item" data-cact="clear_cell">' + icon('close', 14) + '<span>Delete / Clear Cell</span></button>' : '') +
+            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
+            '<button type="button" class="dropdown-item" data-cact="copy_row">' + icon('copy', 14) + '<span>Copy Entire Row</span></button>' +
+            (state.rowClipboard ? '<button type="button" class="dropdown-item" data-cact="paste_row_into">' + icon('check', 14) + '<span>Paste Into This Row</span></button>' : '') +
+            (state.rowClipboard ? '<button type="button" class="dropdown-item" data-cact="paste_row_below">' + icon('plus', 14) + '<span>Paste Copied Row Below</span></button>' : '') +
+            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
+            '<button type="button" class="dropdown-item danger" data-cact="delete_row">' + icon('trash', 14) + '<span>Delete Row #' + (cmRowIdx + 1) + '</span></button>' +
+          '</div>';
+        }
+      }
+
       document.getElementById('app').innerHTML = html;
       bindTableEvents(bot, visibleRows);
     }
@@ -4847,22 +4910,51 @@
         document.removeEventListener('click', window._tbDateOutsideClick);
         window._tbDateOutsideClick = null;
       }
+      if (window._tbCellMenuOutsideClick) {
+        document.removeEventListener('click', window._tbCellMenuOutsideClick);
+        window._tbCellMenuOutsideClick = null;
+      }
 
-      document.getElementById('btn-add-row').onclick = function () {
-        if (!guardWriteAction('Add Row')) return;
+      var buildBlankRow = function () {
         var nowIso = new Date().toISOString();
-        var nr = { id: 'row_' + Date.now(), _actor: getCurrentActor(), _createdAt: nowIso, _updatedAt: nowIso };
+        var nr = { id: 'row_' + Date.now() + '_' + Math.floor(Math.random() * 1000), _actor: getCurrentActor(), _createdAt: nowIso, _updatedAt: nowIso };
         bot.columns.forEach(function (c) {
           if (c.type === 'amount' || c.type === 'number') nr[c.id] = '';
           else if (c.type === 'formula') nr[c.id] = '';
           else if (c.type === 'checkbox') nr[c.id] = false;
-          else if (c.type === 'date') nr[c.id] = c.autoInsertDate !== false ? formatAutoDateStr(c, nowIso) : '';
+          else if (c.type === 'date') nr[c.id] = c.autoInsertDate === true ? formatAutoDateStr(c, nowIso) : '';
           else nr[c.id] = '';
+        });
+        return nr;
+      };
+
+      document.getElementById('btn-add-row').onclick = function () {
+        if (!guardWriteAction('Add Row')) return;
+        var nr = buildBlankRow();
+        bot.rows.push(nr);
+        bot.updatedAt = nr._updatedAt;
+        updateBot(bot, 'ADD', 'Added new row #' + bot.rows.length);
+        renderTableView(bot);
+      };
+
+      var pasteBarBtn = document.getElementById('btn-bar-paste-row');
+      if (pasteBarBtn) pasteBarBtn.onclick = function () {
+        if (!state.rowClipboard || !guardWriteAction('Paste Row')) return;
+        var nowIso = new Date().toISOString();
+        var nr = buildBlankRow();
+        bot.columns.forEach(function (c) {
+          var k = String(c.name || '').trim().toLowerCase();
+          if (state.rowClipboard.byId && Object.prototype.hasOwnProperty.call(state.rowClipboard.byId, c.id)) {
+            nr[c.id] = state.rowClipboard.byId[c.id];
+          } else if (state.rowClipboard.byName && Object.prototype.hasOwnProperty.call(state.rowClipboard.byName, k)) {
+            nr[c.id] = state.rowClipboard.byName[k];
+          }
         });
         bot.rows.push(nr);
         bot.updatedAt = nowIso;
-        updateBot(bot, 'ADD', 'Added new row #' + bot.rows.length);
+        updateBot(bot, 'ADD', 'Pasted copied row as row #' + bot.rows.length);
         renderTableView(bot);
+        showToast('Pasted row #' + bot.rows.length);
       };
 
       var delBtn = document.getElementById('btn-del-rows');
@@ -4964,9 +5056,215 @@
         if (!skipRender) renderTableView(bot);
       };
 
+      var parseCellValueForCol = function (rawVal, col) {
+        if (!col) return rawVal;
+        if (col.type === 'checkbox') {
+          return rawVal === true || /^(true|yes|1)$/i.test(String(rawVal || '').trim());
+        }
+        if (col.type === 'amount' || col.type === 'number') {
+          if (String(rawVal === undefined || rawVal === null ? '' : rawVal).trim() === '') return '';
+          var num = parseFloat(String(rawVal).replace(/[^0-9.-]/g, ''));
+          return isNaN(num) ? '' : num;
+        }
+        if (col.type === 'date') {
+          if (String(rawVal === undefined || rawVal === null ? '' : rawVal).trim() === '') return '';
+          return formatAutoDateStr(col, parseFlexibleDate(rawVal));
+        }
+        return rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
+      };
+
+      var openCellContextMenu = function (rowId, colId, clientX, clientY) {
+        state.cellMenu = {
+          rowId: rowId,
+          colId: colId || (bot.columns[0] ? bot.columns[0].id : ''),
+          x: clientX,
+          y: clientY
+        };
+        renderTableView(bot);
+      };
+
+      document.querySelectorAll('.row-act-btn[data-row-menu]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          e.stopPropagation();
+          var rid = btn.getAttribute('data-row-menu');
+          var rect = btn.getBoundingClientRect();
+          openCellContextMenu(rid, bot.columns[0] ? bot.columns[0].id : '', rect.right + 4, rect.bottom + 4);
+        };
+      });
+
+      document.querySelectorAll('.cell-menu-target').forEach(function (td) {
+        td.oncontextmenu = function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          openCellContextMenu(td.getAttribute('data-row-id'), td.getAttribute('data-col-id'), e.clientX, e.clientY);
+        };
+      });
+
+      var editMenuBtn = document.getElementById('cell-edit-menu-btn');
+      if (editMenuBtn && state.editingCell) {
+        editMenuBtn.onmousedown = function (e) { e.preventDefault(); e.stopPropagation(); };
+        editMenuBtn.onclick = function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var edRef = state.editingCell;
+          var rect = editMenuBtn.getBoundingClientRect();
+          openCellContextMenu(edRef.rowId, edRef.colId, rect.left - 180, rect.bottom + 4);
+        };
+      }
+
+      var cmEl = document.getElementById('cell-context-menu');
+      if (cmEl && state.cellMenu) {
+        cmEl.onclick = function (e) { e.stopPropagation(); };
+        var cmCloseX = document.getElementById('cm-close-x');
+        if (cmCloseX) cmCloseX.onclick = function () { state.cellMenu = null; renderTableView(bot); };
+        var outsideMenuHandler = function (e) {
+          if (e.target && e.target.closest && (e.target.closest('#cell-context-menu') || e.target.closest('.row-act-btn') || e.target.closest('#cell-edit-menu-btn'))) return;
+          state.cellMenu = null;
+          document.removeEventListener('click', outsideMenuHandler);
+          window._tbCellMenuOutsideClick = null;
+          renderTableView(bot);
+        };
+        window._tbCellMenuOutsideClick = outsideMenuHandler;
+        setTimeout(function () {
+          if (window._tbCellMenuOutsideClick === outsideMenuHandler) {
+            document.addEventListener('click', outsideMenuHandler);
+          }
+        }, 0);
+
+        cmEl.querySelectorAll('[data-cact]').forEach(function (btn) {
+          btn.onclick = async function () {
+            var act = btn.getAttribute('data-cact');
+            var cm = state.cellMenu;
+            state.cellMenu = null;
+            if (!cm) return;
+            var rIdx = bot.rows.findIndex(function (r) { return r.id === cm.rowId; });
+            if (rIdx === -1) return;
+            var targetRow = bot.rows[rIdx];
+            var targetCol = bot.columns.find(function (c) { return c.id === cm.colId; }) || bot.columns[0];
+            var nowIso = new Date().toISOString();
+
+            if (act === 'add_above' || act === 'add_below') {
+              if (!guardWriteAction('Add Row')) return;
+              var newRow = buildBlankRow();
+              var insertAt = act === 'add_above' ? rIdx : rIdx + 1;
+              bot.rows.splice(insertAt, 0, newRow);
+              bot.updatedAt = nowIso;
+              state.editingCell = null;
+              updateBot(bot, 'ADD', 'Added row #' + (insertAt + 1));
+              renderTableView(bot);
+              showToast('Added row #' + (insertAt + 1));
+            } else if (act === 'copy_cell' && targetCol) {
+              var rawC = targetRow[targetCol.id];
+              var dispC = formatCell(rawC, targetCol, targetRow, bot);
+              state.cellClipboard = { value: rawC, display: dispC, colType: targetCol.type, colName: targetCol.name };
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(String(dispC || rawC || '')).catch(function () {});
+              }
+              renderTableView(bot);
+              showToast('Copied "' + (dispC || rawC || '') + '"');
+            } else if (act === 'paste_cell' && targetCol) {
+              if (!guardWriteAction('Paste Cell')) return;
+              var clipVal = state.cellClipboard ? state.cellClipboard.value : null;
+              if (clipVal === null || clipVal === undefined) {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                  try { clipVal = await navigator.clipboard.readText(); } catch (e) {}
+                }
+              }
+              if (clipVal === null || clipVal === undefined) {
+                showToast('Clipboard is empty — Copy a cell first');
+                renderTableView(bot);
+                return;
+              }
+              var parsedClip = parseCellValueForCol(clipVal, targetCol);
+              targetRow[targetCol.id] = parsedClip;
+              targetRow._actor = getCurrentActor();
+              targetRow._updatedAt = nowIso;
+              if (targetCol.type !== 'date' && String(parsedClip).trim() !== '' && String(parsedClip) !== '0') {
+                autoFillRowDates(bot, targetRow, nowIso, targetCol.id);
+              }
+              bot.updatedAt = nowIso;
+              state.editingCell = null;
+              updateBot(bot, 'EDIT', 'Pasted into "' + targetCol.name + '" on row #' + (rIdx + 1));
+              renderTableView(bot);
+              showToast('Pasted into "' + targetCol.name + '"');
+            } else if (act === 'clear_cell' && targetCol) {
+              if (!guardWriteAction('Clear Cell')) return;
+              targetRow[targetCol.id] = targetCol.type === 'checkbox' ? false : '';
+              targetRow._actor = getCurrentActor();
+              targetRow._updatedAt = nowIso;
+              bot.updatedAt = nowIso;
+              state.editingCell = null;
+              updateBot(bot, 'EDIT', 'Cleared "' + targetCol.name + '" on row #' + (rIdx + 1));
+              renderTableView(bot);
+              showToast('Cleared cell in "' + targetCol.name + '"');
+            } else if (act === 'copy_row') {
+              var byId = {}, byName = {};
+              var textParts = [];
+              bot.columns.forEach(function (c) {
+                byId[c.id] = targetRow[c.id];
+                byName[String(c.name || '').trim().toLowerCase()] = targetRow[c.id];
+                textParts.push(formatCell(targetRow[c.id], c, targetRow, bot));
+              });
+              state.rowClipboard = { byId: byId, byName: byName, botId: bot.id };
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textParts.join('\t')).catch(function () {});
+              }
+              renderTableView(bot);
+              showToast('Copied Row #' + (rIdx + 1));
+            } else if (act === 'paste_row_into' && state.rowClipboard) {
+              if (!guardWriteAction('Paste Row')) return;
+              bot.columns.forEach(function (c) {
+                var k = String(c.name || '').trim().toLowerCase();
+                if (state.rowClipboard.byId && Object.prototype.hasOwnProperty.call(state.rowClipboard.byId, c.id)) {
+                  targetRow[c.id] = state.rowClipboard.byId[c.id];
+                } else if (state.rowClipboard.byName && Object.prototype.hasOwnProperty.call(state.rowClipboard.byName, k)) {
+                  targetRow[c.id] = state.rowClipboard.byName[k];
+                }
+              });
+              targetRow._actor = getCurrentActor();
+              targetRow._updatedAt = nowIso;
+              bot.updatedAt = nowIso;
+              state.editingCell = null;
+              updateBot(bot, 'EDIT', 'Pasted row data into Row #' + (rIdx + 1));
+              renderTableView(bot);
+              showToast('Pasted into Row #' + (rIdx + 1));
+            } else if (act === 'paste_row_below' && state.rowClipboard) {
+              if (!guardWriteAction('Paste Row Below')) return;
+              var pastedRow = buildBlankRow();
+              bot.columns.forEach(function (c) {
+                var k = String(c.name || '').trim().toLowerCase();
+                if (state.rowClipboard.byId && Object.prototype.hasOwnProperty.call(state.rowClipboard.byId, c.id)) {
+                  pastedRow[c.id] = state.rowClipboard.byId[c.id];
+                } else if (state.rowClipboard.byName && Object.prototype.hasOwnProperty.call(state.rowClipboard.byName, k)) {
+                  pastedRow[c.id] = state.rowClipboard.byName[k];
+                }
+              });
+              bot.rows.splice(rIdx + 1, 0, pastedRow);
+              bot.updatedAt = nowIso;
+              state.editingCell = null;
+              updateBot(bot, 'ADD', 'Pasted copied row below Row #' + (rIdx + 1));
+              renderTableView(bot);
+              showToast('Pasted copied row below Row #' + (rIdx + 1));
+            } else if (act === 'delete_row') {
+              if (!guardWriteAction('Delete Row')) return;
+              requireCyberAuth('Delete Row #' + (rIdx + 1) + ' from "' + bot.name + '"', function () {
+                bot.rows = bot.rows.filter(function (r) { return r.id !== targetRow.id; });
+                delete state.selectedRowIds[targetRow.id];
+                if (state.editingCell && state.editingCell.rowId === targetRow.id) state.editingCell = null;
+                bot.updatedAt = new Date().toISOString();
+                updateBot(bot, 'DELETE', 'Deleted row #' + (rIdx + 1));
+                renderTableView(bot);
+                showToast('Deleted Row #' + (rIdx + 1));
+              });
+            }
+          };
+        });
+      }
+
       document.querySelectorAll('.cell-clickable').forEach(function (td) {
         td.onclick = function (e) {
           e.stopPropagation();
+          state.cellMenu = null;
           if (state.editingCell && activeInp) {
             commitActiveCell(undefined, false, true);
           }
@@ -5018,7 +5316,7 @@
           var popEl = document.getElementById('date-picker-pop');
           if (popEl) popEl.onclick = function (e) { e.stopPropagation(); };
           var outsideHandler = function (e) {
-            if (e.target && e.target.closest && e.target.closest('#date-picker-pop')) return;
+            if (e.target && e.target.closest && (e.target.closest('#date-picker-pop') || e.target.closest('#cell-context-menu'))) return;
             commitActiveCell();
           };
           window._tbDateOutsideClick = outsideHandler;
@@ -5028,7 +5326,11 @@
             }
           }, 0);
         } else {
-          activeInp.onblur = function () { commitActiveCell(); };
+          activeInp.onblur = function (e) {
+            if (e && e.relatedTarget && e.relatedTarget.id === 'cell-edit-menu-btn') return;
+            if (state.cellMenu) return;
+            commitActiveCell();
+          };
         }
         activeInp.onkeydown = function (e) {
           if (e.key === 'Enter') { e.preventDefault(); commitActiveCell(); }
@@ -6523,10 +6825,15 @@
 
       if (d.type === 'date') {
         var dFmt = d.dateFormat || 'dmy';
+        var isAutoDate = d.autoInsertDate === true;
         html += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;">' +
-          '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#1E3A8A;">Automatic Date Insert Settings</div>' +
+          '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#1E3A8A;">Date Entry &amp; Format Settings</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<button type="button" id="col-date-manual" class="btn ' + (!isAutoDate ? 'btn-primary' : 'btn-outline') + '" style="padding:7px 10px;font-size:11.5px;">Manual Set (Default)</button>' +
+            '<button type="button" id="col-date-auto" class="btn ' + (isAutoDate ? 'btn-primary' : 'btn-outline') + '" style="padding:7px 10px;font-size:11.5px;">Auto-Fill Today</button>' +
+          '</div>' +
           '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;color:#0F172A;">' +
-            '<input type="checkbox" id="col-auto-date" ' + (d.autoInsertDate !== false ? 'checked' : '') + ' /> Automatically insert current date on new &amp; edited rows' +
+            '<input type="checkbox" id="col-auto-date" ' + (isAutoDate ? 'checked' : '') + ' /> Auto-insert current date on new &amp; edited rows (leave unchecked to set manually)' +
           '</label>' +
           '<div><span style="font-size:11px;color:#475569;display:block;margin-bottom:4px;">Date Format (Preview: <strong class="mono">' + esc(formatAutoDateStr(d, new Date())) + '</strong>)</span>' +
             '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
@@ -6535,7 +6842,7 @@
               '<button type="button" data-dfmt="iso" class="btn ' + (dFmt === 'iso' ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 9px;font-size:11px;">YYYY-MM-DD HH:mm</button>' +
             '</div>' +
           '</div>' +
-          '<div style="font-size:11px;color:#1D4ED8;">Saving as Date will also auto-fill any empty cells in this column for existing rows.</div>' +
+          '<div style="font-size:11px;color:#1D4ED8;">' + (isAutoDate ? 'Auto-Fill Today is ON: blank cells in this column will be filled automatically.' : 'Manual Set is ON: rows remain blank until you click a date cell to choose or enter a date.') + '</div>' +
         '</div>';
       }
 
@@ -6666,6 +6973,7 @@
           if (d.type === 'amount') { st.bold = true; st.color = '#E65100'; st.align = 'right'; }
           else if (d.type === 'formula') { st.bold = true; st.color = '#6D28D9'; st.align = 'right'; if (d.decimals === undefined) d.decimals = 2; }
           else if (d.type === 'number') { st.align = 'right'; }
+          else if (d.type === 'date') { d.autoInsertDate = false; }
           renderColumnModal(m);
         };
       });
@@ -6699,6 +7007,10 @@
         st.color = d.type === 'amount' ? '#E65100' : '#1E293B'; st.bgColor = '#FFFFFF';
         renderColumnModal(m);
       };
+      var autoDateManual = document.getElementById('col-date-manual');
+      if (autoDateManual) autoDateManual.onclick = function () { d.autoInsertDate = false; renderColumnModal(m); };
+      var autoDateAuto = document.getElementById('col-date-auto');
+      if (autoDateAuto) autoDateAuto.onclick = function () { d.autoInsertDate = true; renderColumnModal(m); };
       var autoDateChk = document.getElementById('col-auto-date');
       if (autoDateChk) autoDateChk.onchange = function (e) { d.autoInsertDate = e.target.checked; renderColumnModal(m); };
       document.querySelectorAll('[data-dfmt]').forEach(function (b) {
@@ -6710,7 +7022,7 @@
         if (!guardWriteAction('Edit Column Properties')) return;
         d.name = (d.name || '').trim() || 'Untitled Column';
         bot.columns = bot.columns.map(function (c) { return c.id === origCol.id ? d : c; });
-        if (d.type === 'date' && d.autoInsertDate !== false) {
+        if (d.type === 'date' && d.autoInsertDate === true) {
           var nowAuto = new Date().toISOString();
           bot.rows.forEach(function (r) {
             if (!r[d.id] || String(r[d.id]).trim() === '') {
@@ -6998,7 +7310,7 @@
     function autoFillRowDates(bot, row, dateInput, skipColId) {
       if (!bot || !bot.columns || !row) return;
       bot.columns.forEach(function (c) {
-        if (c.type === 'date' && c.autoInsertDate !== false && c.id !== skipColId) {
+        if (c.type === 'date' && c.autoInsertDate === true && c.id !== skipColId) {
           if (row[c.id] === undefined || row[c.id] === null || String(row[c.id]).trim() === '') {
             row[c.id] = formatAutoDateStr(c, dateInput || new Date());
           }
@@ -7051,8 +7363,10 @@
         bot.rows.forEach(function (row, idx) {
           // Ignore completely blank untouched rows just created by + Add Row so adding a row never impacts reports until edited
           var hasUserData = bot.columns.some(function (c) {
-            if (c.type === 'date') return false;
             var v = row[c.id];
+            if (c.type === 'date') {
+              return c.autoInsertDate !== true && v !== undefined && v !== null && String(v).trim() !== '';
+            }
             if (c.type === 'checkbox') return v === true;
             if (c.type === 'number' || c.type === 'amount') return Number(v) !== 0 && !isNaN(Number(v)) && v !== '' && v !== undefined && v !== null;
             if (c.type === 'formula') {
@@ -7107,15 +7421,17 @@
             var numVal = isNumType ? getRowColNumeric(row, c, bot, 0) : NaN;
             if (isNumType && !isNaN(numVal)) rowNumFormulaSum += numVal;
             var rawVal = row[c.id];
-            var dispVal = c.type === 'checkbox' ? (rawVal ? 'Yes' : 'No') : formatCell(rawVal, c, row, bot);
+            var rawDisp = c.type === 'checkbox' ? (rawVal ? 'Yes' : 'No') : formatCell(rawVal, c, row, bot);
+            var dispVal = (isNumType && typeof rawDisp === 'string') ? rawDisp.replace(/^\$\s*/, '') : rawDisp;
             var hasVal = c.type === 'checkbox' ? !!rawVal : (isNumType ? (!isNaN(numVal) && (rawVal !== '' && rawVal !== undefined && rawVal !== null)) : (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== ''));
+            var cleanCurr = (c.currency && c.currency !== 'None' && c.currency !== '$') ? c.currency : '';
             allCols.push({
               id: c.id,
               name: c.name || 'Column',
               type: c.type || 'text',
               isNumeric: isNumType,
-              isCurrency: c.type === 'amount' || (c.currency && c.currency !== 'None'),
-              currency: (c.currency && c.currency !== 'None') ? c.currency : (c.type === 'amount' ? '$' : ''),
+              isCurrency: Boolean(cleanCurr),
+              currency: cleanCurr,
               decimals: c.decimals !== undefined ? c.decimals : (c.type === 'amount' ? 2 : 0),
               thousandSeparator: c.thousandSeparator !== false,
               numeric: isNaN(numVal) ? 0 : numVal,
@@ -7234,7 +7550,7 @@
 
     function formatColSummaryValue(cm, totalRows) {
       if (cm.isNumeric) {
-        var sym = cm.isCurrency && cm.currency && cm.currency !== 'None' ? cm.currency : '';
+        var sym = (cm.isCurrency && cm.currency && cm.currency !== 'None' && cm.currency !== '$') ? cm.currency : '';
         var dec = cm.decimals !== undefined ? cm.decimals : (cm.isCurrency ? 2 : (Math.abs(cm.total % 1) > 0.001 ? 2 : 0));
         if (!cm.isCurrency && Math.abs(cm.total % 1) > 0.001 && dec < 2) dec = 2;
         var numTxt = (cm.thousandSeparator !== false)
@@ -7245,7 +7561,7 @@
       if (cm.type === 'checkbox') {
         return cm.checkedCount + '/' + (totalRows || 0) + ' yes';
       }
-      return cm.count > 0 ? (cm.count + (cm.count === 1 ? ' row' : ' rows') + (cm.latestDisplay ? ' · ' + (cm.latestDisplay.length > 16 ? cm.latestDisplay.slice(0, 15) + '…' : cm.latestDisplay) : '')) : '0 rows';
+      return String(cm.count || 0);
     }
 
     function groupReportItemsByDay(items) {
@@ -7342,13 +7658,14 @@
       var ensureColMeta = function (c) {
         var key = String(c.name || 'Column').trim().toLowerCase();
         if (!colMap[key]) {
+          var cleanCurr = (c.currency && c.currency !== 'None' && c.currency !== '$') ? c.currency : '';
           colMap[key] = {
             key: key,
             name: c.name || 'Column',
             type: c.type || 'text',
             isNumeric: (c.type === 'amount' || c.type === 'number' || c.type === 'formula' || !!c.isNumeric),
-            isCurrency: (c.type === 'amount' || !!c.isCurrency || (c.currency && c.currency !== 'None')),
-            currency: (c.currency && c.currency !== 'None') ? c.currency : (c.type === 'amount' ? '$' : ''),
+            isCurrency: Boolean(cleanCurr),
+            currency: cleanCurr,
             decimals: c.decimals !== undefined ? c.decimals : (c.type === 'amount' ? 2 : 0),
             thousandSeparator: c.thousandSeparator !== false,
             total: 0,
@@ -7468,10 +7785,10 @@
             ? c.summaryValue
             : (c.type === 'checkbox'
                 ? (c.checkedCount + '/' + (met.rowCount || 0) + ' Yes')
-                : (c.count + ' ' + (c.count === 1 ? 'entry' : 'entries') + (c.latestDisplay ? ' · ' + (c.latestDisplay.length > 14 ? c.latestDisplay.slice(0, 13) + '…' : c.latestDisplay) : '')));
+                : String(c.count || 0));
           var valColor = c.isBalance ? '#FED7AA' : (c.isPaid ? '#86EFAC' : (c.isNumeric ? tileAccents[idx % tileAccents.length] : '#F8FAFC'));
           var extraStyle = c.isBalance ? 'background:rgba(234,88,12,0.28);border-color:rgba(253,186,116,0.45);' : '';
-          return '<div class="sum-stat-tile" style="' + extraStyle + '" title="' + esc(c.name + ': ' + c.summaryValue) + '">' +
+          return '<div class="sum-stat-tile" style="' + extraStyle + '" title="' + esc(c.name + ': ' + valTxt) + '">' +
             '<span class="sum-stat-lbl">' + esc(c.name) + '</span>' +
             '<span class="sum-stat-val mono" style="color:' + valColor + ';">' + esc(valTxt) + '</span>' +
           '</div>';
@@ -7519,14 +7836,13 @@
     function renderDynamicDayBreakdownTable(dayGroups, repSummary, emptyMsg, totalLabel, todayDmyStr) {
       var cols = (repSummary && repSummary.columnSummaries) ? repSummary.columnSummaries : [];
       var met = (repSummary && repSummary.met) ? repSummary.met : { rowCount: 0 };
-      var displayCols = cols.filter(function (c) { return c.isNumeric; });
-      if (displayCols.length === 0) displayCols = cols.slice(0, 6);
+      var displayCols = cols.slice(0, 8);
       var colSpanCount = 2 + displayCols.length;
       var colHeaderColors = ['#6D28D9', '#0D47A1', '#15803D', '#C2410C', '#0891B2', '#BE185D'];
 
       var ths = displayCols.map(function (c, i) {
         var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : colHeaderColors[i % colHeaderColors.length]);
-        return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';color:' + clr + ';">' + esc(c.name) + '</th>';
+        return '<th style="text-align:' + (c.isNumeric ? 'right' : 'center') + ';color:' + clr + ';">' + esc(c.name) + '</th>';
       }).join('');
 
       var rowsHtml = '';
@@ -7544,11 +7860,10 @@
               valTxt = ((dy.colChecked && dy.colChecked[c.key]) || 0) + '/' + dy.rowCount + ' yes';
             } else {
               var cnt = (dy.colCounts && dy.colCounts[c.key]) || 0;
-              var lat = dy.colLatest && dy.colLatest[c.key] ? dy.colLatest[c.key] : '';
-              valTxt = cnt > 0 ? (cnt + (lat ? ' · ' + (lat.length > 14 ? lat.slice(0, 13) + '…' : lat) : ' rows')) : '0';
+              valTxt = String(cnt);
             }
             var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : colHeaderColors[i % colHeaderColors.length]);
-            return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';font-weight:' + (c.isNumeric ? '800' : '600') + ';color:' + clr + ';">' + esc(valTxt) + '</td>';
+            return '<td class="mono" style="text-align:' + (c.isNumeric ? 'right' : 'center') + ';font-weight:' + (c.isNumeric ? '800' : '700') + ';color:' + clr + ';">' + esc(valTxt) + '</td>';
           }).join('');
           return '<tr>' +
             '<td style="font-weight:700;color:#0D47A1;">' + esc(dy.dmy) + ' <span style="font-size:10.5px;color:#64748B;">(' + esc(dy.weekday) + (todayDmyStr && dy.dmy === todayDmyStr ? ' · Today' : '') + ')</span></td>' +
@@ -7560,7 +7875,7 @@
 
       var footTds = displayCols.map(function (c, i) {
         var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : colHeaderColors[i % colHeaderColors.length]);
-        return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';color:' + clr + ';">' + esc(c.summaryValue) + '</td>';
+        return '<td class="mono" style="text-align:' + (c.isNumeric ? 'right' : 'center') + ';color:' + clr + ';">' + esc(c.summaryValue) + '</td>';
       }).join('');
 
       return '<table class="folder-summary-table">' +
@@ -7794,7 +8109,7 @@
             '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;">' + folderBotsAll.length + ' table(s) &middot; ' + filtered.length + ' row(s)</span>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;">' +
-            colSummaries.filter(function (c) { return c.isNumeric; }).slice(0, 4).map(function (c) {
+            colSummaries.slice(0, 5).map(function (c) {
               return '<span class="mono" style="background:#EFF6FF;border:1px solid #BFDBFE;padding:2px 8px;border-radius:6px;color:#1E3A8A;">' + esc(c.name) + ': <strong>' + esc(c.summaryValue) + '</strong></span>';
             }).join('') +
           '</div>' +
@@ -7818,7 +8133,7 @@
             '<td><button type="button" class="rep-open-bot" data-bid="' + esc(it.botId) + '" style="font-weight:600;color:#1565C0;text-decoration:underline;text-align:left;">' + esc(it.botName) + '</button></td>' +
             colSummaries.map(function (c) {
               var ac = colByKey[c.key];
-              var txt = (ac && ac.hasValue) ? ac.display : '—';
+              var txt = (ac && ac.hasValue) ? String(ac.display || '').replace(/^\$\s*/, '') : '—';
               return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';font-weight:' + (c.isNumeric ? '700' : '500') + ';">' + esc(txt) + '</td>';
             }).join('') +
             '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + esc(it.date) + '</td>' +
@@ -7837,9 +8152,9 @@
           '<div class="mono" style="display:flex;gap:16px;flex-wrap:wrap;font-weight:700;">' +
             (colSummaries.length === 0
               ? '<span>0 Columns</span>'
-              : colSummaries.filter(function (c) { return c.isNumeric; }).slice(0, 6).map(function (c) {
+              : colSummaries.slice(0, 6).map(function (c) {
                   return '<span>' + esc(c.name) + ': <strong style="color:#FCD34D;">' + esc(c.summaryValue) + '</strong></span>';
-                }).join('') || '<span>' + filtered.length + ' Records</span>') +
+                }).join('')) +
           '</div>' +
         '</div></div></div></div>';
 
@@ -7893,7 +8208,7 @@
       document.querySelectorAll('.rep-remind').forEach(function (b) {
         b.onclick = function () {
           var cn = b.getAttribute('data-cust'), bl = b.getAttribute('data-bal');
-          openModal('telegram', { bot: getActiveBot() || state.bots[0], tab: 'broadcast', prefill: 'Payment reminder for ' + cn + ': Remaining balance $' + bl });
+          openModal('telegram', { bot: getActiveBot() || state.bots[0], tab: 'broadcast', prefill: 'Payment reminder for ' + cn + ': Remaining balance ' + bl });
         };
       });
     }
@@ -9257,7 +9572,7 @@
                 name: h,
                 type: tp,
                 widthMultiplier: 1.15,
-                currency: tp === 'amount' ? '$' : 'None',
+                currency: 'None',
                 thousandSeparator: tp === 'amount' || tp === 'number',
                 decimals: tp === 'amount' ? 2 : 0,
                 style: { bold: tp === 'amount' || tp === 'number', italic: false, align: (tp === 'amount' || tp === 'number') ? 'right' : 'left', color: tp === 'amount' ? '#E65100' : '#1E293B', bgColor: '#FFFFFF' },
@@ -9325,7 +9640,7 @@
                   name: h,
                   type: tp,
                   widthMultiplier: 1.1,
-                  currency: tp === 'amount' ? '$' : 'None',
+                  currency: 'None',
                   thousandSeparator: tp === 'amount' || tp === 'number',
                   decimals: tp === 'amount' ? 2 : 0,
                   style: { bold: tp === 'amount', italic: false, align: (tp === 'amount' || tp === 'number') ? 'right' : 'left', color: tp === 'amount' ? '#E65100' : '#1E293B', bgColor: '#FFFFFF' },
