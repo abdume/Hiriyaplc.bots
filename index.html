@@ -4990,7 +4990,7 @@
       html += '</div></div></div>';
 
       // Floating Contextual Toolbar for Selected Cell / Multi-Cell Range
-      if (selectedCellsMeta.length > 0 && !state.editingCell) {
+      if (selectedCellsMeta.length > 0 && !state.editingCell && !state.cellMenu) {
         var selCountCells = selectedCellsMeta.length;
         var selLabel = selBounds && Object.keys(state.extraCells || {}).length === 0
           ? (selCountCells === 1 ? 'R' + (selBounds.minR + 1) + ' &middot; ' + esc(bot.columns[selBounds.minC].name) : (selBounds.maxR - selBounds.minR + 1) + '×' + (selBounds.maxC - selBounds.minC + 1) + ' (' + selCountCells + ')')
@@ -5077,24 +5077,38 @@
         var cmRowIdx = bot.rows.findIndex(function (r) { return r.id === state.cellMenu.rowId; });
         if (cmRowIdx !== -1) {
           var cmCol = bot.columns.find(function (c) { return c.id === state.cellMenu.colId; }) || bot.columns[0];
+          var cmMultiCount = selectedCellsMeta.length > 1 ? selectedCellsMeta.length : 1;
+          var cmHeadTitle = cmMultiCount > 1
+            ? (selBounds && Object.keys(state.extraCells || {}).length === 0
+                ? (selBounds.maxR - selBounds.minR + 1) + '×' + (selBounds.maxC - selBounds.minC + 1) + ' Range (' + cmMultiCount + ' cells)'
+                : cmMultiCount + ' Selected Cells')
+            : ('Row #' + (cmRowIdx + 1) + (cmCol ? ' &middot; ' + esc(cmCol.name) : ''));
+          var cmClipPreview = state.rangeClipboard && state.rangeClipboard.matrix && state.rangeClipboard.matrix[0] && state.rangeClipboard.matrix[0][0]
+            ? (state.rangeClipboard.rowCount > 1 || state.rangeClipboard.colCount > 1
+                ? state.rangeClipboard.rowCount + '×' + state.rangeClipboard.colCount + ' range'
+                : String(state.rangeClipboard.matrix[0][0].display || state.rangeClipboard.matrix[0][0].value || '').slice(0, 12))
+            : (state.cellClipboard ? String(state.cellClipboard.display || state.cellClipboard.value || '').slice(0, 12) : '');
           var leftPx = Math.max(8, Math.min((window.innerWidth || 800) - 238, Number(state.cellMenu.x) || 40));
-          var topPx = Math.max(8, Math.min((window.innerHeight || 600) - 340, Number(state.cellMenu.y) || 120));
+          var topPx = Math.max(8, Math.min((window.innerHeight || 600) - 420, Number(state.cellMenu.y) || 120));
           html += '<div id="cell-context-menu" class="cell-dropdown-menu" style="left:' + leftPx + 'px;top:' + topPx + 'px;">' +
             '<div class="cell-dropdown-head">' +
-              '<span class="truncate">Row #' + (cmRowIdx + 1) + (cmCol ? ' &middot; ' + esc(cmCol.name) : '') + '</span>' +
+              '<span class="truncate">' + cmHeadTitle + '</span>' +
               '<button type="button" id="cm-close-x" style="color:#64748B;font-weight:800;">✕</button>' +
             '</div>' +
+            '<button type="button" class="dropdown-item" data-cact="cut">' + icon('scissors', 14) + '<span>Cut' + (cmMultiCount > 1 ? ' (' + cmMultiCount + ')' : '') + '</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="copy">' + icon('copy', 14) + '<span>Copy' + (cmMultiCount > 1 ? ' (' + cmMultiCount + ')' : '') + '</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="paste">' + icon('clipboard', 14) + '<span>Paste' + (cmClipPreview ? ' ("' + esc(cmClipPreview) + '")' : '') + '</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="comment">' + icon('comment', 14) + '<span>Comment</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="clear">' + icon('eraser', 14) + '<span>Clear Contents</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="fill">' + icon('fill', 14) + '<span>Fill (Down / Right / Series)</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="edit">' + icon('edit', 14) + '<span>Edit' + (cmMultiCount > 1 ? ' Selected (' + cmMultiCount + ')' : ' Cell') + '</span></button>' +
+            '<button type="button" class="dropdown-item danger" data-cact="delete">' + icon('trash', 14) + '<span>Delete' + (cmMultiCount > 1 ? ' Options' : ' Cell / Row') + '</span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
             '<button type="button" class="dropdown-item" data-cact="add_below">' + icon('plus', 14) + '<span>Add Row Below</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="add_above">' + icon('plus', 14) + '<span>Add Row Above</span></button>' +
-            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
-            (cmCol ? '<button type="button" class="dropdown-item" data-cact="copy_cell">' + icon('copy', 14) + '<span>Copy Cell</span></button>' : '') +
-            (cmCol ? '<button type="button" class="dropdown-item" data-cact="paste_cell">' + icon('check', 14) + '<span>Paste Cell' + (state.cellClipboard ? ' ("' + esc(String(state.cellClipboard.display || state.cellClipboard.value || '').slice(0, 12)) + '")' : '') + '</span></button>' : '') +
-            (cmCol ? '<button type="button" class="dropdown-item" data-cact="clear_cell">' + icon('close', 14) + '<span>Delete / Clear Cell</span></button>' : '') +
-            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
             '<button type="button" class="dropdown-item" data-cact="copy_row">' + icon('copy', 14) + '<span>Copy Entire Row</span></button>' +
             (state.rowClipboard ? '<button type="button" class="dropdown-item" data-cact="paste_row_into">' + icon('check', 14) + '<span>Paste Into This Row</span></button>' : '') +
             (state.rowClipboard ? '<button type="button" class="dropdown-item" data-cact="paste_row_below">' + icon('plus', 14) + '<span>Paste Copied Row Below</span></button>' : '') +
-            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
             '<button type="button" class="dropdown-item danger" data-cact="delete_row">' + icon('trash', 14) + '<span>Delete Row #' + (cmRowIdx + 1) + '</span></button>' +
           '</div>';
         }
@@ -5374,10 +5388,289 @@
         return rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
       };
 
+      var openCellEditor = function (rid, cid) {
+        var colObj = bot.columns.find(function (c) { return c.id === cid; });
+        if (!colObj || colObj.type === 'checkbox') return;
+        state.toolbarSubMode = null;
+        state.cellMenu = null;
+        state.editingCell = { rowId: rid, colId: cid };
+        renderTableView(bot);
+        var ci = document.getElementById('active-cell-input');
+        if (ci) {
+          ci.focus();
+          if (colObj.type === 'date') {
+            if (typeof ci.showPicker === 'function') { try { ci.showPicker(); } catch (err) {} }
+          } else {
+            try { ci.select(); } catch (err2) {}
+          }
+        }
+      };
+
+      var buildRangeClipboard = function (targets) {
+        if (!targets || targets.length === 0) return null;
+        var minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
+        targets.forEach(function (t) {
+          if (t.rIdx < minR) minR = t.rIdx;
+          if (t.rIdx > maxR) maxR = t.rIdx;
+          if (t.cIdx < minC) minC = t.cIdx;
+          if (t.cIdx > maxC) maxC = t.cIdx;
+        });
+        var rowCount = maxR - minR + 1;
+        var colCount = maxC - minC + 1;
+        var matrix = [];
+        var tsvLines = [];
+        var targetMap = {};
+        targets.forEach(function (t) { targetMap[t.rIdx + ':' + t.cIdx] = t; });
+        for (var rr = minR; rr <= maxR; rr++) {
+          var mRow = [];
+          var tParts = [];
+          for (var cc = minC; cc <= maxC; cc++) {
+            var m = targetMap[rr + ':' + cc];
+            if (m) {
+              var rawV = m.row[m.col.id];
+              var dispV = formatCell(rawV, m.col, m.row, bot);
+              mRow.push({ value: rawV, display: dispV, colType: m.col.type });
+              tParts.push(String(dispV !== undefined && dispV !== null ? dispV : (rawV || '')));
+            } else {
+              mRow.push({ value: '', display: '', colType: 'text' });
+              tParts.push('');
+            }
+          }
+          matrix.push(mRow);
+          tsvLines.push(tParts.join('\t'));
+        }
+        return {
+          matrix: matrix,
+          rowCount: rowCount,
+          colCount: colCount,
+          tsv: tsvLines.join('\n')
+        };
+      };
+
+      var copySelectedCellsAction = function (silentToast, targetsOverride) {
+        var targets = targetsOverride && targetsOverride.length ? targetsOverride : selectedCellsMeta;
+        if (!targets || targets.length === 0) return false;
+        var rc = buildRangeClipboard(targets);
+        if (!rc) return false;
+        state.rangeClipboard = rc;
+        var firstCell = targets[0];
+        state.cellClipboard = {
+          value: firstCell.row[firstCell.col.id],
+          display: formatCell(firstCell.row[firstCell.col.id], firstCell.col, firstCell.row, bot),
+          colType: firstCell.col.type,
+          colName: firstCell.col.name
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(rc.tsv).catch(function () {});
+        }
+        if (!silentToast) showToast('Copied ' + targets.length + ' cell' + (targets.length === 1 ? '' : 's'));
+        return true;
+      };
+
+      var clearSelectedCellsAction = function (logLabel, targetsOverride) {
+        var targets = targetsOverride && targetsOverride.length ? targetsOverride : selectedCellsMeta;
+        if (!targets || targets.length === 0) return;
+        if (!guardWriteAction(logLabel || 'Clear Contents')) return;
+        var nowIso = new Date().toISOString();
+        targets.forEach(function (m) {
+          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
+          m.row._actor = getCurrentActor();
+          m.row._updatedAt = nowIso;
+        });
+        bot.updatedAt = nowIso;
+        state.toolbarSubMode = null;
+        updateBot(bot, 'EDIT', (logLabel || 'Cleared contents of') + ' ' + targets.length + ' cell(s)');
+        renderTableView(bot);
+        if (!logLabel) showToast('Cleared ' + targets.length + ' cell' + (targets.length === 1 ? '' : 's'));
+      };
+
+      var cutSelectedCellsAction = function (targetsOverride) {
+        var targets = targetsOverride && targetsOverride.length ? targetsOverride : selectedCellsMeta;
+        if (!targets || targets.length === 0) return;
+        if (!guardWriteAction('Cut Cells')) return;
+        if (!copySelectedCellsAction(true, targets)) return;
+        var nowIso = new Date().toISOString();
+        targets.forEach(function (m) {
+          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
+          m.row._actor = getCurrentActor();
+          m.row._updatedAt = nowIso;
+        });
+        bot.updatedAt = nowIso;
+        state.toolbarSubMode = null;
+        updateBot(bot, 'EDIT', 'Cut ' + targets.length + ' cell(s)');
+        renderTableView(bot);
+        showToast('Cut ' + targets.length + ' cell' + (targets.length === 1 ? '' : 's'));
+      };
+
+      var pasteSelectedCellsAction = async function (targetsOverride) {
+        var targets = targetsOverride && targetsOverride.length ? targetsOverride : selectedCellsMeta;
+        if (!targets || targets.length === 0) return;
+        if (!guardWriteAction('Paste Cells')) return;
+        var matrix = state.rangeClipboard ? state.rangeClipboard.matrix : null;
+        var osText = null;
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          try { osText = await navigator.clipboard.readText(); } catch (err) {}
+        }
+        if (osText !== null && osText !== undefined && osText !== '' && (!state.rangeClipboard || osText !== state.rangeClipboard.tsv)) {
+          var osRows = osText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+          if (osRows.length > 1 && osRows[osRows.length - 1] === '') osRows.pop();
+          matrix = osRows.map(function (line) {
+            return line.split('\t').map(function (cellTxt) {
+              return { value: cellTxt, display: cellTxt, colType: 'text' };
+            });
+          });
+        } else if (!matrix && state.cellClipboard) {
+          matrix = [[{ value: state.cellClipboard.value, display: state.cellClipboard.display, colType: state.cellClipboard.colType }]];
+        }
+        if (!matrix || matrix.length === 0 || matrix[0].length === 0) {
+          showToast('Clipboard is empty — Copy or Cut a cell first');
+          return;
+        }
+        var nowIso = new Date().toISOString();
+        var pastedCount = 0;
+        var isSingleSource = matrix.length === 1 && matrix[0].length === 1;
+        if (isSingleSource) {
+          var singleSrc = matrix[0][0].value;
+          targets.forEach(function (m) {
+            var parsedVal = parseCellValueForCol(singleSrc, m.col);
+            m.row[m.col.id] = parsedVal;
+            m.row._actor = getCurrentActor();
+            m.row._updatedAt = nowIso;
+            if (m.col.type !== 'date' && String(parsedVal).trim() !== '' && String(parsedVal) !== '0') {
+              autoFillRowDates(bot, m.row, nowIso, m.col.id);
+            }
+            pastedCount++;
+          });
+        } else {
+          var startR = selBounds && !targetsOverride ? selBounds.minR : targets[0].rIdx;
+          var startC = selBounds && !targetsOverride ? selBounds.minC : targets[0].cIdx;
+          for (var dr = 0; dr < matrix.length; dr++) {
+            var tr = visibleRows[startR + dr];
+            if (!tr) continue;
+            for (var dc = 0; dc < matrix[dr].length; dc++) {
+              var tc = bot.columns[startC + dc];
+              if (!tc) continue;
+              var parsed = parseCellValueForCol(matrix[dr][dc].value, tc);
+              tr[tc.id] = parsed;
+              tr._actor = getCurrentActor();
+              tr._updatedAt = nowIso;
+              if (tc.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
+                autoFillRowDates(bot, tr, nowIso, tc.id);
+              }
+              pastedCount++;
+            }
+          }
+          state.selectedRange = {
+            botId: bot.id,
+            anchorR: startR,
+            anchorC: startC,
+            focusR: Math.min(visibleRows.length - 1, startR + matrix.length - 1),
+            focusC: Math.min(bot.columns.length - 1, startC + matrix[0].length - 1)
+          };
+          state.extraCells = {};
+        }
+        bot.updatedAt = nowIso;
+        state.toolbarSubMode = null;
+        updateBot(bot, 'EDIT', 'Pasted ' + pastedCount + ' cell(s)');
+        renderTableView(bot);
+        showToast('Pasted ' + pastedCount + ' cell' + (pastedCount === 1 ? '' : 's'));
+      };
+
+      var executeContextualAction = function (act, targetsOverride, boundsOverride) {
+        var targets = targetsOverride && targetsOverride.length ? targetsOverride : selectedCellsMeta;
+        var activeBounds = boundsOverride || selBounds;
+        if (!targets || targets.length === 0) return;
+        state.editingCell = null;
+        var focusMeta = targets[0];
+        if (activeBounds) {
+          var fa = targets.find(function (m) { return m.rIdx === activeBounds.anchorR && m.cIdx === activeBounds.anchorC; });
+          if (fa) focusMeta = fa;
+        }
+        if (act === 'cut') {
+          cutSelectedCellsAction(targets);
+        } else if (act === 'copy') {
+          copySelectedCellsAction(false, targets);
+          state.toolbarSubMode = null;
+          renderTableView(bot);
+        } else if (act === 'paste') {
+          pasteSelectedCellsAction(targets);
+        } else if (act === 'clear') {
+          clearSelectedCellsAction(null, targets);
+        } else if (act === 'comment') {
+          if (state.toolbarSubMode === 'comment' && !targetsOverride) {
+            state.toolbarSubMode = null;
+          } else {
+            state.toolbarSubMode = 'comment';
+            var existingC = focusMeta && focusMeta.row._comments && focusMeta.row._comments[focusMeta.col.id] ? focusMeta.row._comments[focusMeta.col.id].text : '';
+            state.toolbarCommentDraft = existingC || '';
+          }
+          renderTableView(bot);
+          var ci2 = document.getElementById('ftb-comment-input');
+          if (ci2) ci2.focus();
+        } else if (act === 'fill') {
+          if (state.toolbarSubMode === 'fill' && !targetsOverride) {
+            state.toolbarSubMode = null;
+          } else {
+            state.toolbarSubMode = 'fill';
+            var rawF = focusMeta ? focusMeta.row[focusMeta.col.id] : '';
+            state.toolbarFillDraft = rawF !== undefined && rawF !== null ? String(rawF) : '';
+          }
+          renderTableView(bot);
+          var fi = document.getElementById('ftb-fill-input');
+          if (fi) { fi.focus(); try { fi.select(); } catch (e2) {} }
+        } else if (act === 'edit') {
+          if (!guardWriteAction('Edit Cell')) return;
+          if (targets.length === 1 && focusMeta) {
+            if (focusMeta.col.type === 'checkbox') {
+              var nowIsoCb = new Date().toISOString();
+              focusMeta.row[focusMeta.col.id] = !focusMeta.row[focusMeta.col.id];
+              focusMeta.row._actor = getCurrentActor();
+              focusMeta.row._updatedAt = nowIsoCb;
+              bot.updatedAt = nowIsoCb;
+              updateBot(bot, 'EDIT', 'Toggled "' + focusMeta.col.name + '"');
+              renderTableView(bot);
+            } else {
+              openCellEditor(focusMeta.row.id, focusMeta.col.id);
+            }
+          } else {
+            if (state.toolbarSubMode === 'bulk_edit' && !targetsOverride) {
+              state.toolbarSubMode = null;
+            } else {
+              state.toolbarSubMode = 'bulk_edit';
+              var rawE = focusMeta ? focusMeta.row[focusMeta.col.id] : '';
+              state.toolbarEditDraft = rawE !== undefined && rawE !== null ? String(rawE) : '';
+            }
+            renderTableView(bot);
+            var bi = document.getElementById('ftb-bulk-edit-input');
+            if (bi) { bi.focus(); try { bi.select(); } catch (e3) {} }
+          }
+        } else if (act === 'delete') {
+          if (!guardWriteAction('Delete')) return;
+          state.toolbarSubMode = (state.toolbarSubMode === 'delete' && !targetsOverride) ? null : 'delete';
+          renderTableView(bot);
+        }
+      };
+
+      var ensureCellSelectedForMenu = function (rowId, colId) {
+        var rIdx = visibleRows.findIndex(function (r) { return r.id === rowId; });
+        var cIdx = bot.columns.findIndex(function (c) { return c.id === colId; });
+        if (rIdx === -1) return;
+        if (cIdx === -1) cIdx = 0;
+        var inRect = selBounds && rIdx >= selBounds.minR && rIdx <= selBounds.maxR && cIdx >= selBounds.minC && cIdx <= selBounds.maxC;
+        var inExtra = !!(state.extraCells && state.extraCells[rowId + '::' + (bot.columns[cIdx] ? bot.columns[cIdx].id : '')]);
+        if (!inRect && !inExtra) {
+          state.selectedRange = { botId: bot.id, anchorR: rIdx, anchorC: cIdx, focusR: rIdx, focusC: cIdx };
+          state.extraCells = {};
+          state.toolbarSubMode = null;
+        }
+      };
+
       var openCellContextMenu = function (rowId, colId, clientX, clientY) {
+        var resolvedColId = colId || (bot.columns[0] ? bot.columns[0].id : '');
+        ensureCellSelectedForMenu(rowId, resolvedColId);
         state.cellMenu = {
           rowId: rowId,
-          colId: colId || (bot.columns[0] ? bot.columns[0].id : ''),
+          colId: resolvedColId,
           x: clientX,
           y: clientY
         };
@@ -5416,6 +5709,7 @@
       var cmEl = document.getElementById('cell-context-menu');
       if (cmEl && state.cellMenu) {
         cmEl.onclick = function (e) { e.stopPropagation(); };
+        cmEl.onmousedown = function (e) { e.stopPropagation(); };
         var cmCloseX = document.getElementById('cm-close-x');
         if (cmCloseX) cmCloseX.onclick = function () { state.cellMenu = null; renderTableView(bot); };
         var outsideMenuHandler = function (e) {
@@ -5433,7 +5727,7 @@
         }, 0);
 
         cmEl.querySelectorAll('[data-cact]').forEach(function (btn) {
-          btn.onclick = async function () {
+          btn.onclick = function () {
             var act = btn.getAttribute('data-cact');
             var cm = state.cellMenu;
             state.cellMenu = null;
@@ -5443,6 +5737,21 @@
             var targetRow = bot.rows[rIdx];
             var targetCol = bot.columns.find(function (c) { return c.id === cm.colId; }) || bot.columns[0];
             var nowIso = new Date().toISOString();
+
+            if (act === 'cut' || act === 'copy' || act === 'paste' || act === 'comment' || act === 'clear' || act === 'fill' || act === 'edit' || act === 'delete') {
+              var visR = visibleRows.findIndex(function (r) { return r.id === cm.rowId; });
+              var colI = targetCol ? bot.columns.findIndex(function (c) { return c.id === targetCol.id; }) : 0;
+              var fallbackTargets = selectedCellsMeta && selectedCellsMeta.length > 0
+                ? selectedCellsMeta
+                : (visR !== -1 && targetCol ? [{ row: targetRow, col: targetCol, rIdx: visR, cIdx: colI }] : []);
+              var fallbackBounds = selBounds || (visR !== -1 ? { minR: visR, maxR: visR, minC: colI, maxC: colI, anchorR: visR, anchorC: colI, focusR: visR, focusC: colI } : null);
+              if (fallbackTargets.length > 0 && (!selectedCellsMeta || selectedCellsMeta.length === 0) && visR !== -1) {
+                state.selectedRange = { botId: bot.id, anchorR: visR, anchorC: colI, focusR: visR, focusC: colI };
+                state.extraCells = {};
+              }
+              executeContextualAction(act, fallbackTargets, fallbackBounds);
+              return;
+            }
 
             if (act === 'add_above' || act === 'add_below') {
               if (!guardWriteAction('Add Row')) return;
@@ -5454,50 +5763,6 @@
               updateBot(bot, 'ADD', 'Added row #' + (insertAt + 1));
               renderTableView(bot);
               showToast('Added row #' + (insertAt + 1));
-            } else if (act === 'copy_cell' && targetCol) {
-              var rawC = targetRow[targetCol.id];
-              var dispC = formatCell(rawC, targetCol, targetRow, bot);
-              state.cellClipboard = { value: rawC, display: dispC, colType: targetCol.type, colName: targetCol.name };
-              if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(String(dispC || rawC || '')).catch(function () {});
-              }
-              renderTableView(bot);
-              showToast('Copied "' + (dispC || rawC || '') + '"');
-            } else if (act === 'paste_cell' && targetCol) {
-              if (!guardWriteAction('Paste Cell')) return;
-              var clipVal = state.cellClipboard ? state.cellClipboard.value : null;
-              if (clipVal === null || clipVal === undefined) {
-                if (navigator.clipboard && navigator.clipboard.readText) {
-                  try { clipVal = await navigator.clipboard.readText(); } catch (e) {}
-                }
-              }
-              if (clipVal === null || clipVal === undefined) {
-                showToast('Clipboard is empty — Copy a cell first');
-                renderTableView(bot);
-                return;
-              }
-              var parsedClip = parseCellValueForCol(clipVal, targetCol);
-              targetRow[targetCol.id] = parsedClip;
-              targetRow._actor = getCurrentActor();
-              targetRow._updatedAt = nowIso;
-              if (targetCol.type !== 'date' && String(parsedClip).trim() !== '' && String(parsedClip) !== '0') {
-                autoFillRowDates(bot, targetRow, nowIso, targetCol.id);
-              }
-              bot.updatedAt = nowIso;
-              state.editingCell = null;
-              updateBot(bot, 'EDIT', 'Pasted into "' + targetCol.name + '" on row #' + (rIdx + 1));
-              renderTableView(bot);
-              showToast('Pasted into "' + targetCol.name + '"');
-            } else if (act === 'clear_cell' && targetCol) {
-              if (!guardWriteAction('Clear Cell')) return;
-              targetRow[targetCol.id] = targetCol.type === 'checkbox' ? false : '';
-              targetRow._actor = getCurrentActor();
-              targetRow._updatedAt = nowIso;
-              bot.updatedAt = nowIso;
-              state.editingCell = null;
-              updateBot(bot, 'EDIT', 'Cleared "' + targetCol.name + '" on row #' + (rIdx + 1));
-              renderTableView(bot);
-              showToast('Cleared cell in "' + targetCol.name + '"');
             } else if (act === 'copy_row') {
               var byId = {}, byName = {};
               var textParts = [];
@@ -5562,190 +5827,6 @@
         });
       }
 
-      var openCellEditor = function (rid, cid) {
-        var colObj = bot.columns.find(function (c) { return c.id === cid; });
-        if (!colObj || colObj.type === 'checkbox') return;
-        state.toolbarSubMode = null;
-        state.cellMenu = null;
-        state.editingCell = { rowId: rid, colId: cid };
-        renderTableView(bot);
-        var ci = document.getElementById('active-cell-input');
-        if (ci) {
-          ci.focus();
-          if (colObj.type === 'date') {
-            if (typeof ci.showPicker === 'function') { try { ci.showPicker(); } catch (err) {} }
-          } else {
-            try { ci.select(); } catch (err2) {}
-          }
-        }
-      };
-
-      var buildRangeClipboard = function (targets) {
-        if (!targets || targets.length === 0) return null;
-        var minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
-        targets.forEach(function (t) {
-          if (t.rIdx < minR) minR = t.rIdx;
-          if (t.rIdx > maxR) maxR = t.rIdx;
-          if (t.cIdx < minC) minC = t.cIdx;
-          if (t.cIdx > maxC) maxC = t.cIdx;
-        });
-        var rowCount = maxR - minR + 1;
-        var colCount = maxC - minC + 1;
-        var matrix = [];
-        var tsvLines = [];
-        var targetMap = {};
-        targets.forEach(function (t) { targetMap[t.rIdx + ':' + t.cIdx] = t; });
-        for (var rr = minR; rr <= maxR; rr++) {
-          var mRow = [];
-          var tParts = [];
-          for (var cc = minC; cc <= maxC; cc++) {
-            var m = targetMap[rr + ':' + cc];
-            if (m) {
-              var rawV = m.row[m.col.id];
-              var dispV = formatCell(rawV, m.col, m.row, bot);
-              mRow.push({ value: rawV, display: dispV, colType: m.col.type });
-              tParts.push(String(dispV !== undefined && dispV !== null ? dispV : (rawV || '')));
-            } else {
-              mRow.push({ value: '', display: '', colType: 'text' });
-              tParts.push('');
-            }
-          }
-          matrix.push(mRow);
-          tsvLines.push(tParts.join('\t'));
-        }
-        return {
-          matrix: matrix,
-          rowCount: rowCount,
-          colCount: colCount,
-          tsv: tsvLines.join('\n')
-        };
-      };
-
-      var copySelectedCellsAction = function (silentToast) {
-        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return false;
-        var rc = buildRangeClipboard(selectedCellsMeta);
-        if (!rc) return false;
-        state.rangeClipboard = rc;
-        var firstCell = selectedCellsMeta[0];
-        state.cellClipboard = {
-          value: firstCell.row[firstCell.col.id],
-          display: formatCell(firstCell.row[firstCell.col.id], firstCell.col, firstCell.row, bot),
-          colType: firstCell.col.type,
-          colName: firstCell.col.name
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(rc.tsv).catch(function () {});
-        }
-        if (!silentToast) showToast('Copied ' + selectedCellsMeta.length + ' cell' + (selectedCellsMeta.length === 1 ? '' : 's'));
-        return true;
-      };
-
-      var clearSelectedCellsAction = function (logLabel) {
-        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
-        if (!guardWriteAction(logLabel || 'Clear Contents')) return;
-        var nowIso = new Date().toISOString();
-        selectedCellsMeta.forEach(function (m) {
-          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
-          m.row._actor = getCurrentActor();
-          m.row._updatedAt = nowIso;
-        });
-        bot.updatedAt = nowIso;
-        state.toolbarSubMode = null;
-        updateBot(bot, 'EDIT', (logLabel || 'Cleared contents of') + ' ' + selectedCellsMeta.length + ' cell(s)');
-        renderTableView(bot);
-        if (!logLabel) showToast('Cleared ' + selectedCellsMeta.length + ' cell' + (selectedCellsMeta.length === 1 ? '' : 's'));
-      };
-
-      var cutSelectedCellsAction = function () {
-        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
-        if (!guardWriteAction('Cut Cells')) return;
-        if (!copySelectedCellsAction(true)) return;
-        var nowIso = new Date().toISOString();
-        selectedCellsMeta.forEach(function (m) {
-          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
-          m.row._actor = getCurrentActor();
-          m.row._updatedAt = nowIso;
-        });
-        bot.updatedAt = nowIso;
-        state.toolbarSubMode = null;
-        updateBot(bot, 'EDIT', 'Cut ' + selectedCellsMeta.length + ' cell(s)');
-        renderTableView(bot);
-        showToast('Cut ' + selectedCellsMeta.length + ' cell' + (selectedCellsMeta.length === 1 ? '' : 's'));
-      };
-
-      var pasteSelectedCellsAction = async function () {
-        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
-        if (!guardWriteAction('Paste Cells')) return;
-        var matrix = state.rangeClipboard ? state.rangeClipboard.matrix : null;
-        var osText = null;
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          try { osText = await navigator.clipboard.readText(); } catch (err) {}
-        }
-        if (osText !== null && osText !== undefined && osText !== '' && (!state.rangeClipboard || osText !== state.rangeClipboard.tsv)) {
-          var osRows = osText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-          if (osRows.length > 1 && osRows[osRows.length - 1] === '') osRows.pop();
-          matrix = osRows.map(function (line) {
-            return line.split('\t').map(function (cellTxt) {
-              return { value: cellTxt, display: cellTxt, colType: 'text' };
-            });
-          });
-        } else if (!matrix && state.cellClipboard) {
-          matrix = [[{ value: state.cellClipboard.value, display: state.cellClipboard.display, colType: state.cellClipboard.colType }]];
-        }
-        if (!matrix || matrix.length === 0 || matrix[0].length === 0) {
-          showToast('Clipboard is empty — Copy or Cut a cell first');
-          return;
-        }
-        var nowIso = new Date().toISOString();
-        var pastedCount = 0;
-        var isSingleSource = matrix.length === 1 && matrix[0].length === 1;
-        if (isSingleSource) {
-          var singleSrc = matrix[0][0].value;
-          selectedCellsMeta.forEach(function (m) {
-            var parsedVal = parseCellValueForCol(singleSrc, m.col);
-            m.row[m.col.id] = parsedVal;
-            m.row._actor = getCurrentActor();
-            m.row._updatedAt = nowIso;
-            if (m.col.type !== 'date' && String(parsedVal).trim() !== '' && String(parsedVal) !== '0') {
-              autoFillRowDates(bot, m.row, nowIso, m.col.id);
-            }
-            pastedCount++;
-          });
-        } else {
-          var startR = selBounds ? selBounds.minR : selectedCellsMeta[0].rIdx;
-          var startC = selBounds ? selBounds.minC : selectedCellsMeta[0].cIdx;
-          for (var dr = 0; dr < matrix.length; dr++) {
-            var tr = visibleRows[startR + dr];
-            if (!tr) continue;
-            for (var dc = 0; dc < matrix[dr].length; dc++) {
-              var tc = bot.columns[startC + dc];
-              if (!tc) continue;
-              var parsed = parseCellValueForCol(matrix[dr][dc].value, tc);
-              tr[tc.id] = parsed;
-              tr._actor = getCurrentActor();
-              tr._updatedAt = nowIso;
-              if (tc.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
-                autoFillRowDates(bot, tr, nowIso, tc.id);
-              }
-              pastedCount++;
-            }
-          }
-          state.selectedRange = {
-            botId: bot.id,
-            anchorR: startR,
-            anchorC: startC,
-            focusR: Math.min(visibleRows.length - 1, startR + matrix.length - 1),
-            focusC: Math.min(bot.columns.length - 1, startC + matrix[0].length - 1)
-          };
-          state.extraCells = {};
-        }
-        bot.updatedAt = nowIso;
-        state.toolbarSubMode = null;
-        updateBot(bot, 'EDIT', 'Pasted ' + pastedCount + ' cell(s)');
-        renderTableView(bot);
-        showToast('Pasted ' + pastedCount + ' cell' + (pastedCount === 1 ? '' : 's'));
-      };
-
       var repositionFloatingToolbar = function () {
         var ftb = document.getElementById('floating-cell-toolbar');
         if (!ftb) return;
@@ -5800,75 +5881,7 @@
 
         ftbEl.querySelectorAll('[data-ftb]').forEach(function (btn) {
           btn.onclick = function () {
-            var act = btn.getAttribute('data-ftb');
-            var focusMeta = selectedCellsMeta[0];
-            if (selBounds) {
-              var fa = selectedCellsMeta.find(function (m) { return m.rIdx === selBounds.anchorR && m.cIdx === selBounds.anchorC; });
-              if (fa) focusMeta = fa;
-            }
-            if (act === 'cut') {
-              cutSelectedCellsAction();
-            } else if (act === 'copy') {
-              copySelectedCellsAction();
-              state.toolbarSubMode = null;
-              renderTableView(bot);
-            } else if (act === 'paste') {
-              pasteSelectedCellsAction();
-            } else if (act === 'clear') {
-              clearSelectedCellsAction();
-            } else if (act === 'comment') {
-              if (state.toolbarSubMode === 'comment') {
-                state.toolbarSubMode = null;
-              } else {
-                state.toolbarSubMode = 'comment';
-                var existingC = focusMeta && focusMeta.row._comments && focusMeta.row._comments[focusMeta.col.id] ? focusMeta.row._comments[focusMeta.col.id].text : '';
-                state.toolbarCommentDraft = existingC || '';
-              }
-              renderTableView(bot);
-              var ci2 = document.getElementById('ftb-comment-input');
-              if (ci2) ci2.focus();
-            } else if (act === 'fill') {
-              if (state.toolbarSubMode === 'fill') {
-                state.toolbarSubMode = null;
-              } else {
-                state.toolbarSubMode = 'fill';
-                var rawF = focusMeta ? focusMeta.row[focusMeta.col.id] : '';
-                state.toolbarFillDraft = rawF !== undefined && rawF !== null ? String(rawF) : '';
-              }
-              renderTableView(bot);
-              var fi = document.getElementById('ftb-fill-input');
-              if (fi) { fi.focus(); try { fi.select(); } catch (e2) {} }
-            } else if (act === 'edit') {
-              if (!guardWriteAction('Edit Cell')) return;
-              if (selectedCellsMeta.length === 1 && focusMeta) {
-                if (focusMeta.col.type === 'checkbox') {
-                  var nowIsoCb = new Date().toISOString();
-                  focusMeta.row[focusMeta.col.id] = !focusMeta.row[focusMeta.col.id];
-                  focusMeta.row._actor = getCurrentActor();
-                  focusMeta.row._updatedAt = nowIsoCb;
-                  bot.updatedAt = nowIsoCb;
-                  updateBot(bot, 'EDIT', 'Toggled "' + focusMeta.col.name + '"');
-                  renderTableView(bot);
-                } else {
-                  openCellEditor(focusMeta.row.id, focusMeta.col.id);
-                }
-              } else {
-                if (state.toolbarSubMode === 'bulk_edit') {
-                  state.toolbarSubMode = null;
-                } else {
-                  state.toolbarSubMode = 'bulk_edit';
-                  var rawE = focusMeta ? focusMeta.row[focusMeta.col.id] : '';
-                  state.toolbarEditDraft = rawE !== undefined && rawE !== null ? String(rawE) : '';
-                }
-                renderTableView(bot);
-                var bi = document.getElementById('ftb-bulk-edit-input');
-                if (bi) { bi.focus(); try { bi.select(); } catch (e3) {} }
-              }
-            } else if (act === 'delete') {
-              if (!guardWriteAction('Delete')) return;
-              state.toolbarSubMode = state.toolbarSubMode === 'delete' ? null : 'delete';
-              renderTableView(bot);
-            }
+            executeContextualAction(btn.getAttribute('data-ftb'));
           };
         });
 
