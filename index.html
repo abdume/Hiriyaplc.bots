@@ -11,75 +11,91 @@
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
     :root {
-      --blue-dark: #0D47A1;
-      --blue-mid: #1565C0;
-      --blue-primary: #1976D2;
-      --bg-app: #F4F6F9;
+      --blue-dark: #0F2D6B;
+      --blue-mid: #1D4ED8;
+      --blue-primary: #2563EB;
+      --bg-app: #F1F5FB;
       --surface: #FFFFFF;
-      --orange-accent: #E65100;
-      --green-accent: #2E7D32;
-      --text-main: #1E293B;
-      --text-muted: #64748B;
+      --orange-accent: #EA580C;
+      --green-accent: #059669;
+      --text-main: #0F172A;
+      --text-muted: #475569;
       --border: #E2E8F0;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      font-family: 'Inter', 'Noto Sans Ethiopic', 'Roboto', 'Nyala', 'Abyssinica SIL', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(180deg, #EEF4FF 0%, #F6F8FC 48%, #F0FDF4 100%);
+      font-family: 'Plus Jakarta Sans', 'Noto Sans Ethiopic', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(circle at 8% 4%, rgba(37, 99, 235, 0.08) 0%, transparent 38%),
+        radial-gradient(circle at 92% 10%, rgba(16, 185, 129, 0.08) 0%, transparent 34%),
+        radial-gradient(circle at 50% 95%, rgba(124, 58, 237, 0.06) 0%, transparent 45%),
+        #F4F7FC;
       color: var(--text-main);
       -webkit-font-smoothing: antialiased;
       min-height: 100vh;
     }
     button, input, select, textarea { font-family: inherit; }
     button { cursor: pointer; border: none; background: none; color: inherit; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .num-tab { font-variant-numeric: tabular-nums; }
     .hidden { display: none !important; }
     .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* Top App Bar */
     .app-header {
       position: sticky; top: 0; z-index: 40;
-      background: linear-gradient(90deg, #0A2E7A 0%, #0D47A1 55%, #1565C0 100%);
+      background: linear-gradient(100deg, #0B1F52 0%, #163B8C 48%, #0E6BA8 100%);
       color: #fff;
-      box-shadow: 0 4px 16px rgba(13,71,161,0.24);
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      box-shadow: 0 6px 22px rgba(15, 23, 42, 0.16);
     }
     .header-inner {
-      max-width: 1200px; margin: 0 auto;
-      padding: 8px 14px; min-height: 54px; height: auto;
+      max-width: 1240px; margin: 0 auto;
+      padding: 9px 16px; min-height: 58px; height: auto;
       display: flex; align-items: center; justify-content: space-between;
       gap: 8px 12px; flex-wrap: wrap;
     }
-    .header-left { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .header-left { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+    .header-brand-mark {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, #34D399 0%, #06B6D4 100%);
+      color: #06283D; font-weight: 800; font-size: 15px;
+      display: inline-flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35);
+      flex-shrink: 0;
+    }
     .header-right {
       display: flex; align-items: center; gap: 6px;
       flex-wrap: wrap; justify-content: flex-end; max-width: 100%;
     }
-    @media (max-width: 780px) {
+    @media (max-width: 820px) {
       .header-right { width: 100%; justify-content: flex-start; }
     }
     .icon-btn {
-      width: 34px; height: 34px; border-radius: 999px;
+      width: 34px; height: 34px; border-radius: 10px;
       display: inline-flex; align-items: center; justify-content: center;
-      color: #fff; transition: background 0.15s;
+      color: #fff; transition: background 0.15s, transform 0.15s;
       flex-shrink: 0;
     }
-    .icon-btn:hover { background: rgba(255,255,255,0.14); }
+    .icon-btn:hover { background: rgba(255,255,255,0.16); }
     .pill-badge {
       font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
       background: rgba(255,255,255,0.2); color: #fff;
+      font-variant-numeric: tabular-nums;
     }
     .sync-pill {
       display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(10, 42, 102, 0.55); padding: 3px 9px; border-radius: 999px;
-      font-size: 11px; font-weight: 600; color: #DBEAFE; white-space: nowrap;
+      background: rgba(15, 23, 42, 0.36); padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; color: #E0F2FE; white-space: nowrap;
+      border: 1px solid rgba(255,255,255,0.2);
     }
-    .sync-dot { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
-    .dot-synced { background: #34D399; }
+    .sync-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+    .dot-synced { background: #34D399; box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25); }
     .dot-syncing { background: #FBBF24; animation: pulse 1.2s infinite; }
     .dot-error { background: #F87171; }
     .dot-local { background: #93C5FD; }
@@ -87,107 +103,204 @@
 
     .header-action-btn {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 5px 10px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
-      background: rgba(21,101,192,0.9); border: 1px solid rgba(147,197,253,0.42);
-      color: #fff; font-size: 11.5px; font-weight: 700; transition: background 0.15s;
+      padding: 6px 11px; border-radius: 9px; white-space: nowrap; flex-shrink: 0;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22);
+      color: #fff; font-size: 11.5px; font-weight: 700; transition: all 0.15s;
     }
-    .header-action-btn:hover { background: #1976D2; }
+    .header-action-btn:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
     .header-select {
-      background: var(--blue-mid); color: #fff; font-size: 11.5px; font-weight: 600;
-      padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(147,197,253,0.35);
+      background: rgba(15, 23, 42, 0.42); color: #fff; font-size: 11.5px; font-weight: 700;
+      padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.24);
       outline: none; cursor: pointer; flex-shrink: 0;
     }
     .search-bar-wrap {
-      background: var(--blue-mid); padding: 8px 16px; border-top: 1px solid rgba(255,255,255,0.18);
+      background: rgba(15, 23, 42, 0.25); padding: 9px 16px; border-top: 1px solid rgba(255,255,255,0.16);
     }
     .search-input-box {
-      max-width: 1168px; margin: 0 auto;
-      background: #fff; border-radius: 8px; padding: 6px 12px;
+      max-width: 1208px; margin: 0 auto;
+      background: #fff; border-radius: 10px; padding: 7px 12px;
       display: flex; align-items: center; gap: 8px; color: var(--text-main);
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
     }
     .search-input-box input {
       width: 100%; border: none; outline: none; font-size: 13px; background: transparent;
     }
 
-    /* Folder Tabs Bar (Positioned Underneath Homepage Hero) */
+    /* Folder Navigation & Directory Shell */
     .folders-bar {
-      background: linear-gradient(90deg, #103F9A 0%, #1565C0 60%, #0E7490 100%);
-      padding: 11px 14px;
-      border-radius: 14px;
+      background: #FFFFFF;
+      padding: 12px 14px;
+      border-radius: 16px;
       margin-bottom: 18px;
-      box-shadow: 0 6px 18px rgba(13, 71, 161, 0.16);
-      border: 1px solid rgba(147, 197, 253, 0.3);
+      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+      border: 1px solid #E2E8F0;
+    }
+    .folders-bar-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+      padding-bottom: 10px; border-bottom: 1px solid #F1F5F9;
     }
     .folders-inner {
       display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
     }
     .folder-tab {
-      padding: 6px 13px; border-radius: 999px; font-size: 12px; font-weight: 700;
-      white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(10, 36, 99, 0.52); color: #E0F2FE; border: 1px solid rgba(255,255,255,0.14);
+      padding: 7px 13px; border-radius: 10px; font-size: 12px; font-weight: 700;
+      white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+      background: #F8FAFC; color: #334155; border: 1px solid #E2E8F0;
       transition: all 0.16s;
     }
-    .folder-tab:hover { background: rgba(10, 36, 99, 0.8); transform: translateY(-1px); }
-    .folder-tab.active { background: #fff; color: var(--blue-dark); border-color: #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.18); }
-    .folder-count {
-      font-size: 10px; padding: 1px 6px; border-radius: 999px;
-      background: rgba(255,255,255,0.2);
+    .folder-tab:hover { background: #EFF6FF; border-color: #93C5FD; color: #1E3A8A; transform: translateY(-1px); }
+    .folder-tab.active {
+      background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+      color: #fff; border-color: transparent;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
     }
-    .folder-tab.active .folder-count { background: #DBEAFE; color: var(--blue-dark); }
+    .folder-count {
+      font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 6px;
+      background: rgba(15, 23, 42, 0.08); color: #334155;
+      font-variant-numeric: tabular-nums;
+    }
+    .folder-tab.active .folder-count { background: rgba(255,255,255,0.22); color: #fff; }
+    .add-folder-pill {
+      padding: 7px 13px; border-radius: 10px; font-size: 12px; font-weight: 800;
+      white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px;
+      background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
+      color: #fff; border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 4px 12px rgba(234, 88, 12, 0.24); transition: transform 0.15s, filter 0.15s;
+    }
+    .add-folder-pill:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+    /* Folder Workspace Sections (Homepage Folder Structure) */
+    .folder-sections-stack {
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    .folder-section-box {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 18px;
+      overflow: visible;
+      box-shadow: 0 6px 22px rgba(15, 23, 42, 0.05);
+      transition: box-shadow 0.18s;
+    }
+    .folder-section-box:hover {
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.09);
+    }
+    .folder-section-head {
+      padding: 13px 16px;
+      border-radius: 17px 17px 0 0;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+      border-bottom: 1px solid #E2E8F0;
+    }
+    .folder-section-head.is-collapsed {
+      border-radius: 17px;
+      border-bottom: none;
+    }
+    .folder-icon-tile {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: #fff; flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+    }
+    .folder-head-actions {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .folder-mini-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 6px 10px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+      white-space: nowrap; flex-shrink: 0;
+      background: #FFFFFF; border: 1px solid #CBD5E1; color: #1E293B;
+      transition: all 0.14s;
+    }
+    .folder-mini-btn:hover { background: #F1F5F9; border-color: #94A3B8; }
+    .folder-mini-btn.primary {
+      background: #0F172A; border-color: #0F172A; color: #FFFFFF;
+    }
+    .folder-mini-btn.primary:hover { background: #1E293B; }
+    .folder-mini-btn.danger {
+      background: #FEF2F2; border-color: #FECACA; color: #B91C1C;
+    }
+    .folder-mini-btn.danger:hover { background: #FEE2E2; }
+    .folder-section-body {
+      padding: 15px 16px;
+      background: #FAFBFD;
+      border-radius: 0 0 17px 17px;
+    }
+    .folder-focused-banner {
+      border-radius: 18px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      color: #fff;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+    }
+    .ec-inline-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px;
+      background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0;
+      white-space: nowrap;
+    }
 
     /* Dashboard Grid */
-    .dashboard-main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 100px; }
+    .dashboard-main { max-width: 1240px; margin: 0 auto; padding: 18px 16px 104px; }
     .grid-meta {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px; font-size: 12px;
+      margin-bottom: 12px; font-size: 12px; gap: 8px; flex-wrap: wrap;
     }
     .grid-meta-title { font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #334155; }
     .bot-grid {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px;
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
     }
-    @media (min-width: 900px) { .bot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; } }
-    @media (max-width: 560px) { .bot-grid { grid-template-columns: 1fr; } }
+    @media (min-width: 920px) { .bot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+    @media (max-width: 580px) { .bot-grid { grid-template-columns: 1fr; } }
 
     .bot-card {
-      background: linear-gradient(180deg, #FFFFFF 0%, #FAFCFF 100%);
-      border-radius: 16px; padding: 16px;
+      background: #FFFFFF;
+      border-radius: 14px; padding: 15px;
       border: 1px solid #E2E8F0;
-      border-top: 4px solid #1976D2;
-      box-shadow: 0 4px 14px rgba(15,23,42,0.06);
+      border-top: 3px solid #2563EB;
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
       display: flex; flex-direction: column; justify-content: space-between;
-      cursor: pointer; position: relative; transition: transform 0.18s, box-shadow 0.18s;
+      cursor: pointer; position: relative; transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
     }
-    .bot-card:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(13,71,161,0.14); }
-    .bot-card-title { font-size: 16px; font-weight: 800; color: var(--blue-dark); margin-bottom: 4px; }
+    .bot-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1); border-color: #CBD5E1; }
+    .bot-card-title { font-size: 15.5px; font-weight: 800; color: #0F172A; margin-bottom: 4px; letter-spacing: -0.01em; }
     .bot-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .bot-card-meta-line {
+      margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      font-size: 11.5px; font-weight: 600; color: #475569;
+    }
+    .status-dot-inline {
+      width: 7px; height: 7px; border-radius: 999px; display: inline-block; flex-shrink: 0;
+    }
+    .badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .status-chip {
       display: inline-flex; align-items: center; gap: 5px;
-      font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
       text-transform: uppercase;
     }
-    .chip-online { background: #DCFCE7; color: #047857; border: 1px solid #86EFAC; }
-    .chip-sim { background: #E0F2FE; color: #0369A1; border: 1px solid #7DD3FC; }
-    .chip-folder { background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D; text-transform: none; }
-    .chip-user { background: #F3E8FF; color: #6B21A8; border: 1px solid #E9D5FF; font-family: monospace; text-transform: none; }
+    .chip-online { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
+    .chip-sim { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+    .chip-folder { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; text-transform: none; }
+    .chip-user { background: #F5F3FF; color: #6D28D9; border: 1px solid #DDD6FE; font-family: 'JetBrains Mono', monospace; text-transform: none; }
     .card-footer {
-      margin-top: 14px; padding-top: 10px; border-top: 1px solid #E2E8F0;
+      margin-top: 12px; padding-top: 10px; border-top: 1px solid #F1F5F9;
       display: flex; align-items: center; justify-content: space-between;
-      font-size: 11px; color: #64748B;
+      font-size: 11.5px; color: #64748B; font-variant-numeric: tabular-nums;
     }
     .quick-table-btn {
-      width: 34px; height: 34px; border-radius: 999px;
-      background: linear-gradient(135deg, #EFF6FF, #DBEAFE); color: var(--blue-primary);
+      width: 32px; height: 32px; border-radius: 9px;
+      background: #EFF6FF; color: var(--blue-primary);
       display: inline-flex; align-items: center; justify-content: center; transition: all 0.16s;
-      box-shadow: 0 2px 6px rgba(25,118,210,0.14);
     }
-    .bot-card:hover .quick-table-btn { background: linear-gradient(135deg, #1976D2, #0D47A1); color: #fff; transform: scale(1.08); }
+    .bot-card:hover .quick-table-btn { background: #1D4ED8; color: #fff; }
 
     /* Context Dropdown Menu */
     .dropdown-menu {
-      position: absolute; right: 0; top: 32px; width: 184px; z-index: 60;
+      position: absolute; right: 0; top: 32px; width: 192px; z-index: 60;
       background: #fff; border-radius: 12px; border: 1px solid var(--border);
-      box-shadow: 0 12px 28px rgba(15,23,42,0.18); padding: 4px 0;
+      box-shadow: 0 14px 32px rgba(15,23,42,0.18); padding: 4px 0;
     }
     .dropdown-item {
       width: 100%; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #334155;
@@ -203,23 +316,22 @@
       display: flex; flex-direction: column; align-items: center; gap: 12px;
     }
     .fab-secondary {
-      width: 48px; height: 48px; border-radius: 999px;
-      background: #fff; color: var(--blue-mid); border: 1px solid var(--border);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.14);
+      width: 46px; height: 46px; border-radius: 14px;
+      background: #fff; color: var(--blue-mid); border: 1px solid #CBD5E1;
+      box-shadow: 0 6px 16px rgba(15,23,42,0.14);
       display: flex; align-items: center; justify-content: center; transition: transform 0.15s;
     }
     .fab-primary {
-      width: 56px; height: 56px; border-radius: 999px;
-      background: var(--blue-primary); color: #fff;
-      box-shadow: 0 6px 18px rgba(25,118,210,0.4);
-      display: flex; align-items: center; justify-content: center; transition: transform 0.15s, background 0.15s;
+      width: 54px; height: 54px; border-radius: 16px;
+      background: linear-gradient(135deg, #2563EB 0%, #1E3A8A 100%); color: #fff;
+      box-shadow: 0 8px 22px rgba(37, 99, 235, 0.4);
+      display: flex; align-items: center; justify-content: center; transition: transform 0.15s;
     }
     .fab-secondary:hover, .fab-primary:hover { transform: scale(1.06); }
-    .fab-primary:hover { background: var(--blue-mid); }
 
     /* Drawer */
     .drawer-backdrop {
-      position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.55);
+      position: fixed; inset: 0; z-index: 70; background: rgba(15, 23, 42, 0.56);
       display: flex;
     }
     .drawer-panel {
@@ -227,7 +339,7 @@
       display: flex; flex-direction: column; box-shadow: 8px 0 30px rgba(0,0,0,0.25);
     }
     .drawer-banner {
-      background: linear-gradient(135deg, #FF6F00 0%, #FFB300 32%, #1976D2 68%, #0D47A1 100%);
+      background: linear-gradient(135deg, #059669 0%, #0E7490 48%, #1E3A8A 100%);
       padding: 20px; min-height: 164px; color: #fff; position: relative;
       display: flex; flex-direction: column; justify-content: flex-end;
     }
@@ -293,7 +405,7 @@
       background: #EFF6FF; border-bottom: 1px solid #DBEAFE; margin-bottom: 3px;
       display: flex; align-items: center; justify-content: space-between; gap: 6px;
     }
-    .cell-amount { color: var(--orange-accent); font-weight: 700; font-family: ui-monospace, monospace; }
+    .cell-amount { color: var(--orange-accent); font-weight: 700; font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
     .sheet-table.is-selecting { user-select: none; -webkit-user-select: none; }
     .sheet-table td.cell-menu-target { position: relative; }
     .sheet-table td.cell-selected {
@@ -403,7 +515,7 @@
     .dp-ec-num, .dp-ec-sel {
       border: 1px solid #CBD5E1; border-radius: 4px; background: #F8FAFC;
       color: #0F172A; font-size: 11.5px; font-weight: 700; padding: 3px 4px;
-      outline: none; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      outline: none; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
     .dp-ec-num:focus, .dp-ec-sel:focus { border-color: var(--blue-primary); background: #fff; }
     .dp-ec-badge {
@@ -468,13 +580,6 @@
     .sheet-table tfoot tr.table-sum-row td.frozen-col {
       background: #DBEAFE; color: #0D47A1; font-weight: 900;
     }
-    .add-folder-pill {
-      padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 800;
-      white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
-      background: #F59E0B; color: #fff; border: 1px solid rgba(255,255,255,0.35);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.16); transition: background 0.15s, transform 0.15s;
-    }
-    .add-folder-pill:hover { background: #D97706; transform: translateY(-1px); }
     .report-folder-card {
       background: #fff; border: 1px solid #CBD5E1; border-radius: 14px; overflow: hidden;
       box-shadow: 0 2px 8px rgba(15,23,42,0.05);
@@ -485,16 +590,16 @@
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
     }
     .welcome-hero-card {
-      background: linear-gradient(135deg, #064E3B 0%, #0F766E 38%, #0D47A1 100%);
-      color: #fff; border-radius: 16px; padding: 18px 20px; margin-bottom: 16px;
-      box-shadow: 0 8px 24px rgba(13,71,161,0.18);
-      border: 1px solid rgba(255,255,255,0.18);
+      background: linear-gradient(125deg, #064E3B 0%, #0F766E 36%, #1E3A8A 76%, #4338CA 100%);
+      color: #fff; border-radius: 20px; padding: 20px 22px; margin-bottom: 18px;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+      border: 1px solid rgba(255,255,255,0.16);
       display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center;
     }
-    @media (max-width: 780px) { .welcome-hero-card { grid-template-columns: 1fr; } }
+    @media (max-width: 800px) { .welcome-hero-card { grid-template-columns: 1fr; padding: 16px; } }
     .cyber-badge {
-      display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap;
-      background: rgba(15,23,42,0.48); border: 1px solid rgba(252,211,77,0.55);
+      display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      background: rgba(15,23,42,0.42); border: 1px solid rgba(252,211,77,0.45);
       padding: 5px 12px 5px 6px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #FEF3C7;
     }
     .abdulfeta-avatar {
@@ -510,21 +615,21 @@
     .abdulfeta-avatar-xl { width: 58px; height: 58px; }
     .lang-toggle-btn {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 5px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 800;
-      background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4);
-      color: #fff; transition: background 0.15s;
+      padding: 6px 11px; border-radius: 9px; font-size: 11.5px; font-weight: 800;
+      background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.32);
+      color: #fff; transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
     }
     .lang-toggle-btn:hover { background: rgba(255,255,255,0.28); }
     .maed-gallery {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
     }
     .maed-logo-box {
-      width: 68px; height: 68px; border-radius: 14px; background: #fff; padding: 4px;
+      width: 64px; height: 64px; border-radius: 14px; background: #fff; padding: 4px;
       object-fit: contain; box-shadow: 0 4px 12px rgba(0,0,0,0.22); cursor: pointer;
       border: 2px solid rgba(255,255,255,0.85); transition: transform 0.15s;
     }
     .maed-poster-box {
-      height: 112px; width: auto; max-width: 150px; border-radius: 12px; background: #fff;
+      height: 106px; width: auto; max-width: 145px; border-radius: 12px; background: #fff;
       object-fit: cover; box-shadow: 0 6px 16px rgba(0,0,0,0.28); cursor: pointer;
       border: 2px solid #FCD34D; transition: transform 0.15s;
     }
@@ -540,24 +645,26 @@
       background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22);
       color: #E2E8F0; font-size: 10.5px; font-weight: 700; cursor: pointer;
       transition: background 0.15s, transform 0.15s, border-color 0.15s;
+      font-variant-numeric: tabular-nums;
     }
     .day-chip:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
     .day-chip.today {
-      background: #F59E0B; border-color: #FEF3C7; color: #fff;
+      background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
+      border-color: #FEF3C7; color: #fff;
       box-shadow: 0 3px 10px rgba(245,158,11,0.35);
     }
     .day-chip.preview {
       background: #10B981; border-color: #A7F3D0; color: #fff;
     }
-    .day-chip-num { font-size: 13px; font-weight: 800; line-height: 1.1; }
+    .day-chip-num { font-size: 12.5px; font-weight: 800; line-height: 1.15; }
     .folder-summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .dash-summary-wrap {
-      background: #fff; border: 1px solid #BFDBFE; border-radius: 20px;
-      margin-bottom: 18px; box-shadow: 0 10px 30px rgba(13,71,161,0.1); overflow: hidden;
+      background: #fff; border: 1px solid #CBD5E1; border-radius: 20px;
+      margin-bottom: 18px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07); overflow: hidden;
     }
     .dash-summary-head {
-      background: linear-gradient(90deg, #0F172A 0%, #1E3A8A 48%, #0F766E 100%);
-      color: #fff; padding: 13px 18px;
+      background: linear-gradient(100deg, #0F172A 0%, #1E3A8A 50%, #0F766E 100%);
+      color: #fff; padding: 14px 18px;
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
     }
     .dash-sum-cards {
@@ -568,8 +675,8 @@
     .dash-sum-card {
       border-radius: 16px; padding: 15px 16px; color: #fff;
       position: relative; overflow: hidden; cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.25);
-      box-shadow: 0 10px 24px rgba(15,23,42,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+      box-shadow: 0 8px 22px rgba(15,23,42,0.12);
       transition: transform 0.18s, box-shadow 0.18s, filter 0.18s;
     }
     .dash-sum-card::after {
@@ -577,16 +684,16 @@
       width: 96px; height: 96px; border-radius: 999px;
       background: rgba(255,255,255,0.12); pointer-events: none;
     }
-    .dash-sum-card:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(15,23,42,0.22); filter: brightness(1.03); }
+    .dash-sum-card:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(15,23,42,0.2); filter: brightness(1.03); }
     .dash-sum-card.active { outline: 3px solid #FBBF24; outline-offset: 2px; }
     .sum-card-daily {
-      background: linear-gradient(135deg, #1E3A8A 0%, #1D4ED8 52%, #0284C7 100%);
+      background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 54%, #0284C7 100%);
     }
     .sum-card-weekly {
-      background: linear-gradient(135deg, #064E3B 0%, #059669 54%, #0D9488 100%);
+      background: linear-gradient(135deg, #065F46 0%, #059669 54%, #0D9488 100%);
     }
     .sum-card-monthly {
-      background: linear-gradient(135deg, #4C1D95 0%, #7C3AED 55%, #C026D3 100%);
+      background: linear-gradient(135deg, #5B21B6 0%, #7C3AED 55%, #C026D3 100%);
     }
     .sum-card-top {
       display: flex; justify-content: space-between; align-items: center; gap: 8px;
@@ -598,9 +705,9 @@
       display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
     .sum-card-pill {
-      font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 8px;
       background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.26);
-      white-space: nowrap;
+      white-space: nowrap; font-variant-numeric: tabular-nums;
     }
     .dash-sum-metrics {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; margin-top: 12px;
@@ -619,6 +726,7 @@
     .sum-stat-val {
       font-size: 13.5px; font-weight: 800; color: #fff; margin-top: 2px; display: block;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-variant-numeric: tabular-nums;
     }
     .sum-progress-wrap {
       margin-top: 10px; position: relative; z-index: 1;
@@ -658,17 +766,16 @@
       display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 8px;
     }
     .dash-allcol-tile {
-      background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
-      border: 1px solid #E2E8F0; border-radius: 10px; padding: 8px 10px;
-      border-left: 3px solid #2563EB;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0; border-top: 3px solid #2563EB; border-radius: 10px; padding: 8px 10px;
     }
     .dash-allcol-tile.is-balance {
-      background: linear-gradient(180deg, #FFF7ED 0%, #FFFFFF 100%);
-      border-color: #FDBA74; border-left: 3px solid #EA580C;
+      background: #FFF7ED;
+      border-color: #FED7AA; border-top: 3px solid #EA580C;
     }
     .dash-allcol-tile.is-paid {
-      background: linear-gradient(180deg, #ECFDF5 0%, #FFFFFF 100%);
-      border-color: #A7F3D0; border-left: 3px solid #059669;
+      background: #ECFDF5;
+      border-color: #A7F3D0; border-top: 3px solid #059669;
     }
     .dash-day-breakdown {
       border-top: 1px solid #CBD5E1; background: #fff; overflow-x: auto;
@@ -678,12 +785,12 @@
       color: #1E3A8A; font-size: 11px; font-weight: 800;
       text-transform: uppercase; padding: 9px 12px; border-bottom: 1px solid #CBD5E1; text-align: left;
     }
-    .folder-summary-table td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; color: #1E293B; }
+    .folder-summary-table td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; color: #1E293B; font-variant-numeric: tabular-nums; }
     .folder-summary-table tbody tr:hover { background: #F0F9FF; }
     .folder-summary-table tfoot td {
       background: linear-gradient(90deg, #DBEAFE 0%, #E0E7FF 55%, #DCFCE7 100%);
       color: #0F172A; font-weight: 800; padding: 10px 12px;
-      border-top: 2px solid #60A5FA;
+      border-top: 2px solid #60A5FA; font-variant-numeric: tabular-nums;
     }
 
     /* Sticky Summary Footer & Bottom Toolbar */
@@ -1493,6 +1600,25 @@
       return (I18N[lang] && I18N[lang][key]) || (I18N.en && I18N.en[key]) || key;
     }
 
+    var FOLDER_PALETTES = [
+      { id: 'blue', grad: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)', soft: 'linear-gradient(90deg, #EFF6FF 0%, #F8FAFC 100%)', border: '#93C5FD', accent: '#1D4ED8', text: '#1E3A8A', chipBg: '#DBEAFE' },
+      { id: 'emerald', grad: 'linear-gradient(135deg, #065F46 0%, #059669 100%)', soft: 'linear-gradient(90deg, #ECFDF5 0%, #F8FAFC 100%)', border: '#6EE7B7', accent: '#059669', text: '#065F46', chipBg: '#D1FAE5' },
+      { id: 'violet', grad: 'linear-gradient(135deg, #5B21B6 0%, #7C3AED 100%)', soft: 'linear-gradient(90deg, #F5F3FF 0%, #F8FAFC 100%)', border: '#C4B5FD', accent: '#7C3AED', text: '#5B21B6', chipBg: '#EDE9FE' },
+      { id: 'amber', grad: 'linear-gradient(135deg, #B45309 0%, #EA580C 100%)', soft: 'linear-gradient(90deg, #FFF7ED 0%, #F8FAFC 100%)', border: '#FDBA74', accent: '#D97706', text: '#9A3412', chipBg: '#FFEDD5' },
+      { id: 'teal', grad: 'linear-gradient(135deg, #155E75 0%, #0891B2 100%)', soft: 'linear-gradient(90deg, #ECFEFF 0%, #F8FAFC 100%)', border: '#67E8F9', accent: '#0891B2', text: '#155E75', chipBg: '#CFFAFE' },
+      { id: 'rose', grad: 'linear-gradient(135deg, #9F1239 0%, #E11D48 100%)', soft: 'linear-gradient(90deg, #FFF1F2 0%, #F8FAFC 100%)', border: '#FDA4AF', accent: '#E11D48', text: '#9F1239', chipBg: '#FFE4E6' }
+    ];
+
+    function getFolderPalette(folderName) {
+      var s = String(folderName || 'General');
+      var h = 0;
+      for (var i = 0; i < s.length; i++) {
+        h = ((h << 5) - h) + s.charCodeAt(i);
+        h |= 0;
+      }
+      return FOLDER_PALETTES[Math.abs(h) % FOLDER_PALETTES.length];
+    }
+
     function getWelcomeDayInfo(lang, offsetDays) {
       var off = typeof offsetDays === 'number' ? offsetDays : (state.previewDayOffset || 0);
       var baseNow = new Date();
@@ -1504,6 +1630,10 @@
       var amMonths = ['ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ'];
       var dIdx = target.getDay();
       var dayNum = target.getDate();
+      var ec = gregorianToEthiopian(target);
+      var ecMonEn = ETHIOPIAN_MONTHS_EN[ec.month - 1] || String(ec.month);
+      var ecMonAm = ETHIOPIAN_MONTHS_AM[ec.month - 1] || String(ec.month);
+      var ecDmy = String(ec.day).padStart(2, '0') + '/' + String(ec.month).padStart(2, '0') + '/' + ec.year;
       var nextD = new Date(target.getTime());
       nextD.setDate(target.getDate() + 1);
       var nextIdx = nextD.getDay();
@@ -1515,17 +1645,21 @@
         return {
           ymd: getLocalYmd(target),
           isLiveToday: off === 0,
-          headline: (off === 0 ? 'እንኳን በደህና መጡ — ' : '') + prefixAm + amDays[dIdx] + ' ቀን ' + dayNum,
-          dateBadge: amDays[dIdx] + '፣ ' + amMonths[target.getMonth()] + ' ' + dayNum + ' · ' + target.getFullYear() + ' (' + timeTxt + ')',
-          nextDayText: 'ቀጣይ ቀን (አውቶ): ' + amDays[nextIdx] + ' ' + nextNum
+          ethDmy: ecDmy,
+          ethFull: ecMonAm + ' ' + ec.day + ' ' + ec.year + ' ዓ.ም',
+          headline: (off === 0 ? 'እንኳን በደህና መጡ — ' : '') + prefixAm + amDays[dIdx] + ' (' + ecDmy + ')',
+          dateBadge: amDays[dIdx] + ' · ' + ecMonAm + ' ' + ec.day + ' ' + ec.year + ' ዓ.ም (' + amMonths[target.getMonth()] + ' ' + dayNum + ', ' + target.getFullYear() + ') · ' + timeTxt,
+          nextDayText: 'ቀጣይ: ' + amDays[nextIdx] + ' ' + nextNum
         };
       }
       return {
         ymd: getLocalYmd(target),
         isLiveToday: off === 0,
-        headline: prefixEn + ' — ' + enDays[dIdx] + ', Day ' + dayNum,
+        ethDmy: ecDmy,
+        ethFull: String(ec.day).padStart(2, '0') + ' ' + ecMonEn + ' ' + ec.year + ' EC',
+        headline: prefixEn + ' — ' + enDays[dIdx] + ', ' + enMonths[target.getMonth()] + ' ' + dayNum,
         dateBadge: enDays[dIdx] + ', ' + enMonths[target.getMonth()] + ' ' + dayNum + ', ' + target.getFullYear() + ' · ' + timeTxt,
-        nextDayText: 'Next Auto: ' + enDays[nextIdx] + ', Day ' + nextNum
+        nextDayText: 'Next: ' + enDays[nextIdx] + ' ' + nextNum
       };
     }
 
@@ -1537,10 +1671,13 @@
       for (var i = 0; i < 7; i++) {
         var dt = new Date(baseNow.getTime());
         dt.setDate(baseNow.getDate() + i);
+        var ec = gregorianToEthiopian(dt);
         days.push({
           offset: i,
           label: lang === 'am' ? amShort[dt.getDay()] : enShort[dt.getDay()],
           dayNum: dt.getDate(),
+          ecDay: ec.day,
+          ecMonth: ec.month,
           isToday: i === 0,
           isSelected: i === (selectedOffset || 0)
         });
@@ -1593,6 +1730,7 @@
       dashDayBreakdownOpen: true,
       previewDayOffset: 0,
       lastRenderedYmd: '',
+      collapsedFolders: {},
       // Table view UI
       tableSearchOpen: false,
       tableSearchQuery: '',
@@ -3554,6 +3692,10 @@
         return String(val);
       }
       if (val === undefined || val === null || val === '') return '';
+      if (col && col.type === 'date') {
+        if (String(val).trim() === '') return '';
+        return formatAutoDateStr(col, parseFlexibleDate(val, undefined, col));
+      }
       if (col && (col.type === 'amount' || col.type === 'number')) {
         var num = parseNumSafe(val);
         if (isNaN(num)) return String(val);
@@ -4500,6 +4642,7 @@
       var folders = getAllFolders();
       var q = state.searchQuery.toLowerCase();
       var filtered = state.bots.filter(function (b) {
+        if (isBotTombstoned(b)) return false;
         var f = b.folder || 'General';
         if (state.selectedFolder !== 'all' && f !== state.selectedFolder) return false;
         if (q && b.name.toLowerCase().indexOf(q) === -1 && (b.description || '').toLowerCase().indexOf(q) === -1 && f.toLowerCase().indexOf(q) === -1) return false;
@@ -4513,17 +4656,24 @@
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
 
+      var totalTablesCount = state.bots.filter(function (b) { return !isBotTombstoned(b); }).length;
+      var totalRowsCount = state.bots.reduce(function (acc, b) {
+        return acc + (isBotTombstoned(b) ? 0 : (b.rows ? b.rows.length : 0));
+      }, 0);
+
       var dotCls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : (state.syncStatus === 'error' || state.syncStatus === 'auth_required') ? 'dot-error' : 'dot-local';
       var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'auth_required' ? 'Sign In Req' : state.syncStatus === 'error' ? 'Sync Error' : 'Local';
       var blockedCount = state.workspaceUsers.filter(function (u) { return u.blocked; }).length;
-      var recentChanges = state.auditLogs.slice(0, 4);
 
       var html = '<header class="app-header"><div class="header-inner">' +
         '<div class="header-left">' +
-          '<button class="icon-btn" id="btn-open-drawer" aria-label="Menu">' + icon('menu', 22) + '</button>' +
-          '<span style="font-weight:700;font-size:18px;letter-spacing:-0.01em">' + esc(t('all_bots')) + '</span>' +
-          '<span class="pill-badge">' + filtered.length + '</span>' +
-          '<button id="sync-pill-badge" class="sync-pill" title="Connect or manage Supabase account" style="cursor:pointer;border:1px solid rgba(255,255,255,0.2);"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></button>' +
+          '<button class="icon-btn" id="btn-open-drawer" aria-label="Menu">' + icon('menu', 21) + '</button>' +
+          '<span class="header-brand-mark">TB</span>' +
+          '<div style="display:flex;flex-direction:column;line-height:1.15;">' +
+            '<span style="font-weight:800;font-size:16.5px;letter-spacing:-0.02em;">TableBot</span>' +
+            '<span style="font-size:10.5px;color:#BAE6FD;font-weight:600;" class="num-tab">' + esc(t('all_bots')) + ' · ' + filtered.length + '</span>' +
+          '</div>' +
+          '<button id="sync-pill-badge" class="sync-pill" title="Connect or manage Supabase account" style="cursor:pointer;"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></button>' +
         '</div>' +
         '<div class="header-right">' +
           '<button type="button" class="lang-toggle-btn" id="btn-lang-toggle" title="Switch English / አማርኛ">' + esc(t('lang_btn')) + '</button>' +
@@ -4532,9 +4682,9 @@
           '<button class="header-action-btn" id="btn-dash-backup" title="Folder Backup, Missing Files &amp; 3m+ History Restore"><span style="color:#A7F3D0">' + icon('history', 15) + '</span><span>' + esc(t('backup_restore')) + '</span></button>' +
           '<button class="header-action-btn" id="btn-dash-admin" title="Admin Panel: User Edits, Unwanted User Block &amp; Transmit"><span style="color:#FDE68A">' + icon('shield', 15) + '</span><span>' + esc(t('admin')) + '</span>' + (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;padding:1px 5px;">' + blockedCount + '</span>' : '') + '</button>' +
           '<button class="header-action-btn" id="btn-dash-supabase" title="Login / Connect Supabase Account"><span style="color:' + (state.authSession ? '#6EE7B7' : '#93C5FD') + '">' + icon('cloud', 15) + '</span><span>' + (state.authSession ? 'Account' : state.supabaseConfig.isConnected ? 'Login' : 'Supabase') + '</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>' + esc(t('reports')) + '</span></button>' +
-          '<button class="icon-btn" id="btn-dash-search" title="Search bots">' + icon('search', 20) + '</button>' +
-          '<button class="icon-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')" style="width:auto;padding:0 8px;gap:4px;font-size:11px;font-weight:700;">' + icon('sort', 18) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
+          '<button class="header-action-btn" id="btn-dash-reports" style="background:rgba(245,158,11,0.22);border-color:rgba(252,211,77,0.45);" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FDE68A">' + icon('chart', 15) + '</span><span>' + esc(t('reports')) + '</span></button>' +
+          '<button class="icon-btn" id="btn-dash-search" title="Search bots">' + icon('search', 19) + '</button>' +
+          '<button class="icon-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')" style="width:auto;padding:0 9px;gap:4px;font-size:11px;font-weight:700;">' + icon('sort', 17) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
           '<select id="sel-dash-filter" class="header-select">' +
             '<option value="all"' + (state.filterType === 'all' ? ' selected' : '') + '>All</option>' +
             '<option value="online"' + (state.filterType === 'online' ? ' selected' : '') + '>Online</option>' +
@@ -4552,7 +4702,6 @@
       }
 
       html += '</header>';
-
       html += '<main class="dashboard-main">';
 
       var dayInfo = getWelcomeDayInfo(state.lang, state.previewDayOffset);
@@ -4560,20 +4709,21 @@
       var weekDays = getWeekCalendarStrip(state.lang, state.previewDayOffset);
       var secMgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
       html += '<section class="welcome-hero-card">' +
-        '<div style="display:flex;flex-direction:column;gap:9px;min-width:0;">' +
+        '<div style="display:flex;flex-direction:column;gap:10px;min-width:0;">' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-            '<span class="pill-badge" id="hero-date-badge" style="background:#F59E0B;color:#fff;font-size:11px;padding:3px 10px;">' + esc(dayInfo.dateBadge) + '</span>' +
-            '<span class="pill-badge" style="background:rgba(16,185,129,0.28);border:1px solid rgba(167,243,208,0.55);color:#ECFDF5;font-size:10.5px;padding:2px 9px;">' + icon('clock', 11) + ' <span>' + esc(t('auto_date_live')) + '</span></span>' +
-            (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FEF3C7;font-size:10.5px;padding:2px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
+            '<span class="pill-badge" id="hero-date-badge" style="background:linear-gradient(135deg,#F59E0B,#EA580C);color:#fff;font-size:11px;padding:3px 10px;">' + esc(dayInfo.dateBadge) + '</span>' +
+            '<span class="pill-badge mono" style="background:rgba(16,185,129,0.28);border:1px solid rgba(167,243,208,0.55);color:#ECFDF5;font-size:11px;padding:3px 10px;">' + esc(dayInfo.ethFull) + ' · ' + esc(dayInfo.ethDmy) + '</span>' +
+            (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FEF3C7;font-size:10.5px;padding:3px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
             '<button type="button" class="lang-toggle-btn" id="hero-lang-toggle" style="font-size:11px;padding:3px 9px;">' + esc(t('lang_btn')) + '</button>' +
           '</div>' +
-          '<h1 id="hero-welcome-headline" style="font-size:21px;font-weight:800;line-height:1.25;letter-spacing:-0.01em;">' + esc(dayInfo.headline) + '</h1>' +
+          '<h1 id="hero-welcome-headline" style="font-size:21px;font-weight:800;line-height:1.25;letter-spacing:-0.015em;">' + esc(dayInfo.headline) + '</h1>' +
           '<div class="week-strip">' +
             weekDays.map(function (wd) {
-              var cls = wd.isToday ? (wd.isSelected ? 'today' : 'today') : (wd.isSelected ? 'preview' : '');
+              var cls = wd.isToday ? 'today' : (wd.isSelected ? 'preview' : '');
               return '<button type="button" class="day-chip ' + cls + '" data-day-offset="' + wd.offset + '" title="' + (wd.isToday ? 'Live Today' : 'Preview +' + wd.offset + ' day(s)') + '">' +
                 '<span style="font-size:9.5px;opacity:0.9;">' + (wd.isToday ? (state.lang === 'am' ? 'ዛሬ' : 'TODAY') : esc(wd.label)) + '</span>' +
                 '<span class="day-chip-num">' + esc(wd.label) + ' ' + wd.dayNum + '</span>' +
+                '<span style="font-size:9px;opacity:0.85;" class="mono">' + String(wd.ecDay).padStart(2, '0') + '/' + String(wd.ecMonth).padStart(2, '0') + ' EC</span>' +
               '</button>';
             }).join('') +
             '<span id="hero-next-day" style="font-size:11px;color:#BAE6FD;font-weight:700;margin-left:4px;">' + esc(dayInfo.nextDayText) + '</span>' +
@@ -4597,39 +4747,39 @@
       '</section>';
 
       var healthSummary = analyzeFolderHealth().summary;
-      html += '<section class="folders-bar" aria-label="Homepage Folders"><div class="folders-inner">' +
-        '<span style="font-size:11px;font-weight:700;color:#BFDBFE;text-transform:uppercase;display:inline-flex;align-items:center;gap:4px;margin-right:4px;flex-shrink:0;">' +
-        '<span style="color:#FCD34D">' + icon('folder', 13) + '</span>' + esc(t('folders')) + '</span>' +
-        '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">' + esc(t('all_folders')) + ' <span class="folder-count">' + state.bots.length + '</span></button>';
+      html += '<section class="folders-bar" aria-label="Homepage Folders">' +
+        '<div class="folders-bar-top">' +
+          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<span class="folder-icon-tile" style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#1E3A8A,#2563EB);">' + icon('folder', 17) + '</span>' +
+            '<div>' +
+              '<div style="font-size:14px;font-weight:800;color:#0F172A;letter-spacing:-0.01em;">Folder Workspace Directory</div>' +
+              '<div class="num-tab" style="font-size:11.5px;color:#64748B;font-weight:600;">' + folders.length + ' folders &middot; ' + totalTablesCount + ' tables &middot; ' + totalRowsCount + ' rows</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+            '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Add, manage or delete folders">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-folder-lock-bar" style="background:#FFFBEB;border-color:#FCD34D;color:#92400E;" title="Folder Lock &amp; Change Code">' + icon('lock', 12) + '<span>Folder Lock</span></button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-folder-history-bar" style="background:#ECFDF5;border-color:#A7F3D0;color:#047857;" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + '<span>' + esc(t('history_restore')) + '</span>' +
+              ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="folders-inner">' +
+          '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">' + icon('grid', 12) + '<span>' + esc(t('all_folders')) + '</span> <span class="folder-count">' + totalTablesCount + '</span></button>';
 
       folders.forEach(function (f) {
-        var cnt = state.bots.filter(function (b) { return (b.folder || 'General') === f; }).length;
+        var pal = getFolderPalette(f);
+        var cnt = state.bots.filter(function (b) { return !isBotTombstoned(b) && (b.folder || 'General') === f; }).length;
         var fLocked = isFolderLocked(f);
         var fUnlocked = isFolderUnlocked(f);
         var lockMark = fLocked ? (fUnlocked ? ' 🔓' : ' 🔒') : '';
-        html += '<button class="folder-tab ' + (state.selectedFolder === f ? 'active' : '') + '" data-folder="' + esc(f) + '">' + esc(f) + lockMark + ' <span class="folder-count">' + cnt + '</span></button>';
+        var isSel = state.selectedFolder === f;
+        html += '<button class="folder-tab ' + (isSel ? 'active' : '') + '" data-folder="' + esc(f) + '" style="' + (isSel ? 'background:' + pal.grad + ';' : '') + '">' +
+          '<span style="width:8px;height:8px;border-radius:999px;background:' + (isSel ? '#fff' : pal.accent) + ';flex-shrink:0;"></span>' +
+          '<span>' + esc(f) + lockMark + '</span> <span class="folder-count">' + cnt + '</span>' +
+        '</button>';
       });
-      html += '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Add, manage or delete folders">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>';
-      if (state.selectedFolder && state.selectedFolder !== 'all') {
-        html += '<button type="button" class="folder-tab" id="btn-del-cur-folder" style="background:rgba(220,38,38,0.85);border-color:rgba(254,202,202,0.65);color:#fff;" title="Delete selected folder">' + icon('trash', 12) + ' <span>Delete Folder</span></button>';
-      }
-      html += '<button type="button" class="folder-tab" id="btn-folder-lock-bar" style="background:rgba(245,158,11,0.22);border-color:rgba(253,230,138,0.45);" title="Folder Lock &amp; Change Code">' + icon('lock', 12) + ' <span>Folder Lock</span></button>';
-      html += '<button class="folder-tab" id="btn-folder-history-bar" style="margin-left:auto;background:rgba(16,185,129,0.25);border-color:rgba(167,243,208,0.45);" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + ' <span>' + esc(t('history_restore')) + '</span>' +
-        ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
-      '</button>';
       html += '</div></section>';
-
-      if (state.confirmDeleteFolder && state.selectedFolder === state.confirmDeleteFolder) {
-        var delCnt = state.bots.filter(function (b) { return (b.folder || 'General') === state.confirmDeleteFolder; }).length;
-        html += '<div style="margin:0 0 12px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
-          '<div style="font-size:12.5px;font-weight:700;color:#991B1B;">Delete folder "' + esc(state.confirmDeleteFolder) + '" (' + delCnt + ' table(s) will be archived to Deleted Bin)?</div>' +
-          '<div style="display:flex;gap:8px;">' +
-            '<button type="button" id="dash-cancel-del-folder" class="btn btn-outline" style="padding:5px 12px;font-size:11.5px;">Cancel</button>' +
-            '<button type="button" id="dash-confirm-del-folder" class="btn btn-red" style="padding:5px 12px;font-size:11.5px;">' + icon('trash', 13) + '<span>Yes, Delete Folder</span></button>' +
-          '</div>' +
-        '</div>';
-      }
-
 
       function buildDashboardAuditStripHtml() {
         var recentChanges = state.auditLogs.slice(0, 6);
@@ -4701,89 +4851,212 @@
         html += buildDashboardAuditStripHtml();
       }
 
-      var selFolder = state.selectedFolder || 'all';
-      var selFolderNeedsUnlock = selFolder !== 'all' && isFolderLocked(selFolder) && !isFolderUnlocked(selFolder);
-      if (selFolder !== 'all' && isFolderLocked(selFolder) && isFolderUnlocked(selFolder)) {
-        html += '<div class="folder-lock-banner">' +
-          '<div style="display:flex;align-items:center;gap:10px;">' +
-            '<span style="color:#B45309;display:inline-flex;">' + icon('lock', 18) + '</span>' +
-            '<div><div style="font-weight:800;font-size:13px;color:#78350F;">Folder "' + esc(selFolder) + '" is Unlocked for this Session</div>' +
-            '<div style="font-size:11px;color:#92400E;">You can re-lock this folder or change its folder code anytime.</div></div>' +
+      function renderBotCardHtml(b, accentColor) {
+        var bFolder = b.folder || 'General';
+        var cardFolderLocked = isFolderLocked(bFolder) && !isFolderUnlocked(bFolder);
+        var stDotColor = b.botStatus === 'online' ? '#10B981' : '#2563EB';
+        var stTxt = b.botStatus === 'online' ? 'Online' : 'Simulator';
+        var topAccent = cardFolderLocked ? '#D97706' : (b.botStatus === 'online' ? '#10B981' : (accentColor || '#2563EB'));
+        var hasEcCol = (b.columns || []).some(isEthiopianCol);
+        var metaParts = [
+          '<span style="display:inline-flex;align-items:center;gap:5px;color:' + (b.botStatus === 'online' ? '#047857' : '#1D4ED8') + ';font-weight:700;"><span class="status-dot-inline" style="background:' + stDotColor + ';"></span>' + stTxt + '</span>'
+        ];
+        if (cardFolderLocked) metaParts.push('<span style="color:#B45309;font-weight:700;">Locked</span>');
+        if (b.webhookActive) metaParts.push('<span style="color:#059669;font-weight:700;">Webhook</span>');
+        if (hasEcCol) metaParts.push('<span style="color:#047857;font-weight:700;">EC Date</span>');
+        if (b.botUsername) metaParts.push('<span class="mono" style="color:#6D28D9;">' + esc(b.botUsername) + '</span>');
+        else if (b.lastEditedBy) metaParts.push('<span class="mono" style="color:#64748B;">' + esc(b.lastEditedBy) + '</span>');
+
+        var cHtml = '<div class="bot-card" data-open-bot="' + esc(b.id) + '" style="border-top-color:' + topAccent + ';">' +
+          '<div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;">' +
+            '<div style="min-width:0;flex:1;">' +
+              '<div class="bot-card-title truncate">' + (cardFolderLocked ? '🔒 ' : '') + esc(b.name) + '</div>' +
+              '<div class="bot-card-desc">' + esc(b.description || 'Telegram Bot Table') + '</div>' +
+            '</div>' +
+            '<button class="icon-btn" style="color:#64748B;width:30px;height:30px;" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 17) + '</button>';
+
+        if (state.activeCardMenuId === b.id) {
+          cHtml += '<div class="dropdown-menu" data-stop-card="1">' +
+            '<button class="dropdown-item" data-menu-action="history" data-bot-id="' + esc(b.id) + '">' + icon('history', 14) + '<span>File Version History</span></button>' +
+            '<button class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename / Settings</span></button>' +
+            '<button class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
+            '<button class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
+            '<button class="dropdown-item danger" data-menu-action="del" data-bot-id="' + esc(b.id) + '">' + icon('trash', 14) + '<span>Delete Table</span></button>' +
+          '</div>';
+        }
+
+        cHtml += '</div>' +
+          '<div class="bot-card-meta-line">' + metaParts.join('<span style="color:#CBD5E1;">&middot;</span>') + '</div>' +
           '</div>' +
-          '<div style="display:flex;gap:8px;">' +
-            '<button type="button" id="dash-lock-cur-folder" class="btn btn-outline" style="font-size:11.5px;border-color:#F59E0B;color:#92400E;background:#fff;">' + icon('lock', 13) + '<span>Lock Folder Now</span></button>' +
-            '<button type="button" id="dash-folder-lock-settings" class="btn btn-dark-blue" style="font-size:11.5px;">Change Folder Code</button>' +
-          '</div>' +
-        '</div>';
+          '<div class="card-footer">' +
+            (cardFolderLocked
+              ? '<span style="color:#B45309;font-weight:700;">Tap to unlock folder</span>'
+              : '<span class="num-tab"><strong>' + b.rows.length + '</strong> rows &middot; <strong>' + b.columns.length + '</strong> cols &middot; ' + timeAgo(b.updatedAt) + '</span>') +
+            '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'table', 16) + '</span>' +
+          '</div></div>';
+        return cHtml;
       }
 
-      if (selFolderNeedsUnlock) {
-        html += '<div class="folder-locked-panel">' +
-          '<div class="lock-icon-ring" style="background:linear-gradient(135deg,#D97706,#B45309);margin-bottom:12px;">' + icon('lock', 30) + '</div>' +
-          '<h2 style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:6px;">Folder Locked: "' + esc(selFolder) + '"</h2>' +
-          '<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;">Enter this folder\'s access code to view tables and summaries inside "' + esc(selFolder) + '".</p>' +
-          '<form id="dash-folder-unlock-form" style="display:flex;flex-direction:column;gap:10px;text-align:left;" autocomplete="off">' +
-            '<input id="dash-folder-code-inp" type="password" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;text-align:center;" placeholder="Enter folder code..." autofocus />' +
-            (state.folderUnlockError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(state.folderUnlockError) + '</span></div>' : '') +
-            '<button type="submit" class="btn btn-dark-blue" style="width:100%;padding:11px;">' + icon('lock', 15) + '<span>Unlock Folder</span></button>' +
-          '</form>' +
-          '<button type="button" id="dash-folder-lock-settings" class="btn btn-outline" style="width:100%;margin-top:10px;font-size:12px;">Change / Manage Folder Lock Code (Abdulfeta)</button>' +
-        '</div>';
-      } else {
-        html += '<div class="grid-meta"><span class="grid-meta-title">' +
-          (state.filterType === 'all' ? esc(t('all_bot_tables')) : state.filterType.toUpperCase() + ' Bot Tables') + ' (' + filtered.length + ')' +
-          '</span><span style="color:#94A3B8">' + esc(t('tap_card')) + '</span></div>';
+      var selFolder = state.selectedFolder || 'all';
+      if (selFolder === 'all') {
+        var visibleFolders = folders.filter(function (f) {
+          if (!q && state.filterType === 'all') return true;
+          return filtered.some(function (b) { return (b.folder || 'General') === f; });
+        });
 
-        if (filtered.length === 0) {
-          html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:40px auto;border:1px solid #E2E8F0;">' +
-            '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1976D2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
-            '<h3 style="font-weight:700;font-size:17px;margin-bottom:6px;">No bot tables found</h3>' +
-            '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Create a new Telegram bot table or clear your search filter.</p>' +
+        if (visibleFolders.length === 0) {
+          html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:440px;margin:32px auto;border:1px solid #E2E8F0;">' +
+            '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1D4ED8;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
+            '<h3 style="font-weight:800;font-size:17px;margin-bottom:6px;">No matching folders or tables</h3>' +
+            '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Create a new table or clear your search filter.</p>' +
             '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
         } else {
-          html += '<div class="bot-grid">';
-          var cardAccents = ['#1D4ED8', '#059669', '#7C3AED', '#D97706', '#0891B2', '#E11D48'];
-          filtered.forEach(function (b, bIdx) {
-            var stCls = b.botStatus === 'online' ? 'chip-online' : 'chip-sim';
-            var stTxt = b.botStatus === 'online' ? 'ONLINE' : 'SIMULATOR';
-            var topAccent = b.botStatus === 'online' ? '#10B981' : cardAccents[bIdx % cardAccents.length];
-            var bFolder = b.folder || 'General';
-            var cardFolderLocked = isFolderLocked(bFolder) && !isFolderUnlocked(bFolder);
-            html += '<div class="bot-card" data-open-bot="' + esc(b.id) + '" style="border-top-color:' + (cardFolderLocked ? '#D97706' : topAccent) + ';">' +
-              '<div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;">' +
-                '<div style="min-width:0;flex:1;">' +
-                  '<div class="bot-card-title truncate">' + (cardFolderLocked ? '🔒 ' : '') + esc(b.name) + '</div>' +
-                  '<div class="bot-card-desc">' + esc(b.description || 'Telegram Bot Table') + '</div>' +
-                '</div>' +
-                '<button class="icon-btn" style="color:#94A3B8;width:30px;height:30px;" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 17) + '</button>';
+          html += '<div class="folder-sections-stack">';
+          visibleFolders.forEach(function (f) {
+            var pal = getFolderPalette(f);
+            var folderBots = filtered.filter(function (b) { return (b.folder || 'General') === f; });
+            var folderRowsTotal = folderBots.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
+            var fLocked = isFolderLocked(f);
+            var fUnlocked = isFolderUnlocked(f);
+            var needsUnlock = fLocked && !fUnlocked;
+            var isCollapsed = !!state.collapsedFolders[f];
+            var isEthFolder = isFolderEthiopianCalendar(f);
 
-            if (state.activeCardMenuId === b.id) {
-              html += '<div class="dropdown-menu" data-stop-card="1">' +
-                '<button class="dropdown-item" data-menu-action="history" data-bot-id="' + esc(b.id) + '">' + icon('history', 14) + '<span>File Version History</span></button>' +
-                '<button class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename / Settings</span></button>' +
-                '<button class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
-                '<button class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
-                '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
-                '<button class="dropdown-item danger" data-menu-action="del" data-bot-id="' + esc(b.id) + '">' + icon('trash', 14) + '<span>Delete Table</span></button>' +
+            html += '<section class="folder-section-box" style="border-color:' + pal.border + ';">' +
+              '<div class="folder-section-head' + (isCollapsed ? ' is-collapsed' : '') + '" style="background:' + pal.soft + ';border-bottom-color:' + pal.border + ';">' +
+                '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">' +
+                  '<button type="button" class="folder-icon-tile" data-folder="' + esc(f) + '" style="background:' + pal.grad + ';cursor:pointer;" title="Focus folder ' + esc(f) + '">' + icon(needsUnlock ? 'lock' : 'folder', 20) + '</button>' +
+                  '<div style="min-width:0;">' +
+                    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                      '<button type="button" data-folder="' + esc(f) + '" style="font-size:16px;font-weight:800;color:' + pal.text + ';letter-spacing:-0.01em;text-align:left;">' + esc(f) + '</button>' +
+                      (isEthFolder ? '<span class="ec-inline-tag">EC Calendar</span>' : '') +
+                      (fLocked ? '<span style="font-size:11px;font-weight:700;color:' + (fUnlocked ? '#047857' : '#B45309') + ';">' + (fUnlocked ? 'Unlocked' : 'Locked') + '</span>' : '') +
+                    '</div>' +
+                    '<div class="num-tab" style="font-size:11.5px;color:#475569;font-weight:600;margin-top:2px;">' +
+                      folderBots.length + ' ' + (folderBots.length === 1 ? 'table' : 'tables') + ' &middot; ' + folderRowsTotal + ' rows' +
+                    '</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="folder-head-actions">' +
+                  '<button type="button" class="folder-mini-btn primary" data-add-table-folder="' + esc(f) + '" title="Create table inside ' + esc(f) + '">' + icon('plus', 12) + '<span>Table</span></button>' +
+                  '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(f) + '" title="Open folder report">' + icon('chart', 12) + '<span>Reports</span></button>' +
+                  '<button type="button" class="folder-mini-btn" data-lock-folder="' + esc(f) + '" title="Folder lock settings">' + icon('lock', 12) + '<span>Lock</span></button>' +
+                  '<button type="button" class="folder-mini-btn danger" data-quick-del-folder="' + esc(f) + '" title="Delete folder">' + icon('trash', 12) + '<span>Delete</span></button>' +
+                  '<button type="button" class="folder-mini-btn" data-toggle-folder="' + esc(f) + '" title="' + (isCollapsed ? 'Expand folder' : 'Collapse folder') + '">' + (isCollapsed ? 'Show' : 'Hide') + '</button>' +
+                '</div>' +
+              '</div>';
+
+            if (state.confirmDeleteFolder === f) {
+              html += '<div style="margin:12px 16px 0;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+                '<div style="font-size:12.5px;font-weight:700;color:#991B1B;">Delete folder "' + esc(f) + '" (' + folderBots.length + ' table(s) will be archived to Deleted Bin)?</div>' +
+                '<div style="display:flex;gap:8px;">' +
+                  '<button type="button" id="dash-cancel-del-folder" class="btn btn-outline" style="padding:5px 12px;font-size:11.5px;">Cancel</button>' +
+                  '<button type="button" id="dash-confirm-del-folder" class="btn btn-red" style="padding:5px 12px;font-size:11.5px;">' + icon('trash', 13) + '<span>Yes, Delete Folder</span></button>' +
+                '</div>' +
               '</div>';
             }
 
-            html += '</div><div class="badges-row">' +
-              '<span class="status-chip ' + stCls + '"><span style="width:6px;height:6px;border-radius:999px;background:currentColor;"></span>' + stTxt + '</span>' +
-              (cardFolderLocked ? '<span class="status-chip" style="background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;">' + icon('lock', 10) + ' FOLDER LOCKED</span>' : '') +
-              (b.webhookActive ? '<span class="status-chip" style="background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;">' + icon('zap', 10) + ' WEBHOOK</span>' : '') +
-              (b.folder ? '<span class="status-chip chip-folder">' + icon('folder', 11) + ' ' + esc(b.folder) + '</span>' : '') +
-              (b.botUsername ? '<span class="status-chip chip-user">' + esc(b.botUsername) + '</span>' : '') +
-              (b.lastEditedBy ? '<span class="status-chip chip-user" title="Last edited by">' + esc(b.lastEditedBy) + '</span>' : '') +
-            '</div></div>' +
-            '<div class="card-footer">' +
-              (cardFolderLocked
-                ? '<span style="color:#B45309;font-weight:700;">Tap to enter folder lock code</span>'
-                : '<span><strong>' + b.rows.length + '</strong> rows &nbsp;·&nbsp; <strong>' + b.columns.length + '</strong> cols &nbsp;·&nbsp; ' + timeAgo(b.updatedAt) + '</span>') +
-              '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'table', 16) + '</span>' +
-            '</div></div>';
+            if (!isCollapsed) {
+              html += '<div class="folder-section-body">';
+              if (needsUnlock) {
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;">' +
+                  '<div style="font-size:12.5px;font-weight:700;color:#92400E;">Folder "' + esc(f) + '" is protected with a folder access code (' + folderBots.length + ' tables).</div>' +
+                  '<button type="button" class="btn btn-dark-blue" data-folder="' + esc(f) + '" style="padding:6px 12px;font-size:11.5px;">' + icon('lock', 12) + '<span>Open &amp; Unlock</span></button>' +
+                '</div>';
+              } else if (folderBots.length === 0) {
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#FFFFFF;border:1px dashed #CBD5E1;border-radius:12px;">' +
+                  '<span style="font-size:12.5px;color:#64748B;font-weight:600;">No tables in "' + esc(f) + '" yet.</span>' +
+                  '<button type="button" class="btn btn-primary" data-add-table-folder="' + esc(f) + '" style="padding:6px 12px;font-size:11.5px;">' + icon('plus', 13) + '<span>Create Table in ' + esc(f) + '</span></button>' +
+                '</div>';
+              } else {
+                html += '<div class="bot-grid">' +
+                  folderBots.map(function (b) { return renderBotCardHtml(b, pal.accent); }).join('') +
+                '</div>';
+              }
+              html += '</div>';
+            }
+            html += '</section>';
           });
           html += '</div>';
+        }
+      } else {
+        var selPal = getFolderPalette(selFolder);
+        var selFolderNeedsUnlock = isFolderLocked(selFolder) && !isFolderUnlocked(selFolder);
+        var selFolderRows = filtered.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
+        var selIsEth = isFolderEthiopianCalendar(selFolder);
+
+        html += '<div class="folder-focused-banner" style="background:' + selPal.grad + ';">' +
+          '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
+            '<button type="button" class="folder-mini-btn" data-folder="all" style="background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.35);color:#fff;">' + icon('back', 13) + '<span>All Folders</span></button>' +
+            '<div>' +
+              '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<span style="font-size:18px;font-weight:800;">' + esc(selFolder) + '</span>' +
+                (selIsEth ? '<span class="pill-badge" style="background:rgba(16,185,129,0.3);border:1px solid rgba(167,243,208,0.5);">EC Calendar</span>' : '') +
+              '</div>' +
+              '<div class="num-tab" style="font-size:12px;color:rgba(255,255,255,0.88);font-weight:600;">' + filtered.length + ' tables &middot; ' + selFolderRows + ' rows</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="folder-head-actions">' +
+            '<button type="button" class="folder-mini-btn" data-add-table-folder="' + esc(selFolder) + '" style="background:#fff;border-color:#fff;color:#0F172A;">' + icon('plus', 12) + '<span>Add Table</span></button>' +
+            '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('chart', 12) + '<span>Reports</span></button>' +
+            '<button type="button" class="folder-mini-btn" data-lock-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('lock', 12) + '<span>Lock</span></button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-del-cur-folder" style="background:rgba(220,38,38,0.9);border-color:rgba(254,202,202,0.7);color:#fff;">' + icon('trash', 12) + '<span>Delete Folder</span></button>' +
+          '</div>' +
+        '</div>';
+
+        if (state.confirmDeleteFolder === selFolder) {
+          html += '<div style="margin:0 0 14px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+            '<div style="font-size:12.5px;font-weight:700;color:#991B1B;">Delete folder "' + esc(selFolder) + '" (' + filtered.length + ' table(s) will be archived to Deleted Bin)?</div>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<button type="button" id="dash-cancel-del-folder" class="btn btn-outline" style="padding:5px 12px;font-size:11.5px;">Cancel</button>' +
+              '<button type="button" id="dash-confirm-del-folder" class="btn btn-red" style="padding:5px 12px;font-size:11.5px;">' + icon('trash', 13) + '<span>Yes, Delete Folder</span></button>' +
+            '</div>' +
+          '</div>';
+        }
+
+        if (isFolderLocked(selFolder) && isFolderUnlocked(selFolder)) {
+          html += '<div class="folder-lock-banner">' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<span style="color:#B45309;display:inline-flex;">' + icon('lock', 18) + '</span>' +
+              '<div><div style="font-weight:800;font-size:13px;color:#78350F;">Folder "' + esc(selFolder) + '" is Unlocked for this Session</div>' +
+              '<div style="font-size:11px;color:#92400E;">You can re-lock this folder or change its folder code anytime.</div></div>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<button type="button" id="dash-lock-cur-folder" class="btn btn-outline" style="font-size:11.5px;border-color:#F59E0B;color:#92400E;background:#fff;">' + icon('lock', 13) + '<span>Lock Folder Now</span></button>' +
+              '<button type="button" id="dash-folder-lock-settings" class="btn btn-dark-blue" style="font-size:11.5px;">Change Folder Code</button>' +
+            '</div>' +
+          '</div>';
+        }
+
+        if (selFolderNeedsUnlock) {
+          html += '<div class="folder-locked-panel">' +
+            '<div class="lock-icon-ring" style="background:linear-gradient(135deg,#D97706,#B45309);margin-bottom:12px;">' + icon('lock', 30) + '</div>' +
+            '<h2 style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:6px;">Folder Locked: "' + esc(selFolder) + '"</h2>' +
+            '<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;">Enter this folder\'s access code to view tables and summaries inside "' + esc(selFolder) + '".</p>' +
+            '<form id="dash-folder-unlock-form" style="display:flex;flex-direction:column;gap:10px;text-align:left;" autocomplete="off">' +
+              '<input id="dash-folder-code-inp" type="password" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;text-align:center;" placeholder="Enter folder code..." autofocus />' +
+              (state.folderUnlockError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(state.folderUnlockError) + '</span></div>' : '') +
+              '<button type="submit" class="btn btn-dark-blue" style="width:100%;padding:11px;">' + icon('lock', 15) + '<span>Unlock Folder</span></button>' +
+            '</form>' +
+            '<button type="button" id="dash-folder-lock-settings" class="btn btn-outline" style="width:100%;margin-top:10px;font-size:12px;">Change / Manage Folder Lock Code (Abdulfeta)</button>' +
+          '</div>';
+        } else {
+          html += '<div class="grid-meta"><span class="grid-meta-title">' +
+            esc(selFolder) + ' Tables (' + filtered.length + ')' +
+            '</span><span style="color:#64748B;">' + esc(t('tap_card')) + '</span></div>';
+
+          if (filtered.length === 0) {
+            html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:30px auto;border:1px solid #E2E8F0;">' +
+              '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1976D2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
+              '<h3 style="font-weight:700;font-size:17px;margin-bottom:6px;">No bot tables in "' + esc(selFolder) + '"</h3>' +
+              '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Create a new table inside this folder or clear your search filter.</p>' +
+              '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
+          } else {
+            html += '<div class="bot-grid">' +
+              filtered.map(function (b) { return renderBotCardHtml(b, selPal.accent); }).join('') +
+            '</div>';
+          }
         }
       }
 
@@ -4797,8 +5070,10 @@
       var dashWeekly = calculateLiveReportSummary('weekly', dashFolderScope, 'all', '');
       var dashMonthly = calculateLiveReportSummary('monthly', dashFolderScope, 'all', '');
       var dashAllCols = calculateLiveReportSummary('all', dashFolderScope, 'all', '');
-      var dashDays = groupReportItemsByDay(dashWeekly.filtered);
-      var todayDmyStr = formatDmyDate(new Date());
+      var dashIsEth = Boolean(dashWeekly.isEthiopianCal || dashDaily.isEthiopianCal || dashMonthly.isEthiopianCal || isFolderEthiopianCalendar(dashFolderScope));
+      var dashDays = groupReportItemsByDay(dashWeekly.filtered, dashIsEth);
+      var todayDisplayStr = dashDaily.todayDisplayLabel || formatDmyDate(new Date());
+      var monthDisplayStr = dashMonthly.isEthiopianCal ? (dashMonthly.monthDisplayLabel || 'This Month') : 'This Month';
 
       html += '<section class="dash-summary-wrap" style="margin-top:22px;">' +
         '<div class="dash-summary-head">' +
@@ -4808,8 +5083,9 @@
               '<div style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
                 '<span>Summary Cards &mdash; Daily, Weekly &amp; Monthly</span>' +
                 '<span class="pill-badge" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.28);font-size:10.5px;">Folder: ' + esc(dashFolderScope) + '</span>' +
+                (dashIsEth ? '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">Ethiopian Calendar</span>' : '') +
               '</div>' +
-              '<div style="font-size:11px;color:#BAE6FD;">Column Header Name Summary Cards &amp; Data calculated by Day (' + esc(todayDmyStr) + '), Week &amp; Month</div>' +
+              '<div style="font-size:11px;color:#BAE6FD;">Column Header Data calculated by Day (' + esc(todayDisplayStr) + '), Week &amp; Month (' + esc(monthDisplayStr) + ')</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
@@ -4826,20 +5102,20 @@
 
       if (!state.dashSummaryCollapsed) {
         html += '<div class="dash-sum-cards">' +
-          renderColorfulSummaryCard('Daily Report', todayDmyStr, dashDaily, 'daily', 'sum-card-daily', 'data-open-rper="daily"') +
+          renderColorfulSummaryCard('Daily Report', todayDisplayStr, dashDaily, 'daily', 'sum-card-daily', 'data-open-rper="daily"') +
           renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', dashWeekly, 'weekly', 'sum-card-weekly', 'data-open-rper="weekly"') +
-          renderColorfulSummaryCard('Monthly Sum', 'This Month', dashMonthly, 'monthly', 'sum-card-monthly', 'data-open-rper="monthly"') +
+          renderColorfulSummaryCard('Monthly Sum', monthDisplayStr, dashMonthly, 'monthly', 'sum-card-monthly', 'data-open-rper="monthly"') +
         '</div>' +
-        renderAllColumnsBar(dashAllCols, 'Folder: ' + dashFolderScope + ' — Column Header Data Summary');
+        renderAllColumnsBar(dashAllCols, 'Folder: ' + dashFolderScope + ' — Column Header Data Summary (' + (dashIsEth ? 'Ethiopian Calendar' : 'All Dates') + ')');
 
         if (state.dashDayBreakdownOpen) {
           html += '<div class="dash-day-breakdown">' +
             renderDynamicDayBreakdownTable(
               dashDays.slice(0, 7),
               dashWeekly,
-              'No dated rows in the last 7 days for "' + dashFolderScope + '". Add rows with dates (e.g. ' + todayDmyStr + ') to calculate daily & weekly column summaries automatically.',
+              'No dated rows in the last 7 days for "' + dashFolderScope + '". Add rows with dates (e.g. ' + todayDisplayStr + ') to calculate daily & weekly column summaries automatically.',
               'Σ Weekly Total (7 Days)',
-              todayDmyStr
+              dashDaily.todayYmd || todayDisplayStr
             ) +
           '</div>';
         }
@@ -4942,7 +5218,7 @@
       var filterSel = document.getElementById('sel-dash-filter');
       if (filterSel) filterSel.onchange = function (e) { state.filterType = e.target.value; renderDashboard(); };
 
-      document.querySelectorAll('.folder-tab[data-folder]').forEach(function (btn) {
+      document.querySelectorAll('[data-folder]').forEach(function (btn) {
         btn.onclick = function () {
           state.folderUnlockError = '';
           state.confirmDeleteFolder = '';
@@ -4950,6 +5226,41 @@
           renderDashboard();
         };
       });
+      document.querySelectorAll('[data-toggle-folder]').forEach(function (btn) {
+        btn.onclick = function () {
+          var fn = btn.getAttribute('data-toggle-folder');
+          if (!fn) return;
+          state.collapsedFolders[fn] = !state.collapsedFolders[fn];
+          renderDashboard();
+        };
+      });
+      document.querySelectorAll('[data-add-table-folder]').forEach(function (btn) {
+        btn.onclick = function () {
+          var fn = btn.getAttribute('data-add-table-folder');
+          createInstantBot(false, fn || undefined);
+        };
+      });
+      document.querySelectorAll('[data-report-folder]').forEach(function (btn) {
+        btn.onclick = function () {
+          var fn = btn.getAttribute('data-report-folder');
+          openModal('reports', { folder: fn || 'General' });
+        };
+      });
+      document.querySelectorAll('[data-lock-folder]').forEach(function (btn) {
+        btn.onclick = function () {
+          var fn = btn.getAttribute('data-lock-folder');
+          openModal('folder_lock', { focusFolder: fn || '' });
+        };
+      });
+      document.querySelectorAll('[data-quick-del-folder]').forEach(function (btn) {
+        btn.onclick = function () {
+          var fn = btn.getAttribute('data-quick-del-folder');
+          if (!fn) return;
+          state.confirmDeleteFolder = state.confirmDeleteFolder === fn ? '' : fn;
+          renderDashboard();
+        };
+      });
+
       var delCurFldBtn = document.getElementById('btn-del-cur-folder');
       if (delCurFldBtn) delCurFldBtn.onclick = function () {
         state.confirmDeleteFolder = state.confirmDeleteFolder === state.selectedFolder ? '' : state.selectedFolder;
@@ -4962,6 +5273,7 @@
         var fn = state.confirmDeleteFolder || state.selectedFolder;
         if (!fn || fn === 'all') return;
         var removedCount = await deleteFolderWithBackup(fn);
+        state.confirmDeleteFolder = '';
         showToast('Deleted folder "' + fn + '"' + (removedCount > 0 ? ' (' + removedCount + ' table(s) backed up)' : ''));
       };
       var fldLockBarBtn = document.getElementById('btn-folder-lock-bar');
@@ -5366,8 +5678,10 @@
       var tblDaily = calculateLiveReportSummary('daily', tblScopeFld, 'all', '', tblScopeBot);
       var tblWeekly = calculateLiveReportSummary('weekly', tblScopeFld, 'all', '', tblScopeBot);
       var tblMonthly = calculateLiveReportSummary('monthly', tblScopeFld, 'all', '', tblScopeBot);
-      var tblDays = groupReportItemsByDay(tblWeekly.filtered);
-      var tblTodayDmy = formatDmyDate(new Date());
+      var tblIsEth = tblWeekly.isEthiopianCal || tblDaily.isEthiopianCal || (bot.columns || []).some(isEthiopianCol);
+      var tblDays = groupReportItemsByDay(tblWeekly.filtered, tblIsEth);
+      var tblTodayDmy = tblDaily.todayDisplayLabel || formatDmyDate(new Date());
+      var tblMonthSub = tblMonthly.isEthiopianCal ? tblMonthly.monthDisplayLabel : 'This Month';
 
       html += '<section class="dash-summary-wrap" style="margin:14px 16px 24px;">' +
         '<div class="dash-summary-head">' +
@@ -5377,8 +5691,9 @@
               '<div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
                 '<span>Last-Row Automatic Report</span>' +
                 '<span class="pill-badge" style="background:rgba(255,255,255,0.22);font-size:10.5px;">' + (state.tableReportScope === 'folder' ? 'Folder: ' + esc(tblFolder) : 'Table: ' + esc(bot.name)) + '</span>' +
+                (tblIsEth ? '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">Ethiopian Calendar</span>' : '') +
               '</div>' +
-              '<div style="font-size:11px;color:#DBEAFE;">Column Header Name Summary Cards calculated automatically below rows</div>' +
+              '<div style="font-size:11px;color:#DBEAFE;">Column Header Name Summary Cards calculated automatically below rows (' + esc(tblTodayDmy) + ')</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
@@ -5393,7 +5708,7 @@
         html += '<div class="dash-sum-cards">' +
           renderColorfulSummaryCard('Daily Report', tblTodayDmy, tblDaily, 'daily', 'sum-card-daily tbl-sum-card', 'data-open-rper="daily"') +
           renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
-          renderColorfulSummaryCard('Monthly Sum', 'This Month', tblMonthly, 'monthly', 'sum-card-monthly tbl-sum-card', 'data-open-rper="monthly"') +
+          renderColorfulSummaryCard('Monthly Sum', tblMonthSub, tblMonthly, 'monthly', 'sum-card-monthly tbl-sum-card', 'data-open-rper="monthly"') +
         '</div>' +
         renderAllColumnsBar(tblWeekly, (state.tableReportScope === 'folder' ? 'Folder: ' + tblFolder : bot.name) + ' — Column Header Data Summary') +
         '<div class="dash-day-breakdown">' +
@@ -5402,7 +5717,7 @@
             tblWeekly,
             'No filled dated rows in the last 7 days yet. Add data to any row above to calculate Daily & Weekly column sums here automatically.',
             'Σ Weekly Total (7 Days)',
-            tblTodayDmy
+            tblDaily.todayYmd || getLocalYmd(new Date())
           ) +
         '</div>';
       }
@@ -5824,6 +6139,9 @@
             r[ed.colId] = parsed;
             r._actor = getCurrentActor();
             r._updatedAt = nowIso;
+            if (col && col.type === 'date' && String(parsed).trim() !== '') {
+              r._dateEdited = true;
+            }
             if (col && col.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
               autoFillRowDates(bot, r, nowIso, ed.colId);
             }
@@ -6009,6 +6327,7 @@
             m.row[m.col.id] = parsedVal;
             m.row._actor = getCurrentActor();
             m.row._updatedAt = nowIso;
+            if (m.col.type === 'date' && String(parsedVal).trim() !== '') m.row._dateEdited = true;
             if (m.col.type !== 'date' && String(parsedVal).trim() !== '' && String(parsedVal) !== '0') {
               autoFillRowDates(bot, m.row, nowIso, m.col.id);
             }
@@ -6027,6 +6346,7 @@
               tr[tc.id] = parsed;
               tr._actor = getCurrentActor();
               tr._updatedAt = nowIso;
+              if (tc.type === 'date' && String(parsed).trim() !== '') tr._dateEdited = true;
               if (tc.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
                 autoFillRowDates(bot, tr, nowIso, tc.id);
               }
@@ -6424,6 +6744,7 @@
             m.row[m.col.id] = parsed;
             m.row._actor = getCurrentActor();
             m.row._updatedAt = nowIso;
+            if (m.col.type === 'date' && String(parsed).trim() !== '') m.row._dateEdited = true;
             if (m.col.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
               autoFillRowDates(bot, m.row, nowIso, m.col.id);
             }
@@ -9504,9 +9825,38 @@
       return /paid|payment|received|deposit|pay|የተከፈለ/.test(n) && !isBalanceColName(n);
     }
 
+    function isFolderEthiopianCalendar(folderName, botFilterId) {
+      var list = state.bots.filter(function (b) {
+        if (isBotTombstoned(b)) return false;
+        if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return false;
+        if (folderName && folderName !== 'all' && (b.folder || 'General') !== folderName) return false;
+        return true;
+      });
+      return list.some(function (b) {
+        return (b.columns || []).some(function (c) { return c.type === 'date' && isEthiopianCol(c); });
+      });
+    }
+
+    function formatReportDateChip(dateInput, useEth) {
+      if (useEth) return formatEthiopianDate(dateInput, 'dmy', state && state.lang) + ' EC';
+      return formatDmyDate(dateInput);
+    }
+
+    function formatReportMonthLabel(dateInput, useEth, lang) {
+      var d = dateInput instanceof Date ? dateInput : new Date(dateInput || Date.now());
+      if (useEth) {
+        var ec = gregorianToEthiopian(d);
+        var list = lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+        return (list[ec.month - 1] || String(ec.month)) + ' ' + ec.year + ' EC';
+      }
+      var gcShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return (gcShort[d.getMonth()] || '') + ' ' + d.getFullYear();
+    }
+
     function buildReportItems(botFilterId) {
       var items = [];
       state.bots.forEach(function (bot) {
+        if (isBotTombstoned(bot)) return;
         if (botFilterId && botFilterId !== 'all' && bot.id !== botFilterId) return;
         var folderName = bot.folder || 'General';
         var findCol = function (preds, excludeMap) {
@@ -9534,14 +9884,16 @@
         if (totCol) exclPaid[totCol.id] = true;
         var paidCol = findCol(['paid', 'payment', 'received', 'deposit', 'pay', 'የተከፈለ', 'col_paid', 'price', 'target', 'amount', 'col_amount'], exclPaid) ||
           findCol(['paid', 'col_paid', 'amount', 'price', 'target', 'col_amount'], balCol ? (function () { var m = {}; m[balCol.id] = true; return m; }()) : null);
-        var dateCol = findCol(['date', 'time']);
+        var allDateCols = bot.columns.filter(function (c) { return c.type === 'date'; });
+        var defaultEthDateCol = allDateCols.find(function (c) { return isEthiopianCol(c); }) || null;
+        var fallbackDateCol = allDateCols[0] || findCol(['date', 'time']);
 
         bot.rows.forEach(function (row, idx) {
           // Ignore completely blank untouched rows just created by + Add Row so adding a row never impacts reports until edited
           var hasUserData = bot.columns.some(function (c) {
             var v = row[c.id];
             if (c.type === 'date') {
-              return c.autoInsertDate !== true && v !== undefined && v !== null && String(v).trim() !== '';
+              return (c.autoInsertDate !== true || row._dateEdited === true) && v !== undefined && v !== null && String(v).trim() !== '';
             }
             if (c.type === 'checkbox') return v === true;
             if (c.type === 'number' || c.type === 'amount') return Number(v) !== 0 && !isNaN(Number(v)) && v !== '' && v !== undefined && v !== null;
@@ -9552,6 +9904,13 @@
             return v !== undefined && v !== null && String(v).trim() !== '';
           });
           if (!hasUserData) return;
+
+          var rowDateCol =
+            allDateCols.find(function (c) { return isEthiopianCol(c) && row[c.id] !== undefined && row[c.id] !== null && String(row[c.id]).trim() !== ''; }) ||
+            allDateCols.find(function (c) { return row[c.id] !== undefined && row[c.id] !== null && String(row[c.id]).trim() !== ''; }) ||
+            defaultEthDateCol ||
+            fallbackDateCol;
+
           var cname = cnameCol && row[cnameCol.id] !== undefined && row[cnameCol.id] !== '' ? String(row[cnameCol.id]) : (bot.name + ' #' + (idx + 1));
           var qual = qualCol && row[qualCol.id] !== undefined && row[qualCol.id] !== '' ? String(row[qualCol.id]) : '';
           if (!qual) {
@@ -9626,10 +9985,15 @@
           if (totVal <= 0 && balCol) totVal = paidVal + balVal;
           if (paidVal <= 0 && totVal > 0 && !balCol) paidVal = totVal;
           var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
-          var rawDate = dateCol && row[dateCol.id] ? String(row[dateCol.id]).trim() : '';
+          var rawDate = rowDateCol && row[rowDateCol.id] ? String(row[rowDateCol.id]).trim() : '';
           var fallbackIso = row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString();
-          var parsedDate = parseFlexibleDate(rawDate, fallbackIso, dateCol);
-          var dt = rawDate || formatAutoDateStr(dateCol, parsedDate);
+          var parsedDate = parseFlexibleDate(rawDate, fallbackIso, rowDateCol);
+          var ecParts = gregorianToEthiopian(parsedDate);
+          var ethDmy = formatEthiopianDate(parsedDate, 'dmy', state && state.lang);
+          var ethNamed = formatEthiopianDate(parsedDate, 'eth_named', state && state.lang);
+          var ethYmd = String(ecParts.year) + '-' + String(ecParts.month).padStart(2, '0') + '-' + String(ecParts.day).padStart(2, '0');
+          var isEth = isEthiopianCol(rowDateCol);
+          var dt = rowDateCol ? formatAutoDateStr(rowDateCol, parsedDate) : (rawDate || formatDmyDate(parsedDate));
           items.push({
             id: row.id,
             botId: bot.id,
@@ -9645,7 +10009,12 @@
             allCols: allCols,
             status: st,
             date: dt,
-            dateCol: dateCol || null,
+            dateCol: rowDateCol || null,
+            isEthiopian: isEth,
+            ec: ecParts,
+            ethDmy: ethDmy,
+            ethNamed: ethNamed,
+            ethYmd: ethYmd,
             ymd: getLocalYmd(parsedDate),
             dmy: formatDmyDate(parsedDate),
             parsedMs: parsedDate.getTime(),
@@ -9659,10 +10028,14 @@
     function exportReportCsv(period, folder, items, met, repData) {
       var dStr = getLocalYmd(new Date());
       var targetFolder = (folder && folder !== 'all') ? folder : (getAllFolders()[0] || 'General');
+      var isEth = Boolean(repData && repData.isEthiopianCal);
+      var todayDisplay = formatReportDateChip(new Date(), isEth);
       var cols = (repData && repData.columnSummaries) ? repData.columnSummaries : [];
       var lines = [
         '"TableBot - Folder Column Header Report"',
         '"Period:","' + period.toUpperCase() + ' REPORT"',
+        '"Calendar:","' + (isEth ? 'Ethiopian Calendar (EC)' : 'Gregorian Calendar') + '"',
+        '"Date:","' + todayDisplay + '"',
         '"Generated (Real-Time):","' + toLocalDateTimeStr(new Date()) + '"',
         '"Folder:","' + targetFolder.replace(/"/g, '""') + '"',
         '"Total Rows:","' + items.length + '"'
@@ -9696,6 +10069,8 @@
     function exportReportPdfHtml(period, folder, items, met, repData) {
       var dStr = getLocalYmd(new Date());
       var targetFolder = (folder && folder !== 'all') ? folder : (getAllFolders()[0] || 'General');
+      var isEth = Boolean(repData && repData.isEthiopianCal);
+      var todayDisplay = formatReportDateChip(new Date(), isEth);
       var cols = (repData && repData.columnSummaries) ? repData.columnSummaries : [];
       var colSummaryHtml = cols.map(function (c) {
         return '<span style="display:inline-block;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:4px 10px;margin:3px 6px 3px 0;font-size:12px;"><strong>' + esc(c.name) + ':</strong> ' + esc(c.summaryValue) + '</span>';
@@ -9718,7 +10093,7 @@
         '<td></td></tr>';
       var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + esc(targetFolder) + ' Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}h2{font-size:14px;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;}th,td{border:1px solid #CBD5E1;padding:7px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
         '<body onload="window.print()"><div class="np" style="background:#0D47A1;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;"><span>Print / Save as PDF</span><button onclick="window.print()" style="background:#fff;color:#0D47A1;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button></div>' +
-        '<h1>' + esc(targetFolder) + ' &mdash; ' + period.toUpperCase() + ' COLUMN REPORT</h1><p>Folder: <strong>' + esc(targetFolder) + '</strong> &middot; Real-Time: ' + toLocalDateTimeStr(new Date()) + '</p>' +
+        '<h1>' + esc(targetFolder) + ' &mdash; ' + period.toUpperCase() + ' COLUMN REPORT</h1><p>Folder: <strong>' + esc(targetFolder) + '</strong> &middot; Date: <strong>' + esc(todayDisplay) + '</strong> &middot; Real-Time: ' + toLocalDateTimeStr(new Date()) + '</p>' +
         '<div style="margin:10px 0;">' + colSummaryHtml + '</div>' +
         '<table><thead><tr>' + thHtml + '</tr></thead><tbody>' + rowsHtml + '</tbody><tfoot>' + tfootHtml + '</tfoot></table></body></html>';
       downloadBlob(doc, 'TableBot_' + targetFolder.replace(/\s+/g, '_') + '_' + period + '_Report_' + dStr + '.html', 'text/html');
@@ -9741,17 +10116,19 @@
       return String(cm.count || 0);
     }
 
-    function groupReportItemsByDay(items) {
+    function groupReportItemsByDay(items, forceEth) {
       var daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       var map = {};
       items.forEach(function (it) {
         var key = it.ymd || getLocalYmd(parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol));
+        var useEth = Boolean(forceEth || it.isEthiopian || isEthiopianCol(it.dateCol));
         if (!map[key]) {
           var dObj = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
           map[key] = {
             ymd: key,
             dmy: it.dmy || formatDmyDate(dObj),
-            ethDmy: isEthiopianCol(it.dateCol) ? formatEthiopianDate(dObj, 'dmy', state && state.lang) : '',
+            ethDmy: useEth ? (it.ethDmy || formatEthiopianDate(dObj, 'dmy', state && state.lang)) : '',
+            ethNamed: useEth ? (it.ethNamed || formatEthiopianDate(dObj, 'eth_named', state && state.lang)) : '',
             weekday: daysShort[dObj.getDay()],
             rowCount: 0,
             quantitySum: 0,
@@ -9763,6 +10140,10 @@
             colChecked: {},
             colLatest: {}
           };
+        } else if (useEth && !map[key].ethDmy) {
+          var dObj2 = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
+          map[key].ethDmy = it.ethDmy || formatEthiopianDate(dObj2, 'dmy', state && state.lang);
+          map[key].ethNamed = it.ethNamed || formatEthiopianDate(dObj2, 'eth_named', state && state.lang);
         }
         var g = map[key];
         g.rowCount++;
@@ -9796,12 +10177,21 @@
       var allItems = buildReportItems(botFilterId);
       var refNow = new Date();
       var todayYmd = getLocalYmd(refNow);
+      var nowEc = gregorianToEthiopian(refNow);
       var todayMidnight = new Date(refNow.getFullYear(), refNow.getMonth(), refNow.getDate()).getTime();
+      var folderIsEth = isFolderEthiopianCalendar(fld, botFilterId);
 
       var filtered = allItems.filter(function (it) {
         if (fld && it.folder !== fld) return false;
         if (q) {
-          var hitBase = it.customerName.toLowerCase().indexOf(q) !== -1 || it.qualityOrQuantity.toLowerCase().indexOf(q) !== -1 || it.folder.toLowerCase().indexOf(q) !== -1 || it.botName.toLowerCase().indexOf(q) !== -1 || it.dmy.indexOf(q) !== -1;
+          var hitBase = it.customerName.toLowerCase().indexOf(q) !== -1 ||
+            it.qualityOrQuantity.toLowerCase().indexOf(q) !== -1 ||
+            it.folder.toLowerCase().indexOf(q) !== -1 ||
+            it.botName.toLowerCase().indexOf(q) !== -1 ||
+            String(it.dmy || '').toLowerCase().indexOf(q) !== -1 ||
+            String(it.date || '').toLowerCase().indexOf(q) !== -1 ||
+            String(it.ethDmy || '').toLowerCase().indexOf(q) !== -1 ||
+            String(it.ethNamed || '').toLowerCase().indexOf(q) !== -1;
           var hitCols = (it.allCols || []).some(function (ac) {
             return String(ac.name || '').toLowerCase().indexOf(q) !== -1 || String(ac.display || '').toLowerCase().indexOf(q) !== -1;
           });
@@ -9811,11 +10201,21 @@
         if (stF === 'remaining' && it.remainingBalance <= 0.01) return false;
         if (per === 'all') return true;
         var dt = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
-        if (per === 'daily') return it.ymd === todayYmd || getLocalYmd(dt) === todayYmd;
+        var itemEc = it.ec || gregorianToEthiopian(dt);
+        if (per === 'daily') {
+          if (it.ymd === todayYmd || getLocalYmd(dt) === todayYmd) return true;
+          if (it.isEthiopian || folderIsEth) {
+            return itemEc.year === nowEc.year && itemEc.month === nowEc.month && itemEc.day === nowEc.day;
+          }
+          return false;
+        }
         if (per === 'weekly') {
           var dtMid = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
           var dayDiff = (todayMidnight - dtMid) / 86400000;
           return dayDiff >= -1 && dayDiff <= 6;
+        }
+        if (it.isEthiopian || folderIsEth) {
+          return itemEc.month === nowEc.month && itemEc.year === nowEc.year;
         }
         return dt.getMonth() === refNow.getMonth() && dt.getFullYear() === refNow.getFullYear();
       });
@@ -9859,6 +10259,7 @@
       };
 
       state.bots.forEach(function (b) {
+        if (isBotTombstoned(b)) return;
         if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return;
         if (fld && (b.folder || 'General') !== fld) return;
         (b.columns || []).forEach(function (c) { ensureColMeta(c); });
@@ -9888,7 +10289,7 @@
         return cm;
       });
 
-      var folderBots = state.bots.filter(function (b) { return (b.folder || 'General') === fld; });
+      var folderBots = state.bots.filter(function (b) { return !isBotTombstoned(b) && (b.folder || 'General') === fld; });
       var tableSummaries = folderBots.map(function (fb) {
         var tItems = filtered.filter(function (it) { return it.botId === fb.id; });
         var tCols = {};
@@ -9936,6 +10337,10 @@
         folder: fld,
         refNow: refNow,
         todayYmd: todayYmd,
+        nowEc: nowEc,
+        isEthiopianCal: folderIsEth,
+        todayDisplayLabel: formatReportDateChip(refNow, folderIsEth),
+        monthDisplayLabel: formatReportMonthLabel(refNow, folderIsEth, state && state.lang),
         folders: folders,
         filtered: filtered,
         met: met,
@@ -10011,12 +10416,13 @@
       '</div>';
     }
 
-    function renderDynamicDayBreakdownTable(dayGroups, repSummary, emptyMsg, totalLabel, todayDmyStr) {
+    function renderDynamicDayBreakdownTable(dayGroups, repSummary, emptyMsg, totalLabel, todayMarker) {
       var cols = (repSummary && repSummary.columnSummaries) ? repSummary.columnSummaries : [];
       var met = (repSummary && repSummary.met) ? repSummary.met : { rowCount: 0 };
       var displayCols = cols.slice(0, 8);
       var colSpanCount = 2 + displayCols.length;
       var colHeaderColors = ['#6D28D9', '#0D47A1', '#15803D', '#C2410C', '#0891B2', '#BE185D'];
+      var todayYmdVal = (repSummary && repSummary.todayYmd) ? repSummary.todayYmd : getLocalYmd(new Date());
 
       var ths = displayCols.map(function (c, i) {
         var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : colHeaderColors[i % colHeaderColors.length]);
@@ -10044,8 +10450,9 @@
             return '<td class="mono" style="text-align:' + (c.isNumeric ? 'right' : 'center') + ';font-weight:' + (c.isNumeric ? '800' : '700') + ';color:' + clr + ';">' + esc(valTxt) + '</td>';
           }).join('');
           var dayDateLabel = dy.ethDmy ? (dy.ethDmy + ' EC (' + dy.dmy + ')') : dy.dmy;
+          var isTodayRow = (dy.ymd === todayYmdVal) || (todayMarker && (dy.ymd === todayMarker || dy.dmy === todayMarker || dy.ethDmy === todayMarker));
           return '<tr>' +
-            '<td style="font-weight:700;color:#0D47A1;">' + esc(dayDateLabel) + ' <span style="font-size:10.5px;color:#64748B;">(' + esc(dy.weekday) + (todayDmyStr && dy.dmy === todayDmyStr ? ' · Today' : '') + ')</span></td>' +
+            '<td style="font-weight:700;color:#0D47A1;">' + esc(dayDateLabel) + ' <span style="font-size:10.5px;color:#64748B;">(' + esc(dy.weekday) + (isTodayRow ? ' · Today' : '') + ')</span></td>' +
             '<td style="text-align:center;font-weight:700;">' + dy.rowCount + '</td>' +
             tds +
           '</tr>';
@@ -10078,7 +10485,7 @@
       if (m.search === undefined) m.search = '';
       if (m.menuOpen === undefined) m.menuOpen = false;
 
-      var folderBotsAll = state.bots.filter(function (b) { return (b.folder || 'General') === m.folder; });
+      var folderBotsAll = state.bots.filter(function (b) { return !isBotTombstoned(b) && (b.folder || 'General') === m.folder; });
       if (m.botId !== 'all' && !folderBotsAll.some(function (b) { return b.id === m.botId; })) {
         m.botId = 'all';
       }
@@ -10087,6 +10494,9 @@
       var folders = repData.folders;
       var refNow = repData.refNow;
       var todayYmd = repData.todayYmd;
+      var isEthCal = Boolean(repData.isEthiopianCal);
+      var todayDisplayChip = repData.todayDisplayLabel || formatDmyDate(refNow);
+      var monthDisplayChip = isEthCal ? repData.monthDisplayLabel : 'This Month';
       var filtered = repData.filtered;
       var met = repData.met;
       var colSummaries = repData.columnSummaries || [];
@@ -10094,7 +10504,7 @@
       var repDaily = calculateLiveReportSummary('daily', m.folder, m.status, m.search, m.botId);
       var repWeekly = calculateLiveReportSummary('weekly', m.folder, m.status, m.search, m.botId);
       var repMonthly = calculateLiveReportSummary('monthly', m.folder, m.status, m.search, m.botId);
-      var dayGroups = groupReportItemsByDay(filtered);
+      var dayGroups = groupReportItemsByDay(filtered, isEthCal);
 
       var primaryNumCol = colSummaries.find(function (c) { return c.isNumeric; }) || null;
       var trends = [];
@@ -10127,7 +10537,9 @@
         var wkB = [{ l: 'Wk 1', v: 0, c: 0 }, { l: 'Wk 2', v: 0, c: 0 }, { l: 'Wk 3', v: 0, c: 0 }, { l: 'Wk 4+', v: 0, c: 0 }];
         filtered.forEach(function (it) {
           var d = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
-          var dom = d.getDate();
+          var dom = (it.isEthiopian || isEthCal)
+            ? (it.ec ? it.ec.day : gregorianToEthiopian(d).day)
+            : d.getDate();
           var idx = dom <= 7 ? 0 : dom <= 14 ? 1 : dom <= 21 ? 2 : 3;
           var nv = primaryNumCol
             ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
@@ -10156,7 +10568,7 @@
 
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
         '<header class="modal-header no-print">' +
-          '<div style="display:flex;align-items:center;gap:10px;">' + icon('chart', 22) + '<div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h2 style="font-size:16px;font-weight:700;">Column Header Reports &amp; Summary Cards</h2><span class="pill-badge" style="text-transform:uppercase;">' + (m.period === 'all' ? 'ALL DATES' : esc(m.period)) + '</span><span class="pill-badge" style="background:#10B981;color:#fff;">Live ' + esc(liveTimeStr) + '</span></div>' +
+          '<div style="display:flex;align-items:center;gap:10px;">' + icon('chart', 22) + '<div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h2 style="font-size:16px;font-weight:700;">Column Header Reports &amp; Summary Cards</h2><span class="pill-badge" style="text-transform:uppercase;">' + (m.period === 'all' ? 'ALL DATES' : esc(m.period)) + '</span><span class="pill-badge" style="background:#10B981;color:#fff;">Live ' + esc(liveTimeStr) + '</span>' + (isEthCal ? '<span class="pill-badge" style="background:#F59E0B;color:#fff;">Ethiopian Calendar</span>' : '') + '</div>' +
           '<div style="font-size:11px;color:#BFDBFE;">Folder: <strong>' + esc(m.folder) + '</strong> &middot; Summary Cards &amp; Data Displayed by Column Header Name</div></div></div>' +
           '<div style="display:flex;align-items:center;gap:8px;position:relative;">' +
             '<button id="rep-refresh-live" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;padding:6px 10px;font-size:11.5px;" title="Refresh real-time column totals">' + icon('refresh', 14) + '<span>Live Sync</span></button>' +
@@ -10172,9 +10584,9 @@
         '<div class="no-print" style="background:#1565C0;padding:10px 18px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;color:#fff;">' +
           '<div style="display:flex;background:rgba(13,71,161,0.7);padding:3px;border-radius:10px;gap:3px;flex-wrap:wrap;">' +
             '<button class="btn" data-rper="all" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'all' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">All Dates</button>' +
-            '<button class="btn" data-rper="daily" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'daily' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Daily (Today)</button>' +
+            '<button class="btn" data-rper="daily" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'daily' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Daily (' + esc(todayDisplayChip) + ')</button>' +
             '<button class="btn" data-rper="weekly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'weekly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Weekly Report</button>' +
-            '<button class="btn" data-rper="monthly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'monthly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Monthly Report</button>' +
+            '<button class="btn" data-rper="monthly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'monthly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Monthly (' + esc(isEthCal ? repMonthly.monthDisplayLabel : 'Month') + ')</button>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
             '<select id="rep-folder" class="header-select" title="Choose Folder">' +
@@ -10192,7 +10604,7 @@
           '</div></div>' +
         '<div class="modal-body tinted" style="display:flex;flex-direction:column;gap:16px;">' +
           '<div class="no-print" style="background:#fff;border:1px solid #A7F3D0;border-radius:14px;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">' +
-            '<div><div style="font-weight:700;font-size:13.5px;">Real-Time Folder Report: ' + esc(m.folder) + ' (' + esc(todayYmd) + ' ' + esc(liveTimeStr) + ')</div><div style="font-size:11.5px;color:#64748B;">Showing ' + colSummaries.length + ' Column Header(s) &middot; ' + filtered.length + ' live record(s) across ' + (m.botId === 'all' ? folderBotsAll.length : 1) + ' table(s).</div></div>' +
+            '<div><div style="font-weight:700;font-size:13.5px;">Real-Time Folder Report: ' + esc(m.folder) + ' (' + esc(isEthCal ? todayDisplayChip : todayYmd) + ' · ' + esc(liveTimeStr) + ')</div><div style="font-size:11.5px;color:#64748B;">Showing ' + colSummaries.length + ' Column Header(s) &middot; ' + filtered.length + ' live record(s) across ' + (m.botId === 'all' ? folderBotsAll.length : 1) + ' table(s)' + (isEthCal ? ' · Ethiopian Calendar Active' : '') + '.</div></div>' +
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               '<input id="rep-search" class="form-input" style="width:200px;padding:6px 10px;font-size:12px;" placeholder="Search column data, record..." value="' + esc(m.search) + '" />' +
               '<button id="ban-pdf" class="btn btn-red" style="font-size:11.5px;">' + icon('pdf', 14) + '<span>PDF</span></button>' +
@@ -10201,9 +10613,9 @@
             '</div>' +
           '</div>' +
           '<div class="dash-sum-cards" style="padding:0;background:transparent;">' +
-            renderColorfulSummaryCard('Daily Summary', formatDmyDate(refNow), repDaily, 'daily', 'sum-card-daily' + (m.period === 'daily' ? ' active' : ''), 'data-rper="daily"') +
+            renderColorfulSummaryCard('Daily Summary', todayDisplayChip, repDaily, 'daily', 'sum-card-daily' + (m.period === 'daily' ? ' active' : ''), 'data-rper="daily"') +
             renderColorfulSummaryCard('Weekly Summary', 'Last 7 Days', repWeekly, 'weekly', 'sum-card-weekly' + (m.period === 'weekly' ? ' active' : ''), 'data-rper="weekly"') +
-            renderColorfulSummaryCard('Monthly Summary', 'This Month', repMonthly, 'monthly', 'sum-card-monthly' + (m.period === 'monthly' ? ' active' : ''), 'data-rper="monthly"') +
+            renderColorfulSummaryCard('Monthly Summary', monthDisplayChip, repMonthly, 'monthly', 'sum-card-monthly' + (m.period === 'monthly' ? ' active' : ''), 'data-rper="monthly"') +
           '</div>' +
           '<div class="kpi-grid" style="margin-bottom:0;">' +
             (colSummaries.length === 0
@@ -10226,11 +10638,11 @@
           '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
             '<div style="padding:10px 16px;background:linear-gradient(90deg,#F5F3FF 0%,#F8FAFC 100%);border-bottom:1px solid #CBD5E1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
               '<div><div style="font-weight:800;font-size:13px;color:#5B21B6;">Daily &amp; Weekly Column Header Breakdown by Date</div>' +
-              '<div style="font-size:11px;color:#64748B;">Rows on the same date (e.g. ' + esc(formatDmyDate(refNow)) + ') automatically sum each column header</div></div>' +
+              '<div style="font-size:11px;color:#64748B;">Rows on the same date (e.g. ' + esc(todayDisplayChip) + ') automatically sum each column header</div></div>' +
               '<span class="pill-badge" style="background:#EDE9FE;color:#5B21B6;">' + dayGroups.length + ' Day(s)</span>' +
             '</div>' +
             '<div style="overflow-x:auto;">' +
-              renderDynamicDayBreakdownTable(dayGroups, repData, 'No dated rows match this filter yet.', 'Σ PERIOD TOTAL (' + (m.period === 'all' ? 'ALL DATES' : m.period.toUpperCase()) + ')', formatDmyDate(refNow)) +
+              renderDynamicDayBreakdownTable(dayGroups, repData, 'No dated rows match this filter yet.', 'Σ PERIOD TOTAL (' + (m.period === 'all' ? 'ALL DATES' : m.period.toUpperCase()) + ')', todayYmd) +
             '</div></div>' +
           '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
             '<div style="padding:10px 16px;background:linear-gradient(90deg,#EFF6FF 0%,#F8FAFC 100%);border-bottom:1px solid #CBD5E1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
@@ -10265,7 +10677,7 @@
               '</tr></tfoot></table></div></div>' +
           '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:16px;">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
-              '<div><div style="font-weight:700;font-size:13.5px;">Live Column Trend (' + esc(primaryNumCol ? primaryNumCol.name : 'Row Count') + ')</div><div style="font-size:11px;color:#64748B;">Computed in real time from folder "' + esc(m.folder) + '"</div></div>' +
+              '<div><div style="font-weight:700;font-size:13.5px;">Live Column Trend (' + esc(primaryNumCol ? primaryNumCol.name : 'Row Count') + ')</div><div style="font-size:11px;color:#64748B;">Computed in real time from folder "' + esc(m.folder) + '"' + (isEthCal ? ' (Ethiopian Calendar)' : '') + '</div></div>' +
               '<div style="font-size:11.5px;font-weight:600;color:#1D4ED8;"><span style="display:inline-block;width:10px;height:10px;background:#2563EB;border-radius:2px;margin-right:4px;"></span>' + esc(primaryNumCol ? primaryNumCol.name : 'Rows') + '</div>' +
             '</div>' +
             '<div style="display:flex;align-items:flex-end;gap:10px;height:125px;padding-top:10px;border-bottom:1px solid #F1F5F9;">';
@@ -10349,7 +10761,7 @@
         document.getElementById('rep-print').onclick = function () { m.menuOpen = false; window.print(); };
         document.getElementById('rep-copy').onclick = function () {
           m.menuOpen = false;
-          var txtLines = ['TableBot ' + m.folder.toUpperCase() + ' ' + m.period.toUpperCase() + ' REPORT (' + toLocalDateTimeStr(new Date()) + ')'];
+          var txtLines = ['TableBot ' + m.folder.toUpperCase() + ' ' + m.period.toUpperCase() + ' REPORT (' + todayDisplayChip + ' · ' + toLocalDateTimeStr(new Date()) + ')'];
           colSummaries.forEach(function (c) { txtLines.push(c.name + ': ' + c.summaryValue); });
           if (navigator.clipboard) navigator.clipboard.writeText(txtLines.join('\n')).catch(function () {});
           showToast('Report summary copied for Telegram'); renderReportsModal(m);
