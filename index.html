@@ -375,6 +375,11 @@
       width: 100%; padding: 6px 8px; border: 2px solid var(--blue-primary);
       border-radius: 4px; outline: none; font-size: 13px; background: #fff;
     }
+    .cell-edit-input.is-invalid {
+      border-color: #DC2626;
+      background: #FEF2F2;
+      box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.22);
+    }
     .date-picker-pop {
       display: flex; align-items: center; gap: 4px; flex-wrap: nowrap;
       background: #fff; border: 2px solid var(--blue-primary); border-radius: 6px;
@@ -3337,6 +3342,84 @@
       }
     }
 
+    function validateCellFormulaSyntax(rawVal, col, bot) {
+      var s = (rawVal !== undefined && rawVal !== null) ? String(rawVal).trim() : '';
+      if (!s) return { valid: true, reason: '' };
+      var isFormulaCol = Boolean(col && col.type === 'formula');
+      var startsWithEq = s.charAt(0) === '=';
+      if (!startsWithEq && !isFormulaCol) {
+        return { valid: true, reason: '' };
+      }
+      if (!startsWithEq && isFormulaCol) {
+        if (!isNaN(parseNumSafe(s))) return { valid: true, reason: '' };
+        return { valid: false, reason: 'Formula cells must start with "=" (e.g. =Amount*2) or be a valid number.' };
+      }
+      var expr = s.slice(1).trim();
+      if (!expr) {
+        return { valid: false, reason: 'Formula expression after "=" cannot be empty.' };
+      }
+      var upper = expr.toUpperCase();
+      if (upper === 'SUM_ALL' || upper === 'SUM(*)' || upper === 'SUM(ALL)') {
+        return { valid: true, reason: '' };
+      }
+      var depth = 0;
+      for (var i = 0; i < expr.length; i++) {
+        var ch = expr.charAt(i);
+        if (ch === '(') depth++;
+        else if (ch === ')') {
+          depth--;
+          if (depth < 0) return { valid: false, reason: 'Unmatched closing parenthesis ")".' };
+        }
+      }
+      if (depth !== 0) {
+        return { valid: false, reason: 'Unclosed parenthesis "(".' };
+      }
+      var resolved = expr;
+      if (bot && bot.columns) {
+        var colsSorted = bot.columns.slice().sort(function (a, b) {
+          return String(b.name || '').length - String(a.name || '').length;
+        });
+        colsSorted.forEach(function (oc) {
+          if ((col && oc.id === col.id) || !oc.name) return;
+          var escName = oc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          resolved = resolved.replace(new RegExp('\\{' + escName + '\\}', 'gi'), '1');
+          resolved = resolved.replace(new RegExp('(^|[^A-Za-z0-9_])' + escName + '(?=$|[^A-Za-z0-9_])', 'gi'), '$11');
+        });
+      }
+      if (/[{}]/.test(resolved)) {
+        return { valid: false, reason: 'Unknown or unclosed column reference "{...}".' };
+      }
+      var sumError = '';
+      var prevResolved;
+      do {
+        prevResolved = resolved;
+        resolved = resolved.replace(/SUM\s*\(([^()]*)\)/gi, function (_, inner) {
+          var trimmedInner = String(inner || '').trim();
+          if (!trimmedInner) {
+            sumError = 'SUM() requires at least one argument.';
+            return 'NaN';
+          }
+          var parts = trimmedInner.split(/[,;]/);
+          for (var pi = 0; pi < parts.length; pi++) {
+            var p = parts[pi].trim();
+            if (!p || isNaN(evalSafeArithmetic(p))) {
+              sumError = 'Invalid expression inside SUM(...).';
+              return 'NaN';
+            }
+          }
+          return '1';
+        });
+      } while (resolved !== prevResolved && !sumError);
+      if (sumError) {
+        return { valid: false, reason: sumError };
+      }
+      var val = evalSafeArithmetic(resolved);
+      if (isNaN(val)) {
+        return { valid: false, reason: 'Invalid formula syntax or unknown column name.' };
+      }
+      return { valid: true, reason: '' };
+    }
+
     function evalFormulaCell(row, col, bot, depth) {
       var d = depth || 0;
       if (d > 4) return NaN;
@@ -5190,9 +5273,9 @@
             var fs = st.italic ? 'italic' : 'normal';
             var commentTip = commentObj && commentObj.text ? ' | Comment: ' + commentObj.text : '';
             var titleTip = isFrm && col.formulaExpr
-              ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to select, click again or double-click to edit)' + esc(commentTip) + '"'
-              : ' title="Click or drag to select cells; click selected cell or double-click to edit' + esc(commentTip) + '"';
-            html += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:cell;' + align + bg + '">' +
+              ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to edit; drag or right-click for toolbar)' + esc(commentTip) + '"'
+              : ' title="Click to write/edit · Drag, long-press, or right-click for toolbar' + esc(commentTip) + '"';
+            html += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
               commentMarkHtml +
               '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col, row, bot)) + '</span>' +
               commentBadgeHtml +
@@ -5233,7 +5316,7 @@
           '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
           (state.rowClipboard ? '<button type="button" class="btn btn-outline" id="btn-bar-paste-row" style="padding:7px 12px;font-size:12px;border-color:#86EFAC;color:#047857;background:#ECFDF5;">' + icon('copy', 13) + '<span>Paste Copied Row</span></button>' : '') +
         '</div>' +
-        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Click or drag cells to select &middot; Double-click to edit</span>' +
+        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Click any cell to write &middot; Drag, long-press, or right-click to select range</span>' +
       '</div>';
 
       // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report (never impacts + Add Row above)
@@ -5431,6 +5514,8 @@
               '<span class="truncate">' + cmHeadTitle + '</span>' +
               '<button type="button" id="cm-close-x" style="color:#64748B;font-weight:800;">✕</button>' +
             '</div>' +
+            '<button type="button" class="dropdown-item" data-cact="select_toolbar">' + icon('sliders', 14) + '<span>Select Cell &amp; Show Toolbar</span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:3px 0;"></div>' +
             '<button type="button" class="dropdown-item" data-cact="cut">' + icon('scissors', 14) + '<span>Cut' + (cmMultiCount > 1 ? ' (' + cmMultiCount + ')' : '') + '</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="copy">' + icon('copy', 14) + '<span>Copy' + (cmMultiCount > 1 ? ' (' + cmMultiCount + ')' : '') + '</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="paste">' + icon('clipboard', 14) + '<span>Paste' + (cmClipPreview ? ' ("' + esc(cmClipPreview) + '")' : '') + '</span></button>' +
@@ -5727,6 +5812,8 @@
       var openCellEditor = function (rid, cid) {
         var colObj = bot.columns.find(function (c) { return c.id === cid; });
         if (!colObj || colObj.type === 'checkbox') return;
+        state.selectedRange = null;
+        state.extraCells = {};
         state.toolbarSubMode = null;
         state.cellMenu = null;
         state.editingCell = { rowId: rid, colId: cid };
@@ -6081,6 +6168,19 @@
             var targetRow = bot.rows[rIdx];
             var targetCol = bot.columns.find(function (c) { return c.id === cm.colId; }) || bot.columns[0];
             var nowIso = new Date().toISOString();
+
+            if (act === 'select_toolbar') {
+              var visSelR = visibleRows.findIndex(function (r) { return r.id === cm.rowId; });
+              var colSelI = targetCol ? bot.columns.findIndex(function (c) { return c.id === targetCol.id; }) : 0;
+              state.editingCell = null;
+              if (visSelR !== -1) {
+                state.selectedRange = { botId: bot.id, anchorR: visSelR, anchorC: Math.max(0, colSelI), focusR: visSelR, focusC: Math.max(0, colSelI) };
+                state.extraCells = {};
+                state.toolbarSubMode = null;
+              }
+              renderTableView(bot);
+              return;
+            }
 
             if (act === 'cut' || act === 'copy' || act === 'paste' || act === 'comment' || act === 'clear' || act === 'fill' || act === 'edit' || act === 'delete') {
               var visR = visibleRows.findIndex(function (r) { return r.id === cm.rowId; });
@@ -6457,7 +6557,8 @@
         };
       }
 
-      // Single-cell click, Drag-to-Select Rectangular Range, Shift+Click, Ctrl/Cmd+Click, Double-Click
+      // Single-cell tap/click opens inline editor immediately to write data;
+      // Drag across cells, corner handle drag, touch long-press, Shift+Click, Ctrl/Cmd+Click, or Context Menu opens range selection & floating toolbar.
       var dragCtx = null;
       var sheetTableEl = document.querySelector('.sheet-table');
       var allCellEls = Array.prototype.slice.call(document.querySelectorAll('td.cell-selectable'));
@@ -6490,18 +6591,17 @@
 
         var onMouseMove = function (ev) {
           if (!dragCtx) return;
-          var dist = Math.abs(ev.clientX - dragCtx.startX) + Math.abs(ev.clientY - dragCtx.startY);
           var hitEl = document.elementFromPoint(ev.clientX, ev.clientY);
           var tdHit = hitEl && hitEl.closest ? hitEl.closest('td.cell-selectable') : null;
           if (!tdHit) return;
           var hr = parseInt(tdHit.getAttribute('data-r-idx'), 10);
           var hc = parseInt(tdHit.getAttribute('data-c-idx'), 10);
           if (isNaN(hr) || isNaN(hc)) return;
-          if (!dragCtx.moved && (hr !== dragCtx.anchorR || hc !== dragCtx.anchorC || dist > 6)) {
+          if (!dragCtx.moved && (hr !== dragCtx.anchorR || hc !== dragCtx.anchorC)) {
             dragCtx.moved = true;
             if (sheetTableEl) sheetTableEl.classList.add('is-selecting');
           }
-          if (dragCtx.moved && (hr !== dragCtx.focusR || hc !== dragCtx.focusC)) {
+          if (dragCtx.moved && (hr !== dragCtx.focusR || hc !== dragCtx.focusC || (hr === dragCtx.anchorR && hc === dragCtx.anchorC))) {
             dragCtx.focusR = hr;
             dragCtx.focusC = hc;
             paintDragPreview(dragCtx.anchorR, dragCtx.anchorC, dragCtx.focusR, dragCtx.focusC);
@@ -6516,13 +6616,8 @@
           window.removeEventListener('mouseup', onMouseUp);
           window._tbRangeMouseMove = null;
           window._tbRangeMouseUp = null;
-          if (!ctx) return;
-          var targetRowObj = visibleRows[ctx.anchorR];
-          var targetColObj = bot.columns[ctx.anchorC];
-          if (!ctx.moved && ctx.alreadySingle && targetRowObj && targetColObj && targetColObj.type !== 'checkbox') {
-            openCellEditor(targetRowObj.id, targetColObj.id);
-            return;
-          }
+          if (!ctx || !ctx.moved) return;
+          window._tbSuppressCellClickUntil = Date.now() + 300;
           state.selectedRange = {
             botId: bot.id,
             anchorR: ctx.anchorR,
@@ -6580,6 +6675,7 @@
             window.removeEventListener('touchend', onTouchEnd);
             window._tbRangeTouchMove = null;
             window._tbRangeTouchEnd = null;
+            window._tbSuppressCellClickUntil = Date.now() + 400;
             state.selectedRange = {
               botId: bot.id,
               anchorR: tDrag.anchorR,
@@ -6599,22 +6695,78 @@
       }
 
       document.querySelectorAll('td.cell-selectable').forEach(function (td) {
+        var lpTimer = null;
+        var lpStartX = 0, lpStartY = 0;
+
+        td.ontouchstart = function (e) {
+          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+          if (!e.touches || e.touches.length !== 1) return;
+          lpStartX = e.touches[0].clientX;
+          lpStartY = e.touches[0].clientY;
+          var rIdx = parseInt(td.getAttribute('data-r-idx'), 10);
+          var cIdx = parseInt(td.getAttribute('data-c-idx'), 10);
+          if (isNaN(rIdx) || isNaN(cIdx)) return;
+          if (lpTimer) clearTimeout(lpTimer);
+          lpTimer = setTimeout(function () {
+            lpTimer = null;
+            window._tbSuppressCellClickUntil = Date.now() + 700;
+            if (state.editingCell && activeInp) commitActiveCell(undefined, false, true);
+            state.cellMenu = null;
+            state.selectedRange = { botId: bot.id, anchorR: rIdx, anchorC: cIdx, focusR: rIdx, focusC: cIdx };
+            state.extraCells = {};
+            state.toolbarSubMode = null;
+            renderTableView(bot);
+          }, 480);
+        };
+
+        td.ontouchmove = function (e) {
+          if (!lpTimer || !e.touches || !e.touches[0]) return;
+          var dx = Math.abs(e.touches[0].clientX - lpStartX);
+          var dy = Math.abs(e.touches[0].clientY - lpStartY);
+          if (dx > 8 || dy > 8) {
+            clearTimeout(lpTimer);
+            lpTimer = null;
+          }
+        };
+
+        td.ontouchend = function () {
+          if (lpTimer) {
+            clearTimeout(lpTimer);
+            lpTimer = null;
+          }
+        };
+
+        td.ontouchcancel = function () {
+          if (lpTimer) {
+            clearTimeout(lpTimer);
+            lpTimer = null;
+          }
+        };
+
         td.onmousedown = function (e) {
           if (e.button !== 0) return;
           if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
           e.stopPropagation();
           state.cellMenu = null;
-          if (state.editingCell && activeInp) {
-            commitActiveCell(undefined, false, true);
-          }
           var rid = td.getAttribute('data-row-id');
           var cid = td.getAttribute('data-col-id');
           var rIdx = parseInt(td.getAttribute('data-r-idx'), 10);
           var cIdx = parseInt(td.getAttribute('data-c-idx'), 10);
           if (isNaN(rIdx) || isNaN(cIdx)) return;
 
+          if (state.editingCell && activeInp && (state.editingCell.rowId !== rid || state.editingCell.colId !== cid)) {
+            var dpPopCur = document.getElementById('date-picker-pop');
+            if (dpPopCur && dpPopCur.getAttribute('data-ec') === '1' && dpPopCur.getAttribute('data-ec-dirty') !== '1') {
+              // Empty Ethiopian date left untouched — keep blank
+              commitActiveCell('', true, true);
+            } else {
+              commitActiveCell(undefined, false, true);
+            }
+          }
+
           if (e.shiftKey && state.selectedRange && state.selectedRange.botId === bot.id) {
             e.preventDefault();
+            window._tbSuppressCellClickUntil = Date.now() + 300;
             state.selectedRange.focusR = rIdx;
             state.selectedRange.focusC = cIdx;
             state.toolbarSubMode = null;
@@ -6624,6 +6776,7 @@
 
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
+            window._tbSuppressCellClickUntil = Date.now() + 300;
             var nextExtras = Object.assign({}, state.extraCells || {});
             if (selBounds && Object.keys(nextExtras).length === 0) {
               for (var rr = selBounds.minR; rr <= selBounds.maxR; rr++) {
@@ -6649,15 +6802,17 @@
             return;
           }
 
-          var wasAlreadySingle = selBounds &&
-            selBounds.minR === selBounds.maxR &&
-            selBounds.minC === selBounds.maxC &&
-            selBounds.anchorR === rIdx &&
-            selBounds.anchorC === cIdx &&
-            Object.keys(state.extraCells || {}).length === 0;
+          startRangeDrag(rIdx, cIdx, rIdx, cIdx, false, e.clientX, e.clientY, false);
+        };
 
-          paintDragPreview(rIdx, cIdx, rIdx, cIdx);
-          startRangeDrag(rIdx, cIdx, rIdx, cIdx, wasAlreadySingle, e.clientX, e.clientY, false);
+        td.onclick = function (e) {
+          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+          e.stopPropagation();
+          if (window._tbSuppressCellClickUntil && Date.now() < window._tbSuppressCellClickUntil) return;
+          if (e.shiftKey || e.ctrlKey || e.metaKey) return;
+          var rid = td.getAttribute('data-row-id');
+          var cid = td.getAttribute('data-col-id');
+          openCellEditor(rid, cid);
         };
 
         td.ondblclick = function (e) {
@@ -6868,6 +7023,20 @@
             }
           }, 0);
         } else {
+          var editColNorm = bot.columns.find(function (c) { return c.id === state.editingCell.colId; });
+          var applyFormulaBorderValidation = function () {
+            var res = validateCellFormulaSyntax(activeInp.value, editColNorm, bot);
+            activeInp.classList.toggle('is-invalid', !res.valid);
+            if (!res.valid) {
+              activeInp.setAttribute('aria-invalid', 'true');
+              activeInp.title = res.reason || 'Invalid formula syntax';
+            } else {
+              activeInp.removeAttribute('aria-invalid');
+              activeInp.removeAttribute('title');
+            }
+          };
+          applyFormulaBorderValidation();
+          activeInp.oninput = applyFormulaBorderValidation;
           activeInp.onblur = function (e) {
             if (e && e.relatedTarget && e.relatedTarget.id === 'cell-edit-menu-btn') return;
             if (state.cellMenu) return;
