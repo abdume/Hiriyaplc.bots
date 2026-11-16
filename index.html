@@ -409,6 +409,46 @@
     .dp-ec-badge {
       font-size: 9.5px; font-weight: 800; color: #065F46; background: #D1FAE5;
       border-radius: 4px; padding: 2px 5px; white-space: nowrap; flex-shrink: 0;
+      cursor: pointer;
+    }
+    .tb-cal-popover {
+      position: fixed; z-index: 950; width: 292px; max-width: calc(100vw - 16px);
+      background: #fff; border: 1.5px solid #93C5FD; border-radius: 14px;
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.24); padding: 10px;
+      user-select: none; color: #0F172A; font-family: inherit;
+    }
+    .tb-cal-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 4px;
+      margin-bottom: 8px;
+    }
+    .tb-cal-nav {
+      width: 28px; height: 28px; border-radius: 7px; border: 1px solid #CBD5E1;
+      background: #F8FAFC; color: #1E293B; font-weight: 800; font-size: 13px;
+      display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      flex-shrink: 0;
+    }
+    .tb-cal-nav:hover { background: #EFF6FF; border-color: #93C5FD; color: #0D47A1; }
+    .tb-cal-sel {
+      border: 1px solid #CBD5E1; border-radius: 6px; background: #F8FAFC;
+      color: #0F172A; font-size: 12px; font-weight: 700; padding: 3px 5px; outline: none;
+    }
+    .tb-cal-weekdays, .tb-cal-days {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center;
+    }
+    .tb-cal-weekdays span {
+      font-size: 10.5px; font-weight: 800; color: #64748B; padding: 3px 0; text-transform: uppercase;
+    }
+    .tb-cal-day {
+      height: 34px; border-radius: 8px; border: 1px solid transparent;
+      background: #fff; color: #0F172A; font-size: 12.5px; font-weight: 600;
+      display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .tb-cal-day:hover { background: #EFF6FF; border-color: #BFDBFE; color: #0D47A1; }
+    .tb-cal-day.is-today { border: 1.5px solid #059669; background: #ECFDF5; color: #065F46; font-weight: 800; }
+    .tb-cal-day.is-selected { background: #0D47A1; border-color: #0D47A1; color: #fff; font-weight: 800; }
+    .tb-cal-foot {
+      margin-top: 8px; padding-top: 8px; border-top: 1px solid #E2E8F0;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;
     }
     .add-row-bar {
       padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--border);
@@ -5233,7 +5273,7 @@
                 var ecDirtyInit = (val !== undefined && val !== null && String(val).trim() !== '') ? '1' : '0';
                 html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:315px;' + align + '">' +
                   '<div id="date-picker-pop" class="date-picker-pop" data-ec="1" data-ec-dirty="' + ecDirtyInit + '">' +
-                    '<span class="dp-ec-badge" title="Ethiopian Calendar (EC)">EC</span>' +
+                    '<button type="button" id="dp-ec-badge" class="dp-ec-badge" title="Ethiopian Calendar (EC) — Tap to open Calendar">EC 📅</button>' +
                     '<div class="dp-ec-wrap">' +
                       '<input id="dp-ec-day" class="dp-ec-num" type="number" min="1" max="' + ecMaxDay + '" value="' + ecParts.day + '" style="width:42px;" title="Ethiopian Day (1-' + ecMaxDay + ')" />' +
                       '<select id="dp-ec-mon" class="dp-ec-sel" style="max-width:106px;" title="Ethiopian Month">' + ecMonthOpts + '</select>' +
@@ -5241,20 +5281,20 @@
                       (isDtCol ? '<input id="dp-ec-time" class="dp-ec-num" type="time" value="' + esc(ecTimeStr) + '" style="width:82px;" title="Time (HH:mm)" />' : '') +
                     '</div>' +
                     '<input id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" tabindex="-1" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;" />' +
-                    '<button type="button" id="dp-open-btn" class="dp-mini-btn" title="Pick from Calendar">📅</button>' +
+                    '<button type="button" id="dp-open-btn" class="dp-mini-btn dp-today" title="Open Ethiopian Calendar">📅</button>' +
                     '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today (Ethiopian: ' + esc(formatAutoDateStr(col, new Date())) + ')">Today</button>' +
                     '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
-                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="Save Ethiopian Date">✓</button>' +
+                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="OK (Set Today if blank)">✓</button>' +
                     '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
                   '</div></td>';
               } else {
-                html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:236px;' + align + '">' +
+                html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:248px;' + align + '">' +
                   '<div id="date-picker-pop" class="date-picker-pop">' +
-                    '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" />' +
-                    '<button type="button" id="dp-open-btn" class="dp-mini-btn" title="Open Date Picker">📅</button>' +
-                    '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today">Today</button>' +
+                    '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" title="Tap Calendar button for another day, or ✓ OK for Today" />' +
+                    '<button type="button" id="dp-open-btn" class="dp-mini-btn dp-today" title="Touch to Open Calendar">📅</button>' +
+                    '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today (' + esc(formatAutoDateStr(col, new Date())) + ')">Today</button>' +
                     '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
-                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="Save Date">✓</button>' +
+                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="OK (Set Today if blank)">✓</button>' +
                     '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
                   '</div></td>';
               }
@@ -5540,6 +5580,8 @@
     }
 
     function cleanupTableGlobalListeners() {
+      var oldCal = document.getElementById('tb-cal-popover');
+      if (oldCal) oldCal.remove();
       if (window._tbDateOutsideClick) {
         document.removeEventListener('click', window._tbDateOutsideClick);
         window._tbDateOutsideClick = null;
@@ -5750,6 +5792,8 @@
         var ed = state.editingCell;
         if (!ed || !activeInp) return;
         state.editingCell = null;
+        var oldCal = document.getElementById('tb-cal-popover');
+        if (oldCal) oldCal.remove();
         if (window._tbDateOutsideClick) {
           document.removeEventListener('click', window._tbDateOutsideClick);
           window._tbDateOutsideClick = null;
@@ -5829,9 +5873,7 @@
         var ci = document.getElementById('active-cell-input');
         if (ci) {
           ci.focus();
-          if (colObj.type === 'date') {
-            if (typeof ci.showPicker === 'function') { try { ci.showPicker(); } catch (err) {} }
-          } else {
+          if (colObj.type !== 'date') {
             try { ci.select(); } catch (err2) {}
           }
         }
@@ -6985,32 +7027,288 @@
               if (activeInp.value) syncPickerToEc(activeInp.value);
             };
           }
+          var closeCalPopover = function () {
+            var oldCal = document.getElementById('tb-cal-popover');
+            if (oldCal) oldCal.remove();
+          };
+          var openCalendarPopover = function (toggleIfOpen) {
+            var existingCal = document.getElementById('tb-cal-popover');
+            if (existingCal && toggleIfOpen) {
+              existingCal.remove();
+              return;
+            }
+            if (existingCal) existingCal.remove();
+
+            var isEcMode = Boolean(editCol && isEthiopianCol(editCol));
+            var isDtMode = Boolean(editCol && (editCol.dateFormat === 'dmy_time' || editCol.dateFormat === 'iso'));
+            var curRefDate = new Date();
+            if (isEcMode && ecDayEl && ecMonEl && ecYrEl) {
+              var ey0 = Math.max(1900, Math.min(2200, parseInt(ecYrEl.value, 10) || gregorianToEthiopian(new Date()).year));
+              var em0 = Math.max(1, Math.min(13, parseInt(ecMonEl.value, 10) || 1));
+              var ed0 = Math.max(1, Math.min(getEthiopianMonthDays(ey0, em0), parseInt(ecDayEl.value, 10) || 1));
+              var h0 = 12, m0 = 0;
+              if (ecTimeEl && ecTimeEl.value) {
+                var tm0 = ecTimeEl.value.split(':');
+                h0 = parseInt(tm0[0], 10) || 0;
+                m0 = parseInt(tm0[1], 10) || 0;
+              }
+              curRefDate = ethiopianToGregorian(ey0, em0, ed0, h0, m0, 0);
+            } else if (activeInp.value) {
+              curRefDate = parseFlexibleDate(activeInp.value);
+            }
+
+            var calState = {
+              isEc: isEcMode,
+              isDt: isDtMode,
+              selDate: curRefDate,
+              hasSel: Boolean(activeInp.value || (isEcMode && popEl && popEl.getAttribute('data-ec-dirty') === '1')),
+              viewYear: isEcMode ? gregorianToEthiopian(curRefDate).year : curRefDate.getFullYear(),
+              viewMonth: isEcMode ? gregorianToEthiopian(curRefDate).month : (curRefDate.getMonth() + 1)
+            };
+
+            var calEl = document.createElement('div');
+            calEl.id = 'tb-cal-popover';
+            calEl.className = 'tb-cal-popover';
+            document.body.appendChild(calEl);
+
+            var positionCal = function () {
+              if (!popEl || !document.body.contains(calEl)) return;
+              var pr = popEl.getBoundingClientRect();
+              var vw = window.innerWidth || 800;
+              var vh = window.innerHeight || 600;
+              var cw = calEl.offsetWidth || 292;
+              var ch = calEl.offsetHeight || 310;
+              var leftPx = Math.max(8, Math.min(vw - cw - 8, Math.round(pr.left)));
+              var topPx = Math.round(pr.bottom + 6);
+              if (topPx + ch > vh - 10) {
+                topPx = Math.max(8, Math.round(pr.top - ch - 6));
+              }
+              calEl.style.left = leftPx + 'px';
+              calEl.style.top = topPx + 'px';
+            };
+
+            var renderCal = function () {
+              var nowD = new Date();
+              var todayEc = gregorianToEthiopian(nowD);
+              var selEc = gregorianToEthiopian(calState.selDate);
+              var maxMonth = calState.isEc ? 13 : 12;
+              var gcMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+              var ecMonths = state.lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+
+              var monOptsHtml = '';
+              for (var mi = 1; mi <= maxMonth; mi++) {
+                var mTitle = calState.isEc ? (String(mi).padStart(2, '0') + ' ' + ecMonths[mi - 1]) : gcMonths[mi - 1];
+                monOptsHtml += '<option value="' + mi + '"' + (mi === calState.viewMonth ? ' selected' : '') + '>' + esc(mTitle) + '</option>';
+              }
+
+              var minYr = calState.isEc ? 1900 : 1950;
+              var maxYr = calState.isEc ? 2100 : 2100;
+              var yrOptsHtml = '';
+              for (var yi = Math.min(minYr, calState.viewYear); yi <= Math.max(maxYr, calState.viewYear); yi++) {
+                yrOptsHtml += '<option value="' + yi + '"' + (yi === calState.viewYear ? ' selected' : '') + '>' + yi + '</option>';
+              }
+
+              var firstWd = calState.isEc
+                ? ethiopianToGregorian(calState.viewYear, calState.viewMonth, 1, 12, 0, 0).getDay()
+                : new Date(calState.viewYear, calState.viewMonth - 1, 1, 12, 0, 0).getDay();
+              var daysInMon = calState.isEc
+                ? getEthiopianMonthDays(calState.viewYear, calState.viewMonth)
+                : new Date(calState.viewYear, calState.viewMonth, 0).getDate();
+
+              var daysHtml = '';
+              for (var b = 0; b < firstWd; b++) {
+                daysHtml += '<div></div>';
+              }
+              for (var dNum = 1; dNum <= daysInMon; dNum++) {
+                var isTodayCell = calState.isEc
+                  ? (calState.viewYear === todayEc.year && calState.viewMonth === todayEc.month && dNum === todayEc.day)
+                  : (calState.viewYear === nowD.getFullYear() && calState.viewMonth === (nowD.getMonth() + 1) && dNum === nowD.getDate());
+                var isSelCell = calState.hasSel && (calState.isEc
+                  ? (calState.viewYear === selEc.year && calState.viewMonth === selEc.month && dNum === selEc.day)
+                  : (calState.viewYear === calState.selDate.getFullYear() && calState.viewMonth === (calState.selDate.getMonth() + 1) && dNum === calState.selDate.getDate()));
+                daysHtml += '<button type="button" class="tb-cal-day' + (isTodayCell ? ' is-today' : '') + (isSelCell ? ' is-selected' : '') + '" data-cal-day="' + dNum + '">' + dNum + '</button>';
+              }
+
+              var previewStr = formatAutoDateStr(editCol, calState.hasSel ? calState.selDate : nowD);
+              var timeValStr = String(calState.selDate.getHours()).padStart(2, '0') + ':' + String(calState.selDate.getMinutes()).padStart(2, '0');
+
+              calEl.innerHTML =
+                '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">' +
+                  '<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;' + (calState.isEc ? 'background:#D1FAE5;color:#065F46;' : 'background:#DBEAFE;color:#1E40AF;') + '">' + (calState.isEc ? 'Ethiopian Calendar (EC)' : 'Gregorian Calendar (GC)') + '</span>' +
+                  '<button type="button" id="tb-cal-close" style="font-size:13px;font-weight:800;color:#64748B;padding:2px 6px;cursor:pointer;">✕</button>' +
+                '</div>' +
+                '<div class="tb-cal-head">' +
+                  '<button type="button" class="tb-cal-nav" id="tb-cal-prev-m" title="Previous Month">‹</button>' +
+                  '<div style="display:flex;align-items:center;gap:4px;flex:1;justify-content:center;">' +
+                    '<select id="tb-cal-mon" class="tb-cal-sel" style="max-width:130px;">' + monOptsHtml + '</select>' +
+                    '<select id="tb-cal-yr" class="tb-cal-sel">' + yrOptsHtml + '</select>' +
+                  '</div>' +
+                  '<button type="button" class="tb-cal-nav" id="tb-cal-next-m" title="Next Month">›</button>' +
+                '</div>' +
+                '<div class="tb-cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>' +
+                '<div class="tb-cal-days" style="margin-top:4px;">' + daysHtml + '</div>' +
+                (calState.isDt
+                  ? '<div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;font-weight:700;color:#475569;"><span>Time:</span><input type="time" id="tb-cal-time" class="tb-cal-sel" value="' + esc(timeValStr) + '" /></div>'
+                  : '') +
+                '<div class="tb-cal-foot">' +
+                  '<span class="mono" style="font-size:11px;font-weight:700;color:#0D47A1;">' + (calState.hasSel ? 'Pick: ' : 'Today: ') + esc(previewStr) + '</span>' +
+                  '<div style="display:flex;gap:4px;">' +
+                    '<button type="button" id="tb-cal-today" class="dp-mini-btn dp-today">Today</button>' +
+                    '<button type="button" id="tb-cal-clear" class="dp-mini-btn dp-clear">Clear</button>' +
+                    '<button type="button" id="tb-cal-ok" class="dp-mini-btn dp-ok">✓ OK</button>' +
+                  '</div>' +
+                '</div>';
+
+              positionCal();
+
+              var cClose = document.getElementById('tb-cal-close');
+              if (cClose) cClose.onclick = function (e) { e.stopPropagation(); closeCalPopover(); };
+              var prevM = document.getElementById('tb-cal-prev-m');
+              if (prevM) prevM.onclick = function (e) {
+                e.stopPropagation();
+                calState.viewMonth--;
+                if (calState.viewMonth < 1) { calState.viewMonth = maxMonth; calState.viewYear--; }
+                renderCal();
+              };
+              var nextM = document.getElementById('tb-cal-next-m');
+              if (nextM) nextM.onclick = function (e) {
+                e.stopPropagation();
+                calState.viewMonth++;
+                if (calState.viewMonth > maxMonth) { calState.viewMonth = 1; calState.viewYear++; }
+                renderCal();
+              };
+              var monSel = document.getElementById('tb-cal-mon');
+              if (monSel) monSel.onchange = function (e) {
+                e.stopPropagation();
+                calState.viewMonth = parseInt(monSel.value, 10) || 1;
+                renderCal();
+              };
+              var yrSel = document.getElementById('tb-cal-yr');
+              if (yrSel) yrSel.onchange = function (e) {
+                e.stopPropagation();
+                calState.viewYear = parseInt(yrSel.value, 10) || calState.viewYear;
+                renderCal();
+              };
+              var calTimeInp = document.getElementById('tb-cal-time');
+              if (calTimeInp) calTimeInp.onchange = function (e) {
+                e.stopPropagation();
+                var partsT = String(calTimeInp.value || '').split(':');
+                calState.selDate.setHours(parseInt(partsT[0], 10) || 0, parseInt(partsT[1], 10) || 0, 0, 0);
+                calState.hasSel = true;
+                activeInp.value = toPickerInputValue(calState.selDate, editCol);
+                if (ecDayEl) syncPickerToEc(activeInp.value);
+                renderCal();
+              };
+              calEl.querySelectorAll('[data-cal-day]').forEach(function (dBtn) {
+                dBtn.onclick = function (e) {
+                  e.stopPropagation();
+                  var dNum2 = parseInt(dBtn.getAttribute('data-cal-day'), 10) || 1;
+                  var hh2 = calState.isDt ? calState.selDate.getHours() : 12;
+                  var mm2 = calState.isDt ? calState.selDate.getMinutes() : 0;
+                  var ctEl = document.getElementById('tb-cal-time');
+                  if (ctEl && ctEl.value) {
+                    var tp2 = ctEl.value.split(':');
+                    hh2 = parseInt(tp2[0], 10) || 0;
+                    mm2 = parseInt(tp2[1], 10) || 0;
+                  }
+                  var picked = calState.isEc
+                    ? ethiopianToGregorian(calState.viewYear, calState.viewMonth, dNum2, hh2, mm2, 0)
+                    : new Date(calState.viewYear, calState.viewMonth - 1, dNum2, hh2, mm2, 0);
+                  var pVal = toPickerInputValue(picked, editCol);
+                  activeInp.value = pVal;
+                  if (ecDayEl) syncPickerToEc(pVal);
+                  if (!calState.isDt) {
+                    closeCalPopover();
+                    commitActiveCell(pVal, false);
+                  } else {
+                    calState.selDate = picked;
+                    calState.hasSel = true;
+                    renderCal();
+                  }
+                };
+              });
+              var calTodayBtn = document.getElementById('tb-cal-today');
+              if (calTodayBtn) calTodayBtn.onclick = function (e) {
+                e.stopPropagation();
+                var tVal2 = toPickerInputValue(new Date(), editCol);
+                activeInp.value = tVal2;
+                if (ecDayEl) syncPickerToEc(tVal2);
+                closeCalPopover();
+                commitActiveCell(tVal2, false);
+              };
+              var calClearBtn = document.getElementById('tb-cal-clear');
+              if (calClearBtn) calClearBtn.onclick = function (e) {
+                e.stopPropagation();
+                activeInp.value = '';
+                closeCalPopover();
+                commitActiveCell('', true);
+              };
+              var calOkBtn = document.getElementById('tb-cal-ok');
+              if (calOkBtn) calOkBtn.onclick = function (e) {
+                e.stopPropagation();
+                if (!activeInp.value) {
+                  var defToday = toPickerInputValue(new Date(), editCol);
+                  activeInp.value = defToday;
+                  if (ecDayEl) syncPickerToEc(defToday);
+                } else if (ecDayEl) {
+                  syncEcToPicker(true);
+                }
+                closeCalPopover();
+                commitActiveCell();
+              };
+            };
+
+            calEl.onclick = function (e) { e.stopPropagation(); };
+            calEl.onmousedown = function (e) { e.stopPropagation(); };
+            calEl.ontouchstart = function (e) { e.stopPropagation(); };
+            renderCal();
+          };
+
+          var ecBadgeBtn = document.getElementById('dp-ec-badge');
+          if (ecBadgeBtn) ecBadgeBtn.onclick = function (e) {
+            e.stopPropagation();
+            openCalendarPopover(true);
+          };
           if (openBtn) openBtn.onclick = function (e) {
             e.stopPropagation();
-            if (ecDayEl && !activeInp.value) syncEcToPicker(false);
-            activeInp.focus();
-            if (typeof activeInp.showPicker === 'function') { try { activeInp.showPicker(); } catch (err) {} }
+            e.preventDefault();
+            openCalendarPopover(true);
           };
+          if (!ecDayEl && activeInp) {
+            activeInp.ontouchend = function (e) {
+              e.stopPropagation();
+              e.preventDefault();
+              openCalendarPopover(false);
+            };
+          }
           if (todayBtn) todayBtn.onclick = function (e) {
             e.stopPropagation();
             var tVal = toPickerInputValue(new Date(), editCol);
             activeInp.value = tVal;
             if (ecDayEl) syncPickerToEc(tVal);
+            closeCalPopover();
             commitActiveCell(tVal, false);
           };
           if (clearBtn) clearBtn.onclick = function (e) {
             e.stopPropagation();
             activeInp.value = '';
+            closeCalPopover();
             commitActiveCell('', true);
           };
           if (okBtn) okBtn.onclick = function (e) {
             e.stopPropagation();
-            if (ecDayEl) syncEcToPicker(true);
+            if (ecDayEl) {
+              syncEcToPicker(true);
+            } else if (!activeInp.value) {
+              activeInp.value = toPickerInputValue(new Date(), editCol);
+            }
+            closeCalPopover();
             commitActiveCell();
           };
           if (popEl) popEl.onclick = function (e) { e.stopPropagation(); };
           var outsideHandler = function (e) {
-            if (e.target && e.target.closest && (e.target.closest('#date-picker-pop') || e.target.closest('#cell-context-menu'))) return;
+            if (e.target && e.target.closest && (e.target.closest('#date-picker-pop') || e.target.closest('#tb-cal-popover') || e.target.closest('#cell-context-menu'))) return;
+            closeCalPopover();
             if (ecDayEl && popEl && popEl.getAttribute('data-ec-dirty') === '1') {
               syncEcToPicker(true);
             }
