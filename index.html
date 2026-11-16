@@ -392,6 +392,19 @@
     .dp-mini-btn.dp-ok { background: #059669; border-color: #059669; color: #fff; }
     .dp-mini-btn.dp-today { background: #EFF6FF; border-color: #93C5FD; color: #0D47A1; }
     .dp-mini-btn.dp-clear { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
+    .dp-ec-wrap {
+      display: flex; align-items: center; gap: 3px; flex-wrap: nowrap;
+    }
+    .dp-ec-num, .dp-ec-sel {
+      border: 1px solid #CBD5E1; border-radius: 4px; background: #F8FAFC;
+      color: #0F172A; font-size: 11.5px; font-weight: 700; padding: 3px 4px;
+      outline: none; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .dp-ec-num:focus, .dp-ec-sel:focus { border-color: var(--blue-primary); background: #fff; }
+    .dp-ec-badge {
+      font-size: 9.5px; font-weight: 800; color: #065F46; background: #D1FAE5;
+      border-radius: 4px; padding: 2px 5px; white-space: nowrap; flex-shrink: 0;
+    }
     .add-row-bar {
       padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
@@ -855,6 +868,7 @@
     var STORAGE_DELETED_VAULT = 'tablebot_deleted_vault';
     var STORAGE_FOLDER_MANIFEST = 'tablebot_folder_manifest';
     var STORAGE_CUSTOM_FOLDERS = 'tablebot_custom_folders';
+    var STORAGE_DELETED_TOMBSTONES = 'tablebot_deleted_tombstones_v1';
     var STORAGE_LANG = 'tablebot_ui_lang';
     var STORAGE_ACCESS_CODE = 'tablebot_access_code';
     var STORAGE_CYBER_CODE = 'tablebot_cyber_security_code';
@@ -1071,17 +1085,70 @@
       }
     ];
 
+    function loadDeletedTombstonesRaw() {
+      try {
+        var raw = localStorage.getItem(STORAGE_DELETED_TOMBSTONES);
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            return {
+              folders: (parsed.folders && typeof parsed.folders === 'object') ? parsed.folders : {},
+              botIds: (parsed.botIds && typeof parsed.botIds === 'object') ? parsed.botIds : {},
+              restoredFolders: (parsed.restoredFolders && typeof parsed.restoredFolders === 'object') ? parsed.restoredFolders : {},
+              restoredBots: (parsed.restoredBots && typeof parsed.restoredBots === 'object') ? parsed.restoredBots : {}
+            };
+          }
+        }
+      } catch (e) {}
+      return { folders: {}, botIds: {}, restoredFolders: {}, restoredBots: {} };
+    }
+
+    function isBotTombstonedWith(bot, tomb) {
+      if (!bot || !bot.id || !tomb) return false;
+      var folders = tomb.folders || {};
+      var botIds = tomb.botIds || {};
+      var restoredFolders = tomb.restoredFolders || {};
+      var restoredBots = tomb.restoredBots || {};
+      var updatedMs = bot.updatedAt ? (Date.parse(bot.updatedAt) || 0) : 0;
+
+      var bTomb = botIds[bot.id];
+      if (bTomb && bTomb.deletedAt) {
+        var bDelMs = Date.parse(bTomb.deletedAt) || 0;
+        var bRestMs = (restoredBots[bot.id] && restoredBots[bot.id].at) ? (Date.parse(restoredBots[bot.id].at) || 0) : 0;
+        if (bDelMs > bRestMs && (bot.isSampleSeed || updatedMs <= bDelMs + 500)) {
+          return true;
+        }
+      }
+
+      var fKey = String(bot.folder || 'General').trim().toLowerCase();
+      var fTomb = folders[fKey];
+      if (fTomb && fTomb.deletedAt) {
+        var fDelMs = Date.parse(fTomb.deletedAt) || 0;
+        var fRestMs = (restoredFolders[fKey] && restoredFolders[fKey].at) ? (Date.parse(restoredFolders[fKey].at) || 0) : 0;
+        var bSelfRestMs = (restoredBots[bot.id] && restoredBots[bot.id].at) ? (Date.parse(restoredBots[bot.id].at) || 0) : 0;
+        if (fDelMs > Math.max(fRestMs, bSelfRestMs) && (bot.isSampleSeed || updatedMs <= fDelMs + 500)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     function loadBots() {
+      var tomb = loadDeletedTombstonesRaw();
       try {
         var raw = localStorage.getItem(STORAGE_BOTS);
         if (raw !== null) {
           var parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            return parsed.filter(function (b) { return b && b.id !== SECURITY_BOT_ID; });
+            return parsed.filter(function (b) {
+              return b && b.id !== SECURITY_BOT_ID && !isBotTombstonedWith(b, tomb);
+            });
           }
         }
       } catch (e) {}
-      return JSON.parse(JSON.stringify(INITIAL_BOTS));
+      var seeds = JSON.parse(JSON.stringify(INITIAL_BOTS));
+      seeds.forEach(function (sb) { sb.isSampleSeed = true; });
+      return seeds.filter(function (b) { return !isBotTombstonedWith(b, tomb); });
     }
 
     function getClientDeviceId() {
@@ -1467,6 +1534,7 @@
       deletedVault: loadJsonStorage(STORAGE_DELETED_VAULT, []),
       folderManifest: loadJsonStorage(STORAGE_FOLDER_MANIFEST, {}),
       customFolders: loadJsonStorage(STORAGE_CUSTOM_FOLDERS, []),
+      deletedTombstones: loadDeletedTombstonesRaw(),
       // Dashboard filters
       searchOpen: false,
       searchQuery: '',
@@ -1605,7 +1673,164 @@
     if (!state.adminConfig.cyberSecurityCode) state.adminConfig.cyberSecurityCode = getCyberSecurityCode();
     if (!state.adminConfig.folderLocks || typeof state.adminConfig.folderLocks !== 'object') state.adminConfig.folderLocks = {};
 
+    function saveDeletedTombstones() {
+      try { localStorage.setItem(STORAGE_DELETED_TOMBSTONES, JSON.stringify(state.deletedTombstones)); } catch (e) {}
+    }
+
+    function isFolderTombstoned(folderName) {
+      var fKey = String(folderName || '').trim().toLowerCase();
+      if (!fKey) return false;
+      var t = state.deletedTombstones || {};
+      var fTomb = t.folders && t.folders[fKey];
+      if (!fTomb || !fTomb.deletedAt) return false;
+      var delMs = Date.parse(fTomb.deletedAt) || 0;
+      var restMs = (t.restoredFolders && t.restoredFolders[fKey] && t.restoredFolders[fKey].at)
+        ? (Date.parse(t.restoredFolders[fKey].at) || 0) : 0;
+      return delMs > restMs;
+    }
+
+    function isBotTombstoned(bot) {
+      return isBotTombstonedWith(bot, state.deletedTombstones);
+    }
+
+    function markFolderDeletedTombstone(folderName, botIdsList) {
+      var clean = String(folderName || '').trim();
+      var fKey = clean.toLowerCase();
+      if (!fKey) return;
+      if (!state.deletedTombstones || typeof state.deletedTombstones !== 'object') {
+        state.deletedTombstones = { folders: {}, botIds: {}, restoredFolders: {}, restoredBots: {} };
+      }
+      var nowIso = new Date().toISOString();
+      state.deletedTombstones.folders[fKey] = { name: clean, deletedAt: nowIso, deletedBy: getCurrentActor() };
+      (botIdsList || []).forEach(function (bid) {
+        if (bid) state.deletedTombstones.botIds[bid] = { folder: clean, deletedAt: nowIso };
+      });
+      saveDeletedTombstones();
+    }
+
+    function clearFolderTombstone(folderName, botId) {
+      if (!state.deletedTombstones || typeof state.deletedTombstones !== 'object') {
+        state.deletedTombstones = { folders: {}, botIds: {}, restoredFolders: {}, restoredBots: {} };
+      }
+      var changed = false;
+      var nowIso = new Date().toISOString();
+      if (folderName) {
+        var clean = String(folderName).trim();
+        var fKey = clean.toLowerCase();
+        if (fKey) {
+          if (state.deletedTombstones.folders && state.deletedTombstones.folders[fKey]) {
+            if (!state.deletedTombstones.restoredFolders) state.deletedTombstones.restoredFolders = {};
+            state.deletedTombstones.restoredFolders[fKey] = { at: nowIso };
+            changed = true;
+          }
+        }
+      }
+      if (botId) {
+        if (state.deletedTombstones.botIds && state.deletedTombstones.botIds[botId]) {
+          if (!state.deletedTombstones.restoredBots) state.deletedTombstones.restoredBots = {};
+          state.deletedTombstones.restoredBots[botId] = { at: nowIso };
+          changed = true;
+        }
+      }
+      if (changed) saveDeletedTombstones();
+      return changed;
+    }
+
+    function mergeTombstoneStateFromRemote(remote) {
+      if (!remote || typeof remote !== 'object') return false;
+      if (!state.deletedTombstones || typeof state.deletedTombstones !== 'object') {
+        state.deletedTombstones = { folders: {}, botIds: {}, restoredFolders: {}, restoredBots: {} };
+      }
+      var lt = state.deletedTombstones;
+      if (!lt.folders) lt.folders = {};
+      if (!lt.botIds) lt.botIds = {};
+      if (!lt.restoredFolders) lt.restoredFolders = {};
+      if (!lt.restoredBots) lt.restoredBots = {};
+      var changed = false;
+
+      if (remote.deletedFolders && typeof remote.deletedFolders === 'object') {
+        Object.keys(remote.deletedFolders).forEach(function (k) {
+          var rv = remote.deletedFolders[k];
+          if (!rv || !rv.deletedAt) return;
+          var rMs = Date.parse(rv.deletedAt) || 0;
+          var lMs = (lt.folders[k] && lt.folders[k].deletedAt) ? (Date.parse(lt.folders[k].deletedAt) || 0) : 0;
+          if (rMs > lMs) {
+            lt.folders[k] = rv;
+            changed = true;
+          }
+        });
+      }
+      if (remote.deletedBotIds && typeof remote.deletedBotIds === 'object') {
+        Object.keys(remote.deletedBotIds).forEach(function (k) {
+          var rv = remote.deletedBotIds[k];
+          if (!rv || !rv.deletedAt) return;
+          var rMs = Date.parse(rv.deletedAt) || 0;
+          var lMs = (lt.botIds[k] && lt.botIds[k].deletedAt) ? (Date.parse(lt.botIds[k].deletedAt) || 0) : 0;
+          if (rMs > lMs) {
+            lt.botIds[k] = rv;
+            changed = true;
+          }
+        });
+      }
+      if (remote.restoredFolders && typeof remote.restoredFolders === 'object') {
+        Object.keys(remote.restoredFolders).forEach(function (k) {
+          var rv = remote.restoredFolders[k];
+          if (!rv || !rv.at) return;
+          var rMs = Date.parse(rv.at) || 0;
+          var lMs = (lt.restoredFolders[k] && lt.restoredFolders[k].at) ? (Date.parse(lt.restoredFolders[k].at) || 0) : 0;
+          if (rMs > lMs) {
+            lt.restoredFolders[k] = rv;
+            changed = true;
+          }
+        });
+      }
+      if (remote.restoredBots && typeof remote.restoredBots === 'object') {
+        Object.keys(remote.restoredBots).forEach(function (k) {
+          var rv = remote.restoredBots[k];
+          if (!rv || !rv.at) return;
+          var rMs = Date.parse(rv.at) || 0;
+          var lMs = (lt.restoredBots[k] && lt.restoredBots[k].at) ? (Date.parse(lt.restoredBots[k].at) || 0) : 0;
+          if (rMs > lMs) {
+            lt.restoredBots[k] = rv;
+            changed = true;
+          }
+        });
+      }
+      if (changed) saveDeletedTombstones();
+      return changed;
+    }
+
+    function purgeTombstonedDataFromState() {
+      var botsBefore = state.bots.length;
+      state.bots = state.bots.filter(function (b) { return !isBotTombstoned(b); });
+      var botsChanged = state.bots.length !== botsBefore;
+      if (botsChanged) {
+        if (state.activeBotId && !state.bots.some(function (b) { return b.id === state.activeBotId; })) {
+          state.activeBotId = null;
+        }
+        saveBotsLocal();
+      }
+      var liveFolderSet = {};
+      state.bots.forEach(function (b) { liveFolderSet[String(b.folder || 'General').trim().toLowerCase()] = true; });
+      var cfBefore = (state.customFolders || []).length;
+      state.customFolders = (state.customFolders || []).filter(function (f) {
+        var fKey = String(f || '').trim().toLowerCase();
+        return !isFolderTombstoned(fKey) || !!liveFolderSet[fKey];
+      });
+      var cfChanged = state.customFolders.length !== cfBefore;
+      if (cfChanged) saveCustomFolders();
+      if (state.selectedFolder && state.selectedFolder !== 'all' && isFolderTombstoned(state.selectedFolder) && !liveFolderSet[String(state.selectedFolder).trim().toLowerCase()]) {
+        state.selectedFolder = 'all';
+      }
+      if (state.adminConfig && state.adminConfig.telegramDefaultFolder && isFolderTombstoned(state.adminConfig.telegramDefaultFolder)) {
+        state.adminConfig.telegramDefaultFolder = '';
+        saveAdminState();
+      }
+      return botsChanged || cfChanged;
+    }
+
     function buildSecuritySyncPayload(reason) {
+      var tomb = state.deletedTombstones || { folders: {}, botIds: {}, restoredFolders: {}, restoredBots: {} };
       return {
         id: SECURITY_BOT_ID,
         accessCode: getConfiguredAccessCode(),
@@ -1619,6 +1844,10 @@
         folderLocks: state.adminConfig.folderLocks || {},
         revokedUsers: state.adminConfig.revokedUsers || {},
         telegramKnownChats: Array.isArray(state.adminConfig.telegramKnownChats) ? state.adminConfig.telegramKnownChats : [],
+        deletedFolders: tomb.folders || {},
+        deletedBotIds: tomb.botIds || {},
+        restoredFolders: tomb.restoredFolders || {},
+        restoredBots: tomb.restoredBots || {},
         forceLockAt: state.adminConfig.forceLockAt || null,
         updatedAt: state.adminConfig.securityUpdatedAt || new Date().toISOString(),
         updatedBy: getCurrentActor(),
@@ -1629,10 +1858,16 @@
 
     function applySharedSecurityState(remote, opts) {
       if (!remote || typeof remote !== 'object') return false;
+      var tombMerged = mergeTombstoneStateFromRemote(remote);
+      var purgedFromTomb = purgeTombstonedDataFromState();
       var remoteTs = remote.updatedAt ? (Date.parse(remote.updatedAt) || 0) : 0;
       var localTs = (state.adminConfig && state.adminConfig.securityUpdatedAt) ? (Date.parse(state.adminConfig.securityUpdatedAt) || 0) : 0;
-      if (remoteTs <= 0) return false;
-      if (localTs > 0 && remoteTs < localTs) return false;
+      if (remoteTs <= 0 || (localTs > 0 && remoteTs < localTs)) {
+        if ((tombMerged || purgedFromTomb) && !(opts && opts.silent)) {
+          renderApp(true);
+        }
+        return tombMerged || purgedFromTomb;
+      }
 
       var prevAccess = getConfiguredAccessCode();
       var prevLockEnabled = isAccessLockEnabled();
@@ -1665,6 +1900,7 @@
       if (remote.forceLockAt) state.adminConfig.forceLockAt = remote.forceLockAt;
       state.adminConfig.securityUpdatedAt = remote.updatedAt;
       saveAdminState();
+      if (purgeTombstonedDataFromState()) purgedFromTomb = true;
 
       var codeChanged = Boolean(nextAccess && nextAccess !== prevAccess);
       var lockToggled = (typeof remote.accessLockEnabled === 'boolean' && remote.accessLockEnabled !== prevLockEnabled);
@@ -1682,7 +1918,7 @@
         forceLogoutCurrentUser('Your account was blocked or logged out from another session.');
       }
 
-      if (!(opts && opts.silent) && (codeChanged || lockToggled || cyberChanged || forceLockTriggered)) {
+      if (!(opts && opts.silent) && (codeChanged || lockToggled || cyberChanged || forceLockTriggered || purgedFromTomb)) {
         if (!isAccessUnlocked()) {
           renderLockScreen();
           if (codeChanged && fromOtherSession) showToast('Lock Screen code synced from another browser / Telegram');
@@ -1691,7 +1927,7 @@
           if (codeChanged && fromOtherSession) showToast('Lock Screen code updated (' + remote.source + ')');
         }
       }
-      return codeChanged || lockToggled || cyberChanged || forceLockTriggered;
+      return codeChanged || lockToggled || cyberChanged || forceLockTriggered || purgedFromTomb;
     }
 
     async function pushSharedSecurityState(reason) {
@@ -1728,7 +1964,8 @@
             return applySharedSecurityState(data.state, { from: reason || 'server' });
           } else {
             var localTs = state.adminConfig.securityUpdatedAt ? (Date.parse(state.adminConfig.securityUpdatedAt) || 0) : 0;
-            if (localTs > 0 || getConfiguredAccessCode() !== '1234' || getCyberSecurityCode() !== '1234' || Object.keys(state.adminConfig.folderLocks || {}).length > 0) {
+            var hasTombstones = state.deletedTombstones && (Object.keys(state.deletedTombstones.folders || {}).length > 0 || Object.keys(state.deletedTombstones.botIds || {}).length > 0);
+            if (localTs > 0 || getConfiguredAccessCode() !== '1234' || getCyberSecurityCode() !== '1234' || Object.keys(state.adminConfig.folderLocks || {}).length > 0 || hasTombstones) {
               pushSharedSecurityState('seed_server');
             }
           }
@@ -2937,16 +3174,25 @@
     function restoreBotFromSnapshot(snapData, targetFolder, modeLabel) {
       if (!snapData || !snapData.id) return null;
       var restored = JSON.parse(JSON.stringify(snapData));
+      delete restored.isSampleSeed;
       if (targetFolder) restored.folder = targetFolder;
       restored.updatedAt = new Date().toISOString();
       restored.lastEditedBy = getCurrentActor();
+      var rFolder = restored.folder || 'General';
+      if (clearFolderTombstone(rFolder, restored.id)) {
+        pushSharedSecurityState('restore_bot');
+      }
+      if ((state.customFolders || []).indexOf(rFolder) === -1) {
+        state.customFolders.push(rFolder);
+        saveCustomFolders();
+      }
       var idx = state.bots.findIndex(function (b) { return b.id === restored.id; });
       if (idx >= 0) state.bots[idx] = restored;
       else state.bots.unshift(restored);
       state.deletedVault = state.deletedVault.filter(function (d) { return d.botId !== restored.id; });
       saveBotsLocal();
-      recordFolderSnapshot(restored, 'RESTORED', modeLabel || ('Restored "' + restored.name + '" into folder "' + (restored.folder || 'General') + '"'), true);
-      recordAudit('ADD', restored, 'Restored "' + restored.name + '" (' + (restored.rows || []).length + ' rows) to folder "' + (restored.folder || 'General') + '"', { source: 'Restore Vault' });
+      recordFolderSnapshot(restored, 'RESTORED', modeLabel || ('Restored "' + restored.name + '" into folder "' + rFolder + '"'), true);
+      recordAudit('ADD', restored, 'Restored "' + restored.name + '" (' + (restored.rows || []).length + ' rows) to folder "' + rFolder + '"', { source: 'Restore Vault' });
       pushBotToSupabase(restored);
       return restored;
     }
@@ -2954,6 +3200,7 @@
     function restoreFolderAllMissing(folderName) {
       if (!guardWriteAction('Restore Folder')) return 0;
       var count = 0;
+      clearFolderTombstone(folderName, null);
       var currentMap = {};
       state.bots.forEach(function (b) { currentMap[b.id] = true; });
       var toRestore = state.deletedVault.filter(function (d) { return (d.folder || 'General') === folderName && !currentMap[d.botId]; });
@@ -2972,6 +3219,7 @@
           count++;
         }
       });
+      pushSharedSecurityState('restore_folder');
       renderApp();
       return count;
     }
@@ -2982,6 +3230,24 @@
       if (!cleanTarget) return 0;
       var targetLower = cleanTarget.toLowerCase();
       var targets = state.bots.filter(function (b) { return String(b.folder || 'General').trim().toLowerCase() === targetLower; });
+      var targetIds = targets.map(function (t) { return t.id; });
+
+      // Persist deleted folder + bot tombstones immediately BEFORE async remote calls so reopen never brings them back
+      markFolderDeletedTombstone(cleanTarget, targetIds);
+
+      var sbClientForDel = null;
+      if (state.supabaseConfig.isConnected) {
+        sbClientForDel = getSbClient();
+        if (sbClientForDel && !state.authSession) {
+          try {
+            var sessR = await sbClientForDel.auth.getSession();
+            if (sessR && sessR.data && sessR.data.session && sessR.data.session.user) {
+              state.authSession = { id: sessR.data.session.user.id, email: sessR.data.session.user.email };
+            }
+          } catch (e0) {}
+        }
+      }
+
       for (var i = 0; i < targets.length; i++) {
         var t = targets[i];
         state.deletedVault.unshift({
@@ -2998,9 +3264,8 @@
         });
         recordFolderSnapshot(t, 'FOLDER_DELETED', 'Folder "' + cleanTarget + '" deleted (' + (t.rows || []).length + ' rows backed up)', true);
         recordAudit('DELETE', t, 'Deleted folder "' + cleanTarget + '" (backed up "' + t.name + '")');
-        if (state.supabaseConfig.isConnected && state.authSession) {
-          var client = getSbClient();
-          if (client) { try { await client.from('user_bots').delete().eq('id', t.id); } catch (e) {} }
+        if (sbClientForDel && state.authSession) {
+          try { await sbClientForDel.from('user_bots').delete().eq('id', t.id); } catch (e) {}
         }
       }
       if (targets.length === 0) {
@@ -3013,12 +3278,17 @@
       state.customFolders = (state.customFolders || []).filter(function (f) {
         return String(f || '').trim().toLowerCase() !== targetLower;
       });
-      if (state.adminConfig && state.adminConfig.folderLocks) {
-        Object.keys(state.adminConfig.folderLocks).forEach(function (lk) {
-          if (String(lk || '').trim().toLowerCase() === targetLower) {
-            delete state.adminConfig.folderLocks[lk];
-          }
-        });
+      if (state.adminConfig) {
+        if (String(state.adminConfig.telegramDefaultFolder || '').trim().toLowerCase() === targetLower) {
+          state.adminConfig.telegramDefaultFolder = '';
+        }
+        if (state.adminConfig.folderLocks) {
+          Object.keys(state.adminConfig.folderLocks).forEach(function (lk) {
+            if (String(lk || '').trim().toLowerCase() === targetLower) {
+              delete state.adminConfig.folderLocks[lk];
+            }
+          });
+        }
         saveAdminState();
       }
       if (idSet[state.activeBotId]) state.activeBotId = null;
@@ -3028,7 +3298,9 @@
       saveBotsLocal();
       saveCustomFolders();
       saveVaultState();
+      saveDeletedTombstones();
       broadcastLocalSync('delete_folder');
+      pushSharedSecurityState('delete_folder');
       renderApp();
       return targets.length;
     }
@@ -3177,11 +3449,13 @@
 
     function getAllFolders() {
       var map = {};
+      state.bots.forEach(function (b) {
+        if (!isBotTombstoned(b)) map[b.folder || 'General'] = true;
+      });
       (state.customFolders || []).forEach(function (f) {
         var clean = String(f || '').trim();
-        if (clean) map[clean] = true;
+        if (clean && !isFolderTombstoned(clean)) map[clean] = true;
       });
-      state.bots.forEach(function (b) { map[b.folder || 'General'] = true; });
       return Object.keys(map);
     }
 
@@ -3191,10 +3465,12 @@
       if (!clean) { showToast('Please enter a folder name'); return false; }
       var existing = getAllFolders().find(function (f) { return f.toLowerCase() === clean.toLowerCase(); });
       if (existing) clean = existing;
+      var cleared = clearFolderTombstone(clean, null);
       if (state.customFolders.indexOf(clean) === -1) {
         state.customFolders.push(clean);
         saveCustomFolders();
       }
+      if (cleared) pushSharedSecurityState('create_folder');
       state.selectedFolder = clean;
       if (withStarterTable) {
         var id = Date.now();
@@ -3423,9 +3699,10 @@
         var merged = [];
         var localSeen = {};
         var toPush = [];
+        var toDeleteRemoteIds = [];
 
         state.bots.forEach(function (lb) {
-          if (!lb || lb.id === SECURITY_BOT_ID) return;
+          if (!lb || lb.id === SECURITY_BOT_ID || isBotTombstoned(lb)) return;
           localSeen[lb.id] = true;
           var rb = remoteMap[lb.id];
           if (!rb) {
@@ -3445,11 +3722,22 @@
 
         remoteRows.forEach(function (r) {
           var rb = r && r.bot_data;
-          if (rb && rb.id && rb.id !== SECURITY_BOT_ID && !localSeen[rb.id]) merged.push(rb);
+          if (rb && rb.id && rb.id !== SECURITY_BOT_ID && !localSeen[rb.id]) {
+            if (isBotTombstoned(rb)) {
+              toDeleteRemoteIds.push(rb.id);
+            } else {
+              merged.push(rb);
+            }
+          }
         });
 
         state.bots = merged;
+        purgeTombstonedDataFromState();
         saveBotsLocal();
+
+        for (var di = 0; di < toDeleteRemoteIds.length; di++) {
+          try { await client.from('user_bots').delete().eq('id', toDeleteRemoteIds[di]); } catch (eDel) {}
+        }
 
         for (var i = 0; i < toPush.length; i++) {
           await client.from('user_bots').upsert({
@@ -3494,6 +3782,7 @@
                   applySharedSecurityState(up, { from: 'supabase_realtime' });
                   return;
                 }
+                if (isBotTombstoned(up)) return;
                 var idx = state.bots.findIndex(function (b) { return b.id === up.id; });
                 if (idx >= 0) state.bots[idx] = up; else state.bots.unshift(up);
                 saveBotsLocal();
@@ -3917,8 +4206,12 @@
 
     function updateBot(updated, auditAction, auditSummary) {
       if (!guardWriteAction(auditSummary || 'Edit Bot')) return false;
+      delete updated.isSampleSeed;
       updated.lastEditedBy = getCurrentActor();
       updated.updatedAt = updated.updatedAt || new Date().toISOString();
+      if (clearFolderTombstone(updated.folder || 'General', updated.id)) {
+        pushSharedSecurityState('update_bot');
+      }
       state.bots = state.bots.map(function (b) { return b.id === updated.id ? updated : b; });
       saveBotsLocal();
       recordFolderSnapshot(updated, 'MODIFIED', auditSummary || ('Updated ' + updated.name), false);
@@ -3949,6 +4242,9 @@
       var id = Date.now();
       var actor = getCurrentActor();
       var targetFolder = overrideFolder || ((state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : (state.adminConfig.telegramDefaultFolder || 'General'));
+      if (clearFolderTombstone(targetFolder, null)) {
+        pushSharedSecurityState('create_bot_folder');
+      }
       var newBot = {
         id: 'bot_' + id,
         name: botName,
@@ -4006,12 +4302,19 @@
         if (state.deletedVault.length > 120) state.deletedVault = state.deletedVault.slice(0, 120);
         recordFolderSnapshot(target, 'DELETED', 'Deleted "' + target.name + '" (' + (target.rows || []).length + ' rows backed up to Restore Vault)', true);
 
+        if (!state.deletedTombstones || typeof state.deletedTombstones !== 'object') {
+          state.deletedTombstones = { folders: {}, botIds: {}, restoredFolders: {}, restoredBots: {} };
+        }
+        state.deletedTombstones.botIds[botId] = { folder: target.folder || 'General', deletedAt: new Date().toISOString() };
+        saveDeletedTombstones();
+
         state.bots = state.bots.filter(function (b) { return b.id !== botId; });
         if (state.activeBotId === botId) state.activeBotId = null;
         saveBotsLocal();
         saveVaultState();
         recordAudit('DELETE', target, 'Deleted bot table "' + target.name + '"');
         broadcastLocalSync('delete_bot');
+        pushSharedSecurityState('delete_bot');
         if (state.supabaseConfig.isConnected && state.authSession) {
           var client = getSbClient();
           if (client) { try { await client.from('user_bots').delete().eq('id', botId); } catch (e) {} }
@@ -4826,19 +5129,52 @@
             '</td>';
           } else if (isEd) {
             var isDateCol = col.type === 'date';
+            var isEcCol = isDateCol && isEthiopianCol(col);
             var isDtCol = isDateCol && (col.dateFormat === 'dmy_time' || col.dateFormat === 'iso');
             var itype = isDateCol ? (isDtCol ? 'datetime-local' : 'date') : ((col.type === 'amount' || col.type === 'number') ? 'number' : 'text');
             var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
             if (isDateCol) {
-              html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:236px;' + align + '">' +
-                '<div id="date-picker-pop" class="date-picker-pop">' +
-                  '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" />' +
-                  '<button type="button" id="dp-open-btn" class="dp-mini-btn" title="Open Date Picker">📅</button>' +
-                  '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today">Today</button>' +
-                  '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
-                  '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="Save Date">✓</button>' +
-                  '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
-                '</div></td>';
+              if (isEcCol) {
+                var ecBaseDate = (val !== undefined && val !== null && String(val).trim() !== '')
+                  ? parseFlexibleDate(val, new Date().toISOString(), col)
+                  : new Date();
+                var ecParts = gregorianToEthiopian(ecBaseDate);
+                var ecMaxDay = getEthiopianMonthDays(ecParts.year, ecParts.month);
+                var ecMonNames = state.lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+                var ecMonthOpts = '';
+                for (var emi = 1; emi <= 13; emi++) {
+                  var emNum = String(emi).padStart(2, '0');
+                  ecMonthOpts += '<option value="' + emi + '"' + (emi === ecParts.month ? ' selected' : '') + '>' + emNum + ' ' + esc(ecMonNames[emi - 1]) + '</option>';
+                }
+                var ecTimeStr = String(ecBaseDate.getHours()).padStart(2, '0') + ':' + String(ecBaseDate.getMinutes()).padStart(2, '0');
+                var ecDirtyInit = (val !== undefined && val !== null && String(val).trim() !== '') ? '1' : '0';
+                html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:315px;' + align + '">' +
+                  '<div id="date-picker-pop" class="date-picker-pop" data-ec="1" data-ec-dirty="' + ecDirtyInit + '">' +
+                    '<span class="dp-ec-badge" title="Ethiopian Calendar (EC)">EC</span>' +
+                    '<div class="dp-ec-wrap">' +
+                      '<input id="dp-ec-day" class="dp-ec-num" type="number" min="1" max="' + ecMaxDay + '" value="' + ecParts.day + '" style="width:42px;" title="Ethiopian Day (1-' + ecMaxDay + ')" />' +
+                      '<select id="dp-ec-mon" class="dp-ec-sel" style="max-width:106px;" title="Ethiopian Month">' + ecMonthOpts + '</select>' +
+                      '<input id="dp-ec-year" class="dp-ec-num" type="number" min="1900" max="2200" value="' + ecParts.year + '" style="width:58px;" title="Ethiopian Year" />' +
+                      (isDtCol ? '<input id="dp-ec-time" class="dp-ec-num" type="time" value="' + esc(ecTimeStr) + '" style="width:82px;" title="Time (HH:mm)" />' : '') +
+                    '</div>' +
+                    '<input id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" tabindex="-1" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;" />' +
+                    '<button type="button" id="dp-open-btn" class="dp-mini-btn" title="Pick from Calendar">📅</button>' +
+                    '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today (Ethiopian: ' + esc(formatAutoDateStr(col, new Date())) + ')">Today</button>' +
+                    '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
+                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="Save Ethiopian Date">✓</button>' +
+                    '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
+                  '</div></td>';
+              } else {
+                html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:236px;' + align + '">' +
+                  '<div id="date-picker-pop" class="date-picker-pop">' +
+                    '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" />' +
+                    '<button type="button" id="dp-open-btn" class="dp-mini-btn" title="Open Date Picker">📅</button>' +
+                    '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today">Today</button>' +
+                    '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
+                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="Save Date">✓</button>' +
+                    '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
+                  '</div></td>';
+              }
             } else {
               html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><div class="cell-edit-wrap" id="cell-edit-wrap">' +
                 '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" />' +
@@ -5348,7 +5684,7 @@
           if (String(raw || '').trim() === '') {
             parsed = '';
           } else {
-            parsed = formatAutoDateStr(col, parseFlexibleDate(raw));
+            parsed = formatAutoDateStr(col, parseFlexibleDate(raw, undefined, col));
           }
         }
         var oldVal = '';
@@ -5383,7 +5719,7 @@
         }
         if (col.type === 'date') {
           if (String(rawVal === undefined || rawVal === null ? '' : rawVal).trim() === '') return '';
-          return formatAutoDateStr(col, parseFlexibleDate(rawVal));
+          return formatAutoDateStr(col, parseFlexibleDate(rawVal, undefined, col));
         }
         return rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
       };
@@ -5395,6 +5731,14 @@
         state.cellMenu = null;
         state.editingCell = { rowId: rid, colId: cid };
         renderTableView(bot);
+        if (colObj.type === 'date' && isEthiopianCol(colObj)) {
+          var ecDayEl = document.getElementById('dp-ec-day');
+          if (ecDayEl) {
+            ecDayEl.focus();
+            try { ecDayEl.select(); } catch (e0) {}
+          }
+          return;
+        }
         var ci = document.getElementById('active-cell-input');
         if (ci) {
           ci.focus();
@@ -6415,8 +6759,80 @@
           var todayBtn = document.getElementById('dp-today-btn');
           var clearBtn = document.getElementById('dp-clear-btn');
           var okBtn = document.getElementById('dp-ok-btn');
+          var popEl = document.getElementById('date-picker-pop');
+          var ecDayEl = document.getElementById('dp-ec-day');
+          var ecMonEl = document.getElementById('dp-ec-mon');
+          var ecYrEl = document.getElementById('dp-ec-year');
+          var ecTimeEl = document.getElementById('dp-ec-time');
+          var syncEcToPicker = function (markDirty) {
+            if (!ecDayEl || !ecMonEl || !ecYrEl) return '';
+            var ey = Math.max(1900, Math.min(2200, parseInt(ecYrEl.value, 10) || gregorianToEthiopian(new Date()).year));
+            var em = Math.max(1, Math.min(13, parseInt(ecMonEl.value, 10) || 1));
+            var maxD = getEthiopianMonthDays(ey, em);
+            ecDayEl.max = String(maxD);
+            var ed = Math.max(1, Math.min(maxD, parseInt(ecDayEl.value, 10) || 1));
+            if (parseInt(ecDayEl.value, 10) > maxD) ecDayEl.value = String(maxD);
+            var hh = 12, mm = 0;
+            if (ecTimeEl && ecTimeEl.value) {
+              var tm = ecTimeEl.value.split(':');
+              hh = parseInt(tm[0], 10) || 0;
+              mm = parseInt(tm[1], 10) || 0;
+            }
+            var gDate = ethiopianToGregorian(ey, em, ed, hh, mm, 0);
+            var gVal = toPickerInputValue(gDate, editCol);
+            activeInp.value = gVal;
+            if (markDirty && popEl) popEl.setAttribute('data-ec-dirty', '1');
+            return gVal;
+          };
+          var syncPickerToEc = function (gDateInput) {
+            if (!ecDayEl || !ecMonEl || !ecYrEl) return;
+            var gd = parseFlexibleDate(gDateInput);
+            var ep = gregorianToEthiopian(gd);
+            var maxD = getEthiopianMonthDays(ep.year, ep.month);
+            ecDayEl.max = String(maxD);
+            ecDayEl.value = String(ep.day);
+            ecMonEl.value = String(ep.month);
+            ecYrEl.value = String(ep.year);
+            if (ecTimeEl) {
+              ecTimeEl.value = String(gd.getHours()).padStart(2, '0') + ':' + String(gd.getMinutes()).padStart(2, '0');
+            }
+            if (popEl) popEl.setAttribute('data-ec-dirty', '1');
+          };
+          if (ecDayEl && ecMonEl && ecYrEl) {
+            var onEcEdit = function () { syncEcToPicker(true); };
+            ecDayEl.oninput = onEcEdit;
+            ecDayEl.onchange = onEcEdit;
+            ecMonEl.onchange = onEcEdit;
+            ecYrEl.oninput = onEcEdit;
+            ecYrEl.onchange = onEcEdit;
+            if (ecTimeEl) {
+              ecTimeEl.oninput = onEcEdit;
+              ecTimeEl.onchange = onEcEdit;
+            }
+            [ecDayEl, ecMonEl, ecYrEl, ecTimeEl].forEach(function (ctrl) {
+              if (!ctrl) return;
+              ctrl.onkeydown = function (e) {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  syncEcToPicker(true);
+                  commitActiveCell();
+                } else if (e.key === 'Escape') {
+                  state.editingCell = null;
+                  if (window._tbDateOutsideClick) {
+                    document.removeEventListener('click', window._tbDateOutsideClick);
+                    window._tbDateOutsideClick = null;
+                  }
+                  renderTableView(bot);
+                }
+              };
+            });
+            activeInp.onchange = function () {
+              if (activeInp.value) syncPickerToEc(activeInp.value);
+            };
+          }
           if (openBtn) openBtn.onclick = function (e) {
             e.stopPropagation();
+            if (ecDayEl && !activeInp.value) syncEcToPicker(false);
             activeInp.focus();
             if (typeof activeInp.showPicker === 'function') { try { activeInp.showPicker(); } catch (err) {} }
           };
@@ -6424,6 +6840,7 @@
             e.stopPropagation();
             var tVal = toPickerInputValue(new Date(), editCol);
             activeInp.value = tVal;
+            if (ecDayEl) syncPickerToEc(tVal);
             commitActiveCell(tVal, false);
           };
           if (clearBtn) clearBtn.onclick = function (e) {
@@ -6433,12 +6850,15 @@
           };
           if (okBtn) okBtn.onclick = function (e) {
             e.stopPropagation();
+            if (ecDayEl) syncEcToPicker(true);
             commitActiveCell();
           };
-          var popEl = document.getElementById('date-picker-pop');
           if (popEl) popEl.onclick = function (e) { e.stopPropagation(); };
           var outsideHandler = function (e) {
             if (e.target && e.target.closest && (e.target.closest('#date-picker-pop') || e.target.closest('#cell-context-menu'))) return;
+            if (ecDayEl && popEl && popEl.getAttribute('data-ec-dirty') === '1') {
+              syncEcToPicker(true);
+            }
             commitActiveCell();
           };
           window._tbDateOutsideClick = outsideHandler;
@@ -7954,8 +8374,16 @@
       if (d.type === 'date') {
         var dFmt = d.dateFormat || 'dmy';
         var isAutoDate = d.autoInsertDate === true;
+        var isEthCal = isEthiopianCol(d);
+        var ethPreview = formatAutoDateStr(Object.assign({}, d, { calendarType: 'ethiopian', dateFormat: 'dmy' }), new Date());
         html += '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;">' +
-          '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#1E3A8A;">Date Entry &amp; Format Settings</div>' +
+          '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#1E3A8A;">Date Entry &amp; Calendar Settings</div>' +
+          '<div><span style="font-size:11px;color:#475569;display:block;margin-bottom:4px;">Calendar Type</span>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+              '<button type="button" data-dcal="gregorian" class="btn ' + (!isEthCal ? 'btn-primary' : 'btn-outline') + '" style="padding:7px 10px;font-size:11.5px;">Gregorian (GC)</button>' +
+              '<button type="button" data-dcal="ethiopian" class="btn ' + (isEthCal ? 'btn-primary' : 'btn-outline') + '" style="padding:7px 10px;font-size:11.5px;">Ethiopian (' + esc(ethPreview) + ' EC)</button>' +
+            '</div>' +
+          '</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
             '<button type="button" id="col-date-manual" class="btn ' + (!isAutoDate ? 'btn-primary' : 'btn-outline') + '" style="padding:7px 10px;font-size:11.5px;">Manual Set (Default)</button>' +
             '<button type="button" id="col-date-auto" class="btn ' + (isAutoDate ? 'btn-primary' : 'btn-outline') + '" style="padding:7px 10px;font-size:11.5px;">Auto-Fill Today</button>' +
@@ -7963,14 +8391,18 @@
           '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;color:#0F172A;">' +
             '<input type="checkbox" id="col-auto-date" ' + (isAutoDate ? 'checked' : '') + ' /> Auto-insert current date on new &amp; edited rows (leave unchecked to set manually)' +
           '</label>' +
-          '<div><span style="font-size:11px;color:#475569;display:block;margin-bottom:4px;">Date Format (Preview: <strong class="mono">' + esc(formatAutoDateStr(d, new Date())) + '</strong>)</span>' +
+          '<div><span style="font-size:11px;color:#475569;display:block;margin-bottom:4px;">Date Format (Today Preview: <strong class="mono">' + esc(formatAutoDateStr(d, new Date())) + '</strong>)</span>' +
             '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-              '<button type="button" data-dfmt="dmy" class="btn ' + (dFmt === 'dmy' ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 9px;font-size:11px;">DD/MM/YYYY</button>' +
+              '<button type="button" data-dfmt="dmy" class="btn ' + (dFmt === 'dmy' ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 9px;font-size:11px;">DD/MM/YYYY' + (isEthCal ? ' (' + esc(ethPreview) + ')' : '') + '</button>' +
               '<button type="button" data-dfmt="dmy_time" class="btn ' + (dFmt === 'dmy_time' ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 9px;font-size:11px;">DD/MM/YYYY HH:mm</button>' +
+              (isEthCal ? '<button type="button" data-dfmt="eth_named" class="btn ' + (dFmt === 'eth_named' ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 9px;font-size:11px;">DD Month YYYY (EC)</button>' : '') +
               '<button type="button" data-dfmt="iso" class="btn ' + (dFmt === 'iso' ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 9px;font-size:11px;">YYYY-MM-DD HH:mm</button>' +
             '</div>' +
           '</div>' +
-          '<div style="font-size:11px;color:#1D4ED8;">' + (isAutoDate ? 'Auto-Fill Today is ON: blank cells in this column will be filled automatically.' : 'Manual Set is ON: rows remain blank until you click a date cell to choose or enter a date.') + '</div>' +
+          '<div style="font-size:11px;color:#1D4ED8;">' +
+            (isEthCal ? 'Ethiopian Calendar (EC) active — Today displays as <strong class="mono">' + esc(formatAutoDateStr(d, new Date())) + '</strong>. ' : '') +
+            (isAutoDate ? 'Auto-Fill Today is ON: blank cells in this column will be filled automatically.' : 'Manual Set is ON: rows remain blank until you click a date cell to choose or enter a date.') +
+          '</div>' +
         '</div>';
       }
 
@@ -8135,6 +8567,13 @@
         st.color = d.type === 'amount' ? '#E65100' : '#1E293B'; st.bgColor = '#FFFFFF';
         renderColumnModal(m);
       };
+      document.querySelectorAll('[data-dcal]').forEach(function (b) {
+        b.onclick = function () {
+          d.calendarType = b.getAttribute('data-dcal') === 'ethiopian' ? 'ethiopian' : 'gregorian';
+          if (d.calendarType !== 'ethiopian' && d.dateFormat === 'eth_named') d.dateFormat = 'dmy';
+          renderColumnModal(m);
+        };
+      });
       var autoDateManual = document.getElementById('col-date-manual');
       if (autoDateManual) autoDateManual.onclick = function () { d.autoInsertDate = false; renderColumnModal(m); };
       var autoDateAuto = document.getElementById('col-date-auto');
@@ -8149,17 +8588,30 @@
       document.getElementById('col-save').onclick = function () {
         if (!guardWriteAction('Edit Column Properties')) return;
         d.name = (d.name || '').trim() || 'Untitled Column';
+        var prevColSnapshot = Object.assign({}, origCol);
         bot.columns = bot.columns.map(function (c) { return c.id === origCol.id ? d : c; });
-        if (d.type === 'date' && d.autoInsertDate === true) {
-          var nowAuto = new Date().toISOString();
-          bot.rows.forEach(function (r) {
-            if (!r[d.id] || String(r[d.id]).trim() === '') {
-              r[d.id] = formatAutoDateStr(d, r._updatedAt || r._createdAt || nowAuto);
-            }
-          });
+        if (d.type === 'date') {
+          var calChanged = (prevColSnapshot.calendarType || 'gregorian') !== (d.calendarType || 'gregorian');
+          var fmtChanged = (prevColSnapshot.dateFormat || 'dmy') !== (d.dateFormat || 'dmy');
+          if (calChanged || fmtChanged) {
+            bot.rows.forEach(function (r) {
+              if (r[d.id] && String(r[d.id]).trim() !== '') {
+                var parsedOld = parseFlexibleDate(r[d.id], undefined, prevColSnapshot);
+                r[d.id] = formatAutoDateStr(d, parsedOld);
+              }
+            });
+          }
+          if (d.autoInsertDate === true) {
+            var nowAuto = new Date().toISOString();
+            bot.rows.forEach(function (r) {
+              if (!r[d.id] || String(r[d.id]).trim() === '') {
+                r[d.id] = formatAutoDateStr(d, r._updatedAt || r._createdAt || nowAuto);
+              }
+            });
+          }
         }
         bot.updatedAt = new Date().toISOString();
-        updateBot(bot, 'EDIT', 'Updated column "' + d.name + '" (' + d.type + ')');
+        updateBot(bot, 'EDIT', 'Updated column "' + d.name + '" (' + d.type + (d.type === 'date' && isEthiopianCol(d) ? ', EC' : '') + ')');
         closeModal(); renderApp();
         showToast('Updated properties for "' + d.name + '"');
       };
@@ -8378,9 +8830,105 @@
       return getLocalYmd(d) + ' ' + hh + ':' + mm;
     }
 
-    function parseFlexibleDate(raw, fallbackIso) {
+    var ETHIOPIAN_MONTHS_EN = ['Meskerem', 'Tikimt', 'Hidar', 'Tahsas', 'Tir', 'Yekatit', 'Megabit', 'Miazia', 'Ginbot', 'Sene', 'Hamle', 'Nehase', 'Pagume'];
+    var ETHIOPIAN_MONTHS_AM = ['መስከረም', 'ጥቅምት', 'ኅዳር', 'ታኅሣሥ', 'ጥር', 'የካቲት', 'መጋቢት', 'ሚያዝያ', 'ግንቦት', 'ሰኔ', 'ሐምሌ', 'ነሐሴ', 'ጳጉሜ'];
+
+    function gregorianToJdn(gy, gm, gd) {
+      var a = Math.floor((14 - gm) / 12);
+      var y = gy + 4800 - a;
+      var m = gm + 12 * a - 3;
+      return gd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+    }
+
+    function jdnToGregorian(jdn) {
+      var l = jdn + 68569;
+      var n = Math.floor((4 * l) / 146097);
+      l = l - Math.floor((146097 * n + 3) / 4);
+      var i = Math.floor((4000 * (l + 1)) / 1461001);
+      l = l - Math.floor((1461 * i) / 4) + 31;
+      var j = Math.floor((80 * l) / 2447);
+      var gd = l - Math.floor((2447 * j) / 80);
+      l = Math.floor(j / 11);
+      var gm = j + 2 - 12 * l;
+      var gy = 100 * (n - 49) + i + l;
+      return { year: gy, month: gm, day: gd };
+    }
+
+    function gregorianToEthiopian(dateInput) {
+      var d = dateInput instanceof Date ? dateInput : new Date(dateInput || Date.now());
+      if (isNaN(d.getTime())) d = new Date();
+      var jdn = gregorianToJdn(d.getFullYear(), d.getMonth() + 1, d.getDate());
+      var r = (jdn - 1723856) % 1461;
+      if (r < 0) r += 1461;
+      var n = (r % 365) + 365 * Math.floor(r / 1460);
+      var ey = 4 * Math.floor((jdn - 1723856) / 1461) + Math.floor(r / 365) - Math.floor(r / 1460);
+      var em = Math.floor(n / 30) + 1;
+      var ed = (n % 30) + 1;
+      return { year: ey, month: em, day: ed };
+    }
+
+    function ethiopianToGregorian(ey, em, ed, hh, mm, ss) {
+      var jdn = (1723856 + 365) + 365 * (ey - 1) + Math.floor(ey / 4) + 30 * em + ed - 31;
+      var g = jdnToGregorian(jdn);
+      return new Date(g.year, g.month - 1, g.day, hh !== undefined ? hh : 12, mm !== undefined ? mm : 0, ss !== undefined ? ss : 0);
+    }
+
+    function isEthiopianLeapYear(ey) {
+      return ((ey % 4) + 4) % 4 === 3;
+    }
+
+    function getEthiopianMonthDays(ey, em) {
+      if (em === 13) return isEthiopianLeapYear(ey) ? 6 : 5;
+      return 30;
+    }
+
+    function isEthiopianCol(col) {
+      return Boolean(col && (col.calendarType === 'ethiopian' || String(col.dateFormat || '').indexOf('eth') === 0));
+    }
+
+    function parseEthiopianMonthName(tok) {
+      var low = String(tok || '').trim().toLowerCase();
+      if (!low) return -1;
+      for (var i = 0; i < ETHIOPIAN_MONTHS_EN.length; i++) {
+        if (ETHIOPIAN_MONTHS_EN[i].toLowerCase() === low || ETHIOPIAN_MONTHS_AM[i] === String(tok || '').trim()) {
+          return i + 1;
+        }
+      }
+      return -1;
+    }
+
+    function parseFlexibleDate(raw, fallbackIso, col) {
       var s = String(raw === undefined || raw === null ? '' : raw).trim();
       if (s) {
+        var isEc = isEthiopianCol(col);
+        var curEcYrThreshold = gregorianToEthiopian(new Date()).year + 3;
+
+        // Match named Ethiopian dates e.g. "07 Hidar 2019" or "07 ኅዳር 2019" or "Hidar 07, 2019"
+        var namedM = s.match(/^(\d{1,2})\s+([^\d\s\/\-]+)\s+(\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        if (namedM) {
+          var emIdx = parseEthiopianMonthName(namedM[2]);
+          if (emIdx >= 1) {
+            return ethiopianToGregorian(
+              parseInt(namedM[3], 10), emIdx, parseInt(namedM[1], 10),
+              namedM[4] ? parseInt(namedM[4], 10) : 12,
+              namedM[5] ? parseInt(namedM[5], 10) : 0,
+              namedM[6] ? parseInt(namedM[6], 10) : 0
+            );
+          }
+        }
+        var namedM2 = s.match(/^([^\d\s\/\-]+)\s+(\d{1,2}),?\s+(\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        if (namedM2) {
+          var emIdx2 = parseEthiopianMonthName(namedM2[1]);
+          if (emIdx2 >= 1) {
+            return ethiopianToGregorian(
+              parseInt(namedM2[3], 10), emIdx2, parseInt(namedM2[2], 10),
+              namedM2[4] ? parseInt(namedM2[4], 10) : 12,
+              namedM2[5] ? parseInt(namedM2[5], 10) : 0,
+              namedM2[6] ? parseInt(namedM2[6], 10) : 0
+            );
+          }
+        }
+
         var dmyM = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
         if (dmyM) {
           var p1 = parseInt(dmyM[1], 10);
@@ -8390,6 +8938,9 @@
           var hh = dmyM[4] ? parseInt(dmyM[4], 10) : 12;
           var mm = dmyM[5] ? parseInt(dmyM[5], 10) : 0;
           var ss = dmyM[6] ? parseInt(dmyM[6], 10) : 0;
+          if ((isEc && yr <= curEcYrThreshold) || p2 === 13) {
+            return ethiopianToGregorian(yr, p2, p1, hh, mm, ss);
+          }
           var day = p1, mon = p2;
           if (p2 > 12 && p1 <= 12) { mon = p1; day = p2; }
           var dObj = new Date(yr, mon - 1, day, hh, mm, ss);
@@ -8397,7 +8948,16 @@
         }
         var ymdM = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
         if (ymdM) {
-          var dIso = new Date(parseInt(ymdM[1], 10), parseInt(ymdM[2], 10) - 1, parseInt(ymdM[3], 10), ymdM[4] ? parseInt(ymdM[4], 10) : 12, ymdM[5] ? parseInt(ymdM[5], 10) : 0, ymdM[6] ? parseInt(ymdM[6], 10) : 0);
+          var yVal = parseInt(ymdM[1], 10);
+          var mVal = parseInt(ymdM[2], 10);
+          var dVal = parseInt(ymdM[3], 10);
+          var yHh = ymdM[4] ? parseInt(ymdM[4], 10) : 12;
+          var yMm = ymdM[5] ? parseInt(ymdM[5], 10) : 0;
+          var ySs = ymdM[6] ? parseInt(ymdM[6], 10) : 0;
+          if ((isEc && yVal <= curEcYrThreshold) || mVal === 13) {
+            return ethiopianToGregorian(yVal, mVal, dVal, yHh, yMm, ySs);
+          }
+          var dIso = new Date(yVal, mVal - 1, dVal, yHh, yMm, ySs);
           if (!isNaN(dIso.getTime())) return dIso;
         }
         var norm = s.indexOf(' ') !== -1 && s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
@@ -8413,9 +8973,30 @@
       return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
     }
 
+    function formatEthiopianDate(input, fmt, lang) {
+      var d = input instanceof Date ? input : parseFlexibleDate(input, undefined, { calendarType: 'ethiopian' });
+      var ec = gregorianToEthiopian(d);
+      var dd = String(ec.day).padStart(2, '0');
+      var mm = String(ec.month).padStart(2, '0');
+      var yyyy = String(ec.year);
+      var hh = String(d.getHours()).padStart(2, '0');
+      var min = String(d.getMinutes()).padStart(2, '0');
+      if (fmt === 'iso') return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min;
+      if (fmt === 'dmy_time') return dd + '/' + mm + '/' + yyyy + ' ' + hh + ':' + min;
+      if (fmt === 'eth_named') {
+        var mList = (lang === 'am') ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+        var mName = mList[(ec.month - 1)] || mm;
+        return dd + ' ' + mName + ' ' + yyyy;
+      }
+      return dd + '/' + mm + '/' + yyyy;
+    }
+
     function formatAutoDateStr(col, input) {
-      var d = input instanceof Date ? input : parseFlexibleDate(input, input || new Date().toISOString());
+      var d = input instanceof Date ? input : parseFlexibleDate(input, input || new Date().toISOString(), col);
       var fmt = (col && col.dateFormat) ? col.dateFormat : 'dmy';
+      if (isEthiopianCol(col)) {
+        return formatEthiopianDate(d, fmt, state && state.lang);
+      }
       if (fmt === 'iso') return toLocalDateTimeStr(d);
       var hh = String(d.getHours()).padStart(2, '0');
       var mm = String(d.getMinutes()).padStart(2, '0');
@@ -8425,7 +9006,7 @@
 
     function toPickerInputValue(rawVal, col) {
       if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') return '';
-      var d = parseFlexibleDate(rawVal);
+      var d = parseFlexibleDate(rawVal, undefined, col);
       var fmt = (col && col.dateFormat) ? col.dateFormat : 'dmy';
       if (fmt === 'dmy_time' || fmt === 'iso') {
         var hh = String(d.getHours()).padStart(2, '0');
@@ -8580,7 +9161,7 @@
           var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
           var rawDate = dateCol && row[dateCol.id] ? String(row[dateCol.id]).trim() : '';
           var fallbackIso = row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString();
-          var parsedDate = parseFlexibleDate(rawDate, fallbackIso);
+          var parsedDate = parseFlexibleDate(rawDate, fallbackIso, dateCol);
           var dt = rawDate || formatAutoDateStr(dateCol, parsedDate);
           items.push({
             id: row.id,
@@ -8597,6 +9178,7 @@
             allCols: allCols,
             status: st,
             date: dt,
+            dateCol: dateCol || null,
             ymd: getLocalYmd(parsedDate),
             dmy: formatDmyDate(parsedDate),
             parsedMs: parsedDate.getTime(),
@@ -8696,12 +9278,13 @@
       var daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       var map = {};
       items.forEach(function (it) {
-        var key = it.ymd || getLocalYmd(parseFlexibleDate(it.date, it.rawUpdatedAt));
+        var key = it.ymd || getLocalYmd(parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol));
         if (!map[key]) {
-          var dObj = parseFlexibleDate(it.date, it.rawUpdatedAt);
+          var dObj = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
           map[key] = {
             ymd: key,
             dmy: it.dmy || formatDmyDate(dObj),
+            ethDmy: isEthiopianCol(it.dateCol) ? formatEthiopianDate(dObj, 'dmy', state && state.lang) : '',
             weekday: daysShort[dObj.getDay()],
             rowCount: 0,
             quantitySum: 0,
@@ -8760,7 +9343,7 @@
         if (stF === 'paid' && it.remainingBalance > 0.01) return false;
         if (stF === 'remaining' && it.remainingBalance <= 0.01) return false;
         if (per === 'all') return true;
-        var dt = parseFlexibleDate(it.date, it.rawUpdatedAt);
+        var dt = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
         if (per === 'daily') return it.ymd === todayYmd || getLocalYmd(dt) === todayYmd;
         if (per === 'weekly') {
           var dtMid = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
@@ -8993,8 +9576,9 @@
             var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : colHeaderColors[i % colHeaderColors.length]);
             return '<td class="mono" style="text-align:' + (c.isNumeric ? 'right' : 'center') + ';font-weight:' + (c.isNumeric ? '800' : '700') + ';color:' + clr + ';">' + esc(valTxt) + '</td>';
           }).join('');
+          var dayDateLabel = dy.ethDmy ? (dy.ethDmy + ' EC (' + dy.dmy + ')') : dy.dmy;
           return '<tr>' +
-            '<td style="font-weight:700;color:#0D47A1;">' + esc(dy.dmy) + ' <span style="font-size:10.5px;color:#64748B;">(' + esc(dy.weekday) + (todayDmyStr && dy.dmy === todayDmyStr ? ' · Today' : '') + ')</span></td>' +
+            '<td style="font-weight:700;color:#0D47A1;">' + esc(dayDateLabel) + ' <span style="font-size:10.5px;color:#64748B;">(' + esc(dy.weekday) + (todayDmyStr && dy.dmy === todayDmyStr ? ' · Today' : '') + ')</span></td>' +
             '<td style="text-align:center;font-weight:700;">' + dy.rowCount + '</td>' +
             tds +
           '</tr>';
@@ -9050,7 +9634,7 @@
       if (m.period === 'daily') {
         var hBuckets = [{ l: 'Morning', v: 0, c: 0 }, { l: 'Afternoon', v: 0, c: 0 }, { l: 'Evening', v: 0, c: 0 }];
         filtered.forEach(function (it) {
-          var hr = parseFlexibleDate(it.date, it.rawUpdatedAt).getHours();
+          var hr = (it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol)).getHours();
           var idx = isNaN(hr) ? 1 : (hr < 12 ? 0 : hr < 17 ? 1 : 2);
           var nv = primaryNumCol
             ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
@@ -9063,7 +9647,7 @@
         var wDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         var wMap = {}; wDays.forEach(function (d) { wMap[d] = { l: d, v: 0, c: 0 }; });
         filtered.forEach(function (it) {
-          var d = parseFlexibleDate(it.date, it.rawUpdatedAt);
+          var d = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
           var key = wDays[d.getDay()];
           var nv = primaryNumCol
             ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
@@ -9075,7 +9659,7 @@
       } else if (m.period === 'monthly') {
         var wkB = [{ l: 'Wk 1', v: 0, c: 0 }, { l: 'Wk 2', v: 0, c: 0 }, { l: 'Wk 3', v: 0, c: 0 }, { l: 'Wk 4+', v: 0, c: 0 }];
         filtered.forEach(function (it) {
-          var d = parseFlexibleDate(it.date, it.rawUpdatedAt);
+          var d = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
           var dom = d.getDate();
           var idx = dom <= 7 ? 0 : dom <= 14 ? 1 : dom <= 21 ? 2 : 3;
           var nv = primaryNumCol
@@ -10742,6 +11326,7 @@
             };
             state.bots.unshift(nb);
             createdNames.push(nb.name);
+            if (clearFolderTombstone(folderName, nb.id)) pushSharedSecurityState('excel_import_restore');
             recordFolderSnapshot(nb, 'IMPORT_EXCEL', 'Imported Excel sheet "' + sh.name + '" (' + rowsOut.length + ' rows)', true);
             recordAudit('ADD', nb, 'Imported Excel "' + m.fileName + '" -> ' + rowsOut.length + ' row(s)', { source: 'Excel Import' });
             pushBotToSupabase(nb);
@@ -11423,13 +12008,16 @@
       syncAllNow('online');
     });
     window.addEventListener('storage', function (e) {
-      if (e.key === STORAGE_BOTS || e.key === STORAGE_AUDIT_LOGS || e.key === STORAGE_USERS || e.key === STORAGE_FOLDER_HISTORY || e.key === STORAGE_DELETED_VAULT || e.key === STORAGE_ADMIN_CFG || e.key === STORAGE_ACCESS_CODE || e.key === STORAGE_CYBER_CODE) {
+      if (e.key === STORAGE_BOTS || e.key === STORAGE_AUDIT_LOGS || e.key === STORAGE_USERS || e.key === STORAGE_FOLDER_HISTORY || e.key === STORAGE_DELETED_VAULT || e.key === STORAGE_ADMIN_CFG || e.key === STORAGE_ACCESS_CODE || e.key === STORAGE_CYBER_CODE || e.key === STORAGE_CUSTOM_FOLDERS || e.key === STORAGE_DELETED_TOMBSTONES) {
+        state.deletedTombstones = loadDeletedTombstonesRaw();
+        state.customFolders = loadJsonStorage(STORAGE_CUSTOM_FOLDERS, state.customFolders);
         state.bots = loadBots();
         state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
         state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
         state.folderHistory = loadJsonStorage(STORAGE_FOLDER_HISTORY, state.folderHistory);
         state.deletedVault = loadJsonStorage(STORAGE_DELETED_VAULT, state.deletedVault);
         state.adminConfig = Object.assign({}, DEFAULT_ADMIN_CFG, loadJsonStorage(STORAGE_ADMIN_CFG, {}));
+        purgeTombstonedDataFromState();
         if (isCurrentUserRevoked()) forceLogoutCurrentUser('Your account was blocked or logged out by Admin. App data is hidden.');
         renderApp(true);
       }
@@ -11441,12 +12029,15 @@
           applySharedSecurityState(msg.payload, { from: 'broadcast' });
           return;
         }
+        state.deletedTombstones = loadDeletedTombstonesRaw();
+        state.customFolders = loadJsonStorage(STORAGE_CUSTOM_FOLDERS, state.customFolders);
         state.bots = loadBots();
         state.auditLogs = loadJsonStorage(STORAGE_AUDIT_LOGS, state.auditLogs);
         state.workspaceUsers = loadJsonStorage(STORAGE_USERS, state.workspaceUsers);
         state.folderHistory = loadJsonStorage(STORAGE_FOLDER_HISTORY, state.folderHistory);
         state.deletedVault = loadJsonStorage(STORAGE_DELETED_VAULT, state.deletedVault);
         state.adminConfig = Object.assign({}, DEFAULT_ADMIN_CFG, loadJsonStorage(STORAGE_ADMIN_CFG, {}));
+        purgeTombstonedDataFromState();
         if (state.adminConfig.cyberSecurityCode) {
           try { localStorage.setItem(STORAGE_CYBER_CODE, normalizeSecurityCode(state.adminConfig.cyberSecurityCode)); } catch (e) {}
         }
@@ -11514,6 +12105,7 @@
         if (typeof window.Telegram.WebApp.expand === 'function') window.Telegram.WebApp.expand();
       }
     } catch (e) {}
+    purgeTombstonedDataFromState();
     ensureInitialFolderManifest();
     renderApp();
     startSharedSecurityEvents();

@@ -36,6 +36,10 @@ interface SharedSecurityState {
   folderLocks: Record<string, FolderLockEntry>;
   revokedUsers: Record<string, RevokedUserEntry>;
   telegramKnownChats: KnownTelegramChat[];
+  deletedFolders?: Record<string, { name?: string; deletedAt: string; deletedBy?: string }>;
+  deletedBotIds?: Record<string, { folder?: string; deletedAt: string }>;
+  restoredFolders?: Record<string, { at: string }>;
+  restoredBots?: Record<string, { at: string }>;
   forceLockAt: string | null;
   updatedAt: string | null;
   updatedBy: string;
@@ -124,6 +128,10 @@ const DEFAULT_SECURITY_STATE: SharedSecurityState = {
   folderLocks: {},
   revokedUsers: {},
   telegramKnownChats: [],
+  deletedFolders: {},
+  deletedBotIds: {},
+  restoredFolders: {},
+  restoredBots: {},
   forceLockAt: null,
   updatedAt: null,
   updatedBy: '',
@@ -278,6 +286,10 @@ function loadPersistedSecurityState(): SharedSecurityState {
           folderLocks: parsed.folderLocks && typeof parsed.folderLocks === 'object' ? parsed.folderLocks : {},
           revokedUsers: parsed.revokedUsers && typeof parsed.revokedUsers === 'object' ? parsed.revokedUsers : {},
           telegramKnownChats: Array.isArray(parsed.telegramKnownChats) ? parsed.telegramKnownChats : [],
+          deletedFolders: parsed.deletedFolders && typeof parsed.deletedFolders === 'object' ? parsed.deletedFolders : {},
+          deletedBotIds: parsed.deletedBotIds && typeof parsed.deletedBotIds === 'object' ? parsed.deletedBotIds : {},
+          restoredFolders: parsed.restoredFolders && typeof parsed.restoredFolders === 'object' ? parsed.restoredFolders : {},
+          restoredBots: parsed.restoredBots && typeof parsed.restoredBots === 'object' ? parsed.restoredBots : {},
         };
       }
     }
@@ -704,6 +716,22 @@ async function startServer(): Promise<void> {
       telegramKnownChats: Array.isArray(incoming.telegramKnownChats)
         ? incoming.telegramKnownChats
         : currentSecurityState.telegramKnownChats,
+      deletedFolders:
+        incoming.deletedFolders && typeof incoming.deletedFolders === 'object'
+          ? incoming.deletedFolders
+          : currentSecurityState.deletedFolders || {},
+      deletedBotIds:
+        incoming.deletedBotIds && typeof incoming.deletedBotIds === 'object'
+          ? incoming.deletedBotIds
+          : currentSecurityState.deletedBotIds || {},
+      restoredFolders:
+        incoming.restoredFolders && typeof incoming.restoredFolders === 'object'
+          ? incoming.restoredFolders
+          : currentSecurityState.restoredFolders || {},
+      restoredBots:
+        incoming.restoredBots && typeof incoming.restoredBots === 'object'
+          ? incoming.restoredBots
+          : currentSecurityState.restoredBots || {},
       forceLockAt:
         typeof incoming.forceLockAt === 'string' || incoming.forceLockAt === null
           ? incoming.forceLockAt
@@ -1088,24 +1116,56 @@ async function startServer(): Promise<void> {
     res.json({ ok: true });
   });
 
+  app.get('/api/health', (_req: Request, res: Response) => {
+    res.status(200).json({ ok: true, port: PORT, timestamp: new Date().toISOString() });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
+    let viteMiddleware: ((req: Request, res: Response, next: (err?: unknown) => void) => void) | null = null;
+    const indexHtmlPath = path.resolve(process.cwd(), 'index.html');
+    app.use(express.static(path.resolve(process.cwd(), 'public'), { index: false }));
+
+    app.use((req: Request, res: Response, next) => {
+      if (viteMiddleware) {
+        viteMiddleware(req, res, next);
+        return;
+      }
+      if ((req.method === 'GET' || req.method === 'HEAD') && (req.path === '/' || req.path === '/index.html') && fs.existsSync(indexHtmlPath)) {
+        res.sendFile(indexHtmlPath);
+        return;
+      }
+      next();
     });
-    app.use(vite.middlewares);
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`TableBot server listening on http://0.0.0.0:${PORT}`);
+    });
+
+    import('vite')
+      .then(({ createServer: createViteServer }) =>
+        createViteServer({
+          server: { middlewareMode: true },
+          appType: 'spa',
+        }),
+      )
+      .then((vite) => {
+        viteMiddleware = vite.middlewares;
+        console.log('Vite middleware ready');
+      })
+      .catch((err) => {
+        console.error('Vite middleware initialization warning (falling back to static index.html):', err);
+      });
   } else {
     const distDir = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distDir));
     app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
-  }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`TableBot server listening on http://0.0.0.0:${PORT}`);
-  });
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`TableBot server listening on http://0.0.0.0:${PORT}`);
+    });
+  }
 }
 
 startServer().catch((err) => {
