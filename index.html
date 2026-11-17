@@ -357,7 +357,9 @@
     .drawer-item-left { display: flex; align-items: center; gap: 14px; }
 
     /* Spreadsheet Table View */
-    .table-wrap { flex: 1; overflow: auto; background: #fff; padding-bottom: 110px; }
+    .table-wrap { flex: 1; overflow: auto; background: #fff; padding-bottom: 116px; }
+    .table-wrap.sigma-hidden { padding-bottom: 72px; }
+    .table-wrap.is-writing { padding-bottom: 160px; }
     .sheet-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
     .sheet-table th {
       position: sticky; top: 0; z-index: 20; background: #F8FAFC;
@@ -523,45 +525,70 @@
       border-radius: 4px; padding: 2px 5px; white-space: nowrap; flex-shrink: 0;
       cursor: pointer;
     }
+    .tb-cal-backdrop {
+      position: fixed; inset: 0; z-index: 940;
+      background: rgba(15, 23, 42, 0.48);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
     .tb-cal-popover {
-      position: fixed; z-index: 950; width: 292px; max-width: calc(100vw - 16px);
-      background: #fff; border: 1.5px solid #93C5FD; border-radius: 14px;
-      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.24); padding: 10px;
-      user-select: none; color: #0F172A; font-family: inherit;
+      position: relative; z-index: 950; width: 336px; max-width: calc(100vw - 24px);
+      background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 24px;
+      box-shadow: 0 24px 56px rgba(15, 23, 42, 0.28); padding: 20px 20px 14px;
+      user-select: none; color: #1E293B; font-family: inherit;
+    }
+    .tb-cal-top-date {
+      font-size: 25px; font-weight: 500; color: #1E293B; letter-spacing: -0.02em;
+      line-height: 1.2; margin-bottom: 14px;
     }
     .tb-cal-head {
-      display: flex; align-items: center; justify-content: space-between; gap: 4px;
-      margin-bottom: 8px;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      margin-bottom: 12px;
     }
     .tb-cal-nav {
-      width: 28px; height: 28px; border-radius: 7px; border: 1px solid #CBD5E1;
-      background: #F8FAFC; color: #1E293B; font-weight: 800; font-size: 13px;
+      width: 34px; height: 34px; border-radius: 999px; border: none;
+      background: transparent; color: #334155; font-weight: 600; font-size: 19px;
       display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
-      flex-shrink: 0;
+      flex-shrink: 0; transition: background 0.14s, color 0.14s;
     }
-    .tb-cal-nav:hover { background: #EFF6FF; border-color: #93C5FD; color: #0D47A1; }
+    .tb-cal-nav:hover { background: #EFF6FF; color: #0B57D0; }
     .tb-cal-sel {
-      border: 1px solid #CBD5E1; border-radius: 6px; background: #F8FAFC;
-      color: #0F172A; font-size: 12px; font-weight: 700; padding: 3px 5px; outline: none;
+      border: 1px solid transparent; border-radius: 8px; background: #F8FAFC;
+      color: #334155; font-size: 13.5px; font-weight: 600; padding: 4px 6px; outline: none;
+      cursor: pointer;
     }
+    .tb-cal-sel:hover, .tb-cal-sel:focus { background: #EFF6FF; border-color: #BFDBFE; color: #0B57D0; }
     .tb-cal-weekdays, .tb-cal-days {
-      display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; text-align: center;
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center;
+      align-items: center;
     }
     .tb-cal-weekdays span {
-      font-size: 10.5px; font-weight: 800; color: #64748B; padding: 3px 0; text-transform: uppercase;
+      font-size: 12px; font-weight: 600; color: #475569; padding: 4px 0 6px;
     }
     .tb-cal-day {
-      height: 34px; border-radius: 8px; border: 1px solid transparent;
-      background: #fff; color: #0F172A; font-size: 12.5px; font-weight: 600;
+      width: 38px; height: 38px; margin: 0 auto; border-radius: 999px; border: 1.5px solid transparent;
+      background: transparent; color: #1E293B; font-size: 13.5px; font-weight: 500;
       display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      font-variant-numeric: tabular-nums;
     }
-    .tb-cal-day:hover { background: #EFF6FF; border-color: #BFDBFE; color: #0D47A1; }
-    .tb-cal-day.is-today { border: 1.5px solid #059669; background: #ECFDF5; color: #065F46; font-weight: 800; }
-    .tb-cal-day.is-selected { background: #0D47A1; border-color: #0D47A1; color: #fff; font-weight: 800; }
+    .tb-cal-day:hover { background: #EFF6FF; color: #0B57D0; }
+    .tb-cal-day.is-today { border-color: #0B57D0; color: #0B57D0; font-weight: 700; }
+    .tb-cal-day.is-selected { background: #0B57D0; border-color: #0B57D0; color: #FFFFFF; font-weight: 700; }
     .tb-cal-foot {
-      margin-top: 8px; padding-top: 8px; border-top: 1px solid #E2E8F0;
-      display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;
+      margin-top: 12px; padding-top: 10px; border-top: 1px solid #F1F5F9;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
     }
+    .tb-cal-save-btn {
+      padding: 7px 14px; border-radius: 10px; font-size: 13.5px; font-weight: 700;
+      color: #0B57D0; background: transparent; cursor: pointer; transition: background 0.14s;
+    }
+    .tb-cal-save-btn:hover { background: #EFF6FF; }
+    .tb-cal-text-btn {
+      padding: 6px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+      color: #475569; background: transparent; cursor: pointer; transition: background 0.14s;
+    }
+    .tb-cal-text-btn:hover { background: #F1F5F9; color: #0F172A; }
     .add-row-bar {
       padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
@@ -574,11 +601,18 @@
     }
     .add-row-btn:hover { background: var(--blue-mid); }
     .sheet-table tfoot tr.table-sum-row td {
-      background: #EFF6FF; border-top: 2px solid #0D47A1; border-bottom: 2px solid #93C5FD;
-      font-weight: 800; color: #0D47A1; padding: 10px 12px; font-size: 12.5px;
+      background: linear-gradient(180deg, #EFF6FF 0%, #DBEAFE 100%);
+      border-top: 2.5px solid #1E3A8A; border-bottom: 2.5px solid #60A5FA;
+      font-weight: 900; color: #0D47A1; padding: 12px 12px; font-size: 14px;
     }
     .sheet-table tfoot tr.table-sum-row td.frozen-col {
-      background: #DBEAFE; color: #0D47A1; font-weight: 900;
+      background: #BFDBFE; color: #1E3A8A; font-weight: 900; font-size: 16px;
+    }
+    .table-sum-val {
+      display: inline-block; margin-top: 3px; padding: 3px 9px; border-radius: 7px;
+      background: #FFFFFF; border: 1.5px solid rgba(30, 58, 138, 0.22);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+      font-weight: 900; line-height: 1.25; letter-spacing: -0.01em;
     }
     .report-folder-card {
       background: #fff; border: 1px solid #CBD5E1; border-radius: 14px; overflow: hidden;
@@ -797,10 +831,22 @@
     .sigma-footer {
       position: fixed; bottom: 56px; left: 0; right: 0; z-index: 35;
       background: var(--blue-dark); color: #fff;
-      padding: 9px 16px; border-top: 1px solid #1E3A8A;
+      padding: 8px 14px; border-top: 1px solid #1E3A8A;
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       overflow-x: auto; font-size: 13px; font-weight: 600;
     }
+    .sigma-hide-btn {
+      flex-shrink: 0; padding: 3px 9px; border-radius: 7px; font-size: 11px; font-weight: 700;
+      background: rgba(255,255,255,0.16); color: #F8FAFC; border: 1px solid rgba(255,255,255,0.28);
+      cursor: pointer; white-space: nowrap;
+    }
+    .sigma-hide-btn:hover { background: rgba(255,255,255,0.28); color: #fff; }
+    .sigma-show-chip {
+      padding: 6px 10px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+      background: #EFF6FF; color: #0D47A1; border: 1px solid #93C5FD;
+      display: inline-flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap;
+    }
+    .sigma-show-chip:hover { background: #DBEAFE; }
     .bottom-toolbar {
       position: fixed; bottom: 0; left: 0; right: 0; height: 56px; z-index: 40;
       background: #fff; border-top: 1px solid var(--border);
@@ -1027,6 +1073,8 @@
     var STORAGE_DEVICE_ID = 'tablebot_device_uid_v1';
     var STORAGE_GUEST_ACTOR = 'tablebot_device_actor_v1';
     var STORAGE_TG_WEB_USER = 'tablebot_tg_webapp_user_v1';
+    var STORAGE_SIGMA_HIDDEN = 'tablebot_sigma_hidden_v1';
+    var STORAGE_TABLE_REP_COLLAPSED = 'tablebot_table_rep_collapsed_v1';
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
     var SESSION_FOLDER_UNLOCKS_KEY = 'tablebot_folder_unlocks_v1';
     var SESSION_CYBER_UNLOCK_KEY = 'tablebot_cyber_unlocked_v1';
@@ -1749,7 +1797,8 @@
       editingTitle: false,
       showMoreMenu: false,
       tableReportScope: 'table',
-      tableReportCollapsed: false,
+      tableReportCollapsed: (function () { try { return localStorage.getItem(STORAGE_TABLE_REP_COLLAPSED) !== '0'; } catch (e) { return true; } })(),
+      sigmaFooterHidden: (function () { try { return localStorage.getItem(STORAGE_SIGMA_HIDDEN) === '1'; } catch (e) { return false; } })(),
       // Drawer & Modals
       drawerOpen: false,
       modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin'|'cyber_control'|'folder_lock'|'folder_unlock_prompt', ... }
@@ -5449,7 +5498,9 @@
       }
       html += '</header>';
 
-      html += '<div class="table-wrap"><table class="sheet-table"><thead><tr>' +
+      var isWritingCell = Boolean(state.editingCell);
+      var tblWrapCls = 'table-wrap' + (isWritingCell ? ' is-writing' : (state.sigmaFooterHidden ? ' sigma-hidden' : ''));
+      html += '<div class="' + tblWrapCls + '"><table class="sheet-table"><thead><tr>' +
         '<th class="frozen-col"><input type="checkbox" id="chk-select-all" ' + (visibleRows.length > 0 && selCount === visibleRows.length ? 'checked' : '') + ' /></th>';
 
       bot.columns.forEach(function (col) {
@@ -5569,50 +5620,16 @@
             var itype = isDateCol ? (isDtCol ? 'datetime-local' : 'date') : ((col.type === 'amount' || col.type === 'number') ? 'number' : 'text');
             var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
             if (isDateCol) {
-              if (isEcCol) {
-                var ecBaseDate = (val !== undefined && val !== null && String(val).trim() !== '')
-                  ? parseFlexibleDate(val, new Date().toISOString(), col)
-                  : new Date();
-                var ecParts = gregorianToEthiopian(ecBaseDate);
-                var ecMaxDay = getEthiopianMonthDays(ecParts.year, ecParts.month);
-                var ecMonNames = state.lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
-                var ecMonthOpts = '';
-                for (var emi = 1; emi <= 13; emi++) {
-                  var emNum = String(emi).padStart(2, '0');
-                  ecMonthOpts += '<option value="' + emi + '"' + (emi === ecParts.month ? ' selected' : '') + '>' + emNum + ' ' + esc(ecMonNames[emi - 1]) + '</option>';
-                }
-                var ecTimeStr = String(ecBaseDate.getHours()).padStart(2, '0') + ':' + String(ecBaseDate.getMinutes()).padStart(2, '0');
-                var ecDirtyInit = (val !== undefined && val !== null && String(val).trim() !== '') ? '1' : '0';
-                html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:315px;' + align + '">' +
-                  '<div id="date-picker-pop" class="date-picker-pop" data-ec="1" data-ec-dirty="' + ecDirtyInit + '">' +
-                    '<button type="button" id="dp-ec-badge" class="dp-ec-badge" title="Ethiopian Calendar (EC) — Tap to open Calendar">EC 📅</button>' +
-                    '<div class="dp-ec-wrap">' +
-                      '<input id="dp-ec-day" class="dp-ec-num" type="number" min="1" max="' + ecMaxDay + '" value="' + ecParts.day + '" style="width:42px;" title="Ethiopian Day (1-' + ecMaxDay + ')" />' +
-                      '<select id="dp-ec-mon" class="dp-ec-sel" style="max-width:106px;" title="Ethiopian Month">' + ecMonthOpts + '</select>' +
-                      '<input id="dp-ec-year" class="dp-ec-num" type="number" min="1900" max="2200" value="' + ecParts.year + '" style="width:58px;" title="Ethiopian Year" />' +
-                      (isDtCol ? '<input id="dp-ec-time" class="dp-ec-num" type="time" value="' + esc(ecTimeStr) + '" style="width:82px;" title="Time (HH:mm)" />' : '') +
-                    '</div>' +
-                    '<input id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" tabindex="-1" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;" />' +
-                    '<button type="button" id="dp-open-btn" class="dp-mini-btn dp-today" title="Open Ethiopian Calendar">📅</button>' +
-                    '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today (Ethiopian: ' + esc(formatAutoDateStr(col, new Date())) + ')">Today</button>' +
-                    '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
-                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="OK (Set Today if blank)">✓</button>' +
-                    '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
-                  '</div></td>';
-              } else {
-                html += '<td style="padding:2px 4px;background:#EFF6FF;min-width:248px;' + align + '">' +
-                  '<div id="date-picker-pop" class="date-picker-pop">' +
-                    '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" value="' + esc(inpVal) + '" title="Tap Calendar button for another day, or ✓ OK for Today" />' +
-                    '<button type="button" id="dp-open-btn" class="dp-mini-btn dp-today" title="Touch to Open Calendar">📅</button>' +
-                    '<button type="button" id="dp-today-btn" class="dp-mini-btn dp-today" title="Set Today (' + esc(formatAutoDateStr(col, new Date())) + ')">Today</button>' +
-                    '<button type="button" id="dp-clear-btn" class="dp-mini-btn dp-clear" title="Clear Date">✕</button>' +
-                    '<button type="button" id="dp-ok-btn" class="dp-mini-btn dp-ok" title="OK (Set Today if blank)">✓</button>' +
-                    '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
-                  '</div></td>';
-              }
+              var cellFsDate = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
+              var dispDateStr = formatCell(val, col, row, bot);
+              html += '<td class="cell-clickable cell-menu-target cell-selectable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #2563EB;' + align + '">' +
+                '<span style="color:#0D47A1;font-weight:700;font-size:' + cellFsDate + 'px;line-height:1.35;">' + esc(dispDateStr) + '</span>' +
+                '<input id="active-cell-input" type="hidden" data-date-edit="1" value="' + esc(inpVal) + '" />' +
+              '</td>';
             } else {
+              var cellFsEdit = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
               html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><div class="cell-edit-wrap" id="cell-edit-wrap">' +
-                '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" />' +
+                '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" style="font-size:' + cellFsEdit + 'px;" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" />' +
                 '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
               '</div></td>';
             }
@@ -5623,13 +5640,14 @@
             var color = isAmt ? '#E65100' : isFrm ? '#6D28D9' : isNum ? '#0D47A1' : (st.color || '#1E293B');
             var fw = (st.bold || isAmt || isFrm) ? '700' : '400';
             var fs = st.italic ? 'italic' : 'normal';
+            var cellFontSize = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
             var commentTip = commentObj && commentObj.text ? ' | Comment: ' + commentObj.text : '';
             var titleTip = isFrm && col.formulaExpr
               ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to edit; drag or right-click for toolbar)' + esc(commentTip) + '"'
               : ' title="Click to write/edit · Drag, long-press, or right-click for toolbar' + esc(commentTip) + '"';
             html += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
               commentMarkHtml +
-              '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';">' + esc(formatCell(val, col, row, bot)) + '</span>' +
+              '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';font-size:' + cellFontSize + 'px;line-height:1.35;">' + esc(formatCell(val, col, row, bot)) + '</span>' +
               commentBadgeHtml +
               handleHtml +
             '</td>';
@@ -5648,14 +5666,17 @@
           var sumVal = colSums[col.id] || 0;
           var formattedSum = formatNumericValue(sumVal, col);
           var badgeCol = col.type === 'amount' ? '#E65100' : col.type === 'formula' ? '#6D28D9' : '#0D47A1';
+          var colSt = col.style || {};
+          var colFs = (colSt.fontSize && Number(colSt.fontSize) >= 10) ? Math.min(32, Number(colSt.fontSize)) : 13;
+          var sumFs = (col.sumFontSize && Number(col.sumFontSize) >= 12) ? Math.min(34, Number(col.sumFontSize)) : Math.max(17, colFs + 4);
           var tag = 'Σ ' + esc(col.name);
           html += '<td style="text-align:right;">' +
-            '<div style="font-size:9.5px;text-transform:uppercase;color:#64748B;font-weight:700;">' + tag + '</div>' +
-            '<div class="mono" style="font-size:13px;font-weight:800;color:' + badgeCol + ';">' + esc(formattedSum) + '</div>' +
+            '<div style="font-size:10.5px;text-transform:uppercase;color:#1E3A8A;font-weight:800;letter-spacing:0.03em;">' + tag + '</div>' +
+            '<div class="mono table-sum-val" data-sum-val-col="' + esc(col.id) + '" style="font-size:' + sumFs + 'px;color:' + badgeCol + ';">' + esc(formattedSum) + '</div>' +
           '</td>';
         } else if (!labelPlaced) {
           labelPlaced = true;
-          html += '<td style="color:#0D47A1;font-size:12px;">Σ Last Row Sum (' + visibleRows.length + ' rows)</td>';
+          html += '<td style="color:#1E3A8A;font-size:13.5px;font-weight:900;">Σ Last Row Sum (' + visibleRows.length + ' rows)</td>';
         } else {
           html += '<td></td>';
         }
@@ -5667,101 +5688,113 @@
           '<button class="btn btn-primary" id="btn-add-row" style="padding:7px 14px;font-size:12px;" title="Append Row">' + icon('plus', 15) + '<span>Add Row</span></button>' +
           '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
           (state.rowClipboard ? '<button type="button" class="btn btn-outline" id="btn-bar-paste-row" style="padding:7px 12px;font-size:12px;border-color:#86EFAC;color:#047857;background:#ECFDF5;">' + icon('copy', 13) + '<span>Paste Copied Row</span></button>' : '') +
+          (state.sigmaFooterHidden && !isWritingCell ? '<button type="button" id="btn-show-sigma" class="sigma-show-chip" title="Show fixed Live Totals bar at bottom">' + icon('chart', 12) + '<span>Σ Show Live Totals</span></button>' : '') +
         '</div>' +
         '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Click any cell to write &middot; Drag, long-press, or right-click to select range</span>' +
       '</div>';
 
-      // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report (never impacts + Add Row above)
-      var tblFolder = bot.folder || 'General';
-      var tblScopeBot = state.tableReportScope === 'folder' ? 'all' : bot.id;
-      var tblScopeFld = tblFolder;
-      var tblDaily = calculateLiveReportSummary('daily', tblScopeFld, 'all', '', tblScopeBot);
-      var tblWeekly = calculateLiveReportSummary('weekly', tblScopeFld, 'all', '', tblScopeBot);
-      var tblMonthly = calculateLiveReportSummary('monthly', tblScopeFld, 'all', '', tblScopeBot);
-      var tblIsEth = tblWeekly.isEthiopianCal || tblDaily.isEthiopianCal || (bot.columns || []).some(isEthiopianCol);
-      var tblDays = groupReportItemsByDay(tblWeekly.filtered, tblIsEth);
-      var tblTodayDmy = tblDaily.todayDisplayLabel || formatDmyDate(new Date());
-      var tblMonthSub = tblMonthly.isEthiopianCal ? tblMonthly.monthDisplayLabel : 'This Month';
+      // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report — hidden completely while writing in a cell so table stays unobstructed
+      if (!isWritingCell) {
+        var tblFolder = bot.folder || 'General';
+        var tblScopeBot = state.tableReportScope === 'folder' ? 'all' : bot.id;
+        var tblScopeFld = tblFolder;
+        var tblDaily = calculateLiveReportSummary('daily', tblScopeFld, 'all', '', tblScopeBot);
+        var tblWeekly = calculateLiveReportSummary('weekly', tblScopeFld, 'all', '', tblScopeBot);
+        var tblMonthly = calculateLiveReportSummary('monthly', tblScopeFld, 'all', '', tblScopeBot);
+        var tblIsEth = tblWeekly.isEthiopianCal || tblDaily.isEthiopianCal || (bot.columns || []).some(isEthiopianCol);
+        var tblDays = groupReportItemsByDay(tblWeekly.filtered, tblIsEth);
+        var tblTodayDmy = tblDaily.todayDisplayLabel || formatDmyDate(new Date());
+        var tblMonthSub = tblMonthly.isEthiopianCal ? tblMonthly.monthDisplayLabel : 'This Month';
 
-      html += '<section class="dash-summary-wrap" style="margin:14px 16px 24px;">' +
-        '<div class="dash-summary-head">' +
-          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-            '<span style="color:#FCD34D;display:inline-flex;">' + icon('chart', 17) + '</span>' +
-            '<div>' +
-              '<div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
-                '<span>Last-Row Automatic Report</span>' +
-                '<span class="pill-badge" style="background:rgba(255,255,255,0.22);font-size:10.5px;">' + (state.tableReportScope === 'folder' ? 'Folder: ' + esc(tblFolder) : 'Table: ' + esc(bot.name)) + '</span>' +
-                (tblIsEth ? '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">Ethiopian Calendar</span>' : '') +
+        html += '<section class="dash-summary-wrap" style="margin:14px 16px 24px;">' +
+          '<div class="dash-summary-head">' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+              '<span style="color:#FCD34D;display:inline-flex;">' + icon('chart', 17) + '</span>' +
+              '<div>' +
+                '<div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+                  '<span>Last-Row Automatic Report</span>' +
+                  '<span class="pill-badge" style="background:rgba(255,255,255,0.22);font-size:10.5px;">' + (state.tableReportScope === 'folder' ? 'Folder: ' + esc(tblFolder) : 'Table: ' + esc(bot.name)) + '</span>' +
+                  (tblIsEth ? '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">Ethiopian Calendar</span>' : '') +
+                '</div>' +
+                '<div style="font-size:11px;color:#DBEAFE;">Column Header Name Summary Cards calculated automatically below rows (' + esc(tblTodayDmy) + ')</div>' +
               '</div>' +
-              '<div style="font-size:11px;color:#DBEAFE;">Column Header Name Summary Cards calculated automatically below rows (' + esc(tblTodayDmy) + ')</div>' +
             '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+              '<button type="button" id="tbl-sum-scope-table" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope !== 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">This Table</button>' +
+              '<button type="button" id="tbl-sum-scope-folder" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope === 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">Folder (' + esc(tblFolder) + ')</button>' +
+              '<button type="button" id="tbl-sum-open-rep" class="btn" style="background:#F59E0B;color:#fff;padding:4px 10px;font-size:11px;">' + icon('chart', 12) + '<span>Full Report</span></button>' +
+              '<button type="button" id="tbl-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:4px 9px;font-size:11px;">' + (state.tableReportCollapsed ? 'Show' : 'Hide') + '</button>' +
+            '</div>' +
+          '</div>';
+
+        if (!state.tableReportCollapsed) {
+          html += '<div class="dash-sum-cards">' +
+            renderColorfulSummaryCard('Daily Report', tblTodayDmy, tblDaily, 'daily', 'sum-card-daily tbl-sum-card', 'data-open-rper="daily"') +
+            renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
+            renderColorfulSummaryCard('Monthly Sum', tblMonthSub, tblMonthly, 'monthly', 'sum-card-monthly tbl-sum-card', 'data-open-rper="monthly"') +
           '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-            '<button type="button" id="tbl-sum-scope-table" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope !== 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">This Table</button>' +
-            '<button type="button" id="tbl-sum-scope-folder" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope === 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">Folder (' + esc(tblFolder) + ')</button>' +
-            '<button type="button" id="tbl-sum-open-rep" class="btn" style="background:#F59E0B;color:#fff;padding:4px 10px;font-size:11px;">' + icon('chart', 12) + '<span>Full Report</span></button>' +
-            '<button type="button" id="tbl-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:4px 9px;font-size:11px;">' + (state.tableReportCollapsed ? 'Show' : 'Hide') + '</button>' +
-          '</div>' +
-        '</div>';
-
-      if (!state.tableReportCollapsed) {
-        html += '<div class="dash-sum-cards">' +
-          renderColorfulSummaryCard('Daily Report', tblTodayDmy, tblDaily, 'daily', 'sum-card-daily tbl-sum-card', 'data-open-rper="daily"') +
-          renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
-          renderColorfulSummaryCard('Monthly Sum', tblMonthSub, tblMonthly, 'monthly', 'sum-card-monthly tbl-sum-card', 'data-open-rper="monthly"') +
-        '</div>' +
-        renderAllColumnsBar(tblWeekly, (state.tableReportScope === 'folder' ? 'Folder: ' + tblFolder : bot.name) + ' — Column Header Data Summary') +
-        '<div class="dash-day-breakdown">' +
-          renderDynamicDayBreakdownTable(
-            tblDays.slice(0, 7),
-            tblWeekly,
-            'No filled dated rows in the last 7 days yet. Add data to any row above to calculate Daily & Weekly column sums here automatically.',
-            'Σ Weekly Total (7 Days)',
-            tblDaily.todayYmd || getLocalYmd(new Date())
-          ) +
-        '</div>';
+          renderAllColumnsBar(tblWeekly, (state.tableReportScope === 'folder' ? 'Folder: ' + tblFolder : bot.name) + ' — Column Header Data Summary') +
+          '<div class="dash-day-breakdown">' +
+            renderDynamicDayBreakdownTable(
+              tblDays.slice(0, 7),
+              tblWeekly,
+              'No filled dated rows in the last 7 days yet. Add data to any row above to calculate Daily & Weekly column summaries here automatically.',
+              'Σ Weekly Total (7 Days)',
+              tblDaily.todayYmd || getLocalYmd(new Date())
+            ) +
+          '</div>';
+        }
+        html += '</section>';
       }
-      html += '</section></div>';
+      html += '</div>';
 
-      // Sticky Sigma Summary Footer
-      var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; });
-      html += '<footer class="sigma-footer">' +
-        '<span style="color:#FCD34D;font-weight:800;white-space:nowrap;">Σ Live Totals (Num / Formula / Amt):</span>' +
-        '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;">';
-      if (numCols.length === 0) {
-        html += '<span style="color:#BFDBFE;font-size:12px;">No numeric/formula columns</span>';
-      } else {
-        numCols.forEach(function (c) {
-          var tot = colSums[c.id] || 0;
-          html += '<div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">' +
-            '<span style="color:#BFDBFE;font-size:12px;font-weight:400;">' + esc(c.name) + ':</span>' +
-            '<span class="mono" style="color:#FCD34D;font-weight:800;">' + esc(formatNumericValue(tot, c)) + '</span></div>';
-        });
+      // Sticky Sigma Summary Footer (auto-hidden during active cell writing or when user hides it)
+      if (!isWritingCell && !state.sigmaFooterHidden) {
+        var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; });
+        html += '<footer class="sigma-footer">' +
+          '<span style="color:#FCD34D;font-weight:800;white-space:nowrap;">Σ Live Totals (Num / Formula / Amt):</span>' +
+          '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;flex:1;min-width:0;">';
+        if (numCols.length === 0) {
+          html += '<span style="color:#BFDBFE;font-size:12px;">No numeric/formula columns</span>';
+        } else {
+          numCols.forEach(function (c) {
+            var tot = colSums[c.id] || 0;
+            html += '<div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">' +
+              '<span style="color:#BFDBFE;font-size:12px;font-weight:400;">' + esc(c.name) + ':</span>' +
+              '<span class="mono" style="color:#FCD34D;font-weight:800;">' + esc(formatNumericValue(tot, c)) + '</span></div>';
+          });
+        }
+        html += '</div>' +
+          '<button type="button" id="btn-hide-sigma" class="sigma-hide-btn" title="Hide fixed Live Totals bar so rows stay unobstructed">Hide</button>' +
+        '</footer>';
       }
-      html += '</div></footer>';
 
-      // Bottom 5-icon Toolbar
-      html += '<div class="bottom-toolbar">' +
-        '<button class="toolbar-btn" id="tb-cols">' + icon('sliders', 19) + '<span>Columns</span></button>' +
-        '<button class="toolbar-btn" id="tb-filter">' + icon('filter', 19) + '<span>Filter</span></button>' +
-        '<button class="toolbar-btn" id="tb-tester" style="color:#1976D2;font-weight:700;"><div class="toolbar-tester-circle">' + icon('send', 15) + '</div><span>Tester</span></button>' +
-        '<button class="toolbar-btn" id="tb-export">' + icon('share', 19) + '<span>Export</span></button>' +
-        '<div style="position:relative;"><button class="toolbar-btn" id="tb-more">' + icon('dotsH', 19) + '<span>More</span></button>';
+      // Bottom 5-icon Toolbar (hidden while actively writing in a cell so mobile keyboards & rows are never covered)
+      if (!isWritingCell) {
+        html += '<div class="bottom-toolbar">' +
+          '<button class="toolbar-btn" id="tb-cols">' + icon('sliders', 19) + '<span>Columns</span></button>' +
+          '<button class="toolbar-btn" id="tb-filter">' + icon('filter', 19) + '<span>Filter</span></button>' +
+          '<button class="toolbar-btn" id="tb-tester" style="color:#1976D2;font-weight:700;"><div class="toolbar-tester-circle">' + icon('send', 15) + '</div><span>Tester</span></button>' +
+          '<button class="toolbar-btn" id="tb-export">' + icon('share', 19) + '<span>Export</span></button>' +
+          '<div style="position:relative;"><button class="toolbar-btn" id="tb-more">' + icon('dotsH', 19) + '<span>More</span></button>';
 
-      if (state.showMoreMenu) {
-        html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:245px;">' +
-          '<button class="dropdown-item" id="more-file-history">' + icon('history', 15) + '<span>File Version History</span></button>' +
-          '<button class="dropdown-item" id="more-import-excel">' + icon('excel', 15) + '<span>Import Excel (.xlsx / .csv)</span></button>' +
-          '<button class="dropdown-item" id="more-backup-history">' + icon('folder', 15) + '<span>Folder Backup &amp; Missing</span></button>' +
-          '<button class="dropdown-item" id="more-admin">' + icon('shield', 15) + '<span>Admin Activity &amp; Transmit</span></button>' +
-          '<button class="dropdown-item" id="more-access-code">' + icon('lock', 15) + '<span>Lock Screen &amp; Change Code</span></button>' +
-          '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
-          '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
-          '<button class="dropdown-item" id="more-pivot">' + icon('pie', 15) + '<span>Pivot Summary Graph</span></button>' +
-          '<button class="dropdown-item danger" id="more-clear">' + icon('trash', 15) + '<span>Clear All Rows</span></button>' +
-        '</div>';
+        if (state.showMoreMenu) {
+          html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:245px;">' +
+            '<button class="dropdown-item" id="more-toggle-sigma">' + icon('chart', 15) + '<span>' + (state.sigmaFooterHidden ? 'Show Σ Live Totals Bar' : 'Hide Σ Live Totals Bar') + '</span></button>' +
+            '<button class="dropdown-item" id="more-file-history">' + icon('history', 15) + '<span>File Version History</span></button>' +
+            '<button class="dropdown-item" id="more-import-excel">' + icon('excel', 15) + '<span>Import Excel (.xlsx / .csv)</span></button>' +
+            '<button class="dropdown-item" id="more-backup-history">' + icon('folder', 15) + '<span>Folder Backup &amp; Missing</span></button>' +
+            '<button class="dropdown-item" id="more-admin">' + icon('shield', 15) + '<span>Admin Activity &amp; Transmit</span></button>' +
+            '<button class="dropdown-item" id="more-access-code">' + icon('lock', 15) + '<span>Lock Screen &amp; Change Code</span></button>' +
+            '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
+            '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
+            '<button class="dropdown-item" id="more-pivot">' + icon('pie', 15) + '<span>Pivot Summary Graph</span></button>' +
+            '<button class="dropdown-item danger" id="more-clear">' + icon('trash', 15) + '<span>Clear All Rows</span></button>' +
+          '</div>';
+        }
+        html += '</div></div>';
       }
-      html += '</div></div></div>';
+      html += '</div>';
 
       // Floating Contextual Toolbar for Selected Cell / Multi-Cell Range
       if (selectedCellsMeta.length > 0 && !state.editingCell && !state.cellMenu) {
@@ -5895,6 +5928,8 @@
     }
 
     function cleanupTableGlobalListeners() {
+      var oldCalBg = document.getElementById('tb-cal-backdrop');
+      if (oldCalBg) oldCalBg.remove();
       var oldCal = document.getElementById('tb-cal-popover');
       if (oldCal) oldCal.remove();
       if (window._tbDateOutsideClick) {
@@ -5940,6 +5975,8 @@
       document.getElementById('btn-table-back').onclick = function () {
         cleanupTableGlobalListeners();
         state.activeBotId = null;
+        state.editingCell = null;
+        state._calDraft = null;
         state.showMoreMenu = false;
         state.selectedRange = null;
         state.extraCells = {};
@@ -6006,7 +6043,8 @@
       document.getElementById('btn-table-add-col').onclick = addColFn;
       document.getElementById('th-add-col').onclick = addColFn;
       document.getElementById('btn-bar-add-col').onclick = addColFn;
-      document.getElementById('tb-cols').onclick = addColFn;
+      var tbColsBtn = document.getElementById('tb-cols');
+      if (tbColsBtn) tbColsBtn.onclick = addColFn;
 
       var buildBlankRow = function () {
         var nowIso = new Date().toISOString();
@@ -6107,6 +6145,10 @@
         var ed = state.editingCell;
         if (!ed || !activeInp) return;
         state.editingCell = null;
+        state.autoOpenDateCal = false;
+        state._calDraft = null;
+        var oldCalBg = document.getElementById('tb-cal-backdrop');
+        if (oldCalBg) oldCalBg.remove();
         var oldCal = document.getElementById('tb-cal-popover');
         if (oldCal) oldCal.remove();
         if (window._tbDateOutsideClick) {
@@ -6179,21 +6221,17 @@
         state.toolbarSubMode = null;
         state.cellMenu = null;
         state.editingCell = { rowId: rid, colId: cid };
+        state.autoOpenDateCal = (colObj.type === 'date');
+        state._calDraft = null;
         renderTableView(bot);
-        if (colObj.type === 'date' && isEthiopianCol(colObj)) {
-          var ecDayEl = document.getElementById('dp-ec-day');
-          if (ecDayEl) {
-            ecDayEl.focus();
-            try { ecDayEl.select(); } catch (e0) {}
-          }
+        if (colObj.type === 'date') {
           return;
         }
         var ci = document.getElementById('active-cell-input');
         if (ci) {
           ci.focus();
-          if (colObj.type !== 'date') {
-            try { ci.select(); } catch (err2) {}
-          }
+          try { ci.select(); } catch (err2) {}
+          try { if (typeof ci.scrollIntoView === 'function') ci.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (errScroll) {}
         }
       };
 
@@ -7118,10 +7156,9 @@
           if (isNaN(rIdx) || isNaN(cIdx)) return;
 
           if (state.editingCell && activeInp && (state.editingCell.rowId !== rid || state.editingCell.colId !== cid)) {
-            var dpPopCur = document.getElementById('date-picker-pop');
-            if (dpPopCur && dpPopCur.getAttribute('data-ec') === '1' && dpPopCur.getAttribute('data-ec-dirty') !== '1') {
-              // Empty Ethiopian date left untouched — keep blank
-              commitActiveCell('', true, true);
+            if (activeInp.getAttribute('data-date-edit') === '1') {
+              state.editingCell = null;
+              state._calDraft = null;
             } else {
               commitActiveCell(undefined, false, true);
             }
@@ -7208,6 +7245,15 @@
 
       // Keyboard navigation & shortcuts for selected cell(s)
       var tableKeyHandler = function (e) {
+        if (document.getElementById('tb-cal-backdrop') && e.key === 'Escape') {
+          e.preventDefault();
+          cleanupTableGlobalListeners();
+          state.editingCell = null;
+          state.autoOpenDateCal = false;
+          state._calDraft = null;
+          renderTableView(bot);
+          return;
+        }
         if (state.modal || state.drawerOpen || state.editingTitle || state.editingCell) return;
         var ae = document.activeElement;
         if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
@@ -7270,143 +7316,59 @@
       document.addEventListener('keydown', tableKeyHandler);
 
       if (activeInp && state.editingCell) {
-        var isDateEdit = activeInp.type === 'date' || activeInp.type === 'datetime-local';
+        var isDateEdit = activeInp.getAttribute('data-date-edit') === '1' || activeInp.type === 'date' || activeInp.type === 'datetime-local';
         if (isDateEdit) {
           var editCol = bot.columns.find(function (c) { return c.id === state.editingCell.colId; });
-          var openBtn = document.getElementById('dp-open-btn');
-          var todayBtn = document.getElementById('dp-today-btn');
-          var clearBtn = document.getElementById('dp-clear-btn');
-          var okBtn = document.getElementById('dp-ok-btn');
-          var popEl = document.getElementById('date-picker-pop');
-          var ecDayEl = document.getElementById('dp-ec-day');
-          var ecMonEl = document.getElementById('dp-ec-mon');
-          var ecYrEl = document.getElementById('dp-ec-year');
-          var ecTimeEl = document.getElementById('dp-ec-time');
-          var syncEcToPicker = function (markDirty) {
-            if (!ecDayEl || !ecMonEl || !ecYrEl) return '';
-            var ey = Math.max(1900, Math.min(2200, parseInt(ecYrEl.value, 10) || gregorianToEthiopian(new Date()).year));
-            var em = Math.max(1, Math.min(13, parseInt(ecMonEl.value, 10) || 1));
-            var maxD = getEthiopianMonthDays(ey, em);
-            ecDayEl.max = String(maxD);
-            var ed = Math.max(1, Math.min(maxD, parseInt(ecDayEl.value, 10) || 1));
-            if (parseInt(ecDayEl.value, 10) > maxD) ecDayEl.value = String(maxD);
-            var hh = 12, mm = 0;
-            if (ecTimeEl && ecTimeEl.value) {
-              var tm = ecTimeEl.value.split(':');
-              hh = parseInt(tm[0], 10) || 0;
-              mm = parseInt(tm[1], 10) || 0;
-            }
-            var gDate = ethiopianToGregorian(ey, em, ed, hh, mm, 0);
-            var gVal = toPickerInputValue(gDate, editCol);
-            activeInp.value = gVal;
-            if (markDirty && popEl) popEl.setAttribute('data-ec-dirty', '1');
-            return gVal;
-          };
-          var syncPickerToEc = function (gDateInput) {
-            if (!ecDayEl || !ecMonEl || !ecYrEl) return;
-            var gd = parseFlexibleDate(gDateInput);
-            var ep = gregorianToEthiopian(gd);
-            var maxD = getEthiopianMonthDays(ep.year, ep.month);
-            ecDayEl.max = String(maxD);
-            ecDayEl.value = String(ep.day);
-            ecMonEl.value = String(ep.month);
-            ecYrEl.value = String(ep.year);
-            if (ecTimeEl) {
-              ecTimeEl.value = String(gd.getHours()).padStart(2, '0') + ':' + String(gd.getMinutes()).padStart(2, '0');
-            }
-            if (popEl) popEl.setAttribute('data-ec-dirty', '1');
-          };
-          if (ecDayEl && ecMonEl && ecYrEl) {
-            var onEcEdit = function () { syncEcToPicker(true); };
-            ecDayEl.oninput = onEcEdit;
-            ecDayEl.onchange = onEcEdit;
-            ecMonEl.onchange = onEcEdit;
-            ecYrEl.oninput = onEcEdit;
-            ecYrEl.onchange = onEcEdit;
-            if (ecTimeEl) {
-              ecTimeEl.oninput = onEcEdit;
-              ecTimeEl.onchange = onEcEdit;
-            }
-            [ecDayEl, ecMonEl, ecYrEl, ecTimeEl].forEach(function (ctrl) {
-              if (!ctrl) return;
-              ctrl.onkeydown = function (e) {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  syncEcToPicker(true);
-                  commitActiveCell();
-                } else if (e.key === 'Escape') {
-                  state.editingCell = null;
-                  if (window._tbDateOutsideClick) {
-                    document.removeEventListener('click', window._tbDateOutsideClick);
-                    window._tbDateOutsideClick = null;
-                  }
-                  renderTableView(bot);
-                }
-              };
-            });
-            activeInp.onchange = function () {
-              if (activeInp.value) syncPickerToEc(activeInp.value);
-            };
-          }
           var closeCalPopover = function () {
+            var oldCalBg = document.getElementById('tb-cal-backdrop');
+            if (oldCalBg) oldCalBg.remove();
             var oldCal = document.getElementById('tb-cal-popover');
             if (oldCal) oldCal.remove();
           };
-          var openCalendarPopover = function (toggleIfOpen) {
-            var existingCal = document.getElementById('tb-cal-popover');
-            if (existingCal && toggleIfOpen) {
-              existingCal.remove();
-              return;
+          var cancelDateEdit = function () {
+            closeCalPopover();
+            state.editingCell = null;
+            state.autoOpenDateCal = false;
+            state._calDraft = null;
+            if (window._tbDateOutsideClick) {
+              document.removeEventListener('click', window._tbDateOutsideClick);
+              window._tbDateOutsideClick = null;
             }
-            if (existingCal) existingCal.remove();
+            renderTableView(bot);
+          };
+          var openCalendarPopover = function () {
+            closeCalPopover();
 
             var isEcMode = Boolean(editCol && isEthiopianCol(editCol));
             var isDtMode = Boolean(editCol && (editCol.dateFormat === 'dmy_time' || editCol.dateFormat === 'iso'));
-            var curRefDate = new Date();
-            if (isEcMode && ecDayEl && ecMonEl && ecYrEl) {
-              var ey0 = Math.max(1900, Math.min(2200, parseInt(ecYrEl.value, 10) || gregorianToEthiopian(new Date()).year));
-              var em0 = Math.max(1, Math.min(13, parseInt(ecMonEl.value, 10) || 1));
-              var ed0 = Math.max(1, Math.min(getEthiopianMonthDays(ey0, em0), parseInt(ecDayEl.value, 10) || 1));
-              var h0 = 12, m0 = 0;
-              if (ecTimeEl && ecTimeEl.value) {
-                var tm0 = ecTimeEl.value.split(':');
-                h0 = parseInt(tm0[0], 10) || 0;
-                m0 = parseInt(tm0[1], 10) || 0;
-              }
-              curRefDate = ethiopianToGregorian(ey0, em0, ed0, h0, m0, 0);
-            } else if (activeInp.value) {
-              curRefDate = parseFlexibleDate(activeInp.value);
+            var calKey = bot.id + '::' + state.editingCell.rowId + '::' + state.editingCell.colId;
+            var curRefDate = activeInp.value ? parseFlexibleDate(activeInp.value) : new Date();
+            var calState;
+            if (state._calDraft && state._calDraft.key === calKey) {
+              calState = state._calDraft;
+            } else {
+              calState = {
+                key: calKey,
+                isEc: isEcMode,
+                isDt: isDtMode,
+                selDate: curRefDate,
+                hasSel: true,
+                viewYear: isEcMode ? gregorianToEthiopian(curRefDate).year : curRefDate.getFullYear(),
+                viewMonth: isEcMode ? gregorianToEthiopian(curRefDate).month : (curRefDate.getMonth() + 1)
+              };
+              state._calDraft = calState;
             }
 
-            var calState = {
-              isEc: isEcMode,
-              isDt: isDtMode,
-              selDate: curRefDate,
-              hasSel: Boolean(activeInp.value || (isEcMode && popEl && popEl.getAttribute('data-ec-dirty') === '1')),
-              viewYear: isEcMode ? gregorianToEthiopian(curRefDate).year : curRefDate.getFullYear(),
-              viewMonth: isEcMode ? gregorianToEthiopian(curRefDate).month : (curRefDate.getMonth() + 1)
-            };
+            var openedAt = Date.now();
+            var backdropEl = document.createElement('div');
+            backdropEl.id = 'tb-cal-backdrop';
+            backdropEl.className = 'tb-cal-backdrop';
 
             var calEl = document.createElement('div');
             calEl.id = 'tb-cal-popover';
             calEl.className = 'tb-cal-popover';
-            document.body.appendChild(calEl);
-
-            var positionCal = function () {
-              if (!popEl || !document.body.contains(calEl)) return;
-              var pr = popEl.getBoundingClientRect();
-              var vw = window.innerWidth || 800;
-              var vh = window.innerHeight || 600;
-              var cw = calEl.offsetWidth || 292;
-              var ch = calEl.offsetHeight || 310;
-              var leftPx = Math.max(8, Math.min(vw - cw - 8, Math.round(pr.left)));
-              var topPx = Math.round(pr.bottom + 6);
-              if (topPx + ch > vh - 10) {
-                topPx = Math.max(8, Math.round(pr.top - ch - 6));
-              }
-              calEl.style.left = leftPx + 'px';
-              calEl.style.top = topPx + 'px';
-            };
+            backdropEl.appendChild(calEl);
+            document.body.appendChild(backdropEl);
 
             var renderCal = function () {
               var nowD = new Date();
@@ -7414,11 +7376,12 @@
               var selEc = gregorianToEthiopian(calState.selDate);
               var maxMonth = calState.isEc ? 13 : 12;
               var gcMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+              var gcMonthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
               var ecMonths = state.lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
 
               var monOptsHtml = '';
               for (var mi = 1; mi <= maxMonth; mi++) {
-                var mTitle = calState.isEc ? (String(mi).padStart(2, '0') + ' ' + ecMonths[mi - 1]) : gcMonths[mi - 1];
+                var mTitle = calState.isEc ? (ecMonths[mi - 1] + ' (' + String(mi).padStart(2, '0') + ')') : gcMonths[mi - 1];
                 monOptsHtml += '<option value="' + mi + '"' + (mi === calState.viewMonth ? ' selected' : '') + '>' + esc(mTitle) + '</option>';
               }
 
@@ -7429,9 +7392,10 @@
                 yrOptsHtml += '<option value="' + yi + '"' + (yi === calState.viewYear ? ' selected' : '') + '>' + yi + '</option>';
               }
 
-              var firstWd = calState.isEc
+              var rawFirstWd = calState.isEc
                 ? ethiopianToGregorian(calState.viewYear, calState.viewMonth, 1, 12, 0, 0).getDay()
                 : new Date(calState.viewYear, calState.viewMonth - 1, 1, 12, 0, 0).getDay();
+              var firstWd = (rawFirstWd + 6) % 7; // Monday-first: M T W T F S S
               var daysInMon = calState.isEc
                 ? getEthiopianMonthDays(calState.viewYear, calState.viewMonth)
                 : new Date(calState.viewYear, calState.viewMonth, 0).getDate();
@@ -7450,40 +7414,48 @@
                 daysHtml += '<button type="button" class="tb-cal-day' + (isTodayCell ? ' is-today' : '') + (isSelCell ? ' is-selected' : '') + '" data-cal-day="' + dNum + '">' + dNum + '</button>';
               }
 
-              var previewStr = formatAutoDateStr(editCol, calState.hasSel ? calState.selDate : nowD);
+              var gcTitleStr = calState.selDate.getDate() + ' ' + gcMonthsShort[calState.selDate.getMonth()] + ' ' + calState.selDate.getFullYear();
+              var ecTitleStr = String(selEc.day).padStart(2, '0') + ' ' + (ecMonths[selEc.month - 1] || selEc.month) + ' ' + selEc.year + ' EC';
+              var topHeaderDate = calState.isEc ? ecTitleStr : gcTitleStr;
+              var subHeaderNote = calState.isEc ? (gcTitleStr + ' · ' + formatEthiopianDate(calState.selDate, 'dmy', state.lang)) : '';
               var timeValStr = String(calState.selDate.getHours()).padStart(2, '0') + ':' + String(calState.selDate.getMinutes()).padStart(2, '0');
 
               calEl.innerHTML =
-                '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">' +
-                  '<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;' + (calState.isEc ? 'background:#D1FAE5;color:#065F46;' : 'background:#DBEAFE;color:#1E40AF;') + '">' + (calState.isEc ? 'Ethiopian Calendar (EC)' : 'Gregorian Calendar (GC)') + '</span>' +
-                  '<button type="button" id="tb-cal-close" style="font-size:13px;font-weight:800;color:#64748B;padding:2px 6px;cursor:pointer;">✕</button>' +
+                '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">' +
+                  '<div>' +
+                    '<div class="tb-cal-top-date" id="tb-cal-top-title">' + esc(topHeaderDate) + '</div>' +
+                    (subHeaderNote ? '<div style="font-size:11.5px;color:#047857;font-weight:700;margin:-10px 0 10px;">' + esc(subHeaderNote) + '</div>' : '') +
+                  '</div>' +
+                  (calState.isEc ? '<span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:999px;background:#D1FAE5;color:#065F46;flex-shrink:0;">EC</span>' : '') +
                 '</div>' +
                 '<div class="tb-cal-head">' +
-                  '<button type="button" class="tb-cal-nav" id="tb-cal-prev-m" title="Previous Month">‹</button>' +
-                  '<div style="display:flex;align-items:center;gap:4px;flex:1;justify-content:center;">' +
-                    '<select id="tb-cal-mon" class="tb-cal-sel" style="max-width:130px;">' + monOptsHtml + '</select>' +
-                    '<select id="tb-cal-yr" class="tb-cal-sel">' + yrOptsHtml + '</select>' +
+                  '<div style="display:flex;align-items:center;gap:4px;">' +
+                    '<select id="tb-cal-mon" class="tb-cal-sel" aria-label="Month">' + monOptsHtml + '</select>' +
+                    '<select id="tb-cal-yr" class="tb-cal-sel" aria-label="Year">' + yrOptsHtml + '</select>' +
                   '</div>' +
-                  '<button type="button" class="tb-cal-nav" id="tb-cal-next-m" title="Next Month">›</button>' +
+                  '<div style="display:flex;align-items:center;gap:2px;">' +
+                    '<button type="button" class="tb-cal-nav" id="tb-cal-prev-m" title="Previous Month">&lsaquo;</button>' +
+                    '<button type="button" class="tb-cal-nav" id="tb-cal-next-m" title="Next Month">&rsaquo;</button>' +
+                  '</div>' +
                 '</div>' +
-                '<div class="tb-cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>' +
+                '<div class="tb-cal-weekdays"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>' +
                 '<div class="tb-cal-days" style="margin-top:4px;">' + daysHtml + '</div>' +
                 (calState.isDt
-                  ? '<div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;font-weight:700;color:#475569;"><span>Time:</span><input type="time" id="tb-cal-time" class="tb-cal-sel" value="' + esc(timeValStr) + '" /></div>'
+                  ? '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #F1F5F9;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600;color:#475569;"><span>Time</span><input type="time" id="tb-cal-time" class="tb-cal-sel" value="' + esc(timeValStr) + '" /></div>'
                   : '') +
                 '<div class="tb-cal-foot">' +
-                  '<span class="mono" style="font-size:11px;font-weight:700;color:#0D47A1;">' + (calState.hasSel ? 'Pick: ' : 'Today: ') + esc(previewStr) + '</span>' +
-                  '<div style="display:flex;gap:4px;">' +
-                    '<button type="button" id="tb-cal-today" class="dp-mini-btn dp-today">Today</button>' +
-                    '<button type="button" id="tb-cal-clear" class="dp-mini-btn dp-clear">Clear</button>' +
-                    '<button type="button" id="tb-cal-ok" class="dp-mini-btn dp-ok">✓ OK</button>' +
+                  '<div style="display:flex;align-items:center;gap:2px;">' +
+                    '<button type="button" id="tb-cal-today" class="tb-cal-text-btn">Today</button>' +
+                    '<button type="button" id="tb-cal-clear" class="tb-cal-text-btn" style="color:#DC2626;">Clear</button>' +
+                  '</div>' +
+                  '<div style="display:flex;align-items:center;gap:4px;">' +
+                    '<button type="button" id="tb-cal-close" class="tb-cal-text-btn">Cancel</button>' +
+                    '<button type="button" id="tb-cal-ok" class="tb-cal-save-btn">Save</button>' +
                   '</div>' +
                 '</div>';
 
-              positionCal();
-
               var cClose = document.getElementById('tb-cal-close');
-              if (cClose) cClose.onclick = function (e) { e.stopPropagation(); closeCalPopover(); };
+              if (cClose) cClose.onclick = function (e) { e.stopPropagation(); cancelDateEdit(); };
               var prevM = document.getElementById('tb-cal-prev-m');
               if (prevM) prevM.onclick = function (e) {
                 e.stopPropagation();
@@ -7517,7 +7489,6 @@
                 calState.selDate.setHours(parseInt(partsT[0], 10) || 0, parseInt(partsT[1], 10) || 0, 0, 0);
                 calState.hasSel = true;
                 activeInp.value = toPickerInputValue(calState.selDate, editCol);
-                if (ecDayEl) syncPickerToEc(activeInp.value);
                 renderCal();
               };
               calEl.querySelectorAll('[data-cal-day]').forEach(function (dBtn) {
@@ -7535,27 +7506,22 @@
                   var picked = calState.isEc
                     ? ethiopianToGregorian(calState.viewYear, calState.viewMonth, dNum2, hh2, mm2, 0)
                     : new Date(calState.viewYear, calState.viewMonth - 1, dNum2, hh2, mm2, 0);
-                  var pVal = toPickerInputValue(picked, editCol);
-                  activeInp.value = pVal;
-                  if (ecDayEl) syncPickerToEc(pVal);
-                  if (!calState.isDt) {
-                    closeCalPopover();
-                    commitActiveCell(pVal, false);
-                  } else {
-                    calState.selDate = picked;
-                    calState.hasSel = true;
-                    renderCal();
-                  }
+                  activeInp.value = toPickerInputValue(picked, editCol);
+                  calState.selDate = picked;
+                  calState.hasSel = true;
+                  renderCal();
                 };
               });
               var calTodayBtn = document.getElementById('tb-cal-today');
               if (calTodayBtn) calTodayBtn.onclick = function (e) {
                 e.stopPropagation();
-                var tVal2 = toPickerInputValue(new Date(), editCol);
-                activeInp.value = tVal2;
-                if (ecDayEl) syncPickerToEc(tVal2);
-                closeCalPopover();
-                commitActiveCell(tVal2, false);
+                var nowPick = new Date();
+                activeInp.value = toPickerInputValue(nowPick, editCol);
+                calState.selDate = nowPick;
+                calState.hasSel = true;
+                calState.viewYear = calState.isEc ? gregorianToEthiopian(nowPick).year : nowPick.getFullYear();
+                calState.viewMonth = calState.isEc ? gregorianToEthiopian(nowPick).month : (nowPick.getMonth() + 1);
+                renderCal();
               };
               var calClearBtn = document.getElementById('tb-cal-clear');
               if (calClearBtn) calClearBtn.onclick = function (e) {
@@ -7567,80 +7533,26 @@
               var calOkBtn = document.getElementById('tb-cal-ok');
               if (calOkBtn) calOkBtn.onclick = function (e) {
                 e.stopPropagation();
-                if (!activeInp.value) {
-                  var defToday = toPickerInputValue(new Date(), editCol);
-                  activeInp.value = defToday;
-                  if (ecDayEl) syncPickerToEc(defToday);
-                } else if (ecDayEl) {
-                  syncEcToPicker(true);
-                }
+                var saveVal = toPickerInputValue(calState.selDate, editCol);
+                activeInp.value = saveVal;
                 closeCalPopover();
-                commitActiveCell();
+                commitActiveCell(saveVal, false);
               };
             };
 
+            backdropEl.onclick = function (e) {
+              e.stopPropagation();
+              if (Date.now() - openedAt < 220) return;
+              if (e.target === backdropEl) cancelDateEdit();
+            };
             calEl.onclick = function (e) { e.stopPropagation(); };
             calEl.onmousedown = function (e) { e.stopPropagation(); };
             calEl.ontouchstart = function (e) { e.stopPropagation(); };
             renderCal();
           };
 
-          var ecBadgeBtn = document.getElementById('dp-ec-badge');
-          if (ecBadgeBtn) ecBadgeBtn.onclick = function (e) {
-            e.stopPropagation();
-            openCalendarPopover(true);
-          };
-          if (openBtn) openBtn.onclick = function (e) {
-            e.stopPropagation();
-            e.preventDefault();
-            openCalendarPopover(true);
-          };
-          if (!ecDayEl && activeInp) {
-            activeInp.ontouchend = function (e) {
-              e.stopPropagation();
-              e.preventDefault();
-              openCalendarPopover(false);
-            };
-          }
-          if (todayBtn) todayBtn.onclick = function (e) {
-            e.stopPropagation();
-            var tVal = toPickerInputValue(new Date(), editCol);
-            activeInp.value = tVal;
-            if (ecDayEl) syncPickerToEc(tVal);
-            closeCalPopover();
-            commitActiveCell(tVal, false);
-          };
-          if (clearBtn) clearBtn.onclick = function (e) {
-            e.stopPropagation();
-            activeInp.value = '';
-            closeCalPopover();
-            commitActiveCell('', true);
-          };
-          if (okBtn) okBtn.onclick = function (e) {
-            e.stopPropagation();
-            if (ecDayEl) {
-              syncEcToPicker(true);
-            } else if (!activeInp.value) {
-              activeInp.value = toPickerInputValue(new Date(), editCol);
-            }
-            closeCalPopover();
-            commitActiveCell();
-          };
-          if (popEl) popEl.onclick = function (e) { e.stopPropagation(); };
-          var outsideHandler = function (e) {
-            if (e.target && e.target.closest && (e.target.closest('#date-picker-pop') || e.target.closest('#tb-cal-popover') || e.target.closest('#cell-context-menu'))) return;
-            closeCalPopover();
-            if (ecDayEl && popEl && popEl.getAttribute('data-ec-dirty') === '1') {
-              syncEcToPicker(true);
-            }
-            commitActiveCell();
-          };
-          window._tbDateOutsideClick = outsideHandler;
-          setTimeout(function () {
-            if (window._tbDateOutsideClick === outsideHandler) {
-              document.addEventListener('click', outsideHandler);
-            }
-          }, 0);
+          state.autoOpenDateCal = false;
+          openCalendarPopover();
         } else {
           var editColNorm = bot.columns.find(function (c) { return c.id === state.editingCell.colId; });
           var applyFormulaBorderValidation = function () {
@@ -7654,8 +7566,39 @@
               activeInp.removeAttribute('title');
             }
           };
+          var updateLiveFooterTotalsInPlace = function () {
+            if (!state.editingCell || !editColNorm) return;
+            var rawDraft = activeInp.value;
+            var draftParsed = rawDraft;
+            if (editColNorm.type === 'amount' || editColNorm.type === 'number') {
+              if (String(rawDraft || '').trim() === '') draftParsed = '';
+              else {
+                var dn = parseFloat(String(rawDraft).replace(/[^0-9.-]/g, ''));
+                draftParsed = isNaN(dn) ? '' : dn;
+              }
+            }
+            bot.columns.forEach(function (sumCol) {
+              if (sumCol.type !== 'amount' && sumCol.type !== 'number' && sumCol.type !== 'formula') return;
+              var el = document.querySelector('[data-sum-val-col="' + sumCol.id + '"]');
+              if (!el) return;
+              var total = 0;
+              visibleRows.forEach(function (vr) {
+                var targetRow = vr;
+                if (vr.id === state.editingCell.rowId) {
+                  targetRow = Object.assign({}, vr);
+                  targetRow[editColNorm.id] = draftParsed;
+                }
+                var n = getRowColNumeric(targetRow, sumCol, bot, 0);
+                if (!isNaN(n)) total += n;
+              });
+              el.textContent = formatNumericValue(total, sumCol);
+            });
+          };
           applyFormulaBorderValidation();
-          activeInp.oninput = applyFormulaBorderValidation;
+          activeInp.oninput = function () {
+            applyFormulaBorderValidation();
+            updateLiveFooterTotalsInPlace();
+          };
           activeInp.onblur = function (e) {
             if (e && e.relatedTarget && e.relatedTarget.id === 'cell-edit-menu-btn') return;
             if (state.cellMenu) return;
@@ -7675,11 +7618,35 @@
         };
       }
 
-      document.getElementById('tb-filter').onclick = function () { openModal('filter', { bot: bot }); };
-      document.getElementById('tb-tester').onclick = function () { openModal('telegram', { bot: bot, tab: 'simulator' }); };
-      document.getElementById('tb-export').onclick = function () { exportBotCsv(bot); };
-      document.getElementById('tb-more').onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
+      var hideSigmaBtn = document.getElementById('btn-hide-sigma');
+      if (hideSigmaBtn) hideSigmaBtn.onclick = function () {
+        state.sigmaFooterHidden = true;
+        try { localStorage.setItem(STORAGE_SIGMA_HIDDEN, '1'); } catch (e) {}
+        renderTableView(bot);
+      };
+      var showSigmaBtn = document.getElementById('btn-show-sigma');
+      if (showSigmaBtn) showSigmaBtn.onclick = function () {
+        state.sigmaFooterHidden = false;
+        try { localStorage.setItem(STORAGE_SIGMA_HIDDEN, '0'); } catch (e) {}
+        renderTableView(bot);
+      };
+
+      var tbFilterBtn = document.getElementById('tb-filter');
+      if (tbFilterBtn) tbFilterBtn.onclick = function () { openModal('filter', { bot: bot }); };
+      var tbTesterBtn = document.getElementById('tb-tester');
+      if (tbTesterBtn) tbTesterBtn.onclick = function () { openModal('telegram', { bot: bot, tab: 'simulator' }); };
+      var tbExportBtn = document.getElementById('tb-export');
+      if (tbExportBtn) tbExportBtn.onclick = function () { exportBotCsv(bot); };
+      var tbMoreBtn = document.getElementById('tb-more');
+      if (tbMoreBtn) tbMoreBtn.onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
       if (state.showMoreMenu) {
+        var moreToggleSigma = document.getElementById('more-toggle-sigma');
+        if (moreToggleSigma) moreToggleSigma.onclick = function () {
+          state.showMoreMenu = false;
+          state.sigmaFooterHidden = !state.sigmaFooterHidden;
+          try { localStorage.setItem(STORAGE_SIGMA_HIDDEN, state.sigmaFooterHidden ? '1' : '0'); } catch (e) {}
+          renderTableView(bot);
+        };
         document.getElementById('more-file-history').onclick = function () { state.showMoreMenu = false; openModal('file_history', { botId: bot.id }); };
         document.getElementById('more-import-excel').onclick = function () { state.showMoreMenu = false; openModal('import_excel', { mode: 'merge', targetBotId: bot.id }); };
         document.getElementById('more-backup-history').onclick = function () { state.showMoreMenu = false; openModal('backup', { tab: 'vault', folderFilter: bot.folder || 'General' }); };
@@ -7706,7 +7673,11 @@
       var tblScopeFolder = document.getElementById('tbl-sum-scope-folder');
       if (tblScopeFolder) tblScopeFolder.onclick = function () { state.tableReportScope = 'folder'; renderTableView(bot); };
       var tblSumToggle = document.getElementById('tbl-sum-toggle');
-      if (tblSumToggle) tblSumToggle.onclick = function () { state.tableReportCollapsed = !state.tableReportCollapsed; renderTableView(bot); };
+      if (tblSumToggle) tblSumToggle.onclick = function () {
+        state.tableReportCollapsed = !state.tableReportCollapsed;
+        try { localStorage.setItem(STORAGE_TABLE_REP_COLLAPSED, state.tableReportCollapsed ? '1' : '0'); } catch (e) {}
+        renderTableView(bot);
+      };
       var tblSumOpenRep = document.getElementById('tbl-sum-open-rep');
       if (tblSumOpenRep) tblSumOpenRep.onclick = function () { openModal('reports', { folder: bot.folder || 'General', botId: state.tableReportScope === 'table' ? bot.id : 'all' }); };
       document.querySelectorAll('.tbl-sum-card[data-open-rper]').forEach(function (card) {
@@ -9209,7 +9180,12 @@
         '</div>';
       }
 
-      if (d.type === 'amount' || d.type === 'number' || d.type === 'formula') {
+      var fontSizeVal = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(28, Number(st.fontSize)) : 13;
+      var sumFontSizeVal = (d.sumFontSize && Number(d.sumFontSize) >= 12) ? Math.min(32, Number(d.sumFontSize)) : Math.max(17, fontSizeVal + 4);
+      var isNumericLike = (d.type === 'amount' || d.type === 'number' || d.type === 'formula');
+      var previewLabel = isNumericLike ? prevStr : (d.type === 'date' ? formatAutoDateStr(d, new Date()) : 'Sample Text 123');
+
+      if (isNumericLike) {
         html += '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;">' +
           '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;">Number &amp; Currency Formatting</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
@@ -9222,11 +9198,48 @@
           html += '<button type="button" data-dec="' + dc + '" class="btn ' + (dec === dc ? 'btn-primary' : 'btn-outline') + '" style="padding:4px 8px;font-size:11px;">' + (dc === 0 ? '0' : dc === 2 ? '0.01' : '0.001') + '</button>';
         });
         html += '</div></div></div>' +
-          '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;"><input type="checkbox" id="col-tsep" ' + (d.thousandSeparator ? 'checked' : '') + ' /> Thousand separator (,) e.g. 1,000.00</label></div>';
+          '<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;"><input type="checkbox" id="col-tsep" ' + (d.thousandSeparator ? 'checked' : '') + ' /> Thousand separator (,) e.g. 1,000.00</label>' +
+          '<div style="border-top:1px dashed #CBD5E1;padding-top:10px;display:flex;flex-direction:column;gap:7px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+              '<span style="font-size:11.5px;font-weight:800;color:#0D47A1;">Σ Last Row Sum Result Size</span>' +
+              '<span class="mono" style="font-size:12px;font-weight:800;color:#1E3A8A;">' + sumFontSizeVal + 'px</span>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<button type="button" id="sum-size-minus" class="btn btn-outline" style="width:32px;height:32px;padding:0;border-radius:999px;">' + icon('minus', 14) + '</button>' +
+              '<input id="sum-size-slider" type="range" min="14" max="32" step="1" value="' + sumFontSizeVal + '" class="green-slider" />' +
+              '<button type="button" id="sum-size-plus" class="btn btn-outline" style="width:32px;height:32px;padding:0;border-radius:999px;">' + icon('plus', 14) + '</button>' +
+            '</div>' +
+            '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+              [15, 17, 20, 24, 28].map(function (sz) {
+                return '<button type="button" data-sum-size="' + sz + '" class="btn ' + (sumFontSizeVal === sz ? 'btn-primary' : 'btn-outline') + '" style="padding:3px 9px;font-size:11px;">' + sz + 'px</button>';
+              }).join('') +
+            '</div>' +
+            '<div style="padding:8px 10px;background:linear-gradient(180deg,#EFF6FF 0%,#DBEAFE 100%);border:1.5px solid #60A5FA;border-radius:8px;display:flex;align-items:center;justify-content:space-between;">' +
+              '<span style="font-size:11px;font-weight:800;color:#1E3A8A;">Σ Last Row Sum Preview</span>' +
+              '<span class="mono table-sum-val" style="font-size:' + sumFontSizeVal + 'px;color:' + (d.type === 'amount' ? '#E65100' : d.type === 'formula' ? '#6D28D9' : '#0D47A1') + ';">' + esc(prevStr) + '</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
       }
 
-      html += '<div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label class="field-label" style="margin:0;">Text Styles Toolbar</label>' +
+      html += '<div><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><label class="field-label" style="margin:0;">Text / Number Size &amp; Styles Toolbar</label>' +
           '<button type="button" id="st-reset" style="font-size:11.5px;color:#64748B;font-weight:600;">Reset</button></div>' +
+          '<div style="background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+              '<span style="font-size:11.5px;font-weight:700;color:#1E293B;">Cell Text / Number Size</span>' +
+              '<span class="mono" style="font-size:12px;font-weight:800;color:#0D47A1;">' + fontSizeVal + 'px</span>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<button type="button" id="st-size-minus" class="btn btn-outline" style="width:32px;height:32px;padding:0;border-radius:999px;">' + icon('minus', 14) + '</button>' +
+              '<input id="st-size-slider" type="range" min="10" max="28" step="1" value="' + fontSizeVal + '" class="green-slider" />' +
+              '<button type="button" id="st-size-plus" class="btn btn-outline" style="width:32px;height:32px;padding:0;border-radius:999px;">' + icon('plus', 14) + '</button>' +
+            '</div>' +
+            '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+              [11, 13, 15, 18, 22, 26].map(function (fsz) {
+                return '<button type="button" data-fsize="' + fsz + '" class="btn ' + (fontSizeVal === fsz ? 'btn-primary' : 'btn-outline') + '" style="padding:3px 9px;font-size:11px;">' + fsz + 'px</button>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#F1F5F9;border-radius:10px;border:1px solid #E2E8F0;flex-wrap:wrap;">' +
             '<button type="button" id="st-bold" class="btn ' + (st.bold ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 10px;font-weight:900;">B</button>' +
             '<button type="button" id="st-italic" class="btn ' + (st.italic ? 'btn-primary' : 'btn-outline') + '" style="padding:5px 10px;font-style:italic;">I</button>' +
@@ -9237,8 +9250,8 @@
             '<label style="font-size:11px;display:inline-flex;align-items:center;gap:4px;">Fill <input type="color" id="st-bg" value="' + esc(st.bgColor || '#FFFFFF') + '" /></label>' +
           '</div>' +
           '<div style="margin-top:8px;padding:10px;border:1px dashed #CBD5E1;border-radius:10px;background:#F8FAFC;text-align:center;">' +
-            '<div style="font-size:10px;color:#94A3B8;text-transform:uppercase;margin-bottom:4px;">Live Cell Preview</div>' +
-            '<span class="mono" style="display:inline-block;padding:6px 14px;border-radius:6px;background:' + esc(st.bgColor || '#fff') + ';color:' + esc(st.color || '#1E293B') + ';font-weight:' + (st.bold ? 700 : 400) + ';font-style:' + (st.italic ? 'italic' : 'normal') + ';font-size:15px;">' + esc(prevStr) + '</span>' +
+            '<div style="font-size:10px;color:#94A3B8;text-transform:uppercase;margin-bottom:4px;">Live Cell Preview (' + fontSizeVal + 'px)</div>' +
+            '<span class="mono" style="display:inline-block;padding:6px 14px;border-radius:6px;background:' + esc(st.bgColor || '#fff') + ';color:' + esc(st.color || '#1E293B') + ';font-weight:' + (st.bold ? 700 : 400) + ';font-style:' + (st.italic ? 'italic' : 'normal') + ';font-size:' + fontSizeVal + 'px;">' + esc(previewLabel) + '</span>' +
           '</div></div>' +
           '<div style="border-top:1px solid #E2E8F0;padding-top:12px;display:flex;flex-direction:column;gap:10px;">' +
             '<button type="button" id="col-open-pivot" class="btn" style="background:#EFF6FF;color:#0D47A1;width:100%;">' + icon('pie', 15) + '<span>Open Pivot Summary Graph</span></button>' +
@@ -9344,13 +9357,31 @@
       document.querySelectorAll('[data-dec]').forEach(function (b) { b.onclick = function () { d.decimals = parseInt(b.getAttribute('data-dec'), 10); renderColumnModal(m); }; });
       var tsep = document.getElementById('col-tsep');
       if (tsep) tsep.onchange = function (e) { d.thousandSeparator = e.target.checked; renderColumnModal(m); };
+      var sumMinusBtn = document.getElementById('sum-size-minus');
+      if (sumMinusBtn) sumMinusBtn.onclick = function () { d.sumFontSize = Math.max(14, (d.sumFontSize || sumFontSizeVal) - 1); renderColumnModal(m); };
+      var sumPlusBtn = document.getElementById('sum-size-plus');
+      if (sumPlusBtn) sumPlusBtn.onclick = function () { d.sumFontSize = Math.min(32, (d.sumFontSize || sumFontSizeVal) + 1); renderColumnModal(m); };
+      var sumSliderEl = document.getElementById('sum-size-slider');
+      if (sumSliderEl) sumSliderEl.oninput = function (e) { d.sumFontSize = parseInt(e.target.value, 10) || 17; renderColumnModal(m); };
+      document.querySelectorAll('[data-sum-size]').forEach(function (b) {
+        b.onclick = function () { d.sumFontSize = parseInt(b.getAttribute('data-sum-size'), 10) || 17; renderColumnModal(m); };
+      });
+      var stSizeMinus = document.getElementById('st-size-minus');
+      if (stSizeMinus) stSizeMinus.onclick = function () { st.fontSize = Math.max(10, (st.fontSize || fontSizeVal) - 1); renderColumnModal(m); };
+      var stSizePlus = document.getElementById('st-size-plus');
+      if (stSizePlus) stSizePlus.onclick = function () { st.fontSize = Math.min(28, (st.fontSize || fontSizeVal) + 1); renderColumnModal(m); };
+      var stSizeSlider = document.getElementById('st-size-slider');
+      if (stSizeSlider) stSizeSlider.oninput = function (e) { st.fontSize = parseInt(e.target.value, 10) || 13; renderColumnModal(m); };
+      document.querySelectorAll('[data-fsize]').forEach(function (b) {
+        b.onclick = function () { st.fontSize = parseInt(b.getAttribute('data-fsize'), 10) || 13; renderColumnModal(m); };
+      });
       document.getElementById('st-bold').onclick = function () { st.bold = !st.bold; renderColumnModal(m); };
       document.getElementById('st-italic').onclick = function () { st.italic = !st.italic; renderColumnModal(m); };
       document.querySelectorAll('[data-align]').forEach(function (b) { b.onclick = function () { st.align = b.getAttribute('data-align'); renderColumnModal(m); }; });
       document.getElementById('st-color').oninput = function (e) { st.color = e.target.value; renderColumnModal(m); };
       document.getElementById('st-bg').oninput = function (e) { st.bgColor = e.target.value; renderColumnModal(m); };
       document.getElementById('st-reset').onclick = function () {
-        st.bold = d.type === 'amount'; st.italic = false;
+        st.bold = d.type === 'amount'; st.italic = false; st.fontSize = 13; delete d.sumFontSize;
         st.align = (d.type === 'amount' || d.type === 'number') ? 'right' : 'left';
         st.color = d.type === 'amount' ? '#E65100' : '#1E293B'; st.bgColor = '#FFFFFF';
         renderColumnModal(m);
