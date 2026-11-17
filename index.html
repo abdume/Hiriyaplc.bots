@@ -221,6 +221,18 @@
       background: #FEF2F2; border-color: #FECACA; color: #B91C1C;
     }
     .folder-mini-btn.danger:hover { background: #FEE2E2; }
+    .folder-icon-btn {
+      width: 30px; height: 30px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #FFFFFF; border: 1px solid #CBD5E1; color: #1E293B;
+      cursor: pointer; flex-shrink: 0; transition: background 0.14s, opacity 0.14s, transform 0.12s;
+    }
+    .folder-icon-btn:hover:not(:disabled) { background: #EFF6FF; border-color: #93C5FD; color: #1D4ED8; }
+    .folder-icon-btn:disabled { opacity: 0.36; cursor: not-allowed; }
+    .folder-icon-btn.on-dark {
+      background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.34); color: #FFFFFF;
+    }
+    .folder-icon-btn.on-dark:hover:not(:disabled) { background: rgba(255,255,255,0.28); color: #FFFFFF; }
     .folder-section-body {
       padding: 15px 16px;
       background: #FAFBFD;
@@ -411,21 +423,26 @@
     .sheet-table.is-selecting { user-select: none; -webkit-user-select: none; }
     .sheet-table td.cell-menu-target { position: relative; }
     .sheet-table td.cell-selected {
-      background: rgba(37, 99, 235, 0.14) !important;
-      box-shadow: inset 0 0 0 1px #60A5FA;
+      background: rgba(22, 163, 74, 0.11) !important;
+      z-index: 3;
     }
     .sheet-table td.cell-anchor {
-      background: rgba(37, 99, 235, 0.2) !important;
-      box-shadow: inset 0 0 0 2px #1D4ED8;
+      background: rgba(22, 163, 74, 0.16) !important;
       z-index: 4;
     }
-    .cell-sel-handle {
-      position: absolute; right: -6px; bottom: -6px; width: 15px; height: 15px;
-      background: #1D4ED8; border: 2px solid #fff; border-radius: 4px;
-      cursor: crosshair; z-index: 12; touch-action: none;
-      box-shadow: 0 2px 5px rgba(15,23,42,0.4);
+    .sheet-table td.cell-sel-edge-t { border-top: 2px solid #15803D !important; }
+    .sheet-table td.cell-sel-edge-b { border-bottom: 2px solid #15803D !important; }
+    .sheet-table td.cell-sel-edge-l { border-left: 2px solid #15803D !important; }
+    .sheet-table td.cell-sel-edge-r { border-right: 2px solid #15803D !important; }
+    .cell-sel-handle, .cell-sel-handle-tl {
+      position: absolute; width: 13px; height: 13px;
+      background: #15803D; border: 2px solid #FFFFFF; border-radius: 999px;
+      cursor: crosshair; z-index: 14; touch-action: none;
+      box-shadow: 0 2px 5px rgba(15,23,42,0.38);
     }
-    .cell-sel-handle::after {
+    .cell-sel-handle { right: -7px; bottom: -7px; }
+    .cell-sel-handle-tl { left: -7px; top: -7px; }
+    .cell-sel-handle::after, .cell-sel-handle-tl::after {
       content: ''; position: absolute; inset: -14px;
     }
     .cell-comment-mark {
@@ -442,70 +459,104 @@
       max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .floating-cell-toolbar {
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; width: 100%;
-      background: #0F172A; color: #fff; border-top: 1px solid #334155;
-      border-radius: 16px 16px 0 0; box-shadow: 0 -10px 30px rgba(15,23,42,0.34);
-      padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-      display: flex; flex-direction: column; gap: 7px;
+      position: fixed; left: 8px; top: 112px; z-index: 90;
+      width: max-content; max-width: calc(100vw - 16px);
+      background: #FFFFFF; color: #1E293B; border: 1px solid #CBD5E1;
+      border-radius: 10px; box-shadow: 0 10px 28px rgba(15,23,42,0.22);
+      padding: 2px 3px;
+      display: flex; flex-direction: column; gap: 6px;
       transition: opacity 0.12s ease;
     }
     .floating-cell-toolbar.is-dragging {
       pointer-events: none !important;
-      opacity: 0.3;
+      opacity: 0.16;
     }
     .ftb-row {
-      display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+      display: flex; align-items: stretch; gap: 0; flex-wrap: nowrap;
       overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
-      padding: 1px 0 2px;
     }
     .ftb-row::-webkit-scrollbar { display: none; }
-    .ftb-sel-info {
-      display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
-      font-size: 11.5px; font-weight: 800; color: #93C5FD;
-      background: rgba(30, 58, 138, 0.65); border: 1px solid rgba(96, 165, 250, 0.4);
-      padding: 6px 10px; border-radius: 9px; white-space: nowrap; min-height: 36px;
-    }
     .ftb-btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0;
-      min-height: 36px; padding: 6px 11px; border-radius: 9px; font-size: 12px; font-weight: 700;
-      color: #F8FAFC; background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.14); cursor: pointer;
-      white-space: nowrap; transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+      min-height: 40px; padding: 6px 12px; border-radius: 7px; font-size: 13.5px; font-weight: 500;
+      color: #1E293B; background: transparent;
+      border: none; border-right: 1px solid #E2E8F0; border-radius: 0; cursor: pointer;
+      white-space: nowrap; transition: background 0.12s, color 0.12s, opacity 0.12s;
     }
-    .ftb-btn:hover { background: rgba(59,130,246,0.36); border-color: #60A5FA; }
+    .ftb-btn:first-child { border-top-left-radius: 7px; border-bottom-left-radius: 7px; }
+    .ftb-btn:hover { background: #F1F5F9; color: #0F172A; }
     .ftb-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .ftb-btn.active { background: #2563EB; border-color: #93C5FD; color: #fff; }
-    .ftb-btn.danger { background: rgba(220,38,38,0.24); border-color: rgba(248,113,113,0.45); color: #FECACA; }
-    .ftb-btn.danger:hover { background: #DC2626; border-color: #FCA5A5; color: #fff; }
+    .ftb-btn.active { background: #EFF6FF; color: #1D4ED8; font-weight: 700; }
+    .ftb-btn.danger { color: #DC2626; }
+    .ftb-btn.danger:hover { background: #FEF2F2; color: #B91C1C; }
+    .ftb-btn.ftb-icon-only { padding: 6px 13px; }
+    .ftb-paste-group {
+      display: inline-flex; align-items: stretch; flex-shrink: 0;
+      border-right: 1px solid #E2E8F0;
+    }
+    .ftb-paste-main {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 40px; padding: 6px 10px 6px 12px;
+      color: #1E293B; background: transparent; cursor: pointer;
+      border: none; position: relative;
+    }
+    .ftb-paste-main:hover { background: #F1F5F9; }
+    .ftb-paste-divider {
+      width: 1px; background: #E2E8F0; margin: 8px 0;
+    }
+    .ftb-paste-caret {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 40px; padding: 6px 9px;
+      color: #334155; background: transparent; cursor: pointer; border: none;
+    }
+    .ftb-paste-caret:hover, .ftb-paste-caret.active { background: #EFF6FF; color: #1D4ED8; }
     .ftb-close-btn {
-      margin-left: auto; flex-shrink: 0; min-height: 36px; min-width: 36px;
-      padding: 6px 9px; border-radius: 9px;
-      color: #CBD5E1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-      font-weight: 800; font-size: 13px; cursor: pointer;
+      flex-shrink: 0; min-height: 40px; min-width: 34px;
+      padding: 6px 8px; border-radius: 0 7px 7px 0;
+      color: #64748B; background: transparent; border: none;
+      font-weight: 700; font-size: 13px; cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center;
     }
-    .ftb-close-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+    .ftb-close-btn:hover { background: #F1F5F9; color: #0F172A; }
     .tb-drag-hint {
       position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 95;
-      background: #1E3A8A; color: #fff; border: 1px solid #93C5FD;
+      background: #14532D; color: #fff; border: 1px solid #86EFAC;
       border-radius: 999px; padding: 5px 13px; font-size: 11.5px; font-weight: 800;
       box-shadow: 0 8px 20px rgba(15,23,42,0.28); pointer-events: none; white-space: nowrap;
     }
-    .header-action-btn:disabled, .btn:disabled { opacity: 0.42; cursor: not-allowed; pointer-events: none; }
+    .header-action-btn:disabled, .btn:disabled, .icon-btn:disabled { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
     .ftb-subpanel {
-      background: #1E293B; border: 1px solid #334155; border-radius: 10px;
-      padding: 8px; display: flex; flex-direction: column; gap: 6px;
-      max-height: 44vh; overflow-y: auto;
+      background: #F8FAFC; border-top: 1px solid #E2E8F0; border-radius: 0 0 8px 8px;
+      padding: 8px 9px; display: flex; flex-direction: column; gap: 6px;
+      max-height: 42vh; overflow-y: auto; width: min(350px, calc(100vw - 26px));
     }
     .ftb-input {
       width: 100%; background: #fff; color: #0F172A;
-      border: 1px solid #CBD5E1; border-radius: 6px;
-      padding: 6px 8px; font-size: 12.5px; outline: none;
+      border: 1px solid #CBD5E1; border-radius: 7px;
+      padding: 7px 9px; font-size: 13px; outline: none;
     }
-    .ftb-input:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+    .ftb-input:focus { border-color: #15803D; box-shadow: 0 0 0 2px rgba(21,128,61,0.18); }
     .ftb-sub-actions {
       display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
     }
+    .ftb-sub-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 6px 10px; border-radius: 7px; font-size: 12px; font-weight: 700;
+      border: 1px solid #CBD5E1; background: #FFFFFF; color: #1E293B; cursor: pointer;
+    }
+    .ftb-sub-btn:hover { background: #F1F5F9; }
+    .ftb-sub-btn.primary { background: #15803D; border-color: #15803D; color: #FFFFFF; }
+    .ftb-sub-btn.primary:hover { background: #166534; }
+    .ftb-sub-btn.danger { background: #FEF2F2; border-color: #FECACA; color: #DC2626; }
+    .ftb-menu-list {
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .ftb-menu-item {
+      width: 100%; text-align: left; padding: 7px 9px; border-radius: 7px;
+      font-size: 12.5px; font-weight: 600; color: #1E293B;
+      display: flex; align-items: center; gap: 8px; background: transparent; cursor: pointer;
+    }
+    .ftb-menu-item:hover { background: #EFF6FF; color: #1D4ED8; }
     .cell-edit-input {
       width: 100%; padding: 6px 8px; border: 2px solid var(--blue-primary);
       border-radius: 4px; outline: none; font-size: 13px; background: #fff;
@@ -1819,6 +1870,7 @@
       toolbarEditDraft: '',
       undoStacks: {},
       redoStacks: {},
+      folderLastBotId: {},
       editingTitle: false,
       showMoreMenu: false,
       tableReportScope: 'table',
@@ -4666,8 +4718,46 @@
       return true;
     }
 
+    function getFolderUndoTarget(folderName) {
+      var list = (state.bots || []).filter(function (b) {
+        return b && !isBotTombstoned(b) && (b.folder || 'General') === (folderName || 'General');
+      });
+      var lastId = state.folderLastBotId && state.folderLastBotId[folderName || 'General'];
+      if (lastId) {
+        var lastBot = list.find(function (b) { return b.id === lastId && getUndoCount(b.id) > 0; });
+        if (lastBot) return lastBot;
+      }
+      var withUndo = list.filter(function (b) { return getUndoCount(b.id) > 0; });
+      if (withUndo.length === 0) return null;
+      withUndo.sort(function (a, b) {
+        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+      });
+      return withUndo[0];
+    }
+
+    function getFolderRedoTarget(folderName) {
+      var list = (state.bots || []).filter(function (b) {
+        return b && !isBotTombstoned(b) && (b.folder || 'General') === (folderName || 'General');
+      });
+      var lastId = state.folderLastBotId && state.folderLastBotId[folderName || 'General'];
+      if (lastId) {
+        var lastBot = list.find(function (b) { return b.id === lastId && getRedoCount(b.id) > 0; });
+        if (lastBot) return lastBot;
+      }
+      var withRedo = list.filter(function (b) { return getRedoCount(b.id) > 0; });
+      if (withRedo.length === 0) return null;
+      withRedo.sort(function (a, b) {
+        return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime();
+      });
+      return withRedo[0];
+    }
+
     function updateBot(updated, auditAction, auditSummary) {
       if (!guardWriteAction(auditSummary || 'Edit Bot')) return false;
+      if (updated && updated.id) {
+        if (!state.folderLastBotId) state.folderLastBotId = {};
+        state.folderLastBotId[updated.folder || 'General'] = updated.id;
+      }
       if (!window._tbIsUndoRedo && updated && updated.id) {
         var prevSnap = botUndoBaseMap[updated.id];
         if (prevSnap) {
@@ -5138,6 +5228,8 @@
             var isCollapsed = !!state.collapsedFolders[f];
             var isEthFolder = isFolderEthiopianCalendar(f);
 
+            var fUndoTarget = getFolderUndoTarget(f);
+            var fRedoTarget = getFolderRedoTarget(f);
             html += '<section class="folder-section-box" style="border-color:' + pal.border + ';">' +
               '<div class="folder-section-head' + (isCollapsed ? ' is-collapsed' : '') + '" style="background:' + pal.soft + ';border-bottom-color:' + pal.border + ';">' +
                 '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">' +
@@ -5154,6 +5246,8 @@
                   '</div>' +
                 '</div>' +
                 '<div class="folder-head-actions">' +
+                  '<button type="button" class="folder-icon-btn" data-folder-undo="' + esc(f) + '" title="' + (fUndoTarget ? ('Undo last change in ' + esc(fUndoTarget.name)) : 'Undo in ' + esc(f)) + '"' + (!fUndoTarget ? ' disabled' : '') + '>' + icon('undo', 15) + '</button>' +
+                  '<button type="button" class="folder-icon-btn" data-folder-redo="' + esc(f) + '" title="' + (fRedoTarget ? ('Redo change in ' + esc(fRedoTarget.name)) : 'Redo in ' + esc(f)) + '"' + (!fRedoTarget ? ' disabled' : '') + '>' + icon('redo', 15) + '</button>' +
                   '<button type="button" class="folder-mini-btn primary" data-add-table-folder="' + esc(f) + '" title="Create table inside ' + esc(f) + '">' + icon('plus', 12) + '<span>Table</span></button>' +
                   '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(f) + '" title="Open folder report">' + icon('chart', 12) + '<span>Reports</span></button>' +
                   '<button type="button" class="folder-mini-btn" data-lock-folder="' + esc(f) + '" title="Folder lock settings">' + icon('lock', 12) + '<span>Lock</span></button>' +
@@ -5201,6 +5295,8 @@
         var selFolderRows = filtered.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
         var selIsEth = isFolderEthiopianCalendar(selFolder);
 
+        var selUndoTarget = getFolderUndoTarget(selFolder);
+        var selRedoTarget = getFolderRedoTarget(selFolder);
         html += '<div class="folder-focused-banner" style="background:' + selPal.grad + ';">' +
           '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
             '<button type="button" class="folder-mini-btn" data-folder="all" style="background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.35);color:#fff;">' + icon('back', 13) + '<span>All Folders</span></button>' +
@@ -5213,6 +5309,8 @@
             '</div>' +
           '</div>' +
           '<div class="folder-head-actions">' +
+            '<button type="button" class="folder-icon-btn on-dark" data-folder-undo="' + esc(selFolder) + '" title="' + (selUndoTarget ? ('Undo last change in ' + esc(selUndoTarget.name)) : 'Undo in ' + esc(selFolder)) + '"' + (!selUndoTarget ? ' disabled' : '') + '>' + icon('undo', 16) + '</button>' +
+            '<button type="button" class="folder-icon-btn on-dark" data-folder-redo="' + esc(selFolder) + '" title="' + (selRedoTarget ? ('Redo change in ' + esc(selRedoTarget.name)) : 'Redo in ' + esc(selFolder)) + '"' + (!selRedoTarget ? ' disabled' : '') + '>' + icon('redo', 16) + '</button>' +
             '<button type="button" class="folder-mini-btn" data-add-table-folder="' + esc(selFolder) + '" style="background:#fff;border-color:#fff;color:#0F172A;">' + icon('plus', 12) + '<span>Add Table</span></button>' +
             '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('chart', 12) + '<span>Reports</span></button>' +
             '<button type="button" class="folder-mini-btn" data-lock-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('lock', 12) + '<span>Lock</span></button>' +
@@ -5473,6 +5571,22 @@
           if (!fn) return;
           state.confirmDeleteFolder = state.confirmDeleteFolder === fn ? '' : fn;
           renderDashboard();
+        };
+      });
+      document.querySelectorAll('[data-folder-undo]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          e.stopPropagation();
+          var fn = btn.getAttribute('data-folder-undo');
+          var targetBot = getFolderUndoTarget(fn);
+          if (targetBot) undoTableAction(targetBot);
+        };
+      });
+      document.querySelectorAll('[data-folder-redo]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          e.stopPropagation();
+          var fn = btn.getAttribute('data-folder-redo');
+          var targetBot = getFolderRedoTarget(fn);
+          if (targetBot) redoTableAction(targetBot);
         };
       });
 
@@ -6044,8 +6158,8 @@
             '</div>' +
           '</div>' +
           '<div class="header-right">' +
-            '<button type="button" class="header-action-btn" id="btn-hdr-undo" title="Undo (Ctrl+Z)"' + (undoCount === 0 ? ' disabled' : '') + '>' + icon('undo', 14) + '<span>Undo' + (undoCount > 0 ? ' (' + undoCount + ')' : '') + '</span></button>' +
-            '<button type="button" class="header-action-btn" id="btn-hdr-redo" title="Redo (Ctrl+Y)"' + (redoCount === 0 ? ' disabled' : '') + '>' + icon('redo', 14) + '<span>Redo' + (redoCount > 0 ? ' (' + redoCount + ')' : '') + '</span></button>' +
+            '<button type="button" class="icon-btn" id="btn-hdr-undo" title="Undo (Ctrl+Z)"' + (undoCount === 0 ? ' disabled' : '') + '>' + icon('undo', 19) + '</button>' +
+            '<button type="button" class="icon-btn" id="btn-hdr-redo" title="Redo (Ctrl+Y)"' + (redoCount === 0 ? ' disabled' : '') + '>' + icon('redo', 19) + '</button>' +
             '<button type="button" class="lang-toggle-btn" id="btn-table-lang" title="Switch English / አማርኛ">' + esc(t('lang_btn')) + '</button>' +
             (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 10px;font-size:11.5px;">' + icon('trash', 14) + '<span>Delete (' + selCount + ')</span></button>' : '') +
             '<button class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>' + esc(t('sync')) + '</span></button>' +
@@ -6163,12 +6277,23 @@
           var inExtra = !!(state.extraCells && state.extraCells[row.id + '::' + col.id]);
           var isCellSel = !isEd && (inRect || inExtra);
           var isAnchorCell = !isEd && selBounds && idx === selBounds.anchorR && cIdx === selBounds.anchorC;
+          var isTopLeftHandleCell = !isEd && selBounds && idx === selBounds.minR && cIdx === selBounds.minC;
           var isHandleCell = !isEd && selBounds && idx === selBounds.maxR && cIdx === selBounds.maxC;
-          var cellSelClass = (isCellSel ? ' cell-selected' : '') + (isAnchorCell ? ' cell-anchor' : '');
+          var edgeCls = '';
+          if (!isEd && inRect && selBounds) {
+            if (idx === selBounds.minR) edgeCls += ' cell-sel-edge-t';
+            if (idx === selBounds.maxR) edgeCls += ' cell-sel-edge-b';
+            if (cIdx === selBounds.minC) edgeCls += ' cell-sel-edge-l';
+            if (cIdx === selBounds.maxC) edgeCls += ' cell-sel-edge-r';
+          } else if (!isEd && inExtra) {
+            edgeCls += ' cell-sel-edge-t cell-sel-edge-b cell-sel-edge-l cell-sel-edge-r';
+          }
+          var cellSelClass = (isCellSel ? ' cell-selected' : '') + (isAnchorCell ? ' cell-anchor' : '') + edgeCls;
           var commentObj = row._comments && row._comments[col.id] ? row._comments[col.id] : null;
           var commentMarkHtml = commentObj && commentObj.text ? '<span class="cell-comment-mark" title="Comment: ' + esc(commentObj.text) + '"></span>' : '';
           var commentBadgeHtml = commentObj && commentObj.text ? '<span class="cell-comment-badge" title="' + esc(commentObj.text) + '">' + icon('comment', 9) + '<span>' + esc(commentObj.text) + '</span></span>' : '';
-          var handleHtml = isHandleCell ? '<span class="cell-sel-handle" id="cell-sel-handle" title="Drag to select cell range"></span>' : '';
+          var handleHtml = (isTopLeftHandleCell ? '<span class="cell-sel-handle-tl" id="cell-sel-handle-tl" title="Drag corner to resize selection"></span>' : '') +
+            (isHandleCell ? '<span class="cell-sel-handle" id="cell-sel-handle" title="Drag down or across to select range"></span>' : '');
 
           var st = col.style || {};
           var bg = !isEd && st.bgColor && st.bgColor !== '#FFFFFF' ? 'background:' + st.bgColor + ';' : '';
@@ -6322,8 +6447,8 @@
 
       var showSelToolbar = selectedCellsMeta.length > 0 && !isWritingCell && !state.cellMenu;
 
-      // Sticky Sigma Summary Footer (hidden during writing or when bottom selection toolbar is open)
-      if (!isWritingCell && !state.sigmaFooterHidden && !showSelToolbar) {
+      // Sticky Sigma Summary Footer (always visible except while actively writing)
+      if (!isWritingCell && !state.sigmaFooterHidden) {
         var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; });
         html += '<footer class="sigma-footer">' +
           '<span style="color:#FCD34D;font-weight:800;white-space:nowrap;">Σ Live Totals (Num / Formula / Amt):</span>' +
@@ -6343,8 +6468,8 @@
         '</footer>';
       }
 
-      // Bottom 5-icon Toolbar (hidden while actively writing OR when cell selection toolbar is docked at bottom)
-      if (!isWritingCell && !showSelToolbar) {
+      // Bottom 5-icon Toolbar (remains anchored cleanly at bottom)
+      if (!isWritingCell) {
         html += '<div class="bottom-toolbar">' +
           '<button class="toolbar-btn" id="tb-cols">' + icon('sliders', 19) + '<span>Columns</span></button>' +
           '<button class="toolbar-btn" id="tb-filter">' + icon('filter', 19) + '<span>Filter</span></button>' +
@@ -6371,12 +6496,9 @@
       }
       html += '</div>';
 
-      // Bottom-Docked Selection Toolbar (never blocks table cells above/below)
+      // Excel / Google Sheets Style White Floating Cell Action Bar above selected cell
       if (showSelToolbar) {
         var selCountCells = selectedCellsMeta.length;
-        var selLabel = selBounds && Object.keys(state.extraCells || {}).length === 0
-          ? (selCountCells === 1 ? 'R' + (selBounds.minR + 1) + ' &middot; ' + esc(bot.columns[selBounds.minC].name) : (selBounds.maxR - selBounds.minR + 1) + '×' + (selBounds.maxC - selBounds.minC + 1) + ' (' + selCountCells + ')')
-          : selCountCells + ' cells';
         var focusMeta = selectedCellsMeta[0];
         if (selBounds) {
           var foundAnchor = selectedCellsMeta.find(function (m) { return m.rIdx === selBounds.anchorR && m.cIdx === selBounds.anchorC; });
@@ -6390,68 +6512,90 @@
 
         html += '<div id="floating-cell-toolbar" class="floating-cell-toolbar">' +
           '<div class="ftb-row">' +
-            '<span class="ftb-sel-info" id="ftb-sel-info">' + selLabel + '</span>' +
-            '<button type="button" class="ftb-btn" data-ftb="copy" title="Copy selected cells (Ctrl+C)">' + icon('copy', 14) + '<span>Copy</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="cut" title="Cut selected cells (Ctrl+X)">' + icon('scissors', 14) + '<span>Cut</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="paste" title="Paste into selected cell(s) (Ctrl+V)">' + icon('clipboard', 14) + '<span>Paste</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="undo" title="Undo (Ctrl+Z)"' + (undoCount === 0 ? ' disabled' : '') + '>' + icon('undo', 14) + '<span>Undo</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="redo" title="Redo (Ctrl+Y)"' + (redoCount === 0 ? ' disabled' : '') + '>' + icon('redo', 14) + '<span>Redo</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="paste_modal" title="Paste phone clipboard text or pick a phone storage file into Cell / Column">' + icon('upload', 14) + '<span>File / Box</span></button>' +
-            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'fill' ? ' active' : '') + '" data-ftb="fill" title="Fill down, right, series, or custom value">' + icon('fill', 14) + '<span>Fill</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="clear" title="Clear cell contents (Del)">' + icon('eraser', 14) + '<span>Clear</span></button>' +
-            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'bulk_edit' ? ' active' : '') + '" data-ftb="edit" title="Edit selected cell(s) (Enter)">' + icon('edit', 14) + '<span>Edit</span></button>' +
-            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'comment' ? ' active' : '') + '" data-ftb="comment" title="Add or view cell comment">' + icon('comment', 14) + '<span>Comment</span></button>' +
-            '<button type="button" class="ftb-btn danger' + (state.toolbarSubMode === 'delete' ? ' active' : '') + '" data-ftb="delete" title="Delete row(s) or shift cells">' + icon('trash', 14) + '<span>Delete</span></button>' +
-            '<button type="button" class="ftb-close-btn" id="ftb-close" title="Clear selection (Esc)">✕</button>' +
+            '<button type="button" class="ftb-btn ftb-icon-only" data-ftb="cut" title="Cut (Ctrl+X)">' + icon('scissors', 17) + '</button>' +
+            '<button type="button" class="ftb-btn ftb-icon-only" data-ftb="copy" title="Copy (Ctrl+C)">' + icon('copy', 17) + '</button>' +
+            '<div class="ftb-paste-group">' +
+              '<button type="button" class="ftb-paste-main" data-ftb="paste" title="Paste into selected cell(s)">' + icon('clipboard', 17) + '</button>' +
+              '<span class="ftb-paste-divider"></span>' +
+              '<button type="button" class="ftb-paste-caret' + (state.toolbarSubMode === 'paste_menu' || state.toolbarSubMode === 'paste_inline' ? ' active' : '') + '" data-ftb="paste_menu" title="Paste options &amp; Phone File">' + icon('chevronDown', 15) + '</button>' +
+            '</div>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'comment' ? ' active' : '') + '" data-ftb="comment" title="Add or view comment">Comment</button>' +
+            '<button type="button" class="ftb-btn" data-ftb="clear" title="Clear contents (Del)">Clear</button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'fill' ? ' active' : '') + '" data-ftb="fill" title="Fill down, right, series, or value">Fill</button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'bulk_edit' ? ' active' : '') + '" data-ftb="edit" title="Edit cell(s)">Edit</button>' +
+            '<button type="button" class="ftb-btn danger' + (state.toolbarSubMode === 'delete' ? ' active' : '') + '" data-ftb="delete" title="Delete row or shift cells">Delete</button>' +
+            '<button type="button" class="ftb-close-btn" id="ftb-close" title="Close (Esc)">✕</button>' +
           '</div>';
 
-        if (state.toolbarSubMode === 'comment') {
+        if (state.toolbarSubMode === 'paste_menu') {
           html += '<div class="ftb-subpanel">' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#FDE68A;">' +
-              '<span>Comment on ' + (selCountCells === 1 ? esc(focusMeta.col.name) + ' (Row #' + (focusMeta.rIdx + 1) + ')' : selCountCells + ' selected cells') + '</span>' +
-              (existingCmt && existingCmt.updatedAt ? '<span style="color:#94A3B8;font-size:10px;">' + esc(existingCmt.author || '') + ' &middot; ' + esc(formatTimeAgo(existingCmt.updatedAt)) + '</span>' : '') +
+            '<div class="ftb-menu-list">' +
+              '<button type="button" class="ftb-menu-item" id="ftb-pm-auto">' + icon('clipboard', 14) + '<span>Paste Clipboard Into Cell(s)</span></button>' +
+              '<button type="button" class="ftb-menu-item" id="ftb-pm-inline">' + icon('edit', 14) + '<span>Phone Clipboard Box (Tap &amp; Paste)</span></button>' +
+              '<button type="button" class="ftb-menu-item" id="ftb-pm-file">' + icon('upload', 14) + '<span>Pick Phone File (.xlsx / .csv / .txt)</span></button>' +
+              '<button type="button" class="ftb-menu-item" id="ftb-pm-modal">' + icon('sliders', 14) + '<span>Smart Paste Into Column / Multi-Column...</span></button>' +
+            '</div>' +
+            '<input type="file" id="ftb-quick-file-input" style="display:none;" accept=".xlsx,.xls,.csv,.tsv,.txt,.json,.log,.dat,*/*" />' +
+          '</div>';
+        } else if (state.toolbarSubMode === 'paste_inline') {
+          html += '<div class="ftb-subpanel">' +
+            '<div style="font-size:11.5px;font-weight:700;color:#1E293B;">Long-press &amp; tap Paste inside the box (auto-pastes immediately):</div>' +
+            '<textarea id="ftb-paste-box" class="ftb-input" rows="2" placeholder="Tap here &amp; Paste from phone clipboard (Ctrl+V)..."></textarea>' +
+            '<div class="ftb-sub-actions">' +
+              '<button type="button" class="ftb-sub-btn primary" id="ftb-paste-apply">' + icon('check', 12) + '<span>Paste Now</span></button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-paste-pick-file">' + icon('upload', 12) + '<span>Phone File</span></button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-paste-more">' + icon('sliders', 12) + '<span>Options</span></button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-cancel-sub">Cancel</button>' +
+            '</div>' +
+            '<input type="file" id="ftb-quick-file-input" style="display:none;" accept=".xlsx,.xls,.csv,.tsv,.txt,.json,.log,.dat,*/*" />' +
+          '</div>';
+        } else if (state.toolbarSubMode === 'comment') {
+          html += '<div class="ftb-subpanel">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;color:#475569;">' +
+              '<span>Comment on ' + (selCountCells === 1 ? esc(focusMeta.col.name) + ' (Row #' + (focusMeta.rIdx + 1) + ')' : selCountCells + ' cells') + '</span>' +
+              (existingCmt && existingCmt.updatedAt ? '<span style="color:#64748B;font-size:10px;">' + esc(existingCmt.author || '') + ' &middot; ' + esc(formatTimeAgo(existingCmt.updatedAt)) + '</span>' : '') +
             '</div>' +
             '<textarea id="ftb-comment-input" class="ftb-input" rows="2" placeholder="Enter cell comment...">' + esc(state.toolbarCommentDraft || '') + '</textarea>' +
             '<div class="ftb-sub-actions">' +
-              '<button type="button" class="ftb-btn active" id="ftb-save-comment">' + icon('check', 12) + '<span>Save Comment</span></button>' +
-              (anyCommentSelected ? '<button type="button" class="ftb-btn danger" id="ftb-remove-comment">' + icon('trash', 12) + '<span>Remove Comment</span></button>' : '') +
-              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Cancel</button>' +
+              '<button type="button" class="ftb-sub-btn primary" id="ftb-save-comment">' + icon('check', 12) + '<span>Save Comment</span></button>' +
+              (anyCommentSelected ? '<button type="button" class="ftb-sub-btn danger" id="ftb-remove-comment">' + icon('trash', 12) + '<span>Remove</span></button>' : '') +
+              '<button type="button" class="ftb-sub-btn" id="ftb-cancel-sub">Cancel</button>' +
             '</div>' +
           '</div>';
         } else if (state.toolbarSubMode === 'fill') {
           html += '<div class="ftb-subpanel">' +
-            '<div style="font-size:11px;color:#BAE6FD;">Fill ' + selCountCells + ' selected cell(s) automatically or with a custom value:</div>' +
+            '<div style="font-size:11px;font-weight:700;color:#475569;">Fill ' + selCountCells + ' selected cell(s):</div>' +
             '<div style="display:flex;gap:6px;align-items:center;">' +
               '<input id="ftb-fill-input" type="text" class="ftb-input" value="' + esc(state.toolbarFillDraft || '') + '" placeholder="Value to fill into selected cells..." />' +
-              '<button type="button" class="ftb-btn active" id="ftb-fill-apply">' + icon('check', 12) + '<span>Apply</span></button>' +
+              '<button type="button" class="ftb-sub-btn primary" id="ftb-fill-apply">' + icon('check', 12) + '<span>Apply</span></button>' +
             '</div>' +
             '<div class="ftb-sub-actions">' +
-              '<button type="button" class="ftb-btn" id="ftb-fill-down">↓ Fill Down</button>' +
-              '<button type="button" class="ftb-btn" id="ftb-fill-right">→ Fill Right</button>' +
-              '<button type="button" class="ftb-btn" id="ftb-fill-series"># Fill Series (1, 2, 3...)</button>' +
-              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Close</button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-fill-down">↓ Fill Down</button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-fill-right">→ Fill Right</button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-fill-series"># Series (1, 2...)</button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-cancel-sub">Close</button>' +
             '</div>' +
           '</div>';
         } else if (state.toolbarSubMode === 'bulk_edit') {
           html += '<div class="ftb-subpanel">' +
-            '<div style="font-size:11px;color:#BAE6FD;">Editing ' + selCountCells + ' selected cells at once (or edit active cell inline):</div>' +
+            '<div style="font-size:11px;font-weight:700;color:#475569;">Edit ' + selCountCells + ' selected cells at once:</div>' +
             '<div style="display:flex;gap:6px;align-items:center;">' +
               '<input id="ftb-bulk-edit-input" type="text" class="ftb-input" value="' + esc(state.toolbarEditDraft || '') + '" placeholder="New value for all ' + selCountCells + ' cells..." />' +
-              '<button type="button" class="ftb-btn active" id="ftb-bulk-edit-apply">' + icon('check', 12) + '<span>Apply to ' + selCountCells + '</span></button>' +
+              '<button type="button" class="ftb-sub-btn primary" id="ftb-bulk-edit-apply">' + icon('check', 12) + '<span>Apply</span></button>' +
             '</div>' +
             '<div class="ftb-sub-actions">' +
-              '<button type="button" class="ftb-btn" id="ftb-edit-single-inline">' + icon('edit', 12) + '<span>Edit Active Cell Inline</span></button>' +
-              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Cancel</button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-edit-single-inline">' + icon('edit', 12) + '<span>Edit Active Cell</span></button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-cancel-sub">Cancel</button>' +
             '</div>' +
           '</div>';
         } else if (state.toolbarSubMode === 'delete') {
           html += '<div class="ftb-subpanel">' +
-            '<div style="font-size:11px;color:#FECACA;">Choose what to delete for the ' + selCountCells + ' selected cell(s):</div>' +
+            '<div style="font-size:11px;font-weight:700;color:#B91C1C;">Delete option for ' + selCountCells + ' selected cell(s):</div>' +
             '<div class="ftb-sub-actions">' +
-              '<button type="button" class="ftb-btn danger" id="ftb-del-rows-sel">' + icon('trash', 12) + '<span>Delete ' + selUniqueRowsCount + ' Row(s)</span></button>' +
-              '<button type="button" class="ftb-btn" id="ftb-del-shift-up">↑ Shift Cells Up</button>' +
-              '<button type="button" class="ftb-btn" id="ftb-del-clear-only">' + icon('eraser', 12) + '<span>Clear Cell Contents</span></button>' +
-              '<button type="button" class="ftb-btn" id="ftb-cancel-sub">Cancel</button>' +
+              '<button type="button" class="ftb-sub-btn danger" id="ftb-del-rows-sel">' + icon('trash', 12) + '<span>Delete ' + selUniqueRowsCount + ' Row(s)</span></button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-del-shift-up">↑ Shift Cells Up</button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-del-clear-only">' + icon('eraser', 12) + '<span>Clear Contents</span></button>' +
+              '<button type="button" class="ftb-sub-btn" id="ftb-cancel-sub">Cancel</button>' +
             '</div>' +
           '</div>';
         }
@@ -6507,6 +6651,7 @@
     }
 
     function cleanupTableGlobalListeners() {
+      window._tbSuppressCellClickUntil = 0;
       var oldCalBg = document.getElementById('tb-cal-backdrop');
       if (oldCalBg) oldCalBg.remove();
       var oldCal = document.getElementById('tb-cal-popover');
@@ -6552,6 +6697,11 @@
       if (window._tbResizeReposition) {
         window.removeEventListener('resize', window._tbResizeReposition);
         window._tbResizeReposition = null;
+      }
+      if (window._tbScrollWrapEl && window._tbScrollReposition) {
+        window._tbScrollWrapEl.removeEventListener('scroll', window._tbScrollReposition);
+        window._tbScrollWrapEl = null;
+        window._tbScrollReposition = null;
       }
       if (window._tbOutsideSelectionClick) {
         document.removeEventListener('click', window._tbOutsideSelectionClick);
@@ -6950,7 +7100,10 @@
         }
 
         if (!rawMatrix || rawMatrix.length === 0 || rawMatrix[0].length === 0) {
-          openSmartPasteDialogForTargets(targets, '', 'cell');
+          state.toolbarSubMode = 'paste_inline';
+          renderTableView(bot);
+          var pBox = document.getElementById('ftb-paste-box');
+          if (pBox) pBox.focus();
           return;
         }
         var startR = selBounds && !targetsOverride ? selBounds.minR : targets[0].rIdx;
@@ -6987,6 +7140,9 @@
           renderTableView(bot);
         } else if (act === 'paste') {
           pasteSelectedCellsAction(targets);
+        } else if (act === 'paste_menu') {
+          state.toolbarSubMode = (state.toolbarSubMode === 'paste_menu' || state.toolbarSubMode === 'paste_inline') ? null : 'paste_menu';
+          renderTableView(bot);
         } else if (act === 'paste_modal') {
           openSmartPasteDialogForTargets(targets, '', 'cell');
         } else if (act === 'clear') {
@@ -7236,9 +7392,57 @@
       }
 
       var ftbEl = document.getElementById('floating-cell-toolbar');
+      var positionExcelFloatingToolbar = function () {
+        if (!ftbEl) return;
+        var selEls = Array.prototype.slice.call(document.querySelectorAll('.sheet-table tbody td.cell-selected'));
+        if (!selEls || selEls.length === 0) return;
+        var minTop = Infinity, maxBottom = -Infinity, minLeft = Infinity, maxRight = -Infinity;
+        var anyRect = false;
+        selEls.forEach(function (el) {
+          if (!el.getBoundingClientRect) return;
+          var r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) return;
+          anyRect = true;
+          if (r.top < minTop) minTop = r.top;
+          if (r.bottom > maxBottom) maxBottom = r.bottom;
+          if (r.left < minLeft) minLeft = r.left;
+          if (r.right > maxRight) maxRight = r.right;
+        });
+        if (!anyRect) return;
+        var vw = window.innerWidth || 800;
+        var vh = window.innerHeight || 700;
+        var barW = Math.min(vw - 16, ftbEl.offsetWidth || 340);
+        var barH = ftbEl.offsetHeight || 46;
+        var theadEl = document.querySelector('.sheet-table thead');
+        var theadBottom = theadEl && theadEl.getBoundingClientRect ? theadEl.getBoundingClientRect().bottom : 98;
+        var minSafeTop = Math.max(64, Math.min(130, theadBottom + 4));
+        var topPos = minTop - barH - 9;
+        if (topPos < minSafeTop) {
+          var belowPos = maxBottom + 9;
+          topPos = belowPos <= (vh - barH - 64) ? belowPos : Math.max(minSafeTop, vh - barH - 68);
+        }
+        topPos = Math.max(58, Math.min(vh - barH - 8, topPos));
+        var leftPos = Math.max(8, Math.min(vw - barW - 8, minLeft - 12));
+        ftbEl.style.top = Math.round(topPos) + 'px';
+        ftbEl.style.left = Math.round(leftPos) + 'px';
+      };
+
       if (ftbEl) {
         ftbEl.onmousedown = function (e) { e.stopPropagation(); };
         ftbEl.onclick = function (e) { e.stopPropagation(); };
+
+        positionExcelFloatingToolbar();
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(positionExcelFloatingToolbar);
+        }
+        window._tbResizeReposition = positionExcelFloatingToolbar;
+        window.addEventListener('resize', positionExcelFloatingToolbar);
+        var wrapScrollEl = document.querySelector('.table-wrap');
+        if (wrapScrollEl) {
+          window._tbScrollWrapEl = wrapScrollEl;
+          window._tbScrollReposition = positionExcelFloatingToolbar;
+          wrapScrollEl.addEventListener('scroll', positionExcelFloatingToolbar, { passive: true });
+        }
 
         var ftbCloseBtn = document.getElementById('ftb-close');
         if (ftbCloseBtn) ftbCloseBtn.onclick = function () {
@@ -7256,6 +7460,88 @@
 
         var cancelSubBtn = document.getElementById('ftb-cancel-sub');
         if (cancelSubBtn) cancelSubBtn.onclick = function () { state.toolbarSubMode = null; renderTableView(bot); };
+
+        // Paste Caret Menu & Comfortable Inline Paste Handlers
+        var quickFileInp = document.getElementById('ftb-quick-file-input');
+        if (quickFileInp) {
+          quickFileInp.onchange = async function (e) {
+            var f = e.target && e.target.files ? e.target.files[0] : null;
+            if (!f) return;
+            try {
+              var parsedF = await parseAnyPhoneDataFile(f);
+              if (parsedF && parsedF.text) {
+                pasteSelectedCellsAction(selectedCellsMeta, parsedF.text);
+              } else {
+                showToast('No readable data found in "' + f.name + '"');
+              }
+            } catch (errF) {
+              showToast('Could not read file "' + f.name + '"');
+            }
+          };
+        }
+        var pmAuto = document.getElementById('ftb-pm-auto');
+        if (pmAuto) pmAuto.onclick = function () { pasteSelectedCellsAction(selectedCellsMeta); };
+        var pmInline = document.getElementById('ftb-pm-inline');
+        if (pmInline) pmInline.onclick = function () {
+          state.toolbarSubMode = 'paste_inline';
+          renderTableView(bot);
+          var pb = document.getElementById('ftb-paste-box');
+          if (pb) pb.focus();
+        };
+        var pmFile = document.getElementById('ftb-pm-file');
+        if (pmFile) pmFile.onclick = function () { if (quickFileInp) quickFileInp.click(); };
+        var pmModal = document.getElementById('ftb-pm-modal');
+        if (pmModal) pmModal.onclick = function () { openSmartPasteDialogForTargets(selectedCellsMeta, '', 'cell'); };
+
+        var ftbPasteBox = document.getElementById('ftb-paste-box');
+        var ftbPasteApplied = false;
+        var applyInlinePasteBox = function (txtVal) {
+          if (ftbPasteApplied) return;
+          var cleanV = String(txtVal === undefined || txtVal === null ? '' : txtVal);
+          if (!cleanV.trim()) return;
+          ftbPasteApplied = true;
+          pasteSelectedCellsAction(selectedCellsMeta, cleanV);
+        };
+        if (ftbPasteBox) {
+          ftbPasteBox.onpaste = function (e) {
+            var cd = e.clipboardData || window.clipboardData;
+            if (cd && cd.files && cd.files.length > 0) {
+              e.preventDefault();
+              var fClip = cd.files[0];
+              parseAnyPhoneDataFile(fClip).then(function (resF) {
+                if (resF && resF.text) applyInlinePasteBox(resF.text);
+              }).catch(function () {});
+              return;
+            }
+            var rawP = '';
+            try { rawP = cd ? (cd.getData('text/plain') || '') : ''; } catch (errP2) {}
+            if (rawP) {
+              e.preventDefault();
+              applyInlinePasteBox(rawP);
+            } else {
+              setTimeout(function () { applyInlinePasteBox(ftbPasteBox.value); }, 10);
+            }
+          };
+          ftbPasteBox.oninput = function () {
+            if (ftbPasteBox.value && ftbPasteBox.value.trim()) {
+              applyInlinePasteBox(ftbPasteBox.value);
+            }
+          };
+        }
+        var ftbPasteApplyBtn = document.getElementById('ftb-paste-apply');
+        if (ftbPasteApplyBtn) ftbPasteApplyBtn.onclick = function () {
+          if (ftbPasteBox && ftbPasteBox.value.trim()) {
+            applyInlinePasteBox(ftbPasteBox.value);
+          } else {
+            showToast('Long-press inside the box & tap Paste first');
+          }
+        };
+        var ftbPastePickFile = document.getElementById('ftb-paste-pick-file');
+        if (ftbPastePickFile) ftbPastePickFile.onclick = function () { if (quickFileInp) quickFileInp.click(); };
+        var ftbPasteMore = document.getElementById('ftb-paste-more');
+        if (ftbPasteMore) ftbPasteMore.onclick = function () {
+          openSmartPasteDialogForTargets(selectedCellsMeta, ftbPasteBox ? ftbPasteBox.value : '', 'cell');
+        };
 
         // Comment Sub-Panel Handlers
         var cmtInp = document.getElementById('ftb-comment-input');
@@ -7512,6 +7798,10 @@
           var inside = cr >= minR && cr <= maxR && cc >= minC && cc <= maxC;
           cellEl.classList.toggle('cell-selected', inside);
           cellEl.classList.toggle('cell-anchor', cr === aR && cc === aC);
+          cellEl.classList.toggle('cell-sel-edge-t', inside && cr === minR);
+          cellEl.classList.toggle('cell-sel-edge-b', inside && cr === maxR);
+          cellEl.classList.toggle('cell-sel-edge-l', inside && cc === minC);
+          cellEl.classList.toggle('cell-sel-edge-r', inside && cc === maxC);
         });
         var labelTxt = formatSelPreviewText(aR, aC, fR, fC);
         var infoEl = document.getElementById('ftb-sel-info');
@@ -7684,7 +7974,7 @@
           if (window._tbRangeTouchCancel) { window.removeEventListener('touchcancel', window._tbRangeTouchCancel); window._tbRangeTouchCancel = null; }
 
           if (!ctx || !ctx.moved) return;
-          window._tbSuppressCellClickUntil = Date.now() + 360;
+          window._tbSuppressCellClickUntil = Date.now() + (ctx.mode === 'touch' ? 320 : 120);
           state.selectedRange = {
             botId: bot.id,
             anchorR: ctx.anchorR,
@@ -7721,18 +8011,50 @@
         }
       };
 
+      var activateExcelCellToolbar = function (rid, cid) {
+        var rIdx = visibleRows.findIndex(function (r) { return r.id === rid; });
+        var cIdx = bot.columns.findIndex(function (c) { return c.id === cid; });
+        if (rIdx === -1) return;
+        if (cIdx === -1) cIdx = 0;
+        window._tbLastCellTap = null;
+        window._tbOpeningExcelToolbar = true;
+        state.editingCell = null;
+        state.autoOpenDateCal = false;
+        state._calDraft = null;
+        state.cellMenu = null;
+        state.selectedRange = { botId: bot.id, anchorR: rIdx, anchorC: cIdx, focusR: rIdx, focusC: cIdx };
+        state.extraCells = {};
+        state.toolbarSubMode = null;
+        try { renderTableView(bot); } finally { window._tbOpeningExcelToolbar = false; }
+      };
+
+      var selHandleTlEl = document.getElementById('cell-sel-handle-tl');
+      if (selHandleTlEl && selBounds) {
+        selHandleTlEl.onmousedown = function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          beginLiveRangeDrag('mouse', selBounds.maxR, selBounds.maxC, selBounds.minR, selBounds.minC, e.clientX, e.clientY, true);
+        };
+        selHandleTlEl.ontouchstart = function (e) {
+          if (!e.touches || !e.touches[0]) return;
+          e.preventDefault();
+          e.stopPropagation();
+          beginLiveRangeDrag('touch', selBounds.maxR, selBounds.maxC, selBounds.minR, selBounds.minC, e.touches[0].clientX, e.touches[0].clientY, true);
+        };
+      }
+
       var selHandleEl = document.getElementById('cell-sel-handle');
       if (selHandleEl && selBounds) {
         selHandleEl.onmousedown = function (e) {
           e.preventDefault();
           e.stopPropagation();
-          beginLiveRangeDrag('mouse', selBounds.anchorR, selBounds.anchorC, selBounds.focusR, selBounds.focusC, e.clientX, e.clientY, true);
+          beginLiveRangeDrag('mouse', selBounds.minR, selBounds.minC, selBounds.maxR, selBounds.maxC, e.clientX, e.clientY, true);
         };
         selHandleEl.ontouchstart = function (e) {
           if (!e.touches || !e.touches[0]) return;
           e.preventDefault();
           e.stopPropagation();
-          beginLiveRangeDrag('touch', selBounds.anchorR, selBounds.anchorC, selBounds.focusR, selBounds.focusC, e.touches[0].clientX, e.touches[0].clientY, true);
+          beginLiveRangeDrag('touch', selBounds.minR, selBounds.minC, selBounds.maxR, selBounds.maxC, e.touches[0].clientX, e.touches[0].clientY, true);
         };
       }
 
@@ -7742,7 +8064,7 @@
         var lpCurX = 0, lpCurY = 0;
 
         td.ontouchstart = function (e) {
-          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#cell-sel-handle-tl') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
           if (!e.touches || e.touches.length !== 1) return;
           lpStartX = lpCurX = e.touches[0].clientX;
           lpStartY = lpCurY = e.touches[0].clientY;
@@ -7759,7 +8081,7 @@
               try { navigator.vibrate(18); } catch (eV) {}
             }
             beginLiveRangeDrag('touch', rIdx, cIdx, rIdx, cIdx, lpCurX, lpCurY, true);
-          }, 360);
+          }, 340);
         };
 
         td.ontouchmove = function (e) {
@@ -7791,7 +8113,7 @@
 
         td.onmousedown = function (e) {
           if (e.button !== 0) return;
-          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#cell-sel-handle-tl') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
           e.stopPropagation();
           state.cellMenu = null;
           var rid = td.getAttribute('data-row-id');
@@ -7851,12 +8173,19 @@
         };
 
         td.onclick = function (e) {
-          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#cell-sel-handle-tl') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
           e.stopPropagation();
           if (window._tbSuppressCellClickUntil && Date.now() < window._tbSuppressCellClickUntil) return;
           if (e.shiftKey || e.ctrlKey || e.metaKey) return;
           var rid = td.getAttribute('data-row-id');
           var cid = td.getAttribute('data-col-id');
+          var nowTap = Date.now();
+          var prevTap = window._tbLastCellTap;
+          if ((e.detail >= 2) || (prevTap && prevTap.botId === bot.id && prevTap.rowId === rid && prevTap.colId === cid && (nowTap - prevTap.time) <= 420)) {
+            activateExcelCellToolbar(rid, cid);
+            return;
+          }
+          window._tbLastCellTap = { botId: bot.id, rowId: rid, colId: cid, time: nowTap };
           openCellEditor(rid, cid);
         };
 
@@ -7866,7 +8195,7 @@
           dragCtx = null;
           var rid = td.getAttribute('data-row-id');
           var cid = td.getAttribute('data-col-id');
-          openCellEditor(rid, cid);
+          activateExcelCellToolbar(rid, cid);
         };
       });
 
@@ -8334,7 +8663,30 @@
               }
             }, 0);
           };
+          var triggerToolbarFromEditingCell = function () {
+            if (!state.editingCell) return;
+            var edRid = state.editingCell.rowId;
+            var edCid = state.editingCell.colId;
+            window._tbOpeningExcelToolbar = true;
+            try { commitActiveCell(undefined, false, true); } catch (errC) {}
+            activateExcelCellToolbar(edRid, edCid);
+          };
+          activeInp.ondblclick = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            triggerToolbarFromEditingCell();
+          };
+          activeInp.onclick = function (e) {
+            e.stopPropagation();
+            var prevTapEd = window._tbLastCellTap;
+            var nowTapEd = Date.now();
+            if (state.editingCell && prevTapEd && prevTapEd.botId === bot.id && prevTapEd.rowId === state.editingCell.rowId && prevTapEd.colId === state.editingCell.colId && (e.detail >= 2 || ((nowTapEd - prevTapEd.time) <= 450 && (nowTapEd - prevTapEd.time) >= 15))) {
+              e.preventDefault();
+              triggerToolbarFromEditingCell();
+            }
+          };
           activeInp.onblur = function (e) {
+            if (window._tbOpeningExcelToolbar) return;
             if (e && e.relatedTarget && e.relatedTarget.id === 'cell-edit-menu-btn') return;
             if (state.cellMenu) return;
             commitActiveCell();
