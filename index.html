@@ -420,13 +420,13 @@
       z-index: 4;
     }
     .cell-sel-handle {
-      position: absolute; right: -4px; bottom: -4px; width: 11px; height: 11px;
-      background: #1D4ED8; border: 1.5px solid #fff; border-radius: 2px;
+      position: absolute; right: -6px; bottom: -6px; width: 15px; height: 15px;
+      background: #1D4ED8; border: 2px solid #fff; border-radius: 4px;
       cursor: crosshair; z-index: 12; touch-action: none;
-      box-shadow: 0 1px 3px rgba(15,23,42,0.35);
+      box-shadow: 0 2px 5px rgba(15,23,42,0.4);
     }
     .cell-sel-handle::after {
-      content: ''; position: absolute; inset: -8px;
+      content: ''; position: absolute; inset: -14px;
     }
     .cell-comment-mark {
       position: absolute; top: 0; right: 0; width: 0; height: 0;
@@ -442,39 +442,60 @@
       max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .floating-cell-toolbar {
-      position: fixed; z-index: 90; max-width: calc(100vw - 16px);
-      background: #0F172A; color: #fff; border: 1px solid #334155;
-      border-radius: 12px; box-shadow: 0 16px 38px rgba(15,23,42,0.38);
-      padding: 6px 8px; display: flex; flex-direction: column; gap: 6px;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; width: 100%;
+      background: #0F172A; color: #fff; border-top: 1px solid #334155;
+      border-radius: 16px 16px 0 0; box-shadow: 0 -10px 30px rgba(15,23,42,0.34);
+      padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+      display: flex; flex-direction: column; gap: 7px;
+      transition: opacity 0.12s ease;
+    }
+    .floating-cell-toolbar.is-dragging {
+      pointer-events: none !important;
+      opacity: 0.3;
     }
     .ftb-row {
-      display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+      display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding: 1px 0 2px;
     }
+    .ftb-row::-webkit-scrollbar { display: none; }
     .ftb-sel-info {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 11px; font-weight: 800; color: #93C5FD;
-      background: rgba(30, 58, 138, 0.55); border: 1px solid rgba(96, 165, 250, 0.35);
-      padding: 4px 8px; border-radius: 7px; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+      font-size: 11.5px; font-weight: 800; color: #93C5FD;
+      background: rgba(30, 58, 138, 0.65); border: 1px solid rgba(96, 165, 250, 0.4);
+      padding: 6px 10px; border-radius: 9px; white-space: nowrap; min-height: 36px;
     }
     .ftb-btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 5px 8px; border-radius: 7px; font-size: 11.5px; font-weight: 700;
-      color: #F8FAFC; background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.12); cursor: pointer;
-      white-space: nowrap; transition: background 0.12s, border-color 0.12s;
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0;
+      min-height: 36px; padding: 6px 11px; border-radius: 9px; font-size: 12px; font-weight: 700;
+      color: #F8FAFC; background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.14); cursor: pointer;
+      white-space: nowrap; transition: background 0.12s, border-color 0.12s, opacity 0.12s;
     }
-    .ftb-btn:hover { background: rgba(59,130,246,0.34); border-color: #60A5FA; }
+    .ftb-btn:hover { background: rgba(59,130,246,0.36); border-color: #60A5FA; }
+    .ftb-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .ftb-btn.active { background: #2563EB; border-color: #93C5FD; color: #fff; }
-    .ftb-btn.danger { background: rgba(220,38,38,0.22); border-color: rgba(248,113,113,0.45); color: #FECACA; }
+    .ftb-btn.danger { background: rgba(220,38,38,0.24); border-color: rgba(248,113,113,0.45); color: #FECACA; }
     .ftb-btn.danger:hover { background: #DC2626; border-color: #FCA5A5; color: #fff; }
     .ftb-close-btn {
-      margin-left: auto; padding: 4px 7px; border-radius: 7px;
-      color: #94A3B8; font-weight: 800; font-size: 12px; cursor: pointer;
+      margin-left: auto; flex-shrink: 0; min-height: 36px; min-width: 36px;
+      padding: 6px 9px; border-radius: 9px;
+      color: #CBD5E1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      font-weight: 800; font-size: 13px; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
     }
-    .ftb-close-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .ftb-close-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+    .tb-drag-hint {
+      position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 95;
+      background: #1E3A8A; color: #fff; border: 1px solid #93C5FD;
+      border-radius: 999px; padding: 5px 13px; font-size: 11.5px; font-weight: 800;
+      box-shadow: 0 8px 20px rgba(15,23,42,0.28); pointer-events: none; white-space: nowrap;
+    }
+    .header-action-btn:disabled, .btn:disabled { opacity: 0.42; cursor: not-allowed; pointer-events: none; }
     .ftb-subpanel {
-      background: #1E293B; border: 1px solid #334155; border-radius: 9px;
+      background: #1E293B; border: 1px solid #334155; border-radius: 10px;
       padding: 8px; display: flex; flex-direction: column; gap: 6px;
+      max-height: 44vh; overflow-y: auto;
     }
     .ftb-input {
       width: 100%; background: #fff; color: #0F172A;
@@ -1172,7 +1193,9 @@
       clipboard: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
       comment: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
       eraser: '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
-      fill: '<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>'
+      fill: '<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>',
+      undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
+      redo: '<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>'
     };
 
     function icon(name, size) {
@@ -1794,6 +1817,8 @@
       toolbarCommentDraft: '',
       toolbarFillDraft: '',
       toolbarEditDraft: '',
+      undoStacks: {},
+      redoStacks: {},
       editingTitle: false,
       showMoreMenu: false,
       tableReportScope: 'table',
@@ -1812,6 +1837,7 @@
       adminUserFilter: 'all',
       cyberUserFilter: 'all'
     };
+    var botUndoBaseMap = {};
     state.syncStatus = state.supabaseConfig.isConnected ? 'syncing' : 'local';
     if (!state.adminConfig.cyberSecurityManager) state.adminConfig.cyberSecurityManager = 'Abdulfeta';
     if (!state.adminConfig.cyberSecurityTitle) state.adminConfig.cyberSecurityTitle = 'Manager of Cyber Security';
@@ -4047,6 +4073,7 @@
 
         state.bots = merged;
         purgeTombstonedDataFromState();
+        refreshAllBotUndoBases();
         saveBotsLocal();
 
         for (var di = 0; di < toDeleteRemoteIds.length; di++) {
@@ -4099,6 +4126,7 @@
                 if (isBotTombstoned(up)) return;
                 var idx = state.bots.findIndex(function (b) { return b.id === up.id; });
                 if (idx >= 0) state.bots[idx] = up; else state.bots.unshift(up);
+                resetBotUndoBase(up);
                 saveBotsLocal();
                 state.lastSyncAt = new Date().toISOString();
                 showToast('Live Supabase sync: ' + up.name);
@@ -4518,8 +4546,146 @@
       pill.innerHTML = '<span class="sync-dot ' + cls + '"></span><span>' + txt + '</span>';
     }
 
+    function cloneBotSnap(bot) {
+      if (!bot) return null;
+      return {
+        name: String(bot.name || ''),
+        columns: JSON.parse(JSON.stringify(bot.columns || [])),
+        rows: JSON.parse(JSON.stringify(bot.rows || []))
+      };
+    }
+
+    function ensureBotUndoBase(bot) {
+      if (!bot || !bot.id) return;
+      if (!botUndoBaseMap[bot.id]) {
+        botUndoBaseMap[bot.id] = cloneBotSnap(bot);
+      }
+    }
+
+    function resetBotUndoBase(bot) {
+      if (!bot || !bot.id) return;
+      botUndoBaseMap[bot.id] = cloneBotSnap(bot);
+    }
+
+    function refreshAllBotUndoBases() {
+      (state.bots || []).forEach(function (b) {
+        if (b && b.id) botUndoBaseMap[b.id] = cloneBotSnap(b);
+      });
+    }
+    refreshAllBotUndoBases();
+
+    function getUndoCount(botId) {
+      var st = state.undoStacks && state.undoStacks[botId];
+      return st ? st.length : 0;
+    }
+
+    function getRedoCount(botId) {
+      var st = state.redoStacks && state.redoStacks[botId];
+      return st ? st.length : 0;
+    }
+
+    function undoTableAction(bot) {
+      if (!bot) return false;
+      if (!guardWriteAction('Undo')) return false;
+      var stack = state.undoStacks[bot.id];
+      if (!stack || stack.length === 0) {
+        showToast('Nothing to undo');
+        return false;
+      }
+      var snap = stack.pop();
+      if (!state.redoStacks[bot.id]) state.redoStacks[bot.id] = [];
+      var curSnap = cloneBotSnap(bot);
+      curSnap.label = snap.label || 'Change';
+      state.redoStacks[bot.id].push(curSnap);
+      if (state.redoStacks[bot.id].length > 50) state.redoStacks[bot.id].shift();
+
+      bot.name = snap.name;
+      bot.columns = JSON.parse(JSON.stringify(snap.columns || []));
+      bot.rows = JSON.parse(JSON.stringify(snap.rows || []));
+      bot.updatedAt = new Date().toISOString();
+
+      window._tbIsUndoRedo = true;
+      try {
+        updateBot(bot, 'EDIT', 'Undo: ' + (snap.label || 'last change'));
+      } finally {
+        window._tbIsUndoRedo = false;
+      }
+      resetBotUndoBase(bot);
+      state.editingCell = null;
+      state.cellMenu = null;
+      state.toolbarSubMode = null;
+      state.autoOpenDateCal = false;
+      state._calDraft = null;
+      if (state.activeBotId === bot.id) {
+        renderTableView(bot);
+      } else {
+        renderApp();
+      }
+      showToast('Undid: ' + (snap.label || 'last change'));
+      return true;
+    }
+
+    function redoTableAction(bot) {
+      if (!bot) return false;
+      if (!guardWriteAction('Redo')) return false;
+      var stack = state.redoStacks[bot.id];
+      if (!stack || stack.length === 0) {
+        showToast('Nothing to redo');
+        return false;
+      }
+      var snap = stack.pop();
+      if (!state.undoStacks[bot.id]) state.undoStacks[bot.id] = [];
+      var curSnap = cloneBotSnap(bot);
+      curSnap.label = snap.label || 'Change';
+      state.undoStacks[bot.id].push(curSnap);
+      if (state.undoStacks[bot.id].length > 50) state.undoStacks[bot.id].shift();
+
+      bot.name = snap.name;
+      bot.columns = JSON.parse(JSON.stringify(snap.columns || []));
+      bot.rows = JSON.parse(JSON.stringify(snap.rows || []));
+      bot.updatedAt = new Date().toISOString();
+
+      window._tbIsUndoRedo = true;
+      try {
+        updateBot(bot, 'EDIT', 'Redo: ' + (snap.label || 'change'));
+      } finally {
+        window._tbIsUndoRedo = false;
+      }
+      resetBotUndoBase(bot);
+      state.editingCell = null;
+      state.cellMenu = null;
+      state.toolbarSubMode = null;
+      state.autoOpenDateCal = false;
+      state._calDraft = null;
+      if (state.activeBotId === bot.id) {
+        renderTableView(bot);
+      } else {
+        renderApp();
+      }
+      showToast('Redid: ' + (snap.label || 'change'));
+      return true;
+    }
+
     function updateBot(updated, auditAction, auditSummary) {
       if (!guardWriteAction(auditSummary || 'Edit Bot')) return false;
+      if (!window._tbIsUndoRedo && updated && updated.id) {
+        var prevSnap = botUndoBaseMap[updated.id];
+        if (prevSnap) {
+          var changedSnap = (
+            prevSnap.name !== String(updated.name || '') ||
+            JSON.stringify(prevSnap.columns) !== JSON.stringify(updated.columns || []) ||
+            JSON.stringify(prevSnap.rows) !== JSON.stringify(updated.rows || [])
+          );
+          if (changedSnap) {
+            if (!state.undoStacks[updated.id]) state.undoStacks[updated.id] = [];
+            prevSnap.label = auditSummary || auditAction || 'Change';
+            state.undoStacks[updated.id].push(prevSnap);
+            if (state.undoStacks[updated.id].length > 50) state.undoStacks[updated.id].shift();
+            state.redoStacks[updated.id] = [];
+          }
+        }
+        botUndoBaseMap[updated.id] = cloneBotSnap(updated);
+      }
       delete updated.isSampleSeed;
       updated.lastEditedBy = getCurrentActor();
       updated.updatedAt = updated.updatedAt || new Date().toISOString();
@@ -5835,6 +6001,9 @@
         };
         return;
       }
+      ensureBotUndoBase(bot);
+      var undoCount = getUndoCount(bot.id);
+      var redoCount = getRedoCount(bot.id);
       var q = state.tableSearchQuery.toLowerCase();
       var visibleRows = bot.rows.filter(function (r) {
         if (!q) return true;
@@ -5875,6 +6044,8 @@
             '</div>' +
           '</div>' +
           '<div class="header-right">' +
+            '<button type="button" class="header-action-btn" id="btn-hdr-undo" title="Undo (Ctrl+Z)"' + (undoCount === 0 ? ' disabled' : '') + '>' + icon('undo', 14) + '<span>Undo' + (undoCount > 0 ? ' (' + undoCount + ')' : '') + '</span></button>' +
+            '<button type="button" class="header-action-btn" id="btn-hdr-redo" title="Redo (Ctrl+Y)"' + (redoCount === 0 ? ' disabled' : '') + '>' + icon('redo', 14) + '<span>Redo' + (redoCount > 0 ? ' (' + redoCount + ')' : '') + '</span></button>' +
             '<button type="button" class="lang-toggle-btn" id="btn-table-lang" title="Switch English / አማርኛ">' + esc(t('lang_btn')) + '</button>' +
             (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 10px;font-size:11.5px;">' + icon('trash', 14) + '<span>Delete (' + selCount + ')</span></button>' : '') +
             '<button class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>' + esc(t('sync')) + '</span></button>' +
@@ -6085,11 +6256,13 @@
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
           '<button class="btn btn-primary" id="btn-add-row" style="padding:7px 14px;font-size:12px;" title="Append Row">' + icon('plus', 15) + '<span>Add Row</span></button>' +
           '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
+          '<button type="button" class="btn btn-outline" id="btn-bar-undo" style="padding:7px 11px;font-size:12px;border-color:#CBD5E1;color:#0F172A;background:#F8FAFC;"' + (undoCount === 0 ? ' disabled' : '') + ' title="Undo last change (Ctrl+Z)">' + icon('undo', 14) + '<span>Undo' + (undoCount > 0 ? ' (' + undoCount + ')' : '') + '</span></button>' +
+          '<button type="button" class="btn btn-outline" id="btn-bar-redo" style="padding:7px 11px;font-size:12px;border-color:#CBD5E1;color:#0F172A;background:#F8FAFC;"' + (redoCount === 0 ? ' disabled' : '') + ' title="Redo change (Ctrl+Y)">' + icon('redo', 14) + '<span>Redo' + (redoCount > 0 ? ' (' + redoCount + ')' : '') + '</span></button>' +
           '<button type="button" class="btn btn-outline" id="btn-bar-smart-paste" style="padding:7px 12px;font-size:12px;border-color:#A5B4FC;color:#3730A3;background:#EEF2FF;" title="Paste from phone clipboard or pick any data file into a Column or Cell">' + icon('clipboard', 14) + '<span>Paste / Phone File</span></button>' +
           (state.rowClipboard ? '<button type="button" class="btn btn-outline" id="btn-bar-paste-row" style="padding:7px 12px;font-size:12px;border-color:#86EFAC;color:#047857;background:#ECFDF5;">' + icon('copy', 13) + '<span>Paste Copied Row</span></button>' : '') +
           (state.sigmaFooterHidden && !isWritingCell ? '<button type="button" id="btn-show-sigma" class="sigma-show-chip" title="Show fixed Live Totals bar at bottom">' + icon('chart', 12) + '<span>Σ Show Live Totals</span></button>' : '') +
         '</div>' +
-        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Click any cell to write &middot; Drag, long-press, or right-click to select range</span>' +
+        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Tap cell to write &middot; Long-press &amp; drag down/across for Copy/Cut/Paste toolbar</span>' +
       '</div>';
 
       // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report — hidden completely while writing in a cell so table stays unobstructed
@@ -6147,8 +6320,10 @@
       }
       html += '</div>';
 
-      // Sticky Sigma Summary Footer (auto-hidden during active cell writing or when user hides it)
-      if (!isWritingCell && !state.sigmaFooterHidden) {
+      var showSelToolbar = selectedCellsMeta.length > 0 && !isWritingCell && !state.cellMenu;
+
+      // Sticky Sigma Summary Footer (hidden during writing or when bottom selection toolbar is open)
+      if (!isWritingCell && !state.sigmaFooterHidden && !showSelToolbar) {
         var numCols = bot.columns.filter(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; });
         html += '<footer class="sigma-footer">' +
           '<span style="color:#FCD34D;font-weight:800;white-space:nowrap;">Σ Live Totals (Num / Formula / Amt):</span>' +
@@ -6168,8 +6343,8 @@
         '</footer>';
       }
 
-      // Bottom 5-icon Toolbar (hidden while actively writing in a cell so mobile keyboards & rows are never covered)
-      if (!isWritingCell) {
+      // Bottom 5-icon Toolbar (hidden while actively writing OR when cell selection toolbar is docked at bottom)
+      if (!isWritingCell && !showSelToolbar) {
         html += '<div class="bottom-toolbar">' +
           '<button class="toolbar-btn" id="tb-cols">' + icon('sliders', 19) + '<span>Columns</span></button>' +
           '<button class="toolbar-btn" id="tb-filter">' + icon('filter', 19) + '<span>Filter</span></button>' +
@@ -6196,8 +6371,8 @@
       }
       html += '</div>';
 
-      // Floating Contextual Toolbar for Selected Cell / Multi-Cell Range
-      if (selectedCellsMeta.length > 0 && !state.editingCell && !state.cellMenu) {
+      // Bottom-Docked Selection Toolbar (never blocks table cells above/below)
+      if (showSelToolbar) {
         var selCountCells = selectedCellsMeta.length;
         var selLabel = selBounds && Object.keys(state.extraCells || {}).length === 0
           ? (selCountCells === 1 ? 'R' + (selBounds.minR + 1) + ' &middot; ' + esc(bot.columns[selBounds.minC].name) : (selBounds.maxR - selBounds.minR + 1) + '×' + (selBounds.maxC - selBounds.minC + 1) + ' (' + selCountCells + ')')
@@ -6213,18 +6388,20 @@
         selectedCellsMeta.forEach(function (m) { uniqueRowMap[m.row.id] = true; });
         var selUniqueRowsCount = Object.keys(uniqueRowMap).length;
 
-        html += '<div id="floating-cell-toolbar" class="floating-cell-toolbar" style="left:16px;top:96px;">' +
+        html += '<div id="floating-cell-toolbar" class="floating-cell-toolbar">' +
           '<div class="ftb-row">' +
-            '<span class="ftb-sel-info">' + selLabel + '</span>' +
-            '<button type="button" class="ftb-btn" data-ftb="cut" title="Cut selected cells (Ctrl+X)">' + icon('scissors', 13) + '<span>Cut</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="copy" title="Copy selected cells (Ctrl+C)">' + icon('copy', 13) + '<span>Copy</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="paste" title="Paste into selected cell(s) (Ctrl+V)">' + icon('clipboard', 13) + '<span>Paste</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="paste_modal" title="Paste phone clipboard text or pick a phone storage file into Cell / Column">' + icon('upload', 13) + '<span>Paste Box / File</span></button>' +
-            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'comment' ? ' active' : '') + '" data-ftb="comment" title="Add or view cell comment">' + icon('comment', 13) + '<span>Comment</span></button>' +
-            '<button type="button" class="ftb-btn" data-ftb="clear" title="Clear cell contents (Del)">' + icon('eraser', 13) + '<span>Clear Contents</span></button>' +
-            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'fill' ? ' active' : '') + '" data-ftb="fill" title="Fill down, right, series, or custom value">' + icon('fill', 13) + '<span>Fill</span></button>' +
-            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'bulk_edit' ? ' active' : '') + '" data-ftb="edit" title="Edit selected cell(s) (Enter)">' + icon('edit', 13) + '<span>Edit</span></button>' +
-            '<button type="button" class="ftb-btn danger' + (state.toolbarSubMode === 'delete' ? ' active' : '') + '" data-ftb="delete" title="Delete row(s) or shift cells">' + icon('trash', 13) + '<span>Delete</span></button>' +
+            '<span class="ftb-sel-info" id="ftb-sel-info">' + selLabel + '</span>' +
+            '<button type="button" class="ftb-btn" data-ftb="copy" title="Copy selected cells (Ctrl+C)">' + icon('copy', 14) + '<span>Copy</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="cut" title="Cut selected cells (Ctrl+X)">' + icon('scissors', 14) + '<span>Cut</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="paste" title="Paste into selected cell(s) (Ctrl+V)">' + icon('clipboard', 14) + '<span>Paste</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="undo" title="Undo (Ctrl+Z)"' + (undoCount === 0 ? ' disabled' : '') + '>' + icon('undo', 14) + '<span>Undo</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="redo" title="Redo (Ctrl+Y)"' + (redoCount === 0 ? ' disabled' : '') + '>' + icon('redo', 14) + '<span>Redo</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="paste_modal" title="Paste phone clipboard text or pick a phone storage file into Cell / Column">' + icon('upload', 14) + '<span>File / Box</span></button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'fill' ? ' active' : '') + '" data-ftb="fill" title="Fill down, right, series, or custom value">' + icon('fill', 14) + '<span>Fill</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="clear" title="Clear cell contents (Del)">' + icon('eraser', 14) + '<span>Clear</span></button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'bulk_edit' ? ' active' : '') + '" data-ftb="edit" title="Edit selected cell(s) (Enter)">' + icon('edit', 14) + '<span>Edit</span></button>' +
+            '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'comment' ? ' active' : '') + '" data-ftb="comment" title="Add or view cell comment">' + icon('comment', 14) + '<span>Comment</span></button>' +
+            '<button type="button" class="ftb-btn danger' + (state.toolbarSubMode === 'delete' ? ' active' : '') + '" data-ftb="delete" title="Delete row(s) or shift cells">' + icon('trash', 14) + '<span>Delete</span></button>' +
             '<button type="button" class="ftb-close-btn" id="ftb-close" title="Clear selection (Esc)">✕</button>' +
           '</div>';
 
@@ -6358,6 +6535,16 @@
         window.removeEventListener('touchend', window._tbRangeTouchEnd);
         window._tbRangeTouchEnd = null;
       }
+      if (window._tbRangeTouchCancel) {
+        window.removeEventListener('touchcancel', window._tbRangeTouchCancel);
+        window._tbRangeTouchCancel = null;
+      }
+      if (window._tbDragScrollTimer) {
+        clearInterval(window._tbDragScrollTimer);
+        window._tbDragScrollTimer = null;
+      }
+      var dragHintEl = document.getElementById('tb-drag-hint');
+      if (dragHintEl) dragHintEl.remove();
       if (window._tbKeydownHandler) {
         document.removeEventListener('keydown', window._tbKeydownHandler);
         window._tbKeydownHandler = null;
@@ -6389,6 +6576,14 @@
         state.toolbarSubMode = null;
         renderApp();
       };
+      var hdrUndoBtn = document.getElementById('btn-hdr-undo');
+      if (hdrUndoBtn) hdrUndoBtn.onclick = function () { undoTableAction(bot); };
+      var hdrRedoBtn = document.getElementById('btn-hdr-redo');
+      if (hdrRedoBtn) hdrRedoBtn.onclick = function () { redoTableAction(bot); };
+      var barUndoBtn = document.getElementById('btn-bar-undo');
+      if (barUndoBtn) barUndoBtn.onclick = function () { undoTableAction(bot); };
+      var barRedoBtn = document.getElementById('btn-bar-redo');
+      if (barRedoBtn) barRedoBtn.onclick = function () { redoTableAction(bot); };
       var tLangBtn = document.getElementById('btn-table-lang');
       if (tLangBtn) tLangBtn.onclick = toggleLanguage;
       document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
@@ -6773,6 +6968,8 @@
       };
 
       var executeContextualAction = function (act, targetsOverride, boundsOverride) {
+        if (act === 'undo') { undoTableAction(bot); return; }
+        if (act === 'redo') { redoTableAction(bot); return; }
         var targets = targetsOverride && targetsOverride.length ? targetsOverride : selectedCellsMeta;
         var activeBounds = boundsOverride || selBounds;
         if (!targets || targets.length === 0) return;
@@ -7038,47 +7235,8 @@
         });
       }
 
-      var repositionFloatingToolbar = function () {
-        var ftb = document.getElementById('floating-cell-toolbar');
-        if (!ftb) return;
-        var selEls = document.querySelectorAll('td.cell-selected, td.cell-anchor');
-        if (!selEls || selEls.length === 0) { ftb.style.display = 'none'; return; }
-        var minTop = Infinity, maxBottom = -Infinity, minLeft = Infinity, maxRight = -Infinity;
-        selEls.forEach(function (el) {
-          var r = el.getBoundingClientRect();
-          if (r.width === 0 && r.height === 0) return;
-          if (r.top < minTop) minTop = r.top;
-          if (r.bottom > maxBottom) maxBottom = r.bottom;
-          if (r.left < minLeft) minLeft = r.left;
-          if (r.right > maxRight) maxRight = r.right;
-        });
-        if (!isFinite(minTop)) { ftb.style.display = 'none'; return; }
-        ftb.style.display = 'flex';
-        var vw = window.innerWidth || 800;
-        var vh = window.innerHeight || 600;
-        var tbRect = ftb.getBoundingClientRect();
-        var tbW = tbRect.width || 320;
-        var tbH = tbRect.height || 46;
-        var centerX = (minLeft + maxRight) / 2;
-        var leftPx = Math.max(8, Math.min(vw - tbW - 8, Math.round(centerX - tbW / 2)));
-        var topPx = Math.round(minTop - tbH - 10);
-        if (topPx < 64) {
-          topPx = Math.round(maxBottom + 10);
-        }
-        var maxAllowedTop = Math.max(64, vh - tbH - 108);
-        topPx = Math.max(60, Math.min(maxAllowedTop, topPx));
-        ftb.style.left = leftPx + 'px';
-        ftb.style.top = topPx + 'px';
-      };
-
       var ftbEl = document.getElementById('floating-cell-toolbar');
       if (ftbEl) {
-        repositionFloatingToolbar();
-        var tblWrapEl = document.querySelector('.table-wrap');
-        if (tblWrapEl) tblWrapEl.onscroll = repositionFloatingToolbar;
-        window._tbResizeReposition = repositionFloatingToolbar;
-        window.addEventListener('resize', repositionFloatingToolbar);
-
         ftbEl.onmousedown = function (e) { e.stopPropagation(); };
         ftbEl.onclick = function (e) { e.stopPropagation(); };
 
@@ -7326,10 +7484,24 @@
       }
 
       // Single-cell tap/click opens inline editor immediately to write data;
-      // Drag across cells, corner handle drag, touch long-press, Shift+Click, Ctrl/Cmd+Click, or Context Menu opens range selection & floating toolbar.
+      // Long-press any cell (~360ms) immediately selects & lets you drag smoothly downwards/across without lifting;
+      // Corner handle drag, mouse drag, Shift+Click, Ctrl/Cmd+Click, or Context Menu also select ranges cleanly.
       var dragCtx = null;
       var sheetTableEl = document.querySelector('.sheet-table');
+      var tblWrapElDrag = document.querySelector('.table-wrap');
       var allCellEls = Array.prototype.slice.call(document.querySelectorAll('td.cell-selectable'));
+
+      var formatSelPreviewText = function (aR, aC, fR, fC) {
+        var minR = Math.min(aR, fR), maxR = Math.max(aR, fR);
+        var minC = Math.min(aC, fC), maxC = Math.max(aC, fC);
+        var rowsN = maxR - minR + 1;
+        var colsN = maxC - minC + 1;
+        if (rowsN === 1 && colsN === 1) {
+          var colN = bot.columns[minC] ? bot.columns[minC].name : '';
+          return 'R' + (minR + 1) + ' · ' + colN;
+        }
+        return rowsN + '×' + colsN + ' (' + (rowsN * colsN) + ' cells)';
+      };
 
       var paintDragPreview = function (aR, aC, fR, fC) {
         var minR = Math.min(aR, fR), maxR = Math.max(aR, fR);
@@ -7341,51 +7513,178 @@
           cellEl.classList.toggle('cell-selected', inside);
           cellEl.classList.toggle('cell-anchor', cr === aR && cc === aC);
         });
+        var labelTxt = formatSelPreviewText(aR, aC, fR, fC);
+        var infoEl = document.getElementById('ftb-sel-info');
+        if (infoEl) infoEl.textContent = labelTxt;
+        var hintEl = document.getElementById('tb-drag-hint');
+        if (hintEl) hintEl.textContent = labelTxt + ' — drag down/across, release for Copy / Cut / Paste';
       };
 
-      var startRangeDrag = function (aR, aC, fR, fC, alreadySingle, startX, startY, fromHandle) {
+      var resolveCellFromPoint = function (cx, cy) {
+        if (typeof document.elementFromPoint === 'function') {
+          var hitEl = document.elementFromPoint(cx, cy);
+          var tdHit = hitEl && hitEl.closest ? hitEl.closest('td.cell-selectable') : null;
+          if (tdHit) {
+            var hr0 = parseInt(tdHit.getAttribute('data-r-idx'), 10);
+            var hc0 = parseInt(tdHit.getAttribute('data-c-idx'), 10);
+            if (!isNaN(hr0) && !isNaN(hc0)) return { r: hr0, c: hc0 };
+          }
+        }
+        var rows = Array.prototype.slice.call(document.querySelectorAll('.sheet-table tbody tr'));
+        if (!rows || rows.length === 0 || !bot.columns || bot.columns.length === 0) return null;
+        var bestR = 0;
+        var firstRect = rows[0].getBoundingClientRect ? rows[0].getBoundingClientRect() : null;
+        var lastRect = rows[rows.length - 1].getBoundingClientRect ? rows[rows.length - 1].getBoundingClientRect() : null;
+        if (firstRect && cy <= firstRect.top) {
+          bestR = 0;
+        } else if (lastRect && cy >= lastRect.bottom) {
+          bestR = rows.length - 1;
+        } else {
+          var minDistR = Infinity;
+          for (var ri = 0; ri < rows.length; ri++) {
+            var rrRect = rows[ri].getBoundingClientRect ? rows[ri].getBoundingClientRect() : null;
+            if (!rrRect) continue;
+            if (cy >= rrRect.top && cy <= rrRect.bottom) { bestR = ri; minDistR = 0; break; }
+            var distR = cy < rrRect.top ? (rrRect.top - cy) : (cy - rrRect.bottom);
+            if (distR < minDistR) { minDistR = distR; bestR = ri; }
+          }
+        }
+        var rowCells = rows[bestR] ? Array.prototype.slice.call(rows[bestR].querySelectorAll('td.cell-selectable')) : [];
+        var bestC = 0;
+        if (rowCells.length > 0 && rowCells[0].getBoundingClientRect) {
+          var c0Rect = rowCells[0].getBoundingClientRect();
+          var cLastRect = rowCells[rowCells.length - 1].getBoundingClientRect();
+          if (cx <= c0Rect.left) {
+            bestC = parseInt(rowCells[0].getAttribute('data-c-idx'), 10) || 0;
+          } else if (cx >= cLastRect.right) {
+            bestC = parseInt(rowCells[rowCells.length - 1].getAttribute('data-c-idx'), 10) || (bot.columns.length - 1);
+          } else {
+            var minDistC = Infinity;
+            for (var ci2 = 0; ci2 < rowCells.length; ci2++) {
+              var cRect = rowCells[ci2].getBoundingClientRect();
+              if (cx >= cRect.left && cx <= cRect.right) {
+                bestC = parseInt(rowCells[ci2].getAttribute('data-c-idx'), 10) || 0;
+                break;
+              }
+              var distC = cx < cRect.left ? (cRect.left - cx) : (cx - cRect.right);
+              if (distC < minDistC) {
+                minDistC = distC;
+                bestC = parseInt(rowCells[ci2].getAttribute('data-c-idx'), 10) || 0;
+              }
+            }
+          }
+        }
+        return { r: bestR, c: bestC };
+      };
+
+      var beginLiveRangeDrag = function (mode, aR, aC, fR, fC, startX, startY, startImmediate) {
+        if (window._tbDragScrollTimer) { clearInterval(window._tbDragScrollTimer); window._tbDragScrollTimer = null; }
         dragCtx = {
+          mode: mode,
           anchorR: aR,
           anchorC: aC,
           focusR: fR,
           focusC: fC,
-          alreadySingle: !!alreadySingle,
-          fromHandle: !!fromHandle,
-          moved: !!fromHandle,
-          startX: startX,
-          startY: startY
+          moved: !!startImmediate,
+          lastX: startX,
+          lastY: startY
         };
-        if (fromHandle && sheetTableEl) sheetTableEl.classList.add('is-selecting');
 
-        var onMouseMove = function (ev) {
-          if (!dragCtx) return;
-          var hitEl = document.elementFromPoint(ev.clientX, ev.clientY);
-          var tdHit = hitEl && hitEl.closest ? hitEl.closest('td.cell-selectable') : null;
-          if (!tdHit) return;
-          var hr = parseInt(tdHit.getAttribute('data-r-idx'), 10);
-          var hc = parseInt(tdHit.getAttribute('data-c-idx'), 10);
-          if (isNaN(hr) || isNaN(hc)) return;
-          if (!dragCtx.moved && (hr !== dragCtx.anchorR || hc !== dragCtx.anchorC)) {
-            dragCtx.moved = true;
-            if (sheetTableEl) sheetTableEl.classList.add('is-selecting');
+        var showDragChrome = function () {
+          if (sheetTableEl) sheetTableEl.classList.add('is-selecting');
+          if (ftbEl) ftbEl.classList.add('is-dragging');
+          if (!document.getElementById('tb-drag-hint') && document.body) {
+            var hPill = document.createElement('div');
+            hPill.id = 'tb-drag-hint';
+            hPill.className = 'tb-drag-hint';
+            hPill.textContent = formatSelPreviewText(dragCtx.anchorR, dragCtx.anchorC, dragCtx.focusR, dragCtx.focusC) + ' — drag down/across, release for toolbar';
+            document.body.appendChild(hPill);
           }
-          if (dragCtx.moved && (hr !== dragCtx.focusR || hc !== dragCtx.focusC || (hr === dragCtx.anchorR && hc === dragCtx.anchorC))) {
-            dragCtx.focusR = hr;
-            dragCtx.focusC = hc;
+        };
+
+        if (startImmediate) {
+          showDragChrome();
+          paintDragPreview(aR, aC, fR, fC);
+        }
+
+        var applyDragPoint = function (cx, cy) {
+          if (!dragCtx) return;
+          dragCtx.lastX = cx;
+          dragCtx.lastY = cy;
+          var cellPos = resolveCellFromPoint(cx, cy);
+          if (!cellPos) return;
+          if (!dragCtx.moved && (cellPos.r !== dragCtx.anchorR || cellPos.c !== dragCtx.anchorC)) {
+            dragCtx.moved = true;
+            showDragChrome();
+          }
+          if (dragCtx.moved && (cellPos.r !== dragCtx.focusR || cellPos.c !== dragCtx.focusC || (cellPos.r === dragCtx.anchorR && cellPos.c === dragCtx.anchorC))) {
+            dragCtx.focusR = cellPos.r;
+            dragCtx.focusC = cellPos.c;
             paintDragPreview(dragCtx.anchorR, dragCtx.anchorC, dragCtx.focusR, dragCtx.focusC);
           }
         };
 
-        var onMouseUp = function () {
+        var stepEdgeAutoScroll = function () {
+          if (!dragCtx || !dragCtx.moved) return;
+          var cx = dragCtx.lastX;
+          var cy = dragCtx.lastY;
+          var vh = window.innerHeight || 700;
+          var vw = window.innerWidth || 800;
+          var wrapRect = tblWrapElDrag && tblWrapElDrag.getBoundingClientRect ? tblWrapElDrag.getBoundingClientRect() : { top: 56, bottom: vh - 56, left: 0, right: vw };
+          var bottomThresh = Math.min(wrapRect.bottom, vh - 48) - 42;
+          var topThresh = Math.max(wrapRect.top, 52) + 46;
+          var rightThresh = Math.min(wrapRect.right, vw) - 34;
+          var leftThresh = Math.max(wrapRect.left, 0) + 84;
+          var scrolled = false;
+
+          if (cy > bottomThresh) {
+            var dyDown = Math.min(24, Math.max(8, Math.round((cy - bottomThresh) * 0.45)));
+            if (tblWrapElDrag && tblWrapElDrag.scrollHeight > tblWrapElDrag.clientHeight + 2 && tblWrapElDrag.scrollTop < tblWrapElDrag.scrollHeight - tblWrapElDrag.clientHeight) {
+              tblWrapElDrag.scrollTop += dyDown;
+              scrolled = true;
+            } else if (typeof window.scrollBy === 'function') {
+              window.scrollBy(0, dyDown);
+              scrolled = true;
+            }
+          } else if (cy < topThresh) {
+            var dyUp = Math.min(24, Math.max(8, Math.round((topThresh - cy) * 0.45)));
+            if (tblWrapElDrag && tblWrapElDrag.scrollTop > 0) {
+              tblWrapElDrag.scrollTop = Math.max(0, tblWrapElDrag.scrollTop - dyUp);
+              scrolled = true;
+            } else if ((window.scrollY || 0) > 0 && typeof window.scrollBy === 'function') {
+              window.scrollBy(0, -dyUp);
+              scrolled = true;
+            }
+          }
+          if (cx > rightThresh && tblWrapElDrag && tblWrapElDrag.scrollLeft < tblWrapElDrag.scrollWidth - tblWrapElDrag.clientWidth) {
+            tblWrapElDrag.scrollLeft += Math.min(22, Math.max(8, Math.round((cx - rightThresh) * 0.45)));
+            scrolled = true;
+          } else if (cx < leftThresh && tblWrapElDrag && tblWrapElDrag.scrollLeft > 0) {
+            tblWrapElDrag.scrollLeft = Math.max(0, tblWrapElDrag.scrollLeft - Math.min(22, Math.max(8, Math.round((leftThresh - cx) * 0.45))));
+            scrolled = true;
+          }
+          if (scrolled) applyDragPoint(cx, cy);
+        };
+
+        window._tbDragScrollTimer = setInterval(stepEdgeAutoScroll, 32);
+
+        var finishDrag = function () {
           var ctx = dragCtx;
           dragCtx = null;
+          if (window._tbDragScrollTimer) { clearInterval(window._tbDragScrollTimer); window._tbDragScrollTimer = null; }
           if (sheetTableEl) sheetTableEl.classList.remove('is-selecting');
-          window.removeEventListener('mousemove', onMouseMove);
-          window.removeEventListener('mouseup', onMouseUp);
-          window._tbRangeMouseMove = null;
-          window._tbRangeMouseUp = null;
+          if (ftbEl) ftbEl.classList.remove('is-dragging');
+          var hEl = document.getElementById('tb-drag-hint');
+          if (hEl) hEl.remove();
+
+          if (window._tbRangeMouseMove) { window.removeEventListener('mousemove', window._tbRangeMouseMove); window._tbRangeMouseMove = null; }
+          if (window._tbRangeMouseUp) { window.removeEventListener('mouseup', window._tbRangeMouseUp); window._tbRangeMouseUp = null; }
+          if (window._tbRangeTouchMove) { window.removeEventListener('touchmove', window._tbRangeTouchMove); window._tbRangeTouchMove = null; }
+          if (window._tbRangeTouchEnd) { window.removeEventListener('touchend', window._tbRangeTouchEnd); window._tbRangeTouchEnd = null; }
+          if (window._tbRangeTouchCancel) { window.removeEventListener('touchcancel', window._tbRangeTouchCancel); window._tbRangeTouchCancel = null; }
+
           if (!ctx || !ctx.moved) return;
-          window._tbSuppressCellClickUntil = Date.now() + 300;
+          window._tbSuppressCellClickUntil = Date.now() + 360;
           state.selectedRange = {
             botId: bot.id,
             anchorR: ctx.anchorR,
@@ -7398,10 +7697,28 @@
           renderTableView(bot);
         };
 
-        window._tbRangeMouseMove = onMouseMove;
-        window._tbRangeMouseUp = onMouseUp;
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('mouseup', onMouseUp);
+        if (mode === 'touch') {
+          var onTouchMove = function (ev) {
+            if (!dragCtx || !ev.touches || !ev.touches[0]) return;
+            ev.preventDefault();
+            applyDragPoint(ev.touches[0].clientX, ev.touches[0].clientY);
+          };
+          window._tbRangeTouchMove = onTouchMove;
+          window._tbRangeTouchEnd = finishDrag;
+          window._tbRangeTouchCancel = finishDrag;
+          window.addEventListener('touchmove', onTouchMove, { passive: false });
+          window.addEventListener('touchend', finishDrag);
+          window.addEventListener('touchcancel', finishDrag);
+        } else {
+          var onMouseMove = function (ev) {
+            if (!dragCtx) return;
+            applyDragPoint(ev.clientX, ev.clientY);
+          };
+          window._tbRangeMouseMove = onMouseMove;
+          window._tbRangeMouseUp = finishDrag;
+          window.addEventListener('mousemove', onMouseMove);
+          window.addEventListener('mouseup', finishDrag);
+        }
       };
 
       var selHandleEl = document.getElementById('cell-sel-handle');
@@ -7409,68 +7726,26 @@
         selHandleEl.onmousedown = function (e) {
           e.preventDefault();
           e.stopPropagation();
-          startRangeDrag(selBounds.anchorR, selBounds.anchorC, selBounds.focusR, selBounds.focusC, false, e.clientX, e.clientY, true);
+          beginLiveRangeDrag('mouse', selBounds.anchorR, selBounds.anchorC, selBounds.focusR, selBounds.focusC, e.clientX, e.clientY, true);
         };
         selHandleEl.ontouchstart = function (e) {
           if (!e.touches || !e.touches[0]) return;
           e.preventDefault();
           e.stopPropagation();
-          var tDrag = {
-            anchorR: selBounds.anchorR,
-            anchorC: selBounds.anchorC,
-            focusR: selBounds.focusR,
-            focusC: selBounds.focusC
-          };
-          if (sheetTableEl) sheetTableEl.classList.add('is-selecting');
-          var onTouchMove = function (ev) {
-            if (!ev.touches || !ev.touches[0]) return;
-            ev.preventDefault();
-            var pt = ev.touches[0];
-            var hit = document.elementFromPoint(pt.clientX, pt.clientY);
-            var tdHit = hit && hit.closest ? hit.closest('td.cell-selectable') : null;
-            if (!tdHit) return;
-            var hr = parseInt(tdHit.getAttribute('data-r-idx'), 10);
-            var hc = parseInt(tdHit.getAttribute('data-c-idx'), 10);
-            if (!isNaN(hr) && !isNaN(hc) && (hr !== tDrag.focusR || hc !== tDrag.focusC)) {
-              tDrag.focusR = hr;
-              tDrag.focusC = hc;
-              paintDragPreview(tDrag.anchorR, tDrag.anchorC, tDrag.focusR, tDrag.focusC);
-            }
-          };
-          var onTouchEnd = function () {
-            if (sheetTableEl) sheetTableEl.classList.remove('is-selecting');
-            window.removeEventListener('touchmove', onTouchMove);
-            window.removeEventListener('touchend', onTouchEnd);
-            window._tbRangeTouchMove = null;
-            window._tbRangeTouchEnd = null;
-            window._tbSuppressCellClickUntil = Date.now() + 400;
-            state.selectedRange = {
-              botId: bot.id,
-              anchorR: tDrag.anchorR,
-              anchorC: tDrag.anchorC,
-              focusR: tDrag.focusR,
-              focusC: tDrag.focusC
-            };
-            state.extraCells = {};
-            state.toolbarSubMode = null;
-            renderTableView(bot);
-          };
-          window._tbRangeTouchMove = onTouchMove;
-          window._tbRangeTouchEnd = onTouchEnd;
-          window.addEventListener('touchmove', onTouchMove, { passive: false });
-          window.addEventListener('touchend', onTouchEnd);
+          beginLiveRangeDrag('touch', selBounds.anchorR, selBounds.anchorC, selBounds.focusR, selBounds.focusC, e.touches[0].clientX, e.touches[0].clientY, true);
         };
       }
 
       document.querySelectorAll('td.cell-selectable').forEach(function (td) {
         var lpTimer = null;
         var lpStartX = 0, lpStartY = 0;
+        var lpCurX = 0, lpCurY = 0;
 
         td.ontouchstart = function (e) {
           if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
           if (!e.touches || e.touches.length !== 1) return;
-          lpStartX = e.touches[0].clientX;
-          lpStartY = e.touches[0].clientY;
+          lpStartX = lpCurX = e.touches[0].clientX;
+          lpStartY = lpCurY = e.touches[0].clientY;
           var rIdx = parseInt(td.getAttribute('data-r-idx'), 10);
           var cIdx = parseInt(td.getAttribute('data-c-idx'), 10);
           if (isNaN(rIdx) || isNaN(cIdx)) return;
@@ -7480,18 +7755,21 @@
             window._tbSuppressCellClickUntil = Date.now() + 700;
             if (state.editingCell && activeInp) commitActiveCell(undefined, false, true);
             state.cellMenu = null;
-            state.selectedRange = { botId: bot.id, anchorR: rIdx, anchorC: cIdx, focusR: rIdx, focusC: cIdx };
-            state.extraCells = {};
-            state.toolbarSubMode = null;
-            renderTableView(bot);
-          }, 480);
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              try { navigator.vibrate(18); } catch (eV) {}
+            }
+            beginLiveRangeDrag('touch', rIdx, cIdx, rIdx, cIdx, lpCurX, lpCurY, true);
+          }, 360);
         };
 
         td.ontouchmove = function (e) {
-          if (!lpTimer || !e.touches || !e.touches[0]) return;
-          var dx = Math.abs(e.touches[0].clientX - lpStartX);
-          var dy = Math.abs(e.touches[0].clientY - lpStartY);
-          if (dx > 8 || dy > 8) {
+          if (!e.touches || !e.touches[0]) return;
+          lpCurX = e.touches[0].clientX;
+          lpCurY = e.touches[0].clientY;
+          if (!lpTimer) return;
+          var dx = Math.abs(lpCurX - lpStartX);
+          var dy = Math.abs(lpCurY - lpStartY);
+          if (dx > 10 || dy > 10) {
             clearTimeout(lpTimer);
             lpTimer = null;
           }
@@ -7569,7 +7847,7 @@
             return;
           }
 
-          startRangeDrag(rIdx, cIdx, rIdx, cIdx, false, e.clientX, e.clientY, false);
+          beginLiveRangeDrag('mouse', rIdx, cIdx, rIdx, cIdx, e.clientX, e.clientY, false);
         };
 
         td.onclick = function (e) {
@@ -7610,7 +7888,7 @@
         }, 0);
       }
 
-      // Keyboard navigation & shortcuts for selected cell(s)
+      // Keyboard navigation & shortcuts for table Undo/Redo + selected cell(s)
       var tableKeyHandler = function (e) {
         if (document.getElementById('tb-cal-backdrop') && e.key === 'Escape') {
           e.preventDefault();
@@ -7624,9 +7902,21 @@
         if (state.modal || state.drawerOpen || state.editingTitle || state.editingCell) return;
         var ae = document.activeElement;
         if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
-        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
 
         var ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl && (e.key === 'z' || e.key === 'Z')) {
+          e.preventDefault();
+          if (e.shiftKey) redoTableAction(bot);
+          else undoTableAction(bot);
+          return;
+        }
+        if (ctrl && (e.key === 'y' || e.key === 'Y')) {
+          e.preventDefault();
+          redoTableAction(bot);
+          return;
+        }
+        if (!selectedCellsMeta || selectedCellsMeta.length === 0) return;
+
         if (e.key === 'Escape') {
           state.selectedRange = null;
           state.extraCells = {};
