@@ -5407,6 +5407,402 @@
       if (fabBlank) fabBlank.onclick = function () { createInstantBot(true); };
     }
 
+    function buildBlankRowForBot(bot) {
+      var nowIso = new Date().toISOString();
+      var nr = { id: 'row_' + Date.now() + '_' + Math.floor(Math.random() * 10000), _actor: getCurrentActor(), _createdAt: nowIso, _updatedAt: nowIso };
+      (bot.columns || []).forEach(function (c) {
+        if (c.type === 'amount' || c.type === 'number') nr[c.id] = '';
+        else if (c.type === 'formula') nr[c.id] = '';
+        else if (c.type === 'checkbox') nr[c.id] = false;
+        else if (c.type === 'date') nr[c.id] = c.autoInsertDate === true ? formatAutoDateStr(c, nowIso) : '';
+        else nr[c.id] = '';
+      });
+      return nr;
+    }
+
+    function parseCellValueForCol(rawVal, col) {
+      if (!col) return rawVal;
+      if (col.type === 'checkbox') {
+        return rawVal === true || /^(true|yes|1|✓|checked)$/i.test(String(rawVal === undefined || rawVal === null ? '' : rawVal).trim());
+      }
+      if (col.type === 'amount' || col.type === 'number') {
+        var sNum = String(rawVal === undefined || rawVal === null ? '' : rawVal).trim();
+        if (sNum === '') return '';
+        var isParenNeg = /^\(([^)]+)\)$/.test(sNum);
+        var cleanedNum = sNum.replace(/^\(([^)]+)\)$/, '-$1').replace(/[^0-9.-]/g, '');
+        if (!cleanedNum || cleanedNum === '-' || cleanedNum === '.') return '';
+        var num = parseFloat(cleanedNum);
+        if (isNaN(num)) return '';
+        return isParenNeg && num > 0 ? -num : num;
+      }
+      if (col.type === 'date') {
+        var sDate = String(rawVal === undefined || rawVal === null ? '' : rawVal).trim();
+        if (sDate === '') return '';
+        return formatAutoDateStr(col, parseFlexibleDate(sDate, undefined, col));
+      }
+      if (col.type === 'formula') {
+        return rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
+      }
+      return rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
+    }
+
+    function parseClipboardOrFileTextToMatrix(rawText, delimiterMode) {
+      var mode = delimiterMode || 'auto';
+      var text = String(rawText === undefined || rawText === null ? '' : rawText).replace(/\uFEFF/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      var trimmed = text.trim();
+      if (!trimmed) return { matrix: [], rowCount: 0, colCount: 0, detectedDelimiter: 'none' };
+
+      if (mode === 'auto' && (trimmed[0] === '[' || trimmed[0] === '{')) {
+        try {
+          var parsedJson = JSON.parse(trimmed);
+          var jsonRows = [];
+          if (Array.isArray(parsedJson)) {
+            if (parsedJson.length > 0 && parsedJson[0] && typeof parsedJson[0] === 'object' && !Array.isArray(parsedJson[0])) {
+              var keysMap = {};
+              var keysOrder = [];
+              parsedJson.forEach(function (obj) {
+                if (obj && typeof obj === 'object') {
+                  Object.keys(obj).forEach(function (k) {
+                    if (k === 'id' || k.charAt(0) === '_') return;
+                    if (!keysMap[k]) { keysMap[k] = true; keysOrder.push(k); }
+                  });
+                }
+              });
+              if (keysOrder.length === 0) {
+                parsedJson.forEach(function (obj) {
+                  if (obj && typeof obj === 'object') {
+                    Object.keys(obj).forEach(function (k) {
+                      if (!keysMap[k]) { keysMap[k] = true; keysOrder.push(k); }
+                    });
+                  }
+                });
+              }
+              if (keysOrder.length > 0) {
+                jsonRows.push(keysOrder);
+                parsedJson.forEach(function (obj) {
+                  jsonRows.push(keysOrder.map(function (k) {
+                    var v = obj && obj[k] !== undefined && obj[k] !== null ? obj[k] : '';
+                    return typeof v === 'object' ? JSON.stringify(v) : String(v);
+                  }));
+                });
+              }
+            } else {
+              parsedJson.forEach(function (item) {
+                if (Array.isArray(item)) {
+                  jsonRows.push(item.map(function (c) { return c === undefined || c === null ? '' : String(c); }));
+                } else {
+                  jsonRows.push([item === undefined || item === null ? '' : String(item)]);
+                }
+              });
+            }
+          } else if (parsedJson && typeof parsedJson === 'object') {
+            if (Array.isArray(parsedJson.rows) && parsedJson.rows.length > 0) {
+              return parseClipboardOrFileTextToMatrix(JSON.stringify(parsedJson.rows), 'auto');
+            }
+            Object.keys(parsedJson).forEach(function (k) {
+              var val = parsedJson[k];
+              jsonRows.push([k, typeof val === 'object' ? JSON.stringify(val) : String(val === undefined || val === null ? '' : val)]);
+            });
+          }
+          if (jsonRows.length > 0) {
+            var maxJCols = jsonRows.reduce(function (mx, r) { return Math.max(mx, r.length); }, 1);
+            jsonRows = jsonRows.map(function (r) {
+              while (r.length < maxJCols) r.push('');
+              return r;
+            });
+            return { matrix: jsonRows, rowCount: jsonRows.length, colCount: maxJCols, detectedDelimiter: 'json' };
+          }
+        } catch (errJson) {}
+      }
+
+      var lines = text.split('\n');
+      while (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+      var nonEmptyLines = lines.filter(function (l) { return l.trim() !== ''; });
+      if (nonEmptyLines.length === 0) return { matrix: [], rowCount: 0, colCount: 0, detectedDelimiter: 'none' };
+
+      var chosenSep = null;
+      if (mode === 'tab') chosenSep = '\t';
+      else if (mode === 'comma') chosenSep = ',';
+      else if (mode === 'semicolon') chosenSep = ';';
+      else if (mode === 'pipe') chosenSep = '|';
+      else if (mode === 'line') chosenSep = null;
+      else {
+        var hasTabs = nonEmptyLines.some(function (l) { return l.indexOf('\t') !== -1; });
+        if (hasTabs) {
+          chosenSep = '\t';
+        } else {
+          var commaLines = nonEmptyLines.filter(function (l) { return l.indexOf(',') !== -1; });
+          var allLookLikeFormattedNums = commaLines.length > 0 && commaLines.every(function (l) {
+            return /^[-+$€£¥₹\s]*\d{1,3}(,\d{3})+(\.\d+)?\s*(ETB|USD|EUR)?$/i.test(l.trim());
+          });
+          if (commaLines.length > 0 && !allLookLikeFormattedNums && (commaLines.length === nonEmptyLines.length || (nonEmptyLines.length > 1 && commaLines.length >= Math.ceil(nonEmptyLines.length * 0.7)))) {
+            chosenSep = ',';
+          } else {
+            var semiLines = nonEmptyLines.filter(function (l) { return l.indexOf(';') !== -1; });
+            var pipeLines = nonEmptyLines.filter(function (l) { return l.indexOf('|') !== -1; });
+            if (semiLines.length >= Math.ceil(nonEmptyLines.length * 0.7) && semiLines.length > 0) chosenSep = ';';
+            else if (pipeLines.length >= Math.ceil(nonEmptyLines.length * 0.7) && pipeLines.length > 0) chosenSep = '|';
+          }
+        }
+      }
+
+      var matrixOut = [];
+      if (chosenSep) {
+        var parsedRows = parseCsvTextFallback(lines.join('\n'), chosenSep);
+        var maxC = parsedRows.reduce(function (mx, r) { return Math.max(mx, r.length); }, 1);
+        matrixOut = parsedRows.map(function (r) {
+          var copyR = r.slice();
+          while (copyR.length < maxC) copyR.push('');
+          return copyR;
+        });
+      } else {
+        matrixOut = nonEmptyLines.map(function (l) { return [l]; });
+      }
+      var colCnt = matrixOut.length > 0 ? matrixOut[0].length : 0;
+      var delimName = chosenSep === '\t' ? 'tab' : chosenSep === ',' ? 'comma' : chosenSep === ';' ? 'semicolon' : chosenSep === '|' ? 'pipe' : 'line';
+      return { matrix: matrixOut, rowCount: matrixOut.length, colCount: colCnt, detectedDelimiter: delimName };
+    }
+
+    function parseAnyPhoneDataFile(file, onDone) {
+      if (!file) { onDone({ sheets: [], error: 'No file selected' }); return; }
+      var fileName = file.name || 'data_file';
+      var lower = fileName.toLowerCase();
+      var readerArr = new FileReader();
+      readerArr.onerror = function () {
+        onDone({ sheets: [], error: 'Could not read file "' + fileName + '" from storage.' });
+      };
+      readerArr.onload = function (ev) {
+        var buf = ev.target.result;
+        var textReader = new FileReader();
+        textReader.onerror = function () {
+          try {
+            var sheetsBinOnly = parseExcelArrayBufferToSheets(fileName, buf, '');
+            onDone({ sheets: sheetsBinOnly, error: sheetsBinOnly.length ? null : 'Could not parse "' + fileName + '".' });
+          } catch (errB) {
+            onDone({ sheets: [], error: errB && errB.message ? errB.message : 'Unsupported file format' });
+          }
+        };
+        textReader.onload = function (tev) {
+          var rawTxt = tev.target.result || '';
+          try {
+            if (window.XLSX && /\.(xlsx|xls|ods|xlsm|xlsb)$/i.test(lower)) {
+              var wb = window.XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
+              var xlSheets = [];
+              wb.SheetNames.forEach(function (sname) {
+                var ws = wb.Sheets[sname];
+                var aoa = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                aoa = aoa.filter(function (r) { return Array.isArray(r) && r.some(function (c) { return c !== '' && c !== null && c !== undefined; }); });
+                if (aoa.length > 0) {
+                  var strAoa = aoa.map(function (rowArr) {
+                    return rowArr.map(function (val) {
+                      if (val instanceof Date && !isNaN(val.getTime())) return val.toISOString().slice(0, 16).replace('T', ' ');
+                      return val === undefined || val === null ? '' : String(val);
+                    });
+                  });
+                  var maxC = strAoa.reduce(function (mx, r) { return Math.max(mx, r.length); }, 1);
+                  strAoa = strAoa.map(function (r) { while (r.length < maxC) r.push(''); return r; });
+                  xlSheets.push({ name: sname, rawMatrix: strAoa, rowCount: strAoa.length, colCount: maxC });
+                }
+              });
+              onDone({ sheets: xlSheets, rawText: rawTxt, error: xlSheets.length ? null : 'Workbook has no readable rows.' });
+              return;
+            }
+            var parsedText = parseClipboardOrFileTextToMatrix(rawTxt, 'auto');
+            if (parsedText.matrix.length > 0) {
+              onDone({
+                sheets: [{
+                  name: fileName.replace(/\.[^.]+$/, '') || 'File Data',
+                  rawMatrix: parsedText.matrix,
+                  rowCount: parsedText.rowCount,
+                  colCount: parsedText.colCount
+                }],
+                rawText: rawTxt,
+                detectedDelimiter: parsedText.detectedDelimiter,
+                error: null
+              });
+              return;
+            }
+            if (window.XLSX) {
+              var fallbackSheets = parseExcelArrayBufferToSheets(fileName, buf, rawTxt);
+              var mapped = fallbackSheets.map(function (sh) {
+                var rawM = [sh.headers].concat(sh.rows.map(function (r) { return r.map(function (c) { return c === undefined || c === null ? '' : String(c); }); }));
+                return { name: sh.name, rawMatrix: rawM, rowCount: rawM.length, colCount: sh.headers.length };
+              });
+              onDone({ sheets: mapped, rawText: rawTxt, error: mapped.length ? null : 'No data rows found in "' + fileName + '".' });
+              return;
+            }
+            onDone({ sheets: [], rawText: rawTxt, error: 'No data rows detected in "' + fileName + '".' });
+          } catch (errParse) {
+            onDone({ sheets: [], rawText: rawTxt, error: errParse && errParse.message ? errParse.message : 'Failed to parse file.' });
+          }
+        };
+        textReader.readAsText(file);
+      };
+      readerArr.readAsArrayBuffer(file);
+    }
+
+    function applyMatrixPasteToTable(bot, visibleRows, matrix, options) {
+      options = options || {};
+      if (!bot || !matrix || matrix.length === 0) return { pastedCount: 0, addedRows: 0, addedCols: 0 };
+      var nowIso = new Date().toISOString();
+      var actor = getCurrentActor();
+      var pastedCount = 0;
+      var addedRows = 0;
+      var addedCols = 0;
+      var mode = options.mode || 'cell';
+
+      if (mode === 'column') {
+        var targetCol = bot.columns.find(function (c) { return c.id === options.colId; }) || bot.columns[0];
+        if (!targetCol) return { pastedCount: 0, addedRows: 0, addedCols: 0 };
+        var srcColIdx = Math.max(0, Number(options.sourceColIdx) || 0);
+        var vals = [];
+        for (var i = (options.skipHeaderRow ? 1 : 0); i < matrix.length; i++) {
+          var rowArr = matrix[i] || [];
+          var rawCellVal = srcColIdx < rowArr.length ? rowArr[srcColIdx] : '';
+          vals.push(rawCellVal);
+        }
+        if (vals.length === 0) return { pastedCount: 0, addedRows: 0, addedCols: 0 };
+        var fillMode = options.fillMode || 'overwrite';
+        var startIdx = Math.max(0, Number(options.startRowIdx) || 0);
+        var writeRowCell = function (rowObj, rawV) {
+          var parsedV = parseCellValueForCol(rawV, targetCol);
+          rowObj[targetCol.id] = parsedV;
+          rowObj._actor = actor;
+          rowObj._updatedAt = nowIso;
+          if (targetCol.type === 'date' && String(parsedV).trim() !== '') rowObj._dateEdited = true;
+          if (targetCol.type !== 'date' && String(parsedV).trim() !== '' && String(parsedV) !== '0') {
+            autoFillRowDates(bot, rowObj, nowIso, targetCol.id);
+          }
+          pastedCount++;
+        };
+
+        if (fillMode === 'append') {
+          vals.forEach(function (v) {
+            var nr = buildBlankRowForBot(bot);
+            bot.rows.push(nr);
+            visibleRows.push(nr);
+            addedRows++;
+            writeRowCell(nr, v);
+          });
+        } else if (fillMode === 'fill_empty') {
+          var vCursor = 0;
+          for (var rScan = startIdx; rScan < visibleRows.length && vCursor < vals.length; rScan++) {
+            var existingR = visibleRows[rScan];
+            var curV = existingR[targetCol.id];
+            var isBlank = curV === undefined || curV === null || String(curV).trim() === '';
+            if (isBlank) {
+              writeRowCell(existingR, vals[vCursor++]);
+            }
+          }
+          while (vCursor < vals.length) {
+            var nr2 = buildBlankRowForBot(bot);
+            bot.rows.push(nr2);
+            visibleRows.push(nr2);
+            addedRows++;
+            writeRowCell(nr2, vals[vCursor++]);
+          }
+        } else {
+          for (var k = 0; k < vals.length; k++) {
+            var rowPos = startIdx + k;
+            var destR = visibleRows[rowPos];
+            if (!destR) {
+              destR = buildBlankRowForBot(bot);
+              bot.rows.push(destR);
+              visibleRows.push(destR);
+              addedRows++;
+            }
+            writeRowCell(destR, vals[k]);
+          }
+        }
+        bot.updatedAt = nowIso;
+        updateBot(bot, 'EDIT', 'Pasted ' + pastedCount + ' value(s) into column "' + targetCol.name + '"' + (addedRows ? ' (+' + addedRows + ' new rows)' : ''));
+        return { pastedCount: pastedCount, addedRows: addedRows, addedCols: 0, colName: targetCol.name };
+      }
+
+      var targets = options.targets;
+      var isSingleSource = matrix.length === 1 && matrix[0].length === 1;
+      if (isSingleSource && targets && targets.length > 0) {
+        var singleSrc = matrix[0][0];
+        targets.forEach(function (m) {
+          var parsedVal = parseCellValueForCol(singleSrc, m.col);
+          m.row[m.col.id] = parsedVal;
+          m.row._actor = actor;
+          m.row._updatedAt = nowIso;
+          if (m.col.type === 'date' && String(parsedVal).trim() !== '') m.row._dateEdited = true;
+          if (m.col.type !== 'date' && String(parsedVal).trim() !== '' && String(parsedVal) !== '0') {
+            autoFillRowDates(bot, m.row, nowIso, m.col.id);
+          }
+          pastedCount++;
+        });
+        bot.updatedAt = nowIso;
+        updateBot(bot, 'EDIT', 'Pasted ' + pastedCount + ' cell(s)');
+        return { pastedCount: pastedCount, addedRows: 0, addedCols: 0 };
+      }
+
+      var startR = Math.max(0, Number(options.startR) || 0);
+      var startC = Math.max(0, Number(options.startC) || 0);
+      var startRowOffset = options.skipHeaderRow ? 1 : 0;
+      var maxPasteCols = 1;
+      for (var dr = startRowOffset; dr < matrix.length; dr++) {
+        var srcRowArr = matrix[dr] || [];
+        if (srcRowArr.length > maxPasteCols) maxPasteCols = srcRowArr.length;
+        var targetRowIdx = startR + (dr - startRowOffset);
+        while (targetRowIdx >= visibleRows.length) {
+          var appendedRow = buildBlankRowForBot(bot);
+          bot.rows.push(appendedRow);
+          visibleRows.push(appendedRow);
+          addedRows++;
+        }
+        var tr = visibleRows[targetRowIdx];
+        for (var dc = 0; dc < srcRowArr.length; dc++) {
+          var targetColIdx = startC + dc;
+          if (targetColIdx >= bot.columns.length) {
+            if (!options.autoCreateColumns) continue;
+            var newColName = (options.skipHeaderRow && matrix[0] && matrix[0][dc])
+              ? String(matrix[0][dc]).trim() || ('Column ' + (bot.columns.length + 1))
+              : ('Column ' + (bot.columns.length + 1));
+            var sampleVals = matrix.slice(startRowOffset, startRowOffset + 15).map(function (rr) { return rr[dc]; });
+            var inferredT = inferExcelColType(newColName, sampleVals);
+            bot.columns.push({
+              id: 'col_' + Date.now() + '_' + targetColIdx + '_' + Math.floor(Math.random() * 100),
+              name: newColName,
+              type: inferredT,
+              widthMultiplier: 1.0,
+              currency: 'None',
+              thousandSeparator: inferredT === 'amount' || inferredT === 'number',
+              decimals: inferredT === 'amount' ? 2 : 0,
+              style: { bold: inferredT === 'amount', italic: false, align: (inferredT === 'amount' || inferredT === 'number') ? 'right' : 'left', color: inferredT === 'amount' ? '#E65100' : '#1E293B', bgColor: '#FFFFFF' },
+              includeInGraph: true
+            });
+            addedCols++;
+          }
+          var tc = bot.columns[targetColIdx];
+          if (!tc) continue;
+          var parsed = parseCellValueForCol(srcRowArr[dc], tc);
+          tr[tc.id] = parsed;
+          tr._actor = actor;
+          tr._updatedAt = nowIso;
+          if (tc.type === 'date' && String(parsed).trim() !== '') tr._dateEdited = true;
+          if (tc.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
+            autoFillRowDates(bot, tr, nowIso, tc.id);
+          }
+          pastedCount++;
+        }
+      }
+      var effRows = Math.max(1, matrix.length - startRowOffset);
+      state.selectedRange = {
+        botId: bot.id,
+        anchorR: startR,
+        anchorC: startC,
+        focusR: Math.max(startR, Math.min(visibleRows.length - 1, startR + effRows - 1)),
+        focusC: Math.max(startC, Math.min(bot.columns.length - 1, startC + maxPasteCols - 1))
+      };
+      state.extraCells = {};
+      bot.updatedAt = nowIso;
+      updateBot(bot, 'EDIT', 'Pasted ' + pastedCount + ' cell(s)' + (addedRows ? ' (+' + addedRows + ' new rows)' : '') + (addedCols ? ' (+' + addedCols + ' new cols)' : ''));
+      return { pastedCount: pastedCount, addedRows: addedRows, addedCols: addedCols };
+    }
+
     // Spreadsheet Table View
     function renderTableView(bot) {
       var botFolder = bot.folder || 'General';
@@ -5617,7 +6013,9 @@
             var isDateCol = col.type === 'date';
             var isEcCol = isDateCol && isEthiopianCol(col);
             var isDtCol = isDateCol && (col.dateFormat === 'dmy_time' || col.dateFormat === 'iso');
-            var itype = isDateCol ? (isDtCol ? 'datetime-local' : 'date') : ((col.type === 'amount' || col.type === 'number') ? 'number' : 'text');
+            var isNumInputCol = (col.type === 'amount' || col.type === 'number');
+            var itype = isDateCol ? (isDtCol ? 'datetime-local' : 'date') : 'text';
+            var inputModeAttr = isNumInputCol ? ' inputmode="decimal"' : '';
             var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
             if (isDateCol) {
               var cellFsDate = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
@@ -5629,7 +6027,7 @@
             } else {
               var cellFsEdit = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
               html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><div class="cell-edit-wrap" id="cell-edit-wrap">' +
-                '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '" step="any" value="' + esc(inpVal) + '" style="font-size:' + cellFsEdit + 'px;" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" />' +
+                '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '"' + inputModeAttr + ' value="' + esc(inpVal) + '" style="font-size:' + cellFsEdit + 'px;" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" />' +
                 '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
               '</div></td>';
             }
@@ -5687,6 +6085,7 @@
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
           '<button class="btn btn-primary" id="btn-add-row" style="padding:7px 14px;font-size:12px;" title="Append Row">' + icon('plus', 15) + '<span>Add Row</span></button>' +
           '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
+          '<button type="button" class="btn btn-outline" id="btn-bar-smart-paste" style="padding:7px 12px;font-size:12px;border-color:#A5B4FC;color:#3730A3;background:#EEF2FF;" title="Paste from phone clipboard or pick any data file into a Column or Cell">' + icon('clipboard', 14) + '<span>Paste / Phone File</span></button>' +
           (state.rowClipboard ? '<button type="button" class="btn btn-outline" id="btn-bar-paste-row" style="padding:7px 12px;font-size:12px;border-color:#86EFAC;color:#047857;background:#ECFDF5;">' + icon('copy', 13) + '<span>Paste Copied Row</span></button>' : '') +
           (state.sigmaFooterHidden && !isWritingCell ? '<button type="button" id="btn-show-sigma" class="sigma-show-chip" title="Show fixed Live Totals bar at bottom">' + icon('chart', 12) + '<span>Σ Show Live Totals</span></button>' : '') +
         '</div>' +
@@ -5782,7 +6181,8 @@
           html += '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:245px;">' +
             '<button class="dropdown-item" id="more-toggle-sigma">' + icon('chart', 15) + '<span>' + (state.sigmaFooterHidden ? 'Show Σ Live Totals Bar' : 'Hide Σ Live Totals Bar') + '</span></button>' +
             '<button class="dropdown-item" id="more-file-history">' + icon('history', 15) + '<span>File Version History</span></button>' +
-            '<button class="dropdown-item" id="more-import-excel">' + icon('excel', 15) + '<span>Import Excel (.xlsx / .csv)</span></button>' +
+            '<button class="dropdown-item" id="more-smart-paste">' + icon('clipboard', 15) + '<span>Paste / Phone File to Col or Cell</span></button>' +
+            '<button class="dropdown-item" id="more-import-excel">' + icon('excel', 15) + '<span>Import Excel / Data File</span></button>' +
             '<button class="dropdown-item" id="more-backup-history">' + icon('folder', 15) + '<span>Folder Backup &amp; Missing</span></button>' +
             '<button class="dropdown-item" id="more-admin">' + icon('shield', 15) + '<span>Admin Activity &amp; Transmit</span></button>' +
             '<button class="dropdown-item" id="more-access-code">' + icon('lock', 15) + '<span>Lock Screen &amp; Change Code</span></button>' +
@@ -5819,6 +6219,7 @@
             '<button type="button" class="ftb-btn" data-ftb="cut" title="Cut selected cells (Ctrl+X)">' + icon('scissors', 13) + '<span>Cut</span></button>' +
             '<button type="button" class="ftb-btn" data-ftb="copy" title="Copy selected cells (Ctrl+C)">' + icon('copy', 13) + '<span>Copy</span></button>' +
             '<button type="button" class="ftb-btn" data-ftb="paste" title="Paste into selected cell(s) (Ctrl+V)">' + icon('clipboard', 13) + '<span>Paste</span></button>' +
+            '<button type="button" class="ftb-btn" data-ftb="paste_modal" title="Paste phone clipboard text or pick a phone storage file into Cell / Column">' + icon('upload', 13) + '<span>Paste Box / File</span></button>' +
             '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'comment' ? ' active' : '') + '" data-ftb="comment" title="Add or view cell comment">' + icon('comment', 13) + '<span>Comment</span></button>' +
             '<button type="button" class="ftb-btn" data-ftb="clear" title="Clear cell contents (Del)">' + icon('eraser', 13) + '<span>Clear Contents</span></button>' +
             '<button type="button" class="ftb-btn' + (state.toolbarSubMode === 'fill' ? ' active' : '') + '" data-ftb="fill" title="Fill down, right, series, or custom value">' + icon('fill', 13) + '<span>Fill</span></button>' +
@@ -5907,6 +6308,7 @@
             '<button type="button" class="dropdown-item" data-cact="cut">' + icon('scissors', 14) + '<span>Cut' + (cmMultiCount > 1 ? ' (' + cmMultiCount + ')' : '') + '</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="copy">' + icon('copy', 14) + '<span>Copy' + (cmMultiCount > 1 ? ' (' + cmMultiCount + ')' : '') + '</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="paste">' + icon('clipboard', 14) + '<span>Paste' + (cmClipPreview ? ' ("' + esc(cmClipPreview) + '")' : '') + '</span></button>' +
+            '<button type="button" class="dropdown-item" data-cact="paste_modal">' + icon('upload', 14) + '<span>Paste Text / Phone File...</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="comment">' + icon('comment', 14) + '<span>Comment</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="clear">' + icon('eraser', 14) + '<span>Clear Contents</span></button>' +
             '<button type="button" class="dropdown-item" data-cact="fill">' + icon('fill', 14) + '<span>Fill (Down / Right / Series)</span></button>' +
@@ -5967,6 +6369,10 @@
       if (window._tbOutsideSelectionClick) {
         document.removeEventListener('click', window._tbOutsideSelectionClick);
         window._tbOutsideSelectionClick = null;
+      }
+      if (window._tbDocPasteHandler) {
+        document.removeEventListener('paste', window._tbDocPasteHandler);
+        window._tbDocPasteHandler = null;
       }
     }
 
@@ -6047,16 +6453,7 @@
       if (tbColsBtn) tbColsBtn.onclick = addColFn;
 
       var buildBlankRow = function () {
-        var nowIso = new Date().toISOString();
-        var nr = { id: 'row_' + Date.now() + '_' + Math.floor(Math.random() * 1000), _actor: getCurrentActor(), _createdAt: nowIso, _updatedAt: nowIso };
-        bot.columns.forEach(function (c) {
-          if (c.type === 'amount' || c.type === 'number') nr[c.id] = '';
-          else if (c.type === 'formula') nr[c.id] = '';
-          else if (c.type === 'checkbox') nr[c.id] = false;
-          else if (c.type === 'date') nr[c.id] = c.autoInsertDate === true ? formatAutoDateStr(c, nowIso) : '';
-          else nr[c.id] = '';
-        });
-        return nr;
+        return buildBlankRowForBot(bot);
       };
 
       document.getElementById('btn-add-row').onclick = function () {
@@ -6196,22 +6593,7 @@
         if (!skipRender) renderTableView(bot);
       };
 
-      var parseCellValueForCol = function (rawVal, col) {
-        if (!col) return rawVal;
-        if (col.type === 'checkbox') {
-          return rawVal === true || /^(true|yes|1)$/i.test(String(rawVal || '').trim());
-        }
-        if (col.type === 'amount' || col.type === 'number') {
-          if (String(rawVal === undefined || rawVal === null ? '' : rawVal).trim() === '') return '';
-          var num = parseFloat(String(rawVal).replace(/[^0-9.-]/g, ''));
-          return isNaN(num) ? '' : num;
-        }
-        if (col.type === 'date') {
-          if (String(rawVal === undefined || rawVal === null ? '' : rawVal).trim() === '') return '';
-          return formatAutoDateStr(col, parseFlexibleDate(rawVal, undefined, col));
-        }
-        return rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
-      };
+      // Uses global parseCellValueForCol(rawVal, col) defined above renderTableView
 
       var openCellEditor = function (rid, cid) {
         var colObj = bot.columns.find(function (c) { return c.id === cid; });
@@ -6331,80 +6713,63 @@
         showToast('Cut ' + targets.length + ' cell' + (targets.length === 1 ? '' : 's'));
       };
 
-      var pasteSelectedCellsAction = async function (targetsOverride) {
+      var openSmartPasteDialogForTargets = function (targets, initialText, preferredMode) {
+        var firstT = targets && targets[0] ? targets[0] : null;
+        var startRIdx = selBounds ? selBounds.minR : (firstT ? firstT.rIdx : 0);
+        var startCIdx = selBounds ? selBounds.minC : (firstT ? firstT.cIdx : 0);
+        var targetCol = firstT && firstT.col ? firstT.col : (bot.columns[startCIdx] || bot.columns[0]);
+        openModal('smart_paste', {
+          bot: bot,
+          targetMode: preferredMode || 'cell',
+          colId: targetCol ? targetCol.id : '',
+          startRowIdx: startRIdx,
+          startColIdx: startCIdx,
+          rawText: initialText || '',
+          statusMsg: initialText ? '' : 'Long-press & Paste from your phone clipboard, or choose any file from Phone Storage.'
+        });
+      };
+
+      var pasteSelectedCellsAction = async function (targetsOverride, explicitRawText) {
         var targets = targetsOverride && targetsOverride.length ? targetsOverride : selectedCellsMeta;
-        if (!targets || targets.length === 0) return;
+        if (!targets || targets.length === 0) {
+          openSmartPasteDialogForTargets([], explicitRawText || '', 'column');
+          return;
+        }
         if (!guardWriteAction('Paste Cells')) return;
-        var matrix = state.rangeClipboard ? state.rangeClipboard.matrix : null;
-        var osText = null;
-        if (navigator.clipboard && navigator.clipboard.readText) {
+        var rawMatrix = null;
+        var osText = explicitRawText !== undefined ? explicitRawText : null;
+        if (osText === null && navigator.clipboard && navigator.clipboard.readText) {
           try { osText = await navigator.clipboard.readText(); } catch (err) {}
         }
         if (osText !== null && osText !== undefined && osText !== '' && (!state.rangeClipboard || osText !== state.rangeClipboard.tsv)) {
-          var osRows = osText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-          if (osRows.length > 1 && osRows[osRows.length - 1] === '') osRows.pop();
-          matrix = osRows.map(function (line) {
-            return line.split('\t').map(function (cellTxt) {
-              return { value: cellTxt, display: cellTxt, colType: 'text' };
-            });
+          var parsedClip = parseClipboardOrFileTextToMatrix(osText, 'auto');
+          if (parsedClip.matrix && parsedClip.matrix.length > 0) {
+            rawMatrix = parsedClip.matrix;
+          }
+        } else if (state.rangeClipboard && state.rangeClipboard.matrix) {
+          rawMatrix = state.rangeClipboard.matrix.map(function (row) {
+            return row.map(function (cellObj) { return cellObj.value; });
           });
-        } else if (!matrix && state.cellClipboard) {
-          matrix = [[{ value: state.cellClipboard.value, display: state.cellClipboard.display, colType: state.cellClipboard.colType }]];
+        } else if (state.cellClipboard) {
+          rawMatrix = [[state.cellClipboard.value]];
         }
-        if (!matrix || matrix.length === 0 || matrix[0].length === 0) {
-          showToast('Clipboard is empty — Copy or Cut a cell first');
+
+        if (!rawMatrix || rawMatrix.length === 0 || rawMatrix[0].length === 0) {
+          openSmartPasteDialogForTargets(targets, '', 'cell');
           return;
         }
-        var nowIso = new Date().toISOString();
-        var pastedCount = 0;
-        var isSingleSource = matrix.length === 1 && matrix[0].length === 1;
-        if (isSingleSource) {
-          var singleSrc = matrix[0][0].value;
-          targets.forEach(function (m) {
-            var parsedVal = parseCellValueForCol(singleSrc, m.col);
-            m.row[m.col.id] = parsedVal;
-            m.row._actor = getCurrentActor();
-            m.row._updatedAt = nowIso;
-            if (m.col.type === 'date' && String(parsedVal).trim() !== '') m.row._dateEdited = true;
-            if (m.col.type !== 'date' && String(parsedVal).trim() !== '' && String(parsedVal) !== '0') {
-              autoFillRowDates(bot, m.row, nowIso, m.col.id);
-            }
-            pastedCount++;
-          });
-        } else {
-          var startR = selBounds && !targetsOverride ? selBounds.minR : targets[0].rIdx;
-          var startC = selBounds && !targetsOverride ? selBounds.minC : targets[0].cIdx;
-          for (var dr = 0; dr < matrix.length; dr++) {
-            var tr = visibleRows[startR + dr];
-            if (!tr) continue;
-            for (var dc = 0; dc < matrix[dr].length; dc++) {
-              var tc = bot.columns[startC + dc];
-              if (!tc) continue;
-              var parsed = parseCellValueForCol(matrix[dr][dc].value, tc);
-              tr[tc.id] = parsed;
-              tr._actor = getCurrentActor();
-              tr._updatedAt = nowIso;
-              if (tc.type === 'date' && String(parsed).trim() !== '') tr._dateEdited = true;
-              if (tc.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
-                autoFillRowDates(bot, tr, nowIso, tc.id);
-              }
-              pastedCount++;
-            }
-          }
-          state.selectedRange = {
-            botId: bot.id,
-            anchorR: startR,
-            anchorC: startC,
-            focusR: Math.min(visibleRows.length - 1, startR + matrix.length - 1),
-            focusC: Math.min(bot.columns.length - 1, startC + matrix[0].length - 1)
-          };
-          state.extraCells = {};
-        }
-        bot.updatedAt = nowIso;
+        var startR = selBounds && !targetsOverride ? selBounds.minR : targets[0].rIdx;
+        var startC = selBounds && !targetsOverride ? selBounds.minC : targets[0].cIdx;
+        var resPaste = applyMatrixPasteToTable(bot, visibleRows, rawMatrix, {
+          mode: 'cell',
+          targets: targets,
+          startR: startR,
+          startC: startC,
+          autoCreateColumns: false
+        });
         state.toolbarSubMode = null;
-        updateBot(bot, 'EDIT', 'Pasted ' + pastedCount + ' cell(s)');
         renderTableView(bot);
-        showToast('Pasted ' + pastedCount + ' cell' + (pastedCount === 1 ? '' : 's'));
+        showToast('Pasted ' + resPaste.pastedCount + ' cell' + (resPaste.pastedCount === 1 ? '' : 's') + (resPaste.addedRows ? ' (+' + resPaste.addedRows + ' new row' + (resPaste.addedRows === 1 ? '' : 's') + ')' : ''));
       };
 
       var executeContextualAction = function (act, targetsOverride, boundsOverride) {
@@ -6425,6 +6790,8 @@
           renderTableView(bot);
         } else if (act === 'paste') {
           pasteSelectedCellsAction(targets);
+        } else if (act === 'paste_modal') {
+          openSmartPasteDialogForTargets(targets, '', 'cell');
         } else if (act === 'clear') {
           clearSelectedCellsAction(null, targets);
         } else if (act === 'comment') {
@@ -6582,7 +6949,7 @@
               return;
             }
 
-            if (act === 'cut' || act === 'copy' || act === 'paste' || act === 'comment' || act === 'clear' || act === 'fill' || act === 'edit' || act === 'delete') {
+            if (act === 'cut' || act === 'copy' || act === 'paste' || act === 'paste_modal' || act === 'comment' || act === 'clear' || act === 'fill' || act === 'edit' || act === 'delete') {
               var visR = visibleRows.findIndex(function (r) { return r.id === cm.rowId; });
               var colI = targetCol ? bot.columns.findIndex(function (c) { return c.id === targetCol.id; }) : 0;
               var fallbackTargets = selectedCellsMeta && selectedCellsMeta.length > 0
@@ -7278,8 +7645,6 @@
           return;
         }
         if (ctrl && (e.key === 'v' || e.key === 'V')) {
-          e.preventDefault();
-          pasteSelectedCellsAction();
           return;
         }
         if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -7314,6 +7679,39 @@
       };
       window._tbKeydownHandler = tableKeyHandler;
       document.addEventListener('keydown', tableKeyHandler);
+
+      var docPasteHandler = function (e) {
+        if (state.modal || state.drawerOpen || state.editingTitle || state.editingCell) return;
+        var ae = document.activeElement;
+        if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) return;
+        var cd = e.clipboardData || window.clipboardData;
+        if (!cd) return;
+        if (cd.files && cd.files.length > 0) {
+          e.preventDefault();
+          var f0 = cd.files[0];
+          var firstSel = selectedCellsMeta && selectedCellsMeta[0];
+          openModal('smart_paste', {
+            bot: bot,
+            targetMode: firstSel ? 'cell' : 'column',
+            colId: firstSel ? firstSel.col.id : (bot.columns[0] ? bot.columns[0].id : ''),
+            startRowIdx: firstSel ? firstSel.rIdx : 0,
+            startColIdx: firstSel ? firstSel.cIdx : 0,
+            pendingFile: f0
+          });
+          return;
+        }
+        var pastedTxt = '';
+        try { pastedTxt = cd.getData('text/plain') || ''; } catch (errGet) {}
+        if (selectedCellsMeta && selectedCellsMeta.length > 0) {
+          e.preventDefault();
+          pasteSelectedCellsAction(selectedCellsMeta, pastedTxt);
+        } else if (pastedTxt && pastedTxt.trim() !== '') {
+          e.preventDefault();
+          openSmartPasteDialogForTargets([], pastedTxt, 'column');
+        }
+      };
+      window._tbDocPasteHandler = docPasteHandler;
+      document.addEventListener('paste', docPasteHandler);
 
       if (activeInp && state.editingCell) {
         var isDateEdit = activeInp.getAttribute('data-date-edit') === '1' || activeInp.type === 'date' || activeInp.type === 'datetime-local';
@@ -7599,6 +7997,53 @@
             applyFormulaBorderValidation();
             updateLiveFooterTotalsInPlace();
           };
+          activeInp.onpaste = function (e) {
+            var cd = e.clipboardData || window.clipboardData;
+            if (!cd) return;
+            if (cd.files && cd.files.length > 0) {
+              e.preventDefault();
+              var edRefFile = state.editingCell;
+              var fRIdx = visibleRows.findIndex(function (r) { return r.id === edRefFile.rowId; });
+              var fCIdx = bot.columns.findIndex(function (c) { return c.id === edRefFile.colId; });
+              state.editingCell = null;
+              openModal('smart_paste', {
+                bot: bot,
+                targetMode: 'cell',
+                colId: edRefFile.colId,
+                startRowIdx: fRIdx >= 0 ? fRIdx : 0,
+                startColIdx: fCIdx >= 0 ? fCIdx : 0,
+                pendingFile: cd.files[0]
+              });
+              return;
+            }
+            var rawPaste = '';
+            try { rawPaste = cd.getData('text/plain') || ''; } catch (errP) {}
+            if (rawPaste && (/[\r\n]/.test(rawPaste) || rawPaste.indexOf('\t') !== -1)) {
+              var parsedInline = parseClipboardOrFileTextToMatrix(rawPaste, 'auto');
+              if (parsedInline.matrix.length > 1 || (parsedInline.matrix[0] && parsedInline.matrix[0].length > 1)) {
+                e.preventDefault();
+                if (!guardWriteAction('Paste Cells')) return;
+                var edRef = state.editingCell;
+                var sR = visibleRows.findIndex(function (r) { return r.id === edRef.rowId; });
+                var sC = bot.columns.findIndex(function (c) { return c.id === edRef.colId; });
+                state.editingCell = null;
+                var resInline = applyMatrixPasteToTable(bot, visibleRows, parsedInline.matrix, {
+                  mode: 'cell',
+                  startR: sR >= 0 ? sR : 0,
+                  startC: sC >= 0 ? sC : 0
+                });
+                renderTableView(bot);
+                showToast('Pasted ' + resInline.pastedCount + ' cell(s)' + (resInline.addedRows ? ' (+' + resInline.addedRows + ' new rows)' : ''));
+                return;
+              }
+            }
+            setTimeout(function () {
+              if (document.getElementById('active-cell-input') === activeInp) {
+                applyFormulaBorderValidation();
+                updateLiveFooterTotalsInPlace();
+              }
+            }, 0);
+          };
           activeInp.onblur = function (e) {
             if (e && e.relatedTarget && e.relatedTarget.id === 'cell-edit-menu-btn') return;
             if (state.cellMenu) return;
@@ -7637,6 +8082,10 @@
       if (tbTesterBtn) tbTesterBtn.onclick = function () { openModal('telegram', { bot: bot, tab: 'simulator' }); };
       var tbExportBtn = document.getElementById('tb-export');
       if (tbExportBtn) tbExportBtn.onclick = function () { exportBotCsv(bot); };
+      var barSmartPasteBtn = document.getElementById('btn-bar-smart-paste');
+      if (barSmartPasteBtn) barSmartPasteBtn.onclick = function () {
+        openSmartPasteDialogForTargets(selectedCellsMeta, '', selectedCellsMeta && selectedCellsMeta.length ? 'cell' : 'column');
+      };
       var tbMoreBtn = document.getElementById('tb-more');
       if (tbMoreBtn) tbMoreBtn.onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
       if (state.showMoreMenu) {
@@ -7646,6 +8095,11 @@
           state.sigmaFooterHidden = !state.sigmaFooterHidden;
           try { localStorage.setItem(STORAGE_SIGMA_HIDDEN, state.sigmaFooterHidden ? '1' : '0'); } catch (e) {}
           renderTableView(bot);
+        };
+        var moreSmartPasteBtn = document.getElementById('more-smart-paste');
+        if (moreSmartPasteBtn) moreSmartPasteBtn.onclick = function () {
+          state.showMoreMenu = false;
+          openSmartPasteDialogForTargets(selectedCellsMeta, '', selectedCellsMeta && selectedCellsMeta.length ? 'cell' : 'column');
         };
         document.getElementById('more-file-history').onclick = function () { state.showMoreMenu = false; openModal('file_history', { botId: bot.id }); };
         document.getElementById('more-import-excel').onclick = function () { state.showMoreMenu = false; openModal('import_excel', { mode: 'merge', targetBotId: bot.id }); };
@@ -8040,6 +8494,7 @@
       else if (m.type === 'supabase') renderSupabaseModal(m);
       else if (m.type === 'admin') renderAdminModal(m);
       else if (m.type === 'import_excel') renderImportExcelModal(m);
+      else if (m.type === 'smart_paste') renderSmartPasteModal(m);
       else if (m.type === 'backup') renderBackupModal(m);
       else if (m.type === 'file_history') renderFileHistoryModal(m);
       else if (m.type === 'add_folder') renderAddFolderModal(m);
@@ -9066,6 +9521,345 @@
       };
     }
 
+    function renderSmartPasteModal(m) {
+      var bot = m.bot || getActiveBot();
+      if (!bot) { closeModal(); return; }
+      if (!m.targetMode) m.targetMode = 'column';
+      if (!m.colId && bot.columns && bot.columns.length) m.colId = bot.columns[0].id;
+      if (m.startRowIdx === undefined || m.startRowIdx === null) m.startRowIdx = 0;
+      if (m.startColIdx === undefined || m.startColIdx === null) {
+        var foundCi = bot.columns.findIndex(function (c) { return c.id === m.colId; });
+        m.startColIdx = foundCi >= 0 ? foundCi : 0;
+      }
+      if (!m.fillMode) m.fillMode = 'overwrite';
+      if (!m.delimiterMode) m.delimiterMode = 'auto';
+      if (m.sourceColIdx === undefined) m.sourceColIdx = 0;
+      if (m.selectedSheetIdx === undefined) m.selectedSheetIdx = 0;
+      if (m.rawText === undefined) m.rawText = '';
+      if (!m.activeSource) m.activeSource = (m.fileSheets && m.fileSheets.length > 0) ? 'file' : 'text';
+
+      var computeActiveMatrix = function () {
+        if (m.activeSource === 'file' && m.fileSheets && m.fileSheets.length > 0) {
+          var sh = m.fileSheets[m.selectedSheetIdx] || m.fileSheets[0];
+          var matF = sh && sh.rawMatrix ? sh.rawMatrix : [];
+          return { matrix: matF, sourceLabel: (m.fileName || 'Phone File') + (m.fileSheets.length > 1 ? ' · ' + sh.name : ''), delimiterLabel: m.detectedFileDelim || 'file' };
+        }
+        var parsedT = parseClipboardOrFileTextToMatrix(m.rawText || '', m.delimiterMode || 'auto');
+        return { matrix: parsedT.matrix, sourceLabel: 'Clipboard / Text', delimiterLabel: parsedT.detectedDelimiter };
+      };
+
+      var activeInfo = computeActiveMatrix();
+      var targetColObj = bot.columns.find(function (c) { return c.id === m.colId; }) || bot.columns[0];
+      var colOptionsHtml = bot.columns.map(function (c, idx) {
+        return '<option value="' + esc(c.id) + '"' + (targetColObj && targetColObj.id === c.id ? ' selected' : '') + '>' + (idx + 1) + '. ' + esc(c.name) + ' (' + esc(c.type) + ')</option>';
+      }).join('');
+      var startColOptionsHtml = bot.columns.map(function (c, idx) {
+        return '<option value="' + idx + '"' + (Number(m.startColIdx) === idx ? ' selected' : '') + '>' + (idx + 1) + '. ' + esc(c.name) + '</option>';
+      }).join('');
+
+      var buildSourceColAndPreviewHtml = function () {
+        var info = computeActiveMatrix();
+        var mat = info.matrix || [];
+        var maxCols = mat.reduce(function (mx, r) { return Math.max(mx, r.length); }, 0);
+        if (m.sourceColIdx >= maxCols) m.sourceColIdx = 0;
+
+        var srcColSelectHtml = '';
+        if (m.targetMode === 'column' && maxCols > 1) {
+          var opts = '';
+          for (var sc = 0; sc < maxCols; sc++) {
+            var sampleHead = (mat[0] && mat[0][sc]) ? String(mat[0][sc]).slice(0, 22) : ('Col ' + (sc + 1));
+            opts += '<option value="' + sc + '"' + (Number(m.sourceColIdx) === sc ? ' selected' : '') + '>Source Col #' + (sc + 1) + ' ("' + esc(sampleHead) + '")</option>';
+          }
+          srcColSelectHtml = '<div style="margin-top:8px;">' +
+            '<label class="field-label">Which column from pasted data / file?</label>' +
+            '<select id="sp-src-col" class="form-select">' + opts + '</select>' +
+          '</div>';
+        }
+
+        var prevHtml = '';
+        if (mat.length === 0) {
+          prevHtml = '<div style="padding:14px;text-align:center;font-size:12px;color:#64748B;background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;">Nothing pasted or loaded yet — paste text above or pick any file from Phone Storage.</div>';
+        } else {
+          var rowOffset = m.skipHeaderRow ? 1 : 0;
+          var effRowsCount = Math.max(0, mat.length - rowOffset);
+          var sampleRows = mat.slice(rowOffset, rowOffset + 5);
+          var previewColsCount = m.targetMode === 'column' ? 1 : Math.min(6, maxCols);
+          var tblHeads = '';
+          if (m.targetMode === 'column') {
+            tblHeads = '<th style="padding:6px 9px;text-align:left;background:#DBEAFE;color:#1E3A8A;border-bottom:1px solid #93C5FD;">→ ' + esc(targetColObj ? targetColObj.name : 'Column') + '</th>';
+          } else {
+            for (var hc = 0; hc < previewColsCount; hc++) {
+              var destC = bot.columns[Number(m.startColIdx) + hc];
+              tblHeads += '<th style="padding:6px 9px;text-align:left;background:#DBEAFE;color:#1E3A8A;border-bottom:1px solid #93C5FD;white-space:nowrap;">' + (destC ? esc(destC.name) : ('+New Col ' + (hc + 1))) + '</th>';
+            }
+          }
+          var tblRows = sampleRows.map(function (rArr, rIdx) {
+            var cellsHtml = '';
+            if (m.targetMode === 'column') {
+              var rawCell = rArr[Number(m.sourceColIdx) || 0];
+              cellsHtml = '<td style="padding:5px 9px;border-bottom:1px solid #F1F5F9;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(rawCell) + '</td>';
+            } else {
+              for (var cc = 0; cc < previewColsCount; cc++) {
+                cellsHtml += '<td style="padding:5px 9px;border-bottom:1px solid #F1F5F9;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(rArr[cc] !== undefined ? rArr[cc] : '') + '</td>';
+              }
+            }
+            return '<tr><td class="mono" style="padding:5px 8px;color:#64748B;background:#F8FAFC;border-bottom:1px solid #F1F5F9;font-size:11px;">#' + (Number(m.startRowIdx) + rIdx + 1) + '</td>' + cellsHtml + '</tr>';
+          }).join('');
+          prevHtml = '<div style="border:1px solid #CBD5E1;border-radius:10px;overflow:hidden;">' +
+            '<div style="background:#EFF6FF;padding:7px 10px;border-bottom:1px solid #BFDBFE;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:11.5px;font-weight:700;color:#1E3A8A;">' +
+              '<span>Ready: ' + effRowsCount + ' row(s) &times; ' + (m.targetMode === 'column' ? '1 column' : maxCols + ' col(s)') + ' (' + esc(info.sourceLabel) + ')</span>' +
+              '<span class="pill-badge" style="background:#DBEAFE;color:#1D4ED8;font-size:10px;">Split: ' + esc(info.delimiterLabel) + '</span>' +
+            '</div>' +
+            '<div style="overflow-x:auto;max-height:175px;">' +
+              '<table style="width:100%;border-collapse:collapse;font-size:11.5px;"><thead><tr><th style="padding:6px 8px;background:#F1F5F9;color:#475569;border-bottom:1px solid #E2E8F0;text-align:left;">Row</th>' + tblHeads + '</tr></thead><tbody>' +
+                (tblRows || '<tr><td colspan="4" style="padding:10px;text-align:center;color:#94A3B8;">Only header row present</td></tr>') +
+              '</tbody></table>' +
+            '</div>' +
+          '</div>';
+        }
+        return { srcColSelectHtml: srcColSelectHtml, prevHtml: prevHtml, mat: mat };
+      };
+
+      var previewData = buildSourceColAndPreviewHtml();
+      var msgNote = m.statusMsg
+        ? '<div style="padding:9px 12px;border-radius:10px;font-size:12px;' + (m.statusType === 'error' ? 'background:#FEF2F2;color:#991B1B;border:1px solid #FECACA;' : m.statusType === 'success' ? 'background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0;' : 'background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;') + '">' + esc(m.statusMsg) + '</div>'
+        : '';
+
+      var sheetChipsHtml = '';
+      if (m.activeSource === 'file' && m.fileSheets && m.fileSheets.length > 1) {
+        sheetChipsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
+          m.fileSheets.map(function (sh, si) {
+            return '<button type="button" class="btn ' + (Number(m.selectedSheetIdx) === si ? 'btn-primary' : 'btn-outline') + ' sp-sh-btn" data-si="' + si + '" style="padding:4px 9px;font-size:11px;">' + esc(sh.name) + ' (' + sh.rowCount + '×' + sh.colCount + ')</button>';
+          }).join('') +
+        '</div>';
+      }
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:680px;" id="m-card">' +
+        '<header class="modal-header">' +
+          '<div style="display:flex;align-items:center;gap:10px;">' + icon('clipboard', 21) +
+            '<div><h2 style="font-size:15.5px;font-weight:700;">Paste Clipboard or Phone Storage File</h2>' +
+            '<div style="font-size:11px;color:#BFDBFE;">Copy from any app or load .txt, .csv, .xlsx, .xls, .json into any Column or Cell</div></div>' +
+          '</div>' +
+          '<button class="icon-btn" id="sp-close">' + icon('close', 18) + '</button>' +
+        '</header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:13px;">' +
+          msgNote +
+          '<div style="background:#F8FAFC;border:1px solid #CBD5E1;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:9px;">' +
+            '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:#334155;">1. Where to Paste</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+              '<button type="button" id="sp-mode-col" class="btn ' + (m.targetMode === 'column' ? 'btn-primary' : 'btn-outline') + '" style="padding:8px 10px;font-size:12px;">' + icon('sliders', 14) + '<span>Paste Into Column</span></button>' +
+              '<button type="button" id="sp-mode-cell" class="btn ' + (m.targetMode === 'cell' ? 'btn-primary' : 'btn-outline') + '" style="padding:8px 10px;font-size:12px;">' + icon('edit', 14) + '<span>Paste Starting at Cell</span></button>' +
+            '</div>' +
+            (m.targetMode === 'column'
+              ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+                  '<div><label class="field-label">Target Column</label><select id="sp-target-col" class="form-select">' + colOptionsHtml + '</select></div>' +
+                  '<div><label class="field-label">Column Fill Mode</label><select id="sp-fill-mode" class="form-select">' +
+                    '<option value="overwrite"' + (m.fillMode === 'overwrite' ? ' selected' : '') + '>Write from Start Row (Add rows if needed)</option>' +
+                    '<option value="fill_empty"' + (m.fillMode === 'fill_empty' ? ' selected' : '') + '>Fill Blank Cells Only</option>' +
+                    '<option value="append"' + (m.fillMode === 'append' ? ' selected' : '') + '>Append as New Rows at Bottom</option>' +
+                  '</select></div>' +
+                '</div>' +
+                (m.fillMode !== 'append' ? '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><label style="font-size:11.5px;font-weight:600;color:#334155;">Start at Row # <input id="sp-start-row" type="number" min="1" value="' + (Number(m.startRowIdx) + 1) + '" class="form-input" style="width:78px;display:inline-block;padding:4px 8px;margin-left:4px;" /></label></div>' : '')
+              : '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+                  '<div><label class="field-label">Start Column</label><select id="sp-start-col" class="form-select">' + startColOptionsHtml + '</select></div>' +
+                  '<div><label class="field-label">Start Row #</label><input id="sp-start-row" type="number" min="1" value="' + (Number(m.startRowIdx) + 1) + '" class="form-input" /></div>' +
+                '</div>' +
+                '<label style="display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:#334155;cursor:pointer;"><input type="checkbox" id="sp-auto-cols" ' + (m.autoCreateColumns ? 'checked' : '') + ' /> Auto-create new columns if pasted data is wider than table</label>') +
+            '<label style="display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:#334155;cursor:pointer;"><input type="checkbox" id="sp-skip-header" ' + (m.skipHeaderRow ? 'checked' : '') + ' /> First row is a header name (skip row 1)</label>' +
+          '</div>' +
+
+          '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">' +
+              '<span style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:#1E3A8A;">2. Paste Copied Text or Pick Phone Storage File</span>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+                '<button type="button" id="sp-read-clip" class="btn btn-primary" style="padding:5px 10px;font-size:11.5px;">' + icon('clipboard', 13) + '<span>Read Clipboard</span></button>' +
+                '<button type="button" id="sp-pick-file" class="btn btn-outline" style="padding:5px 10px;font-size:11.5px;background:#fff;border-color:#60A5FA;color:#0D47A1;">' + icon('upload', 13) + '<span>Pick Phone File</span></button>' +
+                '<button type="button" id="sp-clr-text" class="btn btn-outline" style="padding:5px 9px;font-size:11.5px;background:#fff;">Clear</button>' +
+              '</div>' +
+            '</div>' +
+            '<input id="sp-file-inp" type="file" accept=".xlsx,.xls,.csv,.tsv,.ods,.txt,.json,.log,.md,text/*,*/*" style="display:none;" />' +
+            (m.activeSource === 'file' && m.fileName
+              ? '<div style="padding:8px 10px;border-radius:8px;background:#ECFDF5;border:1px solid #A7F3D0;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+                  '<div style="font-size:12px;font-weight:700;color:#065F46;">Loaded Phone File: <span>' + esc(m.fileName) + '</span></div>' +
+                  '<button type="button" id="sp-switch-text" class="btn btn-outline" style="padding:3px 8px;font-size:11px;background:#fff;">Use Paste Box Instead</button>' +
+                '</div>' + sheetChipsHtml
+              : '') +
+            '<textarea id="sp-paste-box" rows="4" class="form-input mono" style="font-size:12px;line-height:1.45;resize:vertical;background:#fff;" placeholder="Tap &amp; hold (long-press) here -> Paste anything copied from WhatsApp, Notes, Excel, Sheets, or files...">' + esc(m.rawText || '') + '</textarea>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+              '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                '<span style="font-size:11px;font-weight:700;color:#475569;">Split by:</span>' +
+                '<select id="sp-delim" class="form-select" style="width:auto;padding:4px 8px;font-size:11.5px;">' +
+                  '<option value="auto"' + (m.delimiterMode === 'auto' ? ' selected' : '') + '>Auto Detect</option>' +
+                  '<option value="line"' + (m.delimiterMode === 'line' ? ' selected' : '') + '>New Line (One per row)</option>' +
+                  '<option value="tab"' + (m.delimiterMode === 'tab' ? ' selected' : '') + '>Tab (Excel / Sheets)</option>' +
+                  '<option value="comma"' + (m.delimiterMode === 'comma' ? ' selected' : '') + '>Comma (,)</option>' +
+                  '<option value="semicolon"' + (m.delimiterMode === 'semicolon' ? ' selected' : '') + '>Semicolon (;)</option>' +
+                  '<option value="pipe"' + (m.delimiterMode === 'pipe' ? ' selected' : '') + '>Pipe (|)</option>' +
+                '</select>' +
+              '</div>' +
+              '<span style="font-size:11px;color:#64748B;">Supports .txt, .csv, .tsv, .xlsx, .xls, .json</span>' +
+            '</div>' +
+            '<div id="sp-col-picker-wrap">' + previewData.srcColSelectHtml + '</div>' +
+          '</div>' +
+
+          '<div id="sp-preview-box">' + previewData.prevHtml + '</div>' +
+
+          '<div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px;">' +
+            '<button type="button" id="sp-cancel" class="btn btn-outline">Cancel</button>' +
+            '<button type="button" id="sp-apply" class="btn btn-green" ' + (!previewData.mat.length ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : '') + '>' + icon('check', 15) + '<span>' + (m.targetMode === 'column' ? 'Paste Into Column' : 'Paste Into Cells') + '</span></button>' +
+          '</div>' +
+        '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('sp-close').onclick = closeModal;
+      document.getElementById('sp-cancel').onclick = closeModal;
+
+      var refreshPreviewOnly = function () {
+        var next = buildSourceColAndPreviewHtml();
+        var colWrap = document.getElementById('sp-col-picker-wrap');
+        if (colWrap) colWrap.innerHTML = next.srcColSelectHtml;
+        var prevEl = document.getElementById('sp-preview-box');
+        if (prevEl) prevEl.innerHTML = next.prevHtml;
+        var srcColEl2 = document.getElementById('sp-src-col');
+        if (srcColEl2) srcColEl2.onchange = function (e) { m.sourceColIdx = parseInt(e.target.value, 10) || 0; refreshPreviewOnly(); };
+        var appBtn = document.getElementById('sp-apply');
+        if (appBtn) {
+          var hasMat = next.mat && next.mat.length > 0;
+          appBtn.disabled = !hasMat;
+          appBtn.style.opacity = hasMat ? '1' : '0.5';
+          appBtn.style.cursor = hasMat ? 'pointer' : 'not-allowed';
+        }
+      };
+
+      var loadFileIntoSmartPaste = function (file) {
+        if (!file) return;
+        parseAnyPhoneDataFile(file, function (res) {
+          m.fileName = file.name;
+          if (res.error && (!res.sheets || res.sheets.length === 0)) {
+            m.statusType = 'error';
+            m.statusMsg = res.error;
+            if (res.rawText) {
+              m.rawText = res.rawText;
+              m.activeSource = 'text';
+            }
+          } else {
+            m.fileSheets = res.sheets || [];
+            m.selectedSheetIdx = 0;
+            m.activeSource = 'file';
+            m.detectedFileDelim = res.detectedDelimiter || 'file';
+            if (res.rawText && !/\.(xlsx|xls|ods|xlsm|xlsb)$/i.test(file.name)) m.rawText = res.rawText;
+            var sh0 = m.fileSheets[0];
+            m.statusType = 'success';
+            m.statusMsg = 'Loaded "' + file.name + '" (' + (sh0 ? sh0.rowCount + ' rows × ' + sh0.colCount + ' cols' : '') + '). Review target & tap Paste!';
+          }
+          renderSmartPasteModal(m);
+        });
+      };
+
+      if (m.pendingFile) {
+        var pf = m.pendingFile;
+        m.pendingFile = null;
+        loadFileIntoSmartPaste(pf);
+        return;
+      }
+
+      document.getElementById('sp-mode-col').onclick = function () { m.targetMode = 'column'; renderSmartPasteModal(m); };
+      document.getElementById('sp-mode-cell').onclick = function () { m.targetMode = 'cell'; renderSmartPasteModal(m); };
+
+      var tcSel = document.getElementById('sp-target-col');
+      if (tcSel) tcSel.onchange = function (e) { m.colId = e.target.value; refreshPreviewOnly(); };
+      var fmSel = document.getElementById('sp-fill-mode');
+      if (fmSel) fmSel.onchange = function (e) { m.fillMode = e.target.value; renderSmartPasteModal(m); };
+      var scSel = document.getElementById('sp-start-col');
+      if (scSel) scSel.onchange = function (e) { m.startColIdx = parseInt(e.target.value, 10) || 0; refreshPreviewOnly(); };
+      var srInp = document.getElementById('sp-start-row');
+      if (srInp) srInp.oninput = function (e) { m.startRowIdx = Math.max(0, (parseInt(e.target.value, 10) || 1) - 1); refreshPreviewOnly(); };
+      var acChk = document.getElementById('sp-auto-cols');
+      if (acChk) acChk.onchange = function (e) { m.autoCreateColumns = e.target.checked; };
+      var shChk = document.getElementById('sp-skip-header');
+      if (shChk) shChk.onchange = function (e) { m.skipHeaderRow = e.target.checked; refreshPreviewOnly(); };
+      var srcColInit = document.getElementById('sp-src-col');
+      if (srcColInit) srcColInit.onchange = function (e) { m.sourceColIdx = parseInt(e.target.value, 10) || 0; refreshPreviewOnly(); };
+
+      var pasteBox = document.getElementById('sp-paste-box');
+      if (pasteBox) {
+        pasteBox.oninput = function () {
+          m.rawText = pasteBox.value;
+          m.activeSource = 'text';
+          refreshPreviewOnly();
+        };
+      }
+      document.getElementById('sp-delim').onchange = function (e) {
+        m.delimiterMode = e.target.value;
+        m.activeSource = 'text';
+        refreshPreviewOnly();
+      };
+      document.getElementById('sp-read-clip').onclick = async function () {
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          m.statusType = ''; m.statusMsg = 'Tap and hold inside the Paste Box below and choose Paste.';
+          renderSmartPasteModal(m);
+          var pb2 = document.getElementById('sp-paste-box'); if (pb2) pb2.focus();
+          return;
+        }
+        try {
+          var txt = await navigator.clipboard.readText();
+          if (txt) {
+            m.rawText = txt;
+            m.activeSource = 'text';
+            m.statusType = 'success';
+            m.statusMsg = 'Read clipboard (' + txt.length + ' chars). Preview updated!';
+          } else {
+            m.statusType = ''; m.statusMsg = 'Clipboard appeared empty. Long-press inside the Paste Box below -> Paste.';
+          }
+        } catch (errC) {
+          m.statusType = ''; m.statusMsg = 'Browser blocked automatic read — long-press inside the Paste Box below and tap Paste!';
+        }
+        renderSmartPasteModal(m);
+      };
+      document.getElementById('sp-pick-file').onclick = function () { document.getElementById('sp-file-inp').click(); };
+      document.getElementById('sp-file-inp').onchange = function (e) {
+        if (e.target.files && e.target.files[0]) loadFileIntoSmartPaste(e.target.files[0]);
+      };
+      document.getElementById('sp-clr-text').onclick = function () {
+        m.rawText = ''; m.fileSheets = []; m.fileName = ''; m.activeSource = 'text'; m.statusMsg = '';
+        renderSmartPasteModal(m);
+      };
+      var swTextBtn = document.getElementById('sp-switch-text');
+      if (swTextBtn) swTextBtn.onclick = function () { m.activeSource = 'text'; renderSmartPasteModal(m); };
+      document.querySelectorAll('.sp-sh-btn').forEach(function (b) {
+        b.onclick = function () { m.selectedSheetIdx = parseInt(b.getAttribute('data-si'), 10) || 0; renderSmartPasteModal(m); };
+      });
+
+      document.getElementById('sp-apply').onclick = function () {
+        if (!guardWriteAction('Paste Data')) return;
+        var info = computeActiveMatrix();
+        if (!info.matrix || info.matrix.length === 0) {
+          m.statusType = 'error'; m.statusMsg = 'Nothing to paste yet.'; renderSmartPasteModal(m); return;
+        }
+        var q = (state.tableSearchQuery || '').toLowerCase();
+        var visRows = bot.rows.filter(function (r) {
+          if (!q) return true;
+          return bot.columns.some(function (c) { return r[c.id] !== undefined && r[c.id] !== null && String(r[c.id]).toLowerCase().indexOf(q) !== -1; });
+        });
+        var res = applyMatrixPasteToTable(bot, visRows, info.matrix, {
+          mode: m.targetMode,
+          colId: m.colId,
+          sourceColIdx: m.sourceColIdx,
+          fillMode: m.fillMode,
+          startRowIdx: m.startRowIdx,
+          startR: m.startRowIdx,
+          startC: m.startColIdx,
+          skipHeaderRow: m.skipHeaderRow,
+          autoCreateColumns: m.autoCreateColumns
+        });
+        closeModal();
+        renderTableView(bot);
+        showToast('Pasted ' + res.pastedCount + ' cell(s)' + (res.colName ? ' into "' + res.colName + '"' : '') + (res.addedRows ? ' (+' + res.addedRows + ' new rows)' : ''));
+      };
+    }
+
     function renderColumnModal(m) {
       var bot = m.bot;
       var origCol = m.column;
@@ -9114,6 +9908,15 @@
                   '</div>' +
                 '</div>'
               : '') +
+          '</div>' +
+          '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:#1E3A8A;">Column Data Copy / Paste &amp; Phone File</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">' +
+              '<button type="button" id="col-copy-data" class="btn btn-outline" style="padding:8px 6px;font-size:11.5px;background:#fff;border-color:#93C5FD;color:#0D47A1;" title="Copy all cell values in this column">' + icon('copy', 13) + '<span>Copy Col</span></button>' +
+              '<button type="button" id="col-paste-data" class="btn btn-primary" style="padding:8px 6px;font-size:11.5px;" title="Paste copied text/rows directly into this column">' + icon('clipboard', 13) + '<span>Paste Col</span></button>' +
+              '<button type="button" id="col-file-data" class="btn btn-outline" style="padding:8px 6px;font-size:11.5px;background:#ECFDF5;border-color:#6EE7B7;color:#065F46;" title="Pick a file from phone storage to load into this column">' + icon('upload', 13) + '<span>Phone File</span></button>' +
+            '</div>' +
+            '<input id="col-direct-file-inp" type="file" accept=".xlsx,.xls,.csv,.tsv,.ods,.txt,.json,.log,.md,text/*,*/*" style="display:none;" />' +
           '</div>' +
           '<div><label class="field-label">Feature / Type Selector</label><div class="type-grid">';
       types.forEach(function (it) {
@@ -9299,6 +10102,46 @@
       };
       document.getElementById('col-ins-left').onclick = function () { insertColAt(0, 'left'); };
       document.getElementById('col-ins-right').onclick = function () { insertColAt(1, 'right'); };
+      document.getElementById('col-copy-data').onclick = function () {
+        var colVals = bot.rows.map(function (r) { return formatCell(r[origCol.id], origCol, r, bot); });
+        var matrix = colVals.map(function (v, ri) { return [{ value: bot.rows[ri][origCol.id], display: v, colType: origCol.type }]; });
+        var txt = colVals.join('\n');
+        state.rangeClipboard = { matrix: matrix, rowCount: colVals.length, colCount: 1, tsv: txt };
+        state.cellClipboard = { value: bot.rows[0] ? bot.rows[0][origCol.id] : '', display: colVals[0] || '', colType: origCol.type, colName: origCol.name };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(txt).catch(function () {});
+        }
+        showToast('Copied ' + colVals.length + ' value(s) from "' + (d.name || origCol.name) + '"');
+      };
+      document.getElementById('col-paste-data').onclick = async function () {
+        var clipTxt = '';
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          try { clipTxt = await navigator.clipboard.readText(); } catch (err) {}
+        }
+        if (!clipTxt && state.rangeClipboard && state.rangeClipboard.tsv) clipTxt = state.rangeClipboard.tsv;
+        openModal('smart_paste', {
+          bot: bot,
+          targetMode: 'column',
+          colId: origCol.id,
+          startRowIdx: 0,
+          rawText: clipTxt || '',
+          statusMsg: clipTxt ? 'Clipboard loaded — confirm Fill Mode below and tap Paste Into Column.' : 'Long-press inside the Paste Box below -> Paste, or pick a file from Phone Storage.'
+        });
+      };
+      document.getElementById('col-file-data').onclick = function () {
+        document.getElementById('col-direct-file-inp').click();
+      };
+      document.getElementById('col-direct-file-inp').onchange = function (e) {
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        openModal('smart_paste', {
+          bot: bot,
+          targetMode: 'column',
+          colId: origCol.id,
+          startRowIdx: 0,
+          pendingFile: f
+        });
+      };
       document.getElementById('col-del-btn').onclick = function () {
         if (bot.columns.length <= 1) {
           showToast('Cannot delete the only remaining column');
@@ -12006,7 +12849,7 @@
     function parseExcelArrayBufferToSheets(fileName, arrayBuf, rawTextFallback) {
       var sheets = [];
       var lower = String(fileName || '').toLowerCase();
-      if (window.XLSX && !lower.endsWith('.csv') && !lower.endsWith('.tsv')) {
+      if (window.XLSX && /\.(xlsx|xls|ods|xlsm|xlsb)$/i.test(lower)) {
         var wb = window.XLSX.read(new Uint8Array(arrayBuf), { type: 'array', cellDates: true });
         wb.SheetNames.forEach(function (sname) {
           var ws = wb.Sheets[sname];
@@ -12023,9 +12866,9 @@
         } catch (eCsv) {}
       }
       if (sheets.length === 0 && rawTextFallback) {
-        var parsedCsv = parseCsvTextFallback(rawTextFallback);
-        if (parsedCsv.length > 0) {
-          sheets.push({ name: fileName.replace(/\.(xlsx|xls|csv|tsv|ods)$/i, '') || 'Sheet1', aoa: parsedCsv, selected: true });
+        var parsedSmart = parseClipboardOrFileTextToMatrix(rawTextFallback, 'auto');
+        if (parsedSmart.matrix && parsedSmart.matrix.length > 0) {
+          sheets.push({ name: fileName.replace(/\.[^.]+$/, '') || 'Sheet1', aoa: parsedSmart.matrix, selected: true });
         }
       }
       return sheets.map(function (sh) {
@@ -12098,10 +12941,10 @@
         '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + msgNote +
           '<div id="xl-drop" style="border:2px dashed #93C5FD;border-radius:12px;padding:18px;text-align:center;background:#F8FAFC;cursor:pointer;">' +
             '<div style="color:#0D47A1;margin-bottom:6px;">' + icon('upload', 26) + '</div>' +
-            '<div style="font-weight:700;font-size:13.5px;color:#0F172A;">Choose or Drop Excel / CSV File</div>' +
-            '<div style="font-size:11.5px;color:#64748B;margin:4px 0 10px;">Supports multi-sheet <code>.xlsx</code>, <code>.xls</code>, <code>.ods</code>, <code>.csv</code> &amp; <code>.tsv</code></div>' +
-            '<input id="xl-file-inp" type="file" accept=".xlsx,.xls,.csv,.tsv,.ods" style="display:none;" />' +
-            '<button type="button" id="xl-pick-btn" class="btn btn-primary">' + icon('excel', 15) + '<span>Select Excel / CSV File</span></button>' +
+            '<div style="font-weight:700;font-size:13.5px;color:#0F172A;">Choose or Drop Excel / CSV / Data File</div>' +
+            '<div style="font-size:11.5px;color:#64748B;margin:4px 0 10px;">Supports <code>.xlsx</code>, <code>.xls</code>, <code>.ods</code>, <code>.csv</code>, <code>.tsv</code>, <code>.txt</code> &amp; <code>.json</code></div>' +
+            '<input id="xl-file-inp" type="file" accept=".xlsx,.xls,.csv,.tsv,.ods,.txt,.json,.log,text/*,*/*" style="display:none;" />' +
+            '<button type="button" id="xl-pick-btn" class="btn btn-primary">' + icon('excel', 15) + '<span>Select File from Storage</span></button>' +
           '</div>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
             '<div>' +
