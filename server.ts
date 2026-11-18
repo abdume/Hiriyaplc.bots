@@ -3,6 +3,31 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Request, Response } from 'express';
+import { GoogleGenAI } from '@google/genai';
+
+interface TtsCacheEntry {
+  audioBase64: string;
+  mimeType: string;
+  cachedAt: number;
+}
+
+let cachedGenAiClient: GoogleGenAI | null = null;
+let cachedGenAiKey = '';
+const ttsAudioCache = new Map<string, TtsCacheEntry>();
+const MAX_TTS_CACHE_ENTRIES = 48;
+
+function getTtsClient(): GoogleGenAI | null {
+  const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
+  if (!apiKey) return null;
+  if (!cachedGenAiClient || cachedGenAiKey !== apiKey) {
+    cachedGenAiClient = new GoogleGenAI({
+      apiKey,
+      httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
+    });
+    cachedGenAiKey = apiKey;
+  }
+  return cachedGenAiClient;
+}
 
 interface FolderLockEntry {
   enabled: boolean;
@@ -1115,6 +1140,124 @@ async function startServer(): Promise<void> {
     broadcastActivityUpdate(activityStore);
     res.json({ ok: true });
   });
+
+  const ttsInFlight = new Map<string, Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | { ok: false; status: number; error: string }>>();
+
+  async function synthesizeTtsAudio(rawText: string, voiceName = 'Kore', style = 'Warm, clear Ethiopian Amharic voice') {
+    const text = rawText.trim().slice(0, 500);
+    if (!text) {
+      return { ok: false as const, status: 400, error: 'Missing text' };
+    }
+    const cacheKey = `${voiceName}::${text}`;
+    const cached = ttsAudioCache.get(cacheKey);
+    if (cached) {
+      return { ok: true as const, audioBase64: cached.audioBase64, mimeType: cached.mimeType, cached: true };
+    }
+    const existingFlight = ttsInFlight.get(cacheKey);
+    if (existingFlight) return existingFlight;
+
+    const ai = getTtsClient();
+    if (!ai) {
+      return { ok: false as const, status: 503, error: 'GEMINI_API_KEY not configured' };
+    }
+
+    const promise = (async () => {
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash-lite-tts',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text,
+                  speechMetadata: { style },
+                },
+              ],
+            },
+          ],
+          config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName },
+              },
+            },
+          },
+        });
+        const inline = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+        if (!inline?.data) {
+          return { ok: false as const, status: 502, error: 'Empty TTS audio response' };
+        }
+        const mimeType = inline.mimeType || 'audio/wav';
+        if (ttsAudioCache.size >= MAX_TTS_CACHE_ENTRIES) {
+          const firstKey = ttsAudioCache.keys().next().value;
+          if (firstKey) ttsAudioCache.delete(firstKey);
+        }
+        ttsAudioCache.set(cacheKey, { audioBase64: inline.data, mimeType, cachedAt: Date.now() });
+        return { ok: true as const, audioBase64: inline.data, mimeType, cached: false };
+      } catch (err) {
+        console.error('Gemini TTS generation error:', err);
+        return { ok: false as const, status: 502, error: 'TTS generation failed' };
+      } finally {
+        ttsInFlight.delete(cacheKey);
+      }
+    })();
+
+    ttsInFlight.set(cacheKey, promise);
+    return promise;
+  }
+
+  app.get('/api/tts', async (req: Request, res: Response) => {
+    const rawText = typeof req.query?.text === 'string' ? req.query.text : '';
+    const voiceName = typeof req.query?.voice === 'string' && req.query.voice.trim()
+      ? req.query.voice.trim()
+      : 'Kore';
+    const style = typeof req.query?.style === 'string' && req.query.style.trim()
+      ? req.query.style.trim()
+      : 'Warm, clear Ethiopian Amharic voice';
+    const result = await synthesizeTtsAudio(rawText, voiceName, style);
+    if (!result.ok) {
+      res.status(result.status).json({ ok: false, error: result.error });
+      return;
+    }
+    const audioBuf = Buffer.from(result.audioBase64, 'base64');
+    res.setHeader('Content-Type', result.mimeType || 'audio/wav');
+    res.setHeader('Content-Length', String(audioBuf.length));
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.status(200).send(audioBuf);
+  });
+
+  app.post('/api/tts', async (req: Request, res: Response) => {
+    const rawText = typeof req.body?.text === 'string' ? req.body.text : '';
+    const voiceName = typeof req.body?.voice === 'string' && req.body.voice.trim()
+      ? req.body.voice.trim()
+      : 'Kore';
+    const style = typeof req.body?.style === 'string' && req.body.style.trim()
+      ? req.body.style.trim()
+      : 'Warm, clear Ethiopian Amharic voice';
+    const result = await synthesizeTtsAudio(rawText, voiceName, style);
+    if (!result.ok) {
+      res.status(result.status).json({ ok: false, error: result.error });
+      return;
+    }
+    res.json({ ok: true, audioBase64: result.audioBase64, mimeType: result.mimeType, cached: result.cached });
+  });
+
+  // Pre-warm today's default daily Amharic check-in audio on startup
+  const defaultDayPrompts = [
+    'ዛሬ እሁድ ነው፣ ለሰኞ ሥራ ተዘጋጅተሻል ወይም ተዘጋጅተሃል?',
+    'ዛሬ ሰኞ ነው፣ ኦርደር በደንብ መቀበል አለብሽ ወይም አለብህ?',
+    'ዛሬ ማክሰኞ ነው፣ የሳምንት ሽያጭሽን ቼክ አድርጊ ወይም አድርግ?',
+    'ዛሬ ሮብ ነው፣ ሽያጭ በደንብ መሸጥ አለበት?',
+    'ዛሬ ሐሙስ ነው፣ ብር ሰበሰብሽ ወይም ሰበሰብክ?',
+    'ዛሬ ዓርብ ነው፣ ማዕድ ኦርደር ሰበሰብሽ ወይም ሰበሰብክ?',
+    'ዛሬ ቅዳሜ ነው፣ የቆየባቸው ሂሳብ ተቀበልሽ ወይም ተቀበልክ?',
+  ];
+  const todayPrompt = defaultDayPrompts[new Date().getDay()];
+  if (todayPrompt && getTtsClient()) {
+    void synthesizeTtsAudio(todayPrompt);
+  }
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.status(200).json({ ok: true, port: PORT, timestamp: new Date().toISOString() });

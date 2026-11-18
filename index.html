@@ -1275,6 +1275,119 @@
       border-radius: 10px; padding: 9px 12px; font-size: 12.5px; font-weight: 700;
       margin-top: 10px; text-align: left; display: flex; align-items: center; gap: 7px;
     }
+    .lock-voice-card {
+      width: 100%;
+      background: linear-gradient(135deg, #EFF6FF 0%, #ECFEFF 100%);
+      border: 1.5px solid #93C5FD;
+      border-radius: 14px;
+      padding: 12px 13px;
+      margin-bottom: 14px;
+      text-align: left;
+      transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .lock-voice-card.is-playing {
+      border-color: #2563EB;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+    }
+    .lock-voice-card.is-listened {
+      background: linear-gradient(135deg, #ECFDF5 0%, #F0FDFA 100%);
+      border-color: #34D399;
+    }
+    .lock-voice-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 7px;
+    }
+    .lock-voice-day-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #0F2D6B;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+    .lock-voice-status {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #FEF3C7;
+      color: #92400E;
+    }
+    .lock-voice-status.is-playing {
+      background: #DBEAFE;
+      color: #1D4ED8;
+    }
+    .lock-voice-status.is-done {
+      background: #D1FAE5;
+      color: #065F46;
+    }
+    .lock-voice-text {
+      font-size: 14px;
+      font-weight: 800;
+      color: #0F172A;
+      line-height: 1.48;
+      margin-bottom: 9px;
+    }
+    .lock-voice-progress {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.28);
+      overflow: hidden;
+      margin-bottom: 9px;
+    }
+    .lock-voice-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #0D9488 0%, #2563EB 100%);
+      border-radius: 999px;
+      transition: width 0.18s linear;
+    }
+    .lock-voice-card.is-listened .lock-voice-bar {
+      background: linear-gradient(90deg, #059669 0%, #10B981 100%);
+    }
+    .lock-voice-btn {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 13px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, #0D47A1 0%, #0D9488 100%);
+      box-shadow: 0 6px 14px rgba(13, 71, 161, 0.24);
+      cursor: pointer;
+    }
+    .lock-voice-card.is-listened .lock-voice-btn {
+      background: #ECFDF5;
+      color: #065F46;
+      border: 1.5px solid #6EE7B7;
+      box-shadow: none;
+    }
+    .lock-gate-locked {
+      opacity: 0.56;
+    }
+    .hero-daily-checkin {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-radius: 12px;
+      padding: 8px 12px;
+    }
     .cyber-prompt-backdrop {
       position: fixed; inset: 0; background: rgba(7, 19, 43, 0.72);
       z-index: 65; display: flex; align-items: center; justify-content: center;
@@ -1763,11 +1876,18 @@
       if (heroTimeEl) heroTimeEl.textContent = openFmt.fullText;
       if (reason === 'resume' || reason === 'telegram_open') {
         if (!isAccessUnlocked() && document.getElementById('lock-form')) {
-          var pinEl = document.getElementById('lock-code-inp');
-          var typedPin = pinEl ? pinEl.value : '';
-          renderLockScreen();
-          var newPinEl = document.getElementById('lock-code-inp');
-          if (newPinEl && typedPin) newPinEl.value = typedPin;
+          var nextVoiceKey = typeof getLockVoiceSessionKey === 'function' ? getLockVoiceSessionKey() : '';
+          var voiceCtxChanged = reason === 'telegram_open' || (typeof _dailyVoiceCtrl !== 'undefined' && _dailyVoiceCtrl.sessionKey && _dailyVoiceCtrl.sessionKey !== nextVoiceKey);
+          if (voiceCtxChanged) {
+            state.dailyVoiceListened = false;
+            if (typeof stopDailyVoicePlayback === 'function') stopDailyVoicePlayback(true);
+            if (typeof _dailyVoiceCtrl !== 'undefined') _dailyVoiceCtrl.attemptedAutoKey = '';
+            var pinEl = document.getElementById('lock-code-inp');
+            var typedPin = pinEl ? pinEl.value : '';
+            renderLockScreen();
+            var newPinEl = document.getElementById('lock-code-inp');
+            if (newPinEl && typedPin && state.dailyVoiceListened) newPinEl.value = typedPin;
+          }
         } else if (isAccessUnlocked() && !state.activeBotId && !state.modal && !state.drawerOpen) {
           renderDashboard();
         }
@@ -2108,6 +2228,495 @@
       return days;
     }
 
+    var DAILY_AMHARIC_WORK_PROMPTS = [
+      {
+        dayIndex: 0,
+        amDay: 'እሁድ',
+        enDay: 'Sunday',
+        displayQuestion: 'ለሰኞ ሥራ ተዘጋጅተሻል/ል?',
+        spokenQuestion: 'ለሰኞ ሥራ ተዘጋጅተሻል ወይም ተዘጋጅተሃል?'
+      },
+      {
+        dayIndex: 1,
+        amDay: 'ሰኞ',
+        enDay: 'Monday',
+        displayQuestion: 'ኦርደር በደንብ መቀበል አለብሽ/ህ?',
+        spokenQuestion: 'ኦርደር በደንብ መቀበል አለብሽ ወይም አለብህ?'
+      },
+      {
+        dayIndex: 2,
+        amDay: 'ማክሰኞ',
+        enDay: 'Tuesday',
+        displayQuestion: 'የሳምንት ሽያጭሽን ቼክ አድርጊ/ግ?',
+        spokenQuestion: 'የሳምንት ሽያጭሽን ቼክ አድርጊ ወይም አድርግ?'
+      },
+      {
+        dayIndex: 3,
+        amDay: 'ሮብ',
+        enDay: 'Wednesday',
+        displayQuestion: 'ሽያጭ በደንብ መሸጥ አለበት?',
+        spokenQuestion: 'ሽያጭ በደንብ መሸጥ አለበት?'
+      },
+      {
+        dayIndex: 4,
+        amDay: 'ሐሙስ',
+        enDay: 'Thursday',
+        displayQuestion: 'ብር ሰበሰብሽ/ክ?',
+        spokenQuestion: 'ብር ሰበሰብሽ ወይም ሰበሰብክ?'
+      },
+      {
+        dayIndex: 5,
+        amDay: 'ዓርብ',
+        enDay: 'Friday',
+        displayQuestion: 'ማዕድ ኦርደር ሰበሰብሽ/ክ?',
+        spokenQuestion: 'ማዕድ ኦርደር ሰበሰብሽ ወይም ሰበሰብክ?'
+      },
+      {
+        dayIndex: 6,
+        amDay: 'ቅዳሜ',
+        enDay: 'Saturday',
+        displayQuestion: 'የቆየባቸው ሂሳብ ተቀበልሽ/ክ?',
+        spokenQuestion: 'የቆየባቸው ሂሳብ ተቀበልሽ ወይም ተቀበልክ?'
+      }
+    ];
+
+    function getDailyAmharicWorkPrompt(dateOverride, userOverride) {
+      var d = dateOverride instanceof Date && !isNaN(dateOverride.getTime()) ? dateOverride : new Date();
+      var idx = d.getDay();
+      var entry = DAILY_AMHARIC_WORK_PROMPTS[idx] || DAILY_AMHARIC_WORK_PROMPTS[0];
+      var greet = userOverride !== undefined ? userOverride : getActiveGreetingUser();
+      var rawName = greet && greet.displayName ? String(greet.displayName).trim() : '';
+      var userSuffix = rawName ? (' ' + rawName) : '';
+      var spokenUser = rawName ? (' ' + rawName) : '';
+      return {
+        dayIndex: idx,
+        ymd: getLocalYmd(d),
+        amDay: entry.amDay,
+        enDay: entry.enDay,
+        userName: rawName,
+        displayText: 'ዛሬ ' + entry.amDay + ' ነው' + userSuffix + ' — ' + entry.displayQuestion,
+        spokenText: 'ዛሬ ' + entry.amDay + ' ነው' + spokenUser + '፣ ' + entry.spokenQuestion
+      };
+    }
+
+    var _dailyVoiceCtrl = {
+      sessionKey: '',
+      attemptedAutoKey: '',
+      playToken: 0,
+      audio: null,
+      abortCtrl: null,
+      progressTimer: null,
+      fallbackTimer: null,
+      cachedDataUriMap: {},
+      gestureListenerArmed: false,
+      gestureCleanup: null,
+      status: 'idle', // 'idle' | 'loading' | 'playing' | 'autoplay_blocked' | 'completed'
+      progress: 0,
+      source: ''
+    };
+
+    function getLockVoiceSessionKey(dateOverride, userOverride) {
+      var p = getDailyAmharicWorkPrompt(dateOverride, userOverride);
+      return p.ymd + '|' + p.dayIndex + '|' + (p.userName || '');
+    }
+
+    function disarmAutoVoiceGestureWakeup() {
+      if (typeof _dailyVoiceCtrl.gestureCleanup === 'function') {
+        try { _dailyVoiceCtrl.gestureCleanup(); } catch (e) {}
+      }
+      _dailyVoiceCtrl.gestureCleanup = null;
+      _dailyVoiceCtrl.gestureListenerArmed = false;
+    }
+
+    function armAutoVoiceGestureWakeup() {
+      if (_dailyVoiceCtrl.gestureListenerArmed) return;
+      if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+      _dailyVoiceCtrl.gestureListenerArmed = true;
+      var events = ['pointerdown', 'touchstart', 'mousedown', 'keydown'];
+      var handler = function (ev) {
+        if (state && state.dailyVoiceListened) {
+          disarmAutoVoiceGestureWakeup();
+          return;
+        }
+        if (!document.getElementById('lock-form')) {
+          disarmAutoVoiceGestureWakeup();
+          return;
+        }
+        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn')) {
+          disarmAutoVoiceGestureWakeup();
+          return;
+        }
+        if (_dailyVoiceCtrl.status === 'playing') {
+          disarmAutoVoiceGestureWakeup();
+          return;
+        }
+        disarmAutoVoiceGestureWakeup();
+        startDailyVoicePlayback({ auto: false });
+      };
+      events.forEach(function (evName) {
+        try { window.addEventListener(evName, handler, true); } catch (e) {}
+      });
+      _dailyVoiceCtrl.gestureCleanup = function () {
+        events.forEach(function (evName) {
+          try { window.removeEventListener(evName, handler, true); } catch (e) {}
+        });
+      };
+    }
+
+    function warmDailyVoiceCache(spokenText) {
+      if (!spokenText || _dailyVoiceCtrl.cachedDataUriMap[spokenText]) return;
+      if (typeof fetch !== 'function') return;
+      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') return;
+      fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: spokenText,
+          voice: 'Kore',
+          style: 'Warm, clear Ethiopian Amharic voice'
+        })
+      })
+        .then(function (res) { return res.ok ? res.json().catch(function () { return null; }) : null; })
+        .then(function (data) {
+          if (data && data.ok && data.audioBase64) {
+            _dailyVoiceCtrl.cachedDataUriMap[spokenText] = 'data:' + (data.mimeType || 'audio/wav') + ';base64,' + data.audioBase64;
+          }
+        })
+        .catch(function () {});
+    }
+
+    function stopDailyVoicePlayback(resetStatus) {
+      _dailyVoiceCtrl.playToken += 1;
+      disarmAutoVoiceGestureWakeup();
+      if (_dailyVoiceCtrl.abortCtrl) {
+        try { _dailyVoiceCtrl.abortCtrl.abort(); } catch (e0) {}
+        _dailyVoiceCtrl.abortCtrl = null;
+      }
+      if (_dailyVoiceCtrl.audio) {
+        try {
+          _dailyVoiceCtrl.audio.onended = null;
+          _dailyVoiceCtrl.audio.onerror = null;
+          _dailyVoiceCtrl.audio.onplaying = null;
+          _dailyVoiceCtrl.audio.pause();
+          _dailyVoiceCtrl.audio.src = '';
+        } catch (e1) {}
+        _dailyVoiceCtrl.audio = null;
+      }
+      if (_dailyVoiceCtrl.progressTimer) {
+        clearInterval(_dailyVoiceCtrl.progressTimer);
+        _dailyVoiceCtrl.progressTimer = null;
+      }
+      if (_dailyVoiceCtrl.fallbackTimer) {
+        clearTimeout(_dailyVoiceCtrl.fallbackTimer);
+        _dailyVoiceCtrl.fallbackTimer = null;
+      }
+      try {
+        if (window.speechSynthesis && typeof window.speechSynthesis.cancel === 'function') {
+          window.speechSynthesis.cancel();
+        }
+      } catch (e2) {}
+      if (resetStatus) {
+        _dailyVoiceCtrl.status = state && state.dailyVoiceListened ? 'completed' : 'idle';
+        _dailyVoiceCtrl.progress = state && state.dailyVoiceListened ? 100 : 0;
+      }
+    }
+
+    function syncLockVoiceGateUi(focusCodeOnUnlock) {
+      var card = document.getElementById('lock-voice-card');
+      var badge = document.getElementById('lock-voice-status');
+      var bar = document.getElementById('lock-voice-bar');
+      var playBtn = document.getElementById('lock-voice-play-btn');
+      var codeWrap = document.getElementById('lock-code-gate-wrap');
+      var inp = document.getElementById('lock-code-inp');
+      var submitBtn = document.getElementById('lock-submit-btn');
+      var gateHint = document.getElementById('lock-voice-gate-hint');
+      var isAm = state.lang === 'am';
+      var listened = Boolean(state.dailyVoiceListened);
+      var st = listened ? 'completed' : (_dailyVoiceCtrl.status || 'idle');
+
+      if (card) {
+        card.classList.toggle('is-listened', listened);
+        card.classList.toggle('is-playing', !listened && (st === 'loading' || st === 'playing'));
+      }
+      if (badge) {
+        badge.className = 'lock-voice-status' + (listened ? ' is-done' : (st === 'loading' || st === 'playing' ? ' is-playing' : ''));
+        if (listened) badge.textContent = isAm ? '✓ ተዳምጧል' : '✓ Listened';
+        else if (st === 'loading') badge.textContent = isAm ? '🔊 በራስ-ሰር እየጀመረ ነው...' : '🔊 Starting Auto-Voice...';
+        else if (st === 'playing') badge.textContent = isAm ? '🔊 በራስ-ሰር በመናገር ላይ...' : '🔊 Speaking Automatically...';
+        else if (st === 'autoplay_blocked') badge.textContent = isAm ? '🔊 ማንኛውንም ቦታ ይንኩ' : '🔊 Tap Anywhere to Speak';
+        else badge.textContent = isAm ? 'መጀመሪያ ያዳምጡ' : 'Listen Required';
+      }
+      if (bar) {
+        var pct = listened ? 100 : Math.max(0, Math.min(100, _dailyVoiceCtrl.progress || 0));
+        bar.style.width = pct + '%';
+      }
+      if (playBtn) {
+        if (st === 'loading') playBtn.textContent = isAm ? '🔊 በራስ-ሰር ድምፁን በመክፈት ላይ...' : '🔊 Opening Automatic Voice...';
+        else if (st === 'playing') playBtn.textContent = isAm ? '🔊 በራስ-ሰር እየተናገረ ነው... (እባክዎ ያዳምጡ)' : '🔊 Speaking Automatically... (Please listen)';
+        else if (st === 'autoplay_blocked') playBtn.textContent = isAm ? '🔊 ድምፅ ለመስማት ስክሪኑን በማንኛውም ቦታ ይንኩ' : '🔊 Tap Anywhere on Page to Start Auto-Voice';
+        else if (listened) playBtn.textContent = isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice';
+        else playBtn.textContent = isAm ? '🔊 ድምፅ በራስ-ሰር ይናገራል' : '🔊 Auto Daily Voice';
+      }
+      if (codeWrap) {
+        codeWrap.classList.toggle('lock-gate-locked', !listened);
+      }
+      if (inp) {
+        inp.disabled = !listened;
+        if (listened && focusCodeOnUnlock) {
+          try { inp.focus(); } catch (e) {}
+        }
+      }
+      if (submitBtn) {
+        submitBtn.disabled = !listened;
+      }
+      if (gateHint) {
+        if (listened) {
+          gateHint.textContent = isAm
+            ? '✓ ድምፁን ስላዳመጡ አሁን የመግቢያ ኮድዎን ማስገባት ይችላሉ።'
+            : '✓ Voice message heard — enter your access code below to unlock.';
+          gateHint.style.color = '#047857';
+        } else if (st === 'autoplay_blocked') {
+          gateHint.textContent = isAm
+            ? '🔊 ስልክ/ብራውዘር ድምፁን በራስ-ሰር እንዲጀምር ማንኛውንም ቦታ አንድ ጊዜ ይንኩ፤ ሳያዳምጡ አይከፈትም።'
+            : '🔊 Tap anywhere once so your browser permits audio — app stays locked until voice finishes.';
+          gateHint.style.color = '#B45309';
+        } else {
+          gateHint.textContent = isAm
+            ? '🔒 ድምፁ በራስ-ሰር እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።'
+            : '🔒 Speaking automatically — app unlocks for code entry right after listening completes.';
+          gateHint.style.color = '#B45309';
+        }
+      }
+    }
+
+    function playSoftCompletionChime(isUserClick) {
+      if (!isUserClick) return;
+      try {
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        var ctx = new AudioCtx();
+        var now = ctx.currentTime;
+        var notes = [523.25, 659.25];
+        notes.forEach(function (freq, i) {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + i * 0.14);
+          gain.gain.setValueAtTime(0.001, now + i * 0.14);
+          gain.gain.exponentialRampToValueAtTime(0.06, now + i * 0.14 + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.14 + 0.25);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + i * 0.14);
+          osc.stop(now + i * 0.14 + 0.26);
+        });
+      } catch (e) {}
+    }
+
+    function startDailyVoicePlayback(options) {
+      var opts = options || {};
+      var isAuto = Boolean(opts.auto);
+      var promptInfo = getDailyAmharicWorkPrompt();
+      stopDailyVoicePlayback(false);
+      var myToken = _dailyVoiceCtrl.playToken;
+
+      function completeVoice(sourceLabel) {
+        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        disarmAutoVoiceGestureWakeup();
+        if (_dailyVoiceCtrl.progressTimer) { clearInterval(_dailyVoiceCtrl.progressTimer); _dailyVoiceCtrl.progressTimer = null; }
+        if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
+        _dailyVoiceCtrl.status = 'completed';
+        _dailyVoiceCtrl.progress = 100;
+        _dailyVoiceCtrl.source = sourceLabel || 'voice';
+        if (!opts.dashboardReplayOnly) {
+          state.dailyVoiceListened = true;
+          state.lockError = '';
+          syncLockVoiceGateUi(true);
+        }
+      }
+
+      function markAutoplayBlocked() {
+        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        if (_dailyVoiceCtrl.progressTimer) { clearInterval(_dailyVoiceCtrl.progressTimer); _dailyVoiceCtrl.progressTimer = null; }
+        if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
+        _dailyVoiceCtrl.status = 'autoplay_blocked';
+        _dailyVoiceCtrl.progress = 0;
+        warmDailyVoiceCache(promptInfo.spokenText);
+        if (!opts.dashboardReplayOnly) {
+          armAutoVoiceGestureWakeup();
+          syncLockVoiceGateUi(false);
+        }
+      }
+
+      function runGuidedProgressFallback() {
+        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        if (isAuto) {
+          markAutoplayBlocked();
+          return;
+        }
+        playSoftCompletionChime(true);
+        _dailyVoiceCtrl.status = 'playing';
+        _dailyVoiceCtrl.progress = 15;
+        if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+        var startedAt = Date.now();
+        var durationMs = 3000;
+        _dailyVoiceCtrl.progressTimer = setInterval(function () {
+          if (myToken !== _dailyVoiceCtrl.playToken) return;
+          var pct = 15 + Math.round(((Date.now() - startedAt) / durationMs) * 82);
+          _dailyVoiceCtrl.progress = Math.min(97, pct);
+          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+        }, 120);
+        _dailyVoiceCtrl.fallbackTimer = setTimeout(function () {
+          completeVoice('guided');
+        }, durationMs);
+      }
+
+      function trySpeechSynthesisFallback() {
+        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        var synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+        if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+          runGuidedProgressFallback();
+          return;
+        }
+        var voices = [];
+        try { voices = synth.getVoices ? synth.getVoices() : []; } catch (e0) {}
+        var amVoice = voices.find(function (v) {
+          return v && v.lang && v.lang.toLowerCase().indexOf('am') === 0;
+        });
+        if (isAuto && !amVoice) {
+          markAutoplayBlocked();
+          return;
+        }
+        if (!amVoice && voices.length === 0) {
+          runGuidedProgressFallback();
+          return;
+        }
+        try {
+          var utt = new SpeechSynthesisUtterance(promptInfo.spokenText);
+          utt.lang = 'am-ET';
+          if (amVoice) utt.voice = amVoice;
+          utt.rate = 0.94;
+          var speechStart = Date.now();
+          var settled = false;
+          _dailyVoiceCtrl.status = 'playing';
+          _dailyVoiceCtrl.progress = 20;
+          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+          _dailyVoiceCtrl.progressTimer = setInterval(function () {
+            if (myToken !== _dailyVoiceCtrl.playToken) return;
+            _dailyVoiceCtrl.progress = Math.min(94, (_dailyVoiceCtrl.progress || 20) + 10);
+            if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+          }, 350);
+          utt.onend = function () {
+            if (settled || myToken !== _dailyVoiceCtrl.playToken) return;
+            settled = true;
+            var elapsed = Date.now() - speechStart;
+            if (elapsed < 220) {
+              runGuidedProgressFallback();
+            } else {
+              completeVoice('speech');
+            }
+          };
+          utt.onerror = function (ev) {
+            if (settled || myToken !== _dailyVoiceCtrl.playToken) return;
+            settled = true;
+            var errName = ev && ev.error ? String(ev.error) : '';
+            if (isAuto && (errName === 'not-allowed' || errName === 'audio-busy')) {
+              markAutoplayBlocked();
+            } else {
+              runGuidedProgressFallback();
+            }
+          };
+          synth.cancel();
+          synth.speak(utt);
+          _dailyVoiceCtrl.fallbackTimer = setTimeout(function () {
+            if (!settled && myToken === _dailyVoiceCtrl.playToken) {
+              settled = true;
+              if (isAuto) markAutoplayBlocked();
+              else completeVoice('speech');
+            }
+          }, 12000);
+        } catch (e1) {
+          runGuidedProgressFallback();
+        }
+      }
+
+      function playAudioSrcSync(audioSrc) {
+        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        var audio = new Audio(audioSrc);
+        _dailyVoiceCtrl.audio = audio;
+        _dailyVoiceCtrl.status = 'loading';
+        _dailyVoiceCtrl.progress = 15;
+        if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+
+        audio.onplaying = function () {
+          if (myToken !== _dailyVoiceCtrl.playToken) return;
+          disarmAutoVoiceGestureWakeup();
+          _dailyVoiceCtrl.status = 'playing';
+          _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
+          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+        };
+        _dailyVoiceCtrl.progressTimer = setInterval(function () {
+          if (myToken !== _dailyVoiceCtrl.playToken || !_dailyVoiceCtrl.audio) return;
+          if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+            _dailyVoiceCtrl.progress = Math.max(20, Math.min(98, Math.round((audio.currentTime / audio.duration) * 100)));
+            _dailyVoiceCtrl.status = 'playing';
+          } else if (_dailyVoiceCtrl.status === 'playing') {
+            _dailyVoiceCtrl.progress = Math.min(92, (_dailyVoiceCtrl.progress || 20) + 8);
+          }
+          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+        }, 180);
+        audio.onended = function () {
+          completeVoice('gemini');
+        };
+        audio.onerror = function () {
+          if (_dailyVoiceCtrl.cachedDataUriMap[promptInfo.spokenText] === audioSrc) {
+            delete _dailyVoiceCtrl.cachedDataUriMap[promptInfo.spokenText];
+          }
+          trySpeechSynthesisFallback();
+        };
+        var p = audio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(function () {
+            if (myToken !== _dailyVoiceCtrl.playToken) return;
+            disarmAutoVoiceGestureWakeup();
+            _dailyVoiceCtrl.status = 'playing';
+            _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
+            if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+          }).catch(function (err) {
+            if (myToken !== _dailyVoiceCtrl.playToken) return;
+            if (err && err.name === 'NotAllowedError') {
+              markAutoplayBlocked();
+            } else if (isAuto) {
+              markAutoplayBlocked();
+            } else {
+              trySpeechSynthesisFallback();
+            }
+          });
+        }
+      }
+
+      if (typeof Audio === 'undefined') {
+        trySpeechSynthesisFallback();
+        return;
+      }
+
+      var cachedUri = _dailyVoiceCtrl.cachedDataUriMap[promptInfo.spokenText];
+      if (cachedUri) {
+        playAudioSrcSync(cachedUri);
+        return;
+      }
+
+      var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
+      if (!isFileProto) {
+        var streamUrl = '/api/tts?text=' + encodeURIComponent(promptInfo.spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice');
+        warmDailyVoiceCache(promptInfo.spokenText);
+        playAudioSrcSync(streamUrl);
+        return;
+      }
+
+      trySpeechSynthesisFallback();
+    }
+
     function assetImgHtml(src, cls, alt, modalTitle) {
       var fallback = src.charAt(0) === '/' ? ('public' + src) : src;
       return '<img src="' + esc(src) + '" data-preview-src="' + esc(src) + '" data-preview-title="' + esc(modalTitle || alt) + '" class="' + esc(cls) + '" alt="' + esc(alt) + '" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + esc(fallback) + '\';}" />';
@@ -2187,6 +2796,7 @@
       lockError: '',
       lockShowCode: false,
       lockShake: false,
+      dailyVoiceListened: false,
       serverBlockInfo: null,
       lastHeartbeatAt: 0,
       adminUserFilter: 'all',
@@ -2253,6 +2863,9 @@
       state.lockError = '';
       state.lockShowCode = false;
       state.lockShake = false;
+      state.dailyVoiceListened = false;
+      _dailyVoiceCtrl.attemptedAutoKey = '';
+      stopDailyVoicePlayback(true);
       renderDrawer();
       renderModal();
       renderApp(true);
@@ -5359,6 +5972,16 @@
                 '</div>'
               : '') +
             '<h1 id="hero-welcome-headline" style="font-size:21px;font-weight:800;line-height:1.25;letter-spacing:-0.015em;">' + esc(dayInfo.headline) + '</h1>' +
+            (function () {
+              var dp = getDailyAmharicWorkPrompt();
+              return '<div class="hero-daily-checkin" id="hero-daily-checkin">' +
+                '<div style="display:flex;flex-direction:column;gap:2px;min-width:0;">' +
+                  '<span style="font-size:10.5px;font-weight:800;color:#FDE68A;text-transform:uppercase;letter-spacing:0.04em;">የዕለቱ የሥራ መልዕክት · ' + esc(dp.amDay) + '</span>' +
+                  '<span style="font-size:14px;font-weight:800;color:#fff;line-height:1.35;">' + esc(dp.displayText) + '</span>' +
+                '</div>' +
+                '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.28);border-color:rgba(110,231,183,0.65);font-size:11.5px;padding:5px 11px;white-space:nowrap;">🔊 ' + (state.lang === 'am' ? 'ድምፅ አዳምጥ' : 'Play Voice') + '</button>' +
+              '</div>';
+            })() +
           '</div>' +
           '<div class="week-strip">' +
             weekDays.map(function (wd) {
@@ -5792,6 +6415,10 @@
       if (heroLangBtn) heroLangBtn.onclick = toggleLanguage;
       var heroSecBtn = document.getElementById('hero-open-security');
       if (heroSecBtn) heroSecBtn.onclick = function () { openModal('cyber_control', { tab: 'control' }); };
+      var heroVoiceBtn = document.getElementById('hero-voice-play-btn');
+      if (heroVoiceBtn) heroVoiceBtn.onclick = function () {
+        startDailyVoicePlayback({ auto: false, dashboardReplayOnly: true });
+      };
       var heroResetBtn = document.getElementById('hero-reset-today');
       if (heroResetBtn) heroResetBtn.onclick = function () { state.previewDayOffset = 0; renderDashboard(); };
       document.querySelectorAll('.day-chip[data-day-offset]').forEach(function (btn) {
@@ -9522,12 +10149,21 @@
       var isAm = state.lang === 'am';
       var titleTxt = isAm ? 'የመግቢያ ኮድ ያስፈልጋል' : 'Access Code Required';
       var subTxt = isAm
-        ? 'ሠንጠረዦችን እና ዝርዝሮችን ለመክፈት የመግቢያ ኮድዎን ያስገቡ።'
-        : 'Enter your access code to unlock tables and menus.';
+        ? 'መጀመሪያ የዛሬውን የድምፅ መልዕክት ያዳምጡ፤ ከዚያ የመግቢያ ኮድዎን ያስገቡ።'
+        : 'Listen to today’s Amharic voice prompt first, then enter your access code.';
       var btnTxt = isAm ? 'ክፈት' : 'Unlock App';
       var placeholderTxt = isAm ? 'የመግቢያ ኮድ ያስገቡ...' : 'Enter access code...';
       var greetUser = getActiveGreetingUser();
       var openStamp = formatAppOpenTimestamp(state.appOpenedAt || new Date().toISOString());
+      var dailyPrompt = getDailyAmharicWorkPrompt(new Date(), greetUser);
+      var voiceKey = getLockVoiceSessionKey(new Date(), greetUser);
+      if (_dailyVoiceCtrl.sessionKey && _dailyVoiceCtrl.sessionKey !== voiceKey) {
+        state.dailyVoiceListened = false;
+        _dailyVoiceCtrl.attemptedAutoKey = '';
+        stopDailyVoicePlayback(true);
+      }
+      _dailyVoiceCtrl.sessionKey = voiceKey;
+      var isListened = Boolean(state.dailyVoiceListened);
 
       var html = '<div class="lock-screen">' +
         '<div style="position:absolute;top:16px;right:16px;">' +
@@ -9560,22 +10196,38 @@
             '<span>🕒 App Opened:</span>' +
             '<span id="lock-open-time-txt" class="mono">' + esc(openStamp.fullText) + '</span>' +
           '</div>' +
+          '<div id="lock-voice-card" class="lock-voice-card' + (isListened ? ' is-listened' : '') + '">' +
+            '<div class="lock-voice-head">' +
+              '<span class="lock-voice-day-pill">📅 ' + esc(dailyPrompt.amDay) + ' · ' + esc(dailyPrompt.enDay) + '</span>' +
+              '<span id="lock-voice-status" class="lock-voice-status' + (isListened ? ' is-done' : '') + '">' + (isListened ? (isAm ? '✓ ተዳምጧል' : '✓ Listened') : (isAm ? '🔊 በራስ-ሰር እየጀመረ ነው...' : '🔊 Starting Auto-Voice...')) + '</span>' +
+            '</div>' +
+            '<div id="lock-voice-text" class="lock-voice-text">' + esc(dailyPrompt.displayText) + '</div>' +
+            '<div class="lock-voice-progress"><div id="lock-voice-bar" class="lock-voice-bar" style="width:' + (isListened ? 100 : (_dailyVoiceCtrl.progress || 0)) + '%;"></div></div>' +
+            '<button type="button" id="lock-voice-play-btn" class="lock-voice-btn">' +
+              (isListened ? (isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice') : (isAm ? '🔊 ድምፅ በራስ-ሰር ይናገራል' : '🔊 Auto Daily Voice')) +
+            '</button>' +
+          '</div>' +
           '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">' +
             '<span style="width:28px;height:28px;border-radius:999px;background:#EFF6FF;color:#0D47A1;display:inline-flex;align-items:center;justify-content:center;">' + icon('lock', 15) + '</span>' +
             '<h1 style="font-size:19px;font-weight:800;color:#0F172A;">' + esc(titleTxt) + '</h1>' +
           '</div>' +
-          '<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;line-height:1.45;">' + esc(subTxt) + '</p>' +
-          '<div style="text-align:left;">' +
+          '<p style="font-size:12.5px;color:#64748B;margin-bottom:10px;line-height:1.45;">' + esc(subTxt) + '</p>' +
+          '<div id="lock-voice-gate-hint" style="font-size:11.5px;font-weight:800;margin-bottom:10px;color:' + (isListened ? '#047857' : '#B45309') + ';">' +
+            (isListened
+              ? (isAm ? '✓ ድምፁን ስላዳመጡ አሁን የመግቢያ ኮድዎን ማስገባት ይችላሉ።' : '✓ Voice message heard — enter your access code below to unlock.')
+              : (isAm ? '🔒 ድምፁ በራስ-ሰር እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።' : '🔒 Speaking automatically — app unlocks for code entry right after listening completes.')) +
+          '</div>' +
+          '<div id="lock-code-gate-wrap" class="' + (isListened ? '' : 'lock-gate-locked') + '" style="text-align:left;">' +
             '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
             '<div style="display:flex;gap:8px;align-items:center;">' +
-              '<input id="lock-code-inp" name="tablebot_lock_pin" type="' + (state.lockShowCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '" autofocus />' +
+              '<input id="lock-code-inp" name="tablebot_lock_pin" type="' + (state.lockShowCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '"' + (isListened ? ' autofocus' : ' disabled') + ' />' +
               '<button type="button" id="lock-eye-btn" class="btn btn-outline" style="padding:10px 12px;font-size:11.5px;white-space:nowrap;">' + (state.lockShowCode ? 'Hide' : 'Show') + '</button>' +
             '</div>' +
           '</div>' +
           (state.lockError
             ? '<div id="lock-err-msg" class="lock-error-box">' + icon('ban', 15) + '<span>' + esc(state.lockError) + '</span></div>'
             : '') +
-          '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;">' +
+          '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;"' + (isListened ? '' : ' disabled') + '>' +
             icon('shield', 16) + '<span>' + esc(btnTxt) + '</span>' +
           '</button>' +
           '<div style="margin-top:14px;font-size:11px;color:#64748B;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px dashed #E2E8F0;padding-top:10px;">' +
@@ -9588,9 +10240,16 @@
       document.getElementById('app').innerHTML = html;
       state.lockShake = false;
 
+      var playVoiceBtn = document.getElementById('lock-voice-play-btn');
+      if (playVoiceBtn) {
+        playVoiceBtn.onclick = function () {
+          startDailyVoicePlayback({ auto: false });
+        };
+      }
+
       var inp = document.getElementById('lock-code-inp');
       if (inp) {
-        inp.focus();
+        if (isListened) inp.focus();
         inp.oninput = function () {
           if (state.lockError) {
             state.lockError = '';
@@ -9615,10 +10274,18 @@
         state.lockShowCode = !state.lockShowCode;
         renderLockScreen();
         var nInp = document.getElementById('lock-code-inp');
-        if (nInp) { nInp.value = cur; nInp.focus(); }
+        if (nInp && state.dailyVoiceListened) { nInp.value = cur; nInp.focus(); }
       };
       document.getElementById('lock-form').onsubmit = async function (e) {
         e.preventDefault();
+        if (!state.dailyVoiceListened) {
+          state.lockError = state.lang === 'am'
+            ? 'መጀመሪያ የዛሬውን የድምፅ መልዕክት ያዳምጡ። ሳያዳምጡ መክፈት አይቻልም።'
+            : 'Please listen to today’s voice message first before entering the access code.';
+          state.lockShake = true;
+          renderLockScreen();
+          return;
+        }
         var entered = normalizeSecurityCode(document.getElementById('lock-code-inp').value);
         if (!entered) {
           state.lockError = state.lang === 'am' ? 'እባክዎ የመግቢያ ኮድ ያስገቡ።' : 'Please enter the access code.';
@@ -9633,6 +10300,7 @@
         if (!isAccessLockEnabled()) {
           state.lockError = '';
           state.lockShake = false;
+          stopDailyVoicePlayback(false);
           markAppOpenedNow(null, 'unlock');
           unlockAppSession();
           renderApp();
@@ -9646,11 +10314,12 @@
           state.lockShake = true;
           renderLockScreen();
           var rInp = document.getElementById('lock-code-inp');
-          if (rInp) { rInp.value = ''; rInp.focus(); }
+          if (rInp && state.dailyVoiceListened) { rInp.value = ''; rInp.focus(); }
           return;
         }
         state.lockError = '';
         state.lockShake = false;
+        stopDailyVoicePlayback(false);
         markAppOpenedNow(null, 'unlock');
         unlockAppSession();
         recordAudit('AUTH', null, 'Workspace unlocked with access code', { source: 'LockScreen' });
@@ -9664,6 +10333,12 @@
           openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
         }
       };
+
+      syncLockVoiceGateUi(false);
+      if (!isListened && _dailyVoiceCtrl.attemptedAutoKey !== voiceKey) {
+        _dailyVoiceCtrl.attemptedAutoKey = voiceKey;
+        startDailyVoicePlayback({ auto: true });
+      }
     }
 
     function renderRevokedLoggedOutScreen() {
