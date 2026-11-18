@@ -1791,6 +1791,11 @@
       return { folders: {}, botIds: {}, restoredFolders: {}, restoredBots: {} };
     }
 
+    function normalizeFolderName(name) {
+      var s = String(name === undefined || name === null ? '' : name).trim();
+      return s || 'General';
+    }
+
     function isBotTombstonedWith(bot, tomb) {
       if (!bot || !bot.id || !tomb) return false;
       var folders = tomb.folders || {};
@@ -1803,18 +1808,18 @@
       if (bTomb && bTomb.deletedAt) {
         var bDelMs = Date.parse(bTomb.deletedAt) || 0;
         var bRestMs = (restoredBots[bot.id] && restoredBots[bot.id].at) ? (Date.parse(restoredBots[bot.id].at) || 0) : 0;
-        if (bDelMs > bRestMs && (bot.isSampleSeed || updatedMs <= bDelMs + 500)) {
+        if (bDelMs > bRestMs) {
           return true;
         }
       }
 
-      var fKey = String(bot.folder || 'General').trim().toLowerCase();
+      var fKey = normalizeFolderName(bot.folder).toLowerCase();
       var fTomb = folders[fKey];
       if (fTomb && fTomb.deletedAt) {
         var fDelMs = Date.parse(fTomb.deletedAt) || 0;
         var fRestMs = (restoredFolders[fKey] && restoredFolders[fKey].at) ? (Date.parse(restoredFolders[fKey].at) || 0) : 0;
         var bSelfRestMs = (restoredBots[bot.id] && restoredBots[bot.id].at) ? (Date.parse(restoredBots[bot.id].at) || 0) : 0;
-        if (fDelMs > Math.max(fRestMs, bSelfRestMs) && (bot.isSampleSeed || updatedMs <= fDelMs + 500)) {
+        if (fDelMs > Math.max(fRestMs, bSelfRestMs) && (bot.isSampleSeed || updatedMs <= fDelMs + 1000)) {
           return true;
         }
       }
@@ -2482,8 +2487,12 @@
       if (_dailyVoiceCtrl.gestureListenerArmed) return;
       if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
       _dailyVoiceCtrl.gestureListenerArmed = true;
-      var events = ['pointerdown', 'touchstart', 'mousedown', 'keydown'];
+      var events = ['click', 'touchend', 'keydown'];
       var handler = function (ev) {
+        var splashEl = document.getElementById('tb-splash-screen');
+        if (splashEl && !splashEl.classList.contains('is-leaving')) {
+          return;
+        }
         unlockAudioCtxSync();
         if (state && state.dailyVoiceListened) {
           disarmAutoVoiceGestureWakeup();
@@ -2497,7 +2506,7 @@
           disarmAutoVoiceGestureWakeup();
           return;
         }
-        if (_dailyVoiceCtrl.status === 'playing') {
+        if (_dailyVoiceCtrl.status === 'playing' || _dailyVoiceCtrl.status === 'loading') {
           disarmAutoVoiceGestureWakeup();
           return;
         }
@@ -2604,7 +2613,7 @@
           _dailyVoiceCtrl.audio.onerror = null;
           _dailyVoiceCtrl.audio.onplaying = null;
           _dailyVoiceCtrl.audio.pause();
-          _dailyVoiceCtrl.audio.removeAttribute('src');
+          _dailyVoiceCtrl.audio.currentTime = 0;
         } catch (e1) {}
         _dailyVoiceCtrl.audio = null;
       }
@@ -2700,22 +2709,30 @@
       try {
         var ctx = getOrCreateSharedAudioCtx();
         if (!ctx) return;
-        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') ctx.resume().catch(function () {});
-        var now = ctx.currentTime;
-        var notes = [523.25, 659.25];
-        notes.forEach(function (freq, i) {
-          var osc = ctx.createOscillator();
-          var gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, now + i * 0.16);
-          gain.gain.setValueAtTime(0.001, now + i * 0.16);
-          gain.gain.exponentialRampToValueAtTime(0.32, now + i * 0.16 + 0.04);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.16 + 0.32);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(now + i * 0.16);
-          osc.stop(now + i * 0.16 + 0.34);
-        });
+        var scheduleNotes = function () {
+          try {
+            var now = ctx.currentTime;
+            var notes = [523.25, 659.25];
+            notes.forEach(function (freq, i) {
+              var osc = ctx.createOscillator();
+              var gain = ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, now + i * 0.16);
+              gain.gain.setValueAtTime(0.001, now + i * 0.16);
+              gain.gain.exponentialRampToValueAtTime(0.35, now + i * 0.16 + 0.04);
+              gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.16 + 0.32);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start(now + i * 0.16);
+              osc.stop(now + i * 0.16 + 0.34);
+            });
+          } catch (eN) {}
+        };
+        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+          ctx.resume().then(scheduleNotes).catch(function () {});
+        } else {
+          scheduleNotes();
+        }
       } catch (e) {}
     }
 
@@ -2725,6 +2742,9 @@
       var fromGesture = Boolean(opts.fromGesture);
       if (fromGesture || !isAuto) unlockAudioCtxSync();
       var promptInfo = getDailyAmharicWorkPrompt();
+      var sessionKey = getLockVoiceSessionKey();
+      _dailyVoiceCtrl.sessionKey = sessionKey;
+      _dailyVoiceCtrl.attemptedAutoKey = sessionKey;
       stopDailyVoicePlayback(false);
       var myToken = _dailyVoiceCtrl.playToken;
 
@@ -2849,91 +2869,6 @@
         }
       }
 
-      function playDomAudioElement(srcUrl, allowWebAudioRetryOnErr) {
-        if (myToken !== _dailyVoiceCtrl.playToken) return;
-        var domAudio = document.getElementById('tb-daily-voice-el');
-        var audio = domAudio || (typeof Audio !== 'undefined' ? new Audio() : null);
-        if (!audio) {
-          trySpeechSynthesisFallback();
-          return;
-        }
-        try {
-          audio.onended = null;
-          audio.onerror = null;
-          audio.onplaying = null;
-          audio.pause();
-        } catch (eStop) {}
-        audio.playsInline = true;
-        try { audio.setAttribute('playsinline', ''); audio.setAttribute('webkit-playsinline', ''); } catch (eAttr) {}
-        audio.muted = false;
-        audio.volume = 1.0;
-        audio.src = srcUrl;
-        try { if (typeof audio.load === 'function') audio.load(); } catch (eLoad) {}
-
-        _dailyVoiceCtrl.audio = audio;
-        _dailyVoiceCtrl.status = 'loading';
-        _dailyVoiceCtrl.progress = 15;
-        if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
-
-        audio.onplaying = function () {
-          if (myToken !== _dailyVoiceCtrl.playToken) return;
-          disarmAutoVoiceGestureWakeup();
-          _dailyVoiceCtrl.status = 'playing';
-          _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
-          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
-        };
-        _dailyVoiceCtrl.progressTimer = setInterval(function () {
-          if (myToken !== _dailyVoiceCtrl.playToken || !_dailyVoiceCtrl.audio) return;
-          if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
-            _dailyVoiceCtrl.progress = Math.max(20, Math.min(98, Math.round((audio.currentTime / audio.duration) * 100)));
-            _dailyVoiceCtrl.status = 'playing';
-          } else if (_dailyVoiceCtrl.status === 'playing') {
-            _dailyVoiceCtrl.progress = Math.min(92, (_dailyVoiceCtrl.progress || 20) + 8);
-          }
-          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
-        }, 180);
-        audio.onended = function () {
-          completeVoice('gemini');
-        };
-        audio.onerror = function () {
-          if (allowWebAudioRetryOnErr) {
-            fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
-              if (myToken !== _dailyVoiceCtrl.playToken) return;
-              if (ab && tryWebAudioPlayback(ab, false)) return;
-              trySpeechSynthesisFallback();
-            });
-          } else {
-            trySpeechSynthesisFallback();
-          }
-        };
-        var p = audio.play();
-        if (p && typeof p.then === 'function') {
-          p.then(function () {
-            if (myToken !== _dailyVoiceCtrl.playToken) return;
-            disarmAutoVoiceGestureWakeup();
-            _dailyVoiceCtrl.status = 'playing';
-            _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
-            if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
-          }).catch(function (err) {
-            if (myToken !== _dailyVoiceCtrl.playToken) return;
-            if (err && err.name === 'NotAllowedError') {
-              markAutoplayBlocked();
-            } else if (allowWebAudioRetryOnErr) {
-              fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
-                if (myToken !== _dailyVoiceCtrl.playToken) return;
-                if (ab && tryWebAudioPlayback(ab, false)) return;
-                if (isAuto) markAutoplayBlocked();
-                else trySpeechSynthesisFallback();
-              });
-            } else if (isAuto) {
-              markAutoplayBlocked();
-            } else {
-              trySpeechSynthesisFallback();
-            }
-          });
-        }
-      }
-
       function tryWebAudioPlayback(arrayBuf, fallbackToDomOnFail) {
         if (myToken !== _dailyVoiceCtrl.playToken) return false;
         var ctx = getOrCreateSharedAudioCtx();
@@ -2942,9 +2877,9 @@
           return false;
         }
         try {
-          if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
-            ctx.resume().catch(function () {});
-          }
+          var resumePromise = (ctx.state === 'suspended' && typeof ctx.resume === 'function')
+            ? ctx.resume().catch(function () {})
+            : Promise.resolve();
           var copyBuf = arrayBuf.slice(0);
           ctx.decodeAudioData(
             copyBuf,
@@ -2960,59 +2895,53 @@
                 }
                 return;
               }
-              try {
-                var src = ctx.createBufferSource();
-                src.buffer = audioBuffer;
-                var gain = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
-                if (gain) {
-                  gain.gain.value = 1.35;
-                  src.connect(gain);
-                  gain.connect(ctx.destination);
-                } else {
-                  src.connect(ctx.destination);
+              resumePromise.then(function () {
+                if (myToken !== _dailyVoiceCtrl.playToken) return;
+                if (ctx.state === 'suspended') {
+                  if (isAuto) { markAutoplayBlocked(); return; }
                 }
-                _dailyVoiceCtrl.activeSourceNode = src;
-                disarmAutoVoiceGestureWakeup();
-                _dailyVoiceCtrl.status = 'playing';
-                _dailyVoiceCtrl.progress = 20;
-                if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
-
-                var startedAt = Date.now();
-                var durMs = Math.max(800, Math.round(audioBuffer.duration * 1000));
-                _dailyVoiceCtrl.progressTimer = setInterval(function () {
-                  if (myToken !== _dailyVoiceCtrl.playToken) return;
-                  var pct = 20 + Math.round(((Date.now() - startedAt) / durMs) * 78);
-                  _dailyVoiceCtrl.progress = Math.min(98, pct);
+                try {
+                  var src = ctx.createBufferSource();
+                  src.buffer = audioBuffer;
+                  var gain = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
+                  if (gain) {
+                    gain.gain.value = 1.35;
+                    src.connect(gain);
+                    gain.connect(ctx.destination);
+                  } else {
+                    src.connect(ctx.destination);
+                  }
+                  _dailyVoiceCtrl.activeSourceNode = src;
+                  disarmAutoVoiceGestureWakeup();
+                  _dailyVoiceCtrl.status = 'playing';
+                  _dailyVoiceCtrl.progress = 20;
                   if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
-                }, 140);
-                var doneCalled = false;
-                var finishFn = function () {
-                  if (doneCalled) return;
-                  doneCalled = true;
-                  completeVoice('webaudio');
-                };
-                src.onended = finishFn;
-                _dailyVoiceCtrl.fallbackTimer = setTimeout(finishFn, durMs + 350);
-                src.start(0);
-              } catch (eStart) {
-                if (fallbackToDomOnFail) {
-                  var bUrl2 = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
-                  if (bUrl2) playDomAudioElement(bUrl2, false);
-                  else trySpeechSynthesisFallback();
-                } else {
+
+                  var startedAt = Date.now();
+                  var durMs = Math.max(800, Math.round(audioBuffer.duration * 1000));
+                  _dailyVoiceCtrl.progressTimer = setInterval(function () {
+                    if (myToken !== _dailyVoiceCtrl.playToken) return;
+                    var pct = 20 + Math.round(((Date.now() - startedAt) / durMs) * 78);
+                    _dailyVoiceCtrl.progress = Math.min(98, pct);
+                    if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+                  }, 140);
+                  var doneCalled = false;
+                  var finishFn = function () {
+                    if (doneCalled) return;
+                    doneCalled = true;
+                    completeVoice('webaudio');
+                  };
+                  src.onended = finishFn;
+                  _dailyVoiceCtrl.fallbackTimer = setTimeout(finishFn, durMs + 450);
+                  src.start(0);
+                } catch (eStart) {
                   trySpeechSynthesisFallback();
                 }
-              }
+              });
             },
             function () {
               if (myToken !== _dailyVoiceCtrl.playToken) return;
-              if (fallbackToDomOnFail) {
-                var bUrl3 = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
-                if (bUrl3) playDomAudioElement(bUrl3, false);
-                else trySpeechSynthesisFallback();
-              } else {
-                trySpeechSynthesisFallback();
-              }
+              trySpeechSynthesisFallback();
             }
           );
           return true;
@@ -3021,40 +2950,120 @@
         }
       }
 
+      function playDomAudioElement(srcUrl, allowWebAudioRetryOnErr) {
+        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        var domAudio = document.getElementById('tb-daily-voice-el');
+        var audio = domAudio || (typeof Audio !== 'undefined' ? new Audio() : null);
+        if (!audio) {
+          trySpeechSynthesisFallback();
+          return;
+        }
+        try {
+          audio.onended = null;
+          audio.onerror = null;
+          audio.onplaying = null;
+          audio.pause();
+          audio.currentTime = 0;
+        } catch (eStop) {}
+        audio.playsInline = true;
+        try { audio.setAttribute('playsinline', ''); audio.setAttribute('webkit-playsinline', ''); } catch (eAttr) {}
+        audio.muted = false;
+        audio.volume = 1.0;
+        audio.src = srcUrl;
+
+        _dailyVoiceCtrl.audio = audio;
+        _dailyVoiceCtrl.status = 'loading';
+        _dailyVoiceCtrl.progress = 15;
+        if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+
+        var handledFailure = false;
+        var fallbackFromDom = function (wasAutoplayReject) {
+          if (handledFailure || myToken !== _dailyVoiceCtrl.playToken) return;
+          handledFailure = true;
+          if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
+          if (wasAutoplayReject && isAuto && !fromGesture) {
+            markAutoplayBlocked();
+            return;
+          }
+          if (allowWebAudioRetryOnErr) {
+            fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
+              if (myToken !== _dailyVoiceCtrl.playToken) return;
+              if (ab && tryWebAudioPlayback(ab, false)) return;
+              if (isAuto && !fromGesture) markAutoplayBlocked();
+              else trySpeechSynthesisFallback();
+            });
+          } else if (isAuto && !fromGesture) {
+            markAutoplayBlocked();
+          } else {
+            trySpeechSynthesisFallback();
+          }
+        };
+
+        audio.onplaying = function () {
+          if (myToken !== _dailyVoiceCtrl.playToken) return;
+          if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
+          disarmAutoVoiceGestureWakeup();
+          _dailyVoiceCtrl.status = 'playing';
+          _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
+          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+        };
+        _dailyVoiceCtrl.progressTimer = setInterval(function () {
+          if (myToken !== _dailyVoiceCtrl.playToken || !_dailyVoiceCtrl.audio) return;
+          if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+            _dailyVoiceCtrl.progress = Math.max(20, Math.min(98, Math.round((audio.currentTime / audio.duration) * 100)));
+            if (!audio.paused) {
+              _dailyVoiceCtrl.status = 'playing';
+              if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
+            }
+          } else if (_dailyVoiceCtrl.status === 'playing') {
+            _dailyVoiceCtrl.progress = Math.min(92, (_dailyVoiceCtrl.progress || 20) + 8);
+          }
+          if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+        }, 180);
+        audio.onended = function () {
+          if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
+          completeVoice('gemini');
+        };
+        audio.onerror = function () {
+          fallbackFromDom(false);
+        };
+        _dailyVoiceCtrl.fallbackTimer = setTimeout(function () {
+          if (myToken === _dailyVoiceCtrl.playToken && _dailyVoiceCtrl.status === 'loading') {
+            fallbackFromDom(false);
+          }
+        }, 6500);
+
+        try {
+          var p = audio.play();
+          if (p && typeof p.then === 'function') {
+            p.then(function () {
+              if (myToken !== _dailyVoiceCtrl.playToken) return;
+              if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
+              disarmAutoVoiceGestureWakeup();
+              _dailyVoiceCtrl.status = 'playing';
+              _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
+              if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+            }).catch(function (err) {
+              var isBlockedErr = Boolean(err && (err.name === 'NotAllowedError' || /not\s*allowed|gesture|interact/i.test(String(err.message || ''))));
+              fallbackFromDom(isBlockedErr);
+            });
+          }
+        } catch (ePlay) {
+          fallbackFromDom(false);
+        }
+      }
+
       _dailyVoiceCtrl.status = 'loading';
       _dailyVoiceCtrl.progress = 12;
       if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
 
-      var cachedAb = _dailyVoiceCtrl.arrayBufMap[promptInfo.spokenText];
-      if (cachedAb) {
-        if (tryWebAudioPlayback(cachedAb, true)) return;
-        var cachedBlob = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
-        if (cachedBlob) {
-          playDomAudioElement(cachedBlob, true);
-          return;
-        }
-      }
-
       var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
       if (!isFileProto && typeof fetch === 'function') {
-        if (fromGesture || !isAuto) {
-          fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
-            if (myToken !== _dailyVoiceCtrl.playToken) return;
-            if (ab) {
-              if (tryWebAudioPlayback(ab, true)) return;
-              var bUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
-              if (bUrl) {
-                playDomAudioElement(bUrl, false);
-                return;
-              }
-            }
-            trySpeechSynthesisFallback();
-          });
-          return;
-        }
         var streamUrl = '/api/tts?text=' + encodeURIComponent(promptInfo.spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice');
+        var immediateUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText] || streamUrl;
         warmDailyVoiceCache(promptInfo.spokenText);
-        playDomAudioElement(streamUrl, true);
+        // Always start HTML5 <audio> SYNCHRONOUSLY inside gesture / auto tick so user activation never expires
+        playDomAudioElement(immediateUrl, true);
         return;
       }
 
@@ -3078,7 +3087,7 @@
         setTimeout(function () {
           var r = document.getElementById('splash-root');
           if (r) r.innerHTML = '';
-        }, 320);
+        }, 280);
       }
       if (!isAccessUnlocked() && !state.dailyVoiceListened) {
         if (fromUserGesture) {
@@ -3135,7 +3144,7 @@
 
       _dailyVoiceCtrl.splashTimer = setTimeout(function () {
         dismissBrandSplash(false);
-      }, 1900);
+      }, 1700);
     }
 
     function assetImgHtml(src, cls, alt, modalTitle) {
@@ -3458,15 +3467,15 @@
         saveBotsLocal();
       }
       var liveFolderSet = {};
-      state.bots.forEach(function (b) { liveFolderSet[String(b.folder || 'General').trim().toLowerCase()] = true; });
+      state.bots.forEach(function (b) { liveFolderSet[normalizeFolderName(b.folder).toLowerCase()] = true; });
       var cfBefore = (state.customFolders || []).length;
       state.customFolders = (state.customFolders || []).filter(function (f) {
         var fKey = String(f || '').trim().toLowerCase();
-        return !isFolderTombstoned(fKey) || !!liveFolderSet[fKey];
+        return Boolean(fKey) && (!isFolderTombstoned(fKey) || !!liveFolderSet[fKey]);
       });
       var cfChanged = state.customFolders.length !== cfBefore;
       if (cfChanged) saveCustomFolders();
-      if (state.selectedFolder && state.selectedFolder !== 'all' && isFolderTombstoned(state.selectedFolder) && !liveFolderSet[String(state.selectedFolder).trim().toLowerCase()]) {
+      if (state.selectedFolder && state.selectedFolder !== 'all' && isFolderTombstoned(state.selectedFolder) && !liveFolderSet[normalizeFolderName(state.selectedFolder).toLowerCase()]) {
         state.selectedFolder = 'all';
       }
       if (state.adminConfig && state.adminConfig.telegramDefaultFolder && isFolderTombstoned(state.adminConfig.telegramDefaultFolder)) {
@@ -3567,7 +3576,9 @@
 
       if (!(opts && opts.silent) && (codeChanged || lockToggled || cyberChanged || forceLockTriggered || purgedFromTomb)) {
         if (!isAccessUnlocked()) {
-          renderLockScreen();
+          if (codeChanged || lockToggled || forceLockTriggered || !document.getElementById('lock-form')) {
+            renderLockScreen();
+          }
           if (codeChanged && fromOtherSession) showToast('Lock Screen code synced from another browser / Telegram');
         } else {
           renderApp(true);
@@ -4874,27 +4885,17 @@
 
     async function deleteFolderWithBackup(folderName) {
       if (!guardWriteAction('Delete Folder')) return 0;
-      var cleanTarget = String(folderName || '').trim();
-      if (!cleanTarget) return 0;
+      var rawTarget = String(folderName === undefined || folderName === null ? '' : folderName);
+      var cleanTarget = rawTarget.trim() || 'General';
+      if (cleanTarget.toLowerCase() === 'all') return 0;
       var targetLower = cleanTarget.toLowerCase();
-      var targets = state.bots.filter(function (b) { return String(b.folder || 'General').trim().toLowerCase() === targetLower; });
+      var targets = state.bots.filter(function (b) {
+        return normalizeFolderName(b && b.folder).toLowerCase() === targetLower;
+      });
       var targetIds = targets.map(function (t) { return t.id; });
 
-      // Persist deleted folder + bot tombstones immediately BEFORE async remote calls so reopen never brings them back
+      // Persist tombstones & local folder removal synchronously BEFORE any remote awaits
       markFolderDeletedTombstone(cleanTarget, targetIds);
-
-      var sbClientForDel = null;
-      if (state.supabaseConfig.isConnected) {
-        sbClientForDel = getSbClient();
-        if (sbClientForDel && !state.authSession) {
-          try {
-            var sessR = await sbClientForDel.auth.getSession();
-            if (sessR && sessR.data && sessR.data.session && sessR.data.session.user) {
-              state.authSession = { id: sessR.data.session.user.id, email: sessR.data.session.user.email };
-            }
-          } catch (e0) {}
-        }
-      }
 
       for (var i = 0; i < targets.length; i++) {
         var t = targets[i];
@@ -4912,9 +4913,6 @@
         });
         recordFolderSnapshot(t, 'FOLDER_DELETED', 'Folder "' + cleanTarget + '" deleted (' + (t.rows || []).length + ' rows backed up)', true);
         recordAudit('DELETE', t, 'Deleted folder "' + cleanTarget + '" (backed up "' + t.name + '")');
-        if (sbClientForDel && state.authSession) {
-          try { await sbClientForDel.from('user_bots').delete().eq('id', t.id); } catch (e) {}
-        }
       }
       if (targets.length === 0) {
         recordAudit('DELETE', null, 'Deleted empty folder "' + cleanTarget + '"');
@@ -4924,8 +4922,19 @@
       targets.forEach(function (t) { idSet[t.id] = true; });
       state.bots = state.bots.filter(function (b) { return !idSet[b.id]; });
       state.customFolders = (state.customFolders || []).filter(function (f) {
-        return String(f || '').trim().toLowerCase() !== targetLower;
+        var fk = String(f || '').trim().toLowerCase();
+        return Boolean(fk) && fk !== targetLower;
       });
+      if (state.collapsedFolders) {
+        Object.keys(state.collapsedFolders).forEach(function (ck) {
+          if (String(ck || '').trim().toLowerCase() === targetLower) delete state.collapsedFolders[ck];
+        });
+      }
+      if (state.folderLastBotId) {
+        Object.keys(state.folderLastBotId).forEach(function (fk) {
+          if (String(fk || '').trim().toLowerCase() === targetLower) delete state.folderLastBotId[fk];
+        });
+      }
       if (state.adminConfig) {
         if (String(state.adminConfig.telegramDefaultFolder || '').trim().toLowerCase() === targetLower) {
           state.adminConfig.telegramDefaultFolder = '';
@@ -4943,13 +4952,37 @@
       if (String(state.selectedFolder || '').trim().toLowerCase() === targetLower) state.selectedFolder = 'all';
       if (String(state.dashReportFolder || '').trim().toLowerCase() === targetLower) state.dashReportFolder = '';
       if (String(state.confirmDeleteFolder || '').trim().toLowerCase() === targetLower) state.confirmDeleteFolder = '';
+
+      // Collapse remaining folders so deleting General or a blank folder does not auto-open/expand other user-created folders' files
+      if (!state.collapsedFolders) state.collapsedFolders = {};
+      getAllFolders().forEach(function (remFolder) {
+        state.collapsedFolders[remFolder] = true;
+      });
+
       saveBotsLocal();
       saveCustomFolders();
       saveVaultState();
       saveDeletedTombstones();
       broadcastLocalSync('delete_folder');
-      pushSharedSecurityState('delete_folder');
       renderApp();
+
+      if (state.supabaseConfig.isConnected && targetIds.length > 0) {
+        var sbClientForDel = getSbClient();
+        if (sbClientForDel && !state.authSession) {
+          try {
+            var sessR = await sbClientForDel.auth.getSession();
+            if (sessR && sessR.data && sessR.data.session && sessR.data.session.user) {
+              state.authSession = { id: sessR.data.session.user.id, email: sessR.data.session.user.email };
+            }
+          } catch (e0) {}
+        }
+        if (sbClientForDel && state.authSession) {
+          for (var di = 0; di < targetIds.length; di++) {
+            try { await sbClientForDel.from('user_bots').delete().eq('id', targetIds[di]); } catch (e) {}
+          }
+        }
+      }
+      pushSharedSecurityState('delete_folder');
       return targets.length;
     }
 
@@ -5179,12 +5212,20 @@
 
     function getAllFolders() {
       var map = {};
+      var lowerSeen = {};
+      var addFolder = function (rawName) {
+        var clean = normalizeFolderName(rawName);
+        var lower = clean.toLowerCase();
+        if (lowerSeen[lower]) return;
+        lowerSeen[lower] = clean;
+        map[clean] = true;
+      };
       state.bots.forEach(function (b) {
-        if (!isBotTombstoned(b)) map[b.folder || 'General'] = true;
+        if (b && !isBotTombstoned(b)) addFolder(b.folder);
       });
       (state.customFolders || []).forEach(function (f) {
         var clean = String(f || '').trim();
-        if (clean && !isFolderTombstoned(clean)) map[clean] = true;
+        if (clean && !isFolderTombstoned(clean)) addFolder(clean);
       });
       return Object.keys(map);
     }
@@ -5196,11 +5237,12 @@
       var existing = getAllFolders().find(function (f) { return f.toLowerCase() === clean.toLowerCase(); });
       if (existing) clean = existing;
       var cleared = clearFolderTombstone(clean, null);
-      if (state.customFolders.indexOf(clean) === -1) {
+      if (!state.customFolders.some(function (f) { return String(f || '').trim().toLowerCase() === clean.toLowerCase(); })) {
         state.customFolders.push(clean);
         saveCustomFolders();
       }
       if (cleared) pushSharedSecurityState('create_folder');
+      if (state.collapsedFolders) state.collapsedFolders[clean] = false;
       state.selectedFolder = clean;
       if (withStarterTable) {
         var id = Date.now();
@@ -6236,8 +6278,17 @@
         state.deletedTombstones.botIds[botId] = { folder: target.folder || 'General', deletedAt: new Date().toISOString() };
         saveDeletedTombstones();
 
+        var deletedFolder = normalizeFolderName(target.folder);
         state.bots = state.bots.filter(function (b) { return b.id !== botId; });
         if (state.activeBotId === botId) state.activeBotId = null;
+        var remainingFolders = getAllFolders();
+        if (state.selectedFolder && state.selectedFolder !== 'all' &&
+            state.selectedFolder.toLowerCase() === deletedFolder.toLowerCase() &&
+            !remainingFolders.some(function (rf) { return rf.toLowerCase() === deletedFolder.toLowerCase(); })) {
+          state.selectedFolder = 'all';
+          if (!state.collapsedFolders) state.collapsedFolders = {};
+          remainingFolders.forEach(function (rf) { state.collapsedFolders[rf] = true; });
+        }
         saveBotsLocal();
         saveVaultState();
         recordAudit('DELETE', target, 'Deleted bot table "' + target.name + '"');
@@ -6306,8 +6357,8 @@
       var q = state.searchQuery.toLowerCase();
       var filtered = state.bots.filter(function (b) {
         if (isBotTombstoned(b)) return false;
-        var f = b.folder || 'General';
-        if (state.selectedFolder !== 'all' && f !== state.selectedFolder) return false;
+        var f = normalizeFolderName(b.folder);
+        if (state.selectedFolder !== 'all' && f.toLowerCase() !== String(state.selectedFolder || '').trim().toLowerCase()) return false;
         if (q && b.name.toLowerCase().indexOf(q) === -1 && (b.description || '').toLowerCase().indexOf(q) === -1 && f.toLowerCase().indexOf(q) === -1) return false;
         if (state.filterType === 'favorites') return !!b.isFavorite;
         if (state.filterType === 'online') return b.botStatus === 'online';
@@ -6457,7 +6508,8 @@
 
       folders.forEach(function (f) {
         var pal = getFolderPalette(f);
-        var cnt = state.bots.filter(function (b) { return !isBotTombstoned(b) && (b.folder || 'General') === f; }).length;
+        var fLower = f.toLowerCase();
+        var cnt = state.bots.filter(function (b) { return !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === fLower; }).length;
         var fLocked = isFolderLocked(f);
         var fUnlocked = isFolderUnlocked(f);
         var lockMark = fLocked ? (fUnlocked ? ' 🔓' : ' 🔒') : '';
@@ -6590,7 +6642,8 @@
       if (selFolder === 'all') {
         var visibleFolders = folders.filter(function (f) {
           if (!q && state.filterType === 'all') return true;
-          return filtered.some(function (b) { return (b.folder || 'General') === f; });
+          var fl = f.toLowerCase();
+          return filtered.some(function (b) { return normalizeFolderName(b.folder).toLowerCase() === fl; });
         });
 
         if (visibleFolders.length === 0) {
@@ -6603,7 +6656,8 @@
           html += '<div class="folder-sections-stack">';
           visibleFolders.forEach(function (f) {
             var pal = getFolderPalette(f);
-            var folderBots = filtered.filter(function (b) { return (b.folder || 'General') === f; });
+            var fl = f.toLowerCase();
+            var folderBots = filtered.filter(function (b) { return normalizeFolderName(b.folder).toLowerCase() === fl; });
             var folderRowsTotal = folderBots.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
             var fLocked = isFolderLocked(f);
             var fUnlocked = isFolderUnlocked(f);
@@ -6920,14 +6974,19 @@
 
       document.querySelectorAll('[data-folder]').forEach(function (btn) {
         btn.onclick = function () {
+          var nextF = btn.getAttribute('data-folder');
           state.folderUnlockError = '';
           state.confirmDeleteFolder = '';
-          state.selectedFolder = btn.getAttribute('data-folder');
+          state.selectedFolder = nextF;
+          if (nextF && nextF !== 'all' && state.collapsedFolders) {
+            state.collapsedFolders[nextF] = false;
+          }
           renderDashboard();
         };
       });
       document.querySelectorAll('[data-toggle-folder]').forEach(function (btn) {
-        btn.onclick = function () {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
           var fn = btn.getAttribute('data-toggle-folder');
           if (!fn) return;
           state.collapsedFolders[fn] = !state.collapsedFolders[fn];
@@ -6935,25 +6994,29 @@
         };
       });
       document.querySelectorAll('[data-add-table-folder]').forEach(function (btn) {
-        btn.onclick = function () {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
           var fn = btn.getAttribute('data-add-table-folder');
           createInstantBot(false, fn || undefined);
         };
       });
       document.querySelectorAll('[data-report-folder]').forEach(function (btn) {
-        btn.onclick = function () {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
           var fn = btn.getAttribute('data-report-folder');
           openModal('reports', { folder: fn || 'General' });
         };
       });
       document.querySelectorAll('[data-lock-folder]').forEach(function (btn) {
-        btn.onclick = function () {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
           var fn = btn.getAttribute('data-lock-folder');
           openModal('folder_lock', { focusFolder: fn || '' });
         };
       });
       document.querySelectorAll('[data-quick-del-folder]').forEach(function (btn) {
-        btn.onclick = function () {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
           var fn = btn.getAttribute('data-quick-del-folder');
           if (!fn) return;
           state.confirmDeleteFolder = state.confirmDeleteFolder === fn ? '' : fn;
@@ -6978,18 +7041,24 @@
       });
 
       var delCurFldBtn = document.getElementById('btn-del-cur-folder');
-      if (delCurFldBtn) delCurFldBtn.onclick = function () {
+      if (delCurFldBtn) delCurFldBtn.onclick = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
         state.confirmDeleteFolder = state.confirmDeleteFolder === state.selectedFolder ? '' : state.selectedFolder;
         renderDashboard();
       };
       var cancelDelFldBtn = document.getElementById('dash-cancel-del-folder');
-      if (cancelDelFldBtn) cancelDelFldBtn.onclick = function () { state.confirmDeleteFolder = ''; renderDashboard(); };
+      if (cancelDelFldBtn) cancelDelFldBtn.onclick = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        state.confirmDeleteFolder = '';
+        renderDashboard();
+      };
       var confirmDelFldBtn = document.getElementById('dash-confirm-del-folder');
-      if (confirmDelFldBtn) confirmDelFldBtn.onclick = async function () {
+      if (confirmDelFldBtn) confirmDelFldBtn.onclick = async function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
         var fn = state.confirmDeleteFolder || state.selectedFolder;
         if (!fn || fn === 'all') return;
-        var removedCount = await deleteFolderWithBackup(fn);
         state.confirmDeleteFolder = '';
+        var removedCount = await deleteFolderWithBackup(fn);
         showToast('Deleted folder "' + fn + '"' + (removedCount > 0 ? ' (' + removedCount + ' table(s) backed up)' : ''));
       };
       var fldLockBarBtn = document.getElementById('btn-folder-lock-bar');
@@ -10756,7 +10825,9 @@
       };
 
       syncLockVoiceGateUi(false);
-      if (!isListened && _dailyVoiceCtrl.attemptedAutoKey !== voiceKey) {
+      var splashElNow = document.getElementById('tb-splash-screen');
+      var splashVisibleNow = Boolean(splashElNow && !splashElNow.classList.contains('is-leaving'));
+      if (!splashVisibleNow && !isListened && _dailyVoiceCtrl.attemptedAutoKey !== voiceKey && _dailyVoiceCtrl.status !== 'playing' && _dailyVoiceCtrl.status !== 'loading') {
         _dailyVoiceCtrl.attemptedAutoKey = voiceKey;
         startDailyVoicePlayback({ auto: true });
       }
@@ -16284,8 +16355,8 @@
     markAppOpenedNow(null, 'boot');
     purgeTombstonedDataFromState();
     ensureInitialFolderManifest();
-    renderApp();
     showBrandSplashScreen();
+    renderApp();
     startSharedSecurityEvents();
     startTelegramAutoPoll();
     startLiveDateWatcher();
