@@ -662,6 +662,105 @@
       color: #475569; background: transparent; cursor: pointer; transition: background 0.14s;
     }
     .tb-cal-text-btn:hover { background: #F1F5F9; color: #0F172A; }
+    .tb-pad-backdrop {
+      position: fixed; inset: 0; z-index: 940;
+      background: rgba(15, 23, 42, 0.48);
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    .tb-pad-card {
+      position: relative; z-index: 950; width: 348px; max-width: calc(100vw - 24px);
+      background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 26px;
+      box-shadow: 0 24px 56px rgba(15, 23, 42, 0.28); padding: 20px 20px 18px;
+      color: #1E293B; font-family: inherit;
+    }
+    .tb-pad-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-bottom: 16px;
+    }
+    .tb-pad-title {
+      font-size: 20px; font-weight: 500; color: #1E293B; letter-spacing: -0.015em;
+      line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .tb-pad-mic {
+      width: 40px; height: 40px; border-radius: 999px; border: none;
+      background: #EAF1FB; color: #0B57D0;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; transition: background 0.14s, transform 0.12s;
+    }
+    .tb-pad-mic:hover { background: #D2E3FC; }
+    .tb-pad-mic.is-listening {
+      background: #FEE2E2; color: #DC2626;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.22);
+    }
+    .tb-pad-input {
+      width: 100%; border: 2px solid #0B57D0; border-radius: 999px;
+      padding: 12px 18px; font-size: 16px; font-weight: 500;
+      color: #0F172A; background: #FFFFFF; outline: none;
+      transition: border-color 0.14s, box-shadow 0.14s;
+    }
+    .tb-pad-input:focus { box-shadow: 0 0 0 3px rgba(11, 87, 208, 0.14); }
+    .tb-pad-input.is-invalid {
+      border-color: #DC2626; background: #FEF2F2; color: #991B1B;
+    }
+    .tb-pad-hint {
+      margin-top: 8px; padding: 0 6px; font-size: 11.5px; font-weight: 600;
+      color: #475569; min-height: 16px;
+    }
+    .tb-pad-hint.is-error { color: #DC2626; }
+    .tb-pad-foot {
+      margin-top: 18px; display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    }
+    .tb-pad-cancel {
+      padding: 9px 16px; border-radius: 999px; border: none;
+      background: transparent; color: #0B57D0; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background 0.14s;
+    }
+    .tb-pad-cancel:hover { background: #EFF6FF; }
+    .tb-pad-save {
+      padding: 9px 22px; border-radius: 999px; border: none;
+      background: #E8F0FE; color: #0F172A; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: background 0.14s;
+    }
+    .tb-pad-save:hover { background: #D2E3FC; }
+    .tb-sheet-backdrop {
+      position: fixed; inset: 0; z-index: 940;
+      background: rgba(15, 23, 42, 0.48);
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 0;
+    }
+    .tb-sheet-card {
+      position: relative; z-index: 950; width: 100%; max-width: 480px;
+      background: #FFFFFF; border-top-left-radius: 26px; border-top-right-radius: 26px;
+      box-shadow: 0 -16px 48px rgba(15, 23, 42, 0.24);
+      padding: 20px 18px 24px; color: #1E293B; font-family: inherit;
+    }
+    .tb-sheet-val {
+      font-size: 18px; font-weight: 500; color: #0F172A; line-height: 1.3;
+      margin-bottom: 16px; padding: 0 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .tb-sheet-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px;
+    }
+    .tb-sheet-tile {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 6px; padding: 14px 8px; border-radius: 14px; border: none;
+      background: #EEF2F7; color: #1E293B; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background 0.14s, transform 0.1s;
+    }
+    .tb-sheet-tile:hover { background: #E2E8F0; }
+    .tb-sheet-tile.is-primary { color: #0B57D0; }
+    .tb-sheet-list { display: flex; flex-direction: column; gap: 10px; }
+    .tb-sheet-row {
+      width: 100%; display: flex; align-items: center; justify-content: space-between;
+      padding: 15px 16px; border-radius: 14px; border: none;
+      background: #EEF2F7; color: #1E293B; font-size: 15.5px; font-weight: 500;
+      cursor: pointer; transition: background 0.14s; text-align: left;
+    }
+    .tb-sheet-row:hover { background: #E2E8F0; }
+    .tb-sheet-row.is-danger { color: #DC2626; }
+    .tb-sheet-row.is-danger:hover { background: #FEE2E2; }
     .add-row-bar {
       padding: 12px 16px; background: #fff; border-bottom: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
@@ -1332,7 +1431,9 @@
       eraser: '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
       fill: '<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>',
       undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
-      redo: '<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>'
+      redo: '<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>',
+      mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
+      selectRow: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/>'
     };
 
     function icon(name, size) {
@@ -6545,25 +6646,19 @@
             '</td>';
           } else if (isEd) {
             var isDateCol = col.type === 'date';
-            var isEcCol = isDateCol && isEthiopianCol(col);
-            var isDtCol = isDateCol && (col.dateFormat === 'dmy_time' || col.dateFormat === 'iso');
-            var isNumInputCol = (col.type === 'amount' || col.type === 'number');
-            var itype = isDateCol ? (isDtCol ? 'datetime-local' : 'date') : 'text';
-            var inputModeAttr = isNumInputCol ? ' inputmode="decimal"' : '';
             var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
+            var cellFsEd = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
+            var dispEdStr = formatCell(val, col, row, bot);
             if (isDateCol) {
-              var cellFsDate = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
-              var dispDateStr = formatCell(val, col, row, bot);
               html += '<td class="cell-clickable cell-menu-target cell-selectable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #2563EB;' + align + '">' +
-                '<span style="color:#0D47A1;font-weight:700;font-size:' + cellFsDate + 'px;line-height:1.35;">' + esc(dispDateStr) + '</span>' +
+                '<span style="color:#0D47A1;font-weight:700;font-size:' + cellFsEd + 'px;line-height:1.35;">' + esc(dispEdStr) + '</span>' +
                 '<input id="active-cell-input" type="hidden" data-date-edit="1" value="' + esc(inpVal) + '" />' +
               '</td>';
             } else {
-              var cellFsEdit = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
-              html += '<td style="padding:2px;background:#EFF6FF;' + align + '"><div class="cell-edit-wrap" id="cell-edit-wrap">' +
-                '<input class="cell-edit-input" id="active-cell-input" type="' + itype + '"' + inputModeAttr + ' value="' + esc(inpVal) + '" style="font-size:' + cellFsEdit + 'px;" placeholder="' + (col.type === 'formula' ? '=Amount*2 or number' : '') + '" />' +
-                '<button type="button" id="cell-edit-menu-btn" class="cell-menu-trigger" title="Cell Add / Delete / Copy / Paste">▾</button>' +
-              '</div></td>';
+              html += '<td class="cell-clickable cell-menu-target cell-selectable" id="tb-active-edit-td" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #0B57D0;' + align + '">' +
+                '<span style="color:#0F172A;font-weight:700;font-size:' + cellFsEd + 'px;line-height:1.35;">' + esc(dispEdStr) + '</span>' +
+                '<input id="active-cell-input" type="hidden" value="' + esc(inpVal) + '" />' +
+              '</td>';
             }
           } else {
             var isAmt = col.type === 'amount';
@@ -6894,6 +6989,14 @@
       if (oldCalBg) oldCalBg.remove();
       var oldCal = document.getElementById('tb-cal-popover');
       if (oldCal) oldCal.remove();
+      var oldPadBg = document.getElementById('tb-pad-backdrop');
+      if (oldPadBg) oldPadBg.remove();
+      var oldSheetBg = document.getElementById('tb-sheet-backdrop');
+      if (oldSheetBg) oldSheetBg.remove();
+      if (window._tbActiveSpeech) {
+        try { window._tbActiveSpeech.abort(); } catch (errSp) {}
+        window._tbActiveSpeech = null;
+      }
       if (window._tbDateOutsideClick) {
         document.removeEventListener('click', window._tbDateOutsideClick);
         window._tbDateOutsideClick = null;
@@ -7125,12 +7228,19 @@
         var ed = state.editingCell;
         if (!ed || !activeInp) return;
         state.editingCell = null;
+        window._tbLastCellTap = null;
         state.autoOpenDateCal = false;
         state._calDraft = null;
         var oldCalBg = document.getElementById('tb-cal-backdrop');
         if (oldCalBg) oldCalBg.remove();
         var oldCal = document.getElementById('tb-cal-popover');
         if (oldCal) oldCal.remove();
+        var oldPadBg = document.getElementById('tb-pad-backdrop');
+        if (oldPadBg) oldPadBg.remove();
+        if (window._tbActiveSpeech) {
+          try { window._tbActiveSpeech.abort(); } catch (errSp) {}
+          window._tbActiveSpeech = null;
+        }
         if (window._tbDateOutsideClick) {
           document.removeEventListener('click', window._tbDateOutsideClick);
           window._tbDateOutsideClick = null;
@@ -7192,12 +7302,148 @@
         if (colObj.type === 'date') {
           return;
         }
-        var ci = document.getElementById('active-cell-input');
+        var ci = document.getElementById('tb-pad-input') || document.getElementById('active-cell-input');
         if (ci) {
           ci.focus();
           try { ci.select(); } catch (err2) {}
-          try { if (typeof ci.scrollIntoView === 'function') ci.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (errScroll) {}
         }
+      };
+
+      var openCellActionSheet = function (rid, cid, sourceRect) {
+        var rIdx = visibleRows.findIndex(function (r) { return r.id === rid; });
+        var cIdx = bot.columns.findIndex(function (c) { return c.id === cid; });
+        var rowObj = rIdx !== -1 ? visibleRows[rIdx] : null;
+        var colObj = cIdx !== -1 ? bot.columns[cIdx] : null;
+        if (!rowObj || !colObj) return;
+
+        var oldSheet = document.getElementById('tb-sheet-backdrop');
+        if (oldSheet) oldSheet.remove();
+        var oldPad = document.getElementById('tb-pad-backdrop');
+        if (oldPad) oldPad.remove();
+        var oldCalBg = document.getElementById('tb-cal-backdrop');
+        if (oldCalBg) oldCalBg.remove();
+
+        var cellMeta = { row: rowObj, col: colObj, rIdx: rIdx, cIdx: cIdx };
+        var rawV = rowObj[colObj.id];
+        var dispVal = formatCell(rawV, colObj, rowObj, bot);
+        var previewTxt = (dispVal !== undefined && dispVal !== null && String(dispVal).trim() !== '')
+          ? String(dispVal)
+          : String(rawV !== undefined && rawV !== null ? rawV : '');
+
+        var sheetOpenedAt = Date.now();
+        var sheetBackdrop = document.createElement('div');
+        sheetBackdrop.id = 'tb-sheet-backdrop';
+        sheetBackdrop.className = 'tb-sheet-backdrop';
+
+        var sheetCard = document.createElement('div');
+        sheetCard.id = 'tb-sheet-card';
+        sheetCard.className = 'tb-sheet-card';
+        sheetCard.innerHTML =
+          '<div class="tb-sheet-val" id="tb-sheet-val">' + esc(previewTxt) + '</div>' +
+          '<div class="tb-sheet-grid">' +
+            '<button type="button" id="tb-sheet-edit" class="tb-sheet-tile is-primary">' + icon('edit', 20) + '<span>Edit</span></button>' +
+            '<button type="button" id="tb-sheet-copy" class="tb-sheet-tile">' + icon('copy', 20) + '<span>Copy</span></button>' +
+            '<button type="button" id="tb-sheet-paste" class="tb-sheet-tile">' + icon('clipboard', 20) + '<span>Paste</span></button>' +
+          '</div>' +
+          '<div class="tb-sheet-list">' +
+            '<button type="button" id="tb-sheet-selrow" class="tb-sheet-row"><span>Select row</span>' + icon('selectRow', 20) + '</button>' +
+            '<button type="button" id="tb-sheet-share" class="tb-sheet-row"><span>Share</span>' + icon('share', 20) + '</button>' +
+            '<button type="button" id="tb-sheet-delete" class="tb-sheet-row is-danger"><span>Delete</span>' + icon('trash', 20) + '</button>' +
+          '</div>';
+
+        sheetBackdrop.appendChild(sheetCard);
+        document.body.appendChild(sheetBackdrop);
+
+        var closeSheet = function (resetTap) {
+          var el = document.getElementById('tb-sheet-backdrop');
+          if (el) el.remove();
+          if (resetTap) window._tbLastCellTap = null;
+        };
+
+        var btnEdit = document.getElementById('tb-sheet-edit');
+        if (btnEdit) btnEdit.onclick = function (e) {
+          e.stopPropagation();
+          closeSheet(true);
+          openCellEditor(rid, cid);
+        };
+
+        var btnCopy = document.getElementById('tb-sheet-copy');
+        if (btnCopy) btnCopy.onclick = function (e) {
+          e.stopPropagation();
+          closeSheet(true);
+          copySelectedCellsAction(false, [cellMeta]);
+        };
+
+        var btnPaste = document.getElementById('tb-sheet-paste');
+        if (btnPaste) btnPaste.onclick = function (e) {
+          e.stopPropagation();
+          closeSheet(true);
+          state.selectedRange = { botId: bot.id, anchorR: rIdx, anchorC: cIdx, focusR: rIdx, focusC: cIdx };
+          state.extraCells = {};
+          return pasteSelectedCellsAction([cellMeta]);
+        };
+
+        var btnSelRow = document.getElementById('tb-sheet-selrow');
+        if (btnSelRow) btnSelRow.onclick = function (e) {
+          e.stopPropagation();
+          closeSheet(true);
+          state.editingCell = null;
+          state.selectedRange = {
+            botId: bot.id,
+            anchorR: rIdx,
+            anchorC: 0,
+            focusR: rIdx,
+            focusC: Math.max(0, bot.columns.length - 1)
+          };
+          state.extraCells = {};
+          state.toolbarSubMode = null;
+          renderTableView(bot);
+        };
+
+        var btnShare = document.getElementById('tb-sheet-share');
+        if (btnShare) btnShare.onclick = function (e) {
+          e.stopPropagation();
+          var rowParts = bot.columns.map(function (c) {
+            var v = formatCell(rowObj[c.id], c, rowObj, bot);
+            return c.name + ': ' + (v !== undefined && v !== null && String(v).trim() !== '' ? v : '—');
+          });
+          var shareText = bot.name + ' (Row #' + (rIdx + 1) + ')\n' + rowParts.join('\n');
+          closeSheet(true);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(shareText).catch(function () {});
+          }
+          if (navigator.share) {
+            try {
+              navigator.share({ title: bot.name + ' — Row #' + (rIdx + 1), text: shareText }).catch(function () {});
+              return;
+            } catch (errSh) {}
+          }
+          showToast('Copied "' + previewTxt + '" & Row #' + (rIdx + 1) + ' to share');
+        };
+
+        var btnDelete = document.getElementById('tb-sheet-delete');
+        if (btnDelete) btnDelete.onclick = function (e) {
+          e.stopPropagation();
+          closeSheet(true);
+          clearSelectedCellsAction('Deleted saved cell', [cellMeta]);
+          showToast('Deleted "' + previewTxt + '" (Undo available)');
+        };
+
+        sheetBackdrop.onclick = function (e) {
+          e.stopPropagation();
+          if (e.target !== sheetBackdrop) return;
+          var dt = Date.now() - sheetOpenedAt;
+          if (dt < 380 && sourceRect && e.clientX >= sourceRect.left && e.clientX <= sourceRect.right && e.clientY >= sourceRect.top && e.clientY <= sourceRect.bottom) {
+            closeSheet(true);
+            activateExcelCellToolbar(rid, cid);
+            return;
+          }
+          if (dt < 200) return;
+          closeSheet(true);
+        };
+        sheetCard.onclick = function (e) { e.stopPropagation(); };
+        sheetCard.onmousedown = function (e) { e.stopPropagation(); };
+        sheetCard.ontouchstart = function (e) { e.stopPropagation(); };
       };
 
       var buildRangeClipboard = function (targets) {
@@ -8424,7 +8670,16 @@
             return;
           }
           window._tbLastCellTap = { botId: bot.id, rowId: rid, colId: cid, time: nowTap };
-          openCellEditor(rid, cid);
+          var clickedRowObj = visibleRows.find(function (r) { return r.id === rid; });
+          var clickedColObj = bot.columns.find(function (c) { return c.id === cid; });
+          var clickedRawVal = (clickedRowObj && clickedColObj) ? clickedRowObj[clickedColObj.id] : '';
+          var hasSavedCellVal = clickedRawVal !== undefined && clickedRawVal !== null && String(clickedRawVal).trim() !== '';
+          if (clickedColObj && clickedColObj.type !== 'date' && hasSavedCellVal) {
+            var tdRect = typeof td.getBoundingClientRect === 'function' ? td.getBoundingClientRect() : null;
+            openCellActionSheet(rid, cid, tdRect);
+          } else {
+            openCellEditor(rid, cid);
+          }
         };
 
         td.ondblclick = function (e) {
@@ -8457,7 +8712,7 @@
 
       // Keyboard navigation & shortcuts for table Undo/Redo + selected cell(s)
       var tableKeyHandler = function (e) {
-        if (document.getElementById('tb-cal-backdrop') && e.key === 'Escape') {
+        if ((document.getElementById('tb-cal-backdrop') || document.getElementById('tb-pad-backdrop') || document.getElementById('tb-sheet-backdrop')) && e.key === 'Escape') {
           e.preventDefault();
           cleanupTableGlobalListeners();
           state.editingCell = null;
@@ -8810,20 +9065,66 @@
           openCalendarPopover();
         } else {
           var editColNorm = bot.columns.find(function (c) { return c.id === state.editingCell.colId; });
-          var applyFormulaBorderValidation = function () {
-            var res = validateCellFormulaSyntax(activeInp.value, editColNorm, bot);
-            activeInp.classList.toggle('is-invalid', !res.valid);
-            if (!res.valid) {
-              activeInp.setAttribute('aria-invalid', 'true');
-              activeInp.title = res.reason || 'Invalid formula syntax';
-            } else {
-              activeInp.removeAttribute('aria-invalid');
-              activeInp.removeAttribute('title');
+          var closeWritePad = function () {
+            var oldPadBg = document.getElementById('tb-pad-backdrop');
+            if (oldPadBg) oldPadBg.remove();
+            if (window._tbActiveSpeech) {
+              try { window._tbActiveSpeech.abort(); } catch (errSp) {}
+              window._tbActiveSpeech = null;
             }
           };
+          var cancelWritePad = function () {
+            closeWritePad();
+            state.editingCell = null;
+            window._tbLastCellTap = null;
+            renderTableView(bot);
+          };
+
+          var padOpenedAt = Date.now();
+          var activeCellRect = null;
+          var activeCellTd = document.getElementById('tb-active-edit-td');
+          if (activeCellTd && typeof activeCellTd.getBoundingClientRect === 'function') {
+            activeCellRect = activeCellTd.getBoundingClientRect();
+          }
+
+          closeWritePad();
+          var padBackdrop = document.createElement('div');
+          padBackdrop.id = 'tb-pad-backdrop';
+          padBackdrop.className = 'tb-pad-backdrop';
+
+          var padCard = document.createElement('div');
+          padCard.id = 'tb-pad-card';
+          padCard.className = 'tb-pad-card';
+
+          var colTitleTxt = editColNorm ? editColNorm.name : 'Edit Value';
+          var isNumCol = Boolean(editColNorm && (editColNorm.type === 'amount' || editColNorm.type === 'number'));
+          var padInputMode = isNumCol ? ' inputmode="decimal"' : '';
+          var padPlaceholder = (editColNorm && editColNorm.type === 'formula') ? '=Amount*2 or number' : '';
+
+          padCard.innerHTML =
+            '<div class="tb-pad-head">' +
+              '<div class="tb-pad-title" id="tb-pad-title">' + esc(colTitleTxt) + '</div>' +
+              '<button type="button" class="tb-pad-mic" id="tb-pad-mic" title="Voice input">' + icon('mic', 18) + '</button>' +
+            '</div>' +
+            '<input id="tb-pad-input" class="tb-pad-input" type="text"' + padInputMode + ' value="' + esc(activeInp.value || '') + '" placeholder="' + esc(padPlaceholder) + '" autocomplete="off" />' +
+            '<div id="tb-pad-hint" class="tb-pad-hint" style="display:none;"></div>' +
+            '<div class="tb-pad-foot">' +
+              '<button type="button" id="tb-pad-cancel" class="tb-pad-cancel">Cancel</button>' +
+              '<button type="button" id="tb-pad-save" class="tb-pad-save">Save</button>' +
+            '</div>';
+
+          padBackdrop.appendChild(padCard);
+          document.body.appendChild(padBackdrop);
+
+          var padInp = document.getElementById('tb-pad-input');
+          var padHintEl = document.getElementById('tb-pad-hint');
+          var padMicBtn = document.getElementById('tb-pad-mic');
+          var padCancelBtn = document.getElementById('tb-pad-cancel');
+          var padSaveBtn = document.getElementById('tb-pad-save');
+
           var updateLiveFooterTotalsInPlace = function () {
             if (!state.editingCell || !editColNorm) return;
-            var rawDraft = activeInp.value;
+            var rawDraft = padInp ? padInp.value : activeInp.value;
             var draftParsed = rawDraft;
             if (editColNorm.type === 'amount' || editColNorm.type === 'number') {
               if (String(rawDraft || '').trim() === '') draftParsed = '';
@@ -8849,98 +9150,190 @@
               el.textContent = formatNumericValue(total, sumCol);
             });
           };
-          applyFormulaBorderValidation();
-          activeInp.oninput = function () {
-            applyFormulaBorderValidation();
-            updateLiveFooterTotalsInPlace();
-          };
-          activeInp.onpaste = function (e) {
-            var cd = e.clipboardData || window.clipboardData;
-            if (!cd) return;
-            if (cd.files && cd.files.length > 0) {
-              e.preventDefault();
-              var edRefFile = state.editingCell;
-              var fRIdx = visibleRows.findIndex(function (r) { return r.id === edRefFile.rowId; });
-              var fCIdx = bot.columns.findIndex(function (c) { return c.id === edRefFile.colId; });
-              state.editingCell = null;
-              openModal('smart_paste', {
-                bot: bot,
-                targetMode: 'cell',
-                colId: edRefFile.colId,
-                startRowIdx: fRIdx >= 0 ? fRIdx : 0,
-                startColIdx: fCIdx >= 0 ? fCIdx : 0,
-                pendingFile: cd.files[0]
-              });
-              return;
+
+          var applyFormulaBorderValidation = function () {
+            if (!padInp) return;
+            var res = validateCellFormulaSyntax(padInp.value, editColNorm, bot);
+            padInp.classList.toggle('is-invalid', !res.valid);
+            if (!res.valid) {
+              padInp.setAttribute('aria-invalid', 'true');
+              if (padHintEl) {
+                padHintEl.style.display = 'block';
+                padHintEl.className = 'tb-pad-hint is-error';
+                padHintEl.textContent = res.reason || 'Invalid formula syntax';
+              }
+            } else {
+              padInp.removeAttribute('aria-invalid');
+              var vStr = String(padInp.value || '').trim();
+              if (padHintEl) {
+                if (vStr.charAt(0) === '=' && state.editingCell) {
+                  var previewRow = visibleRows.find(function (vr) { return vr.id === state.editingCell.rowId; });
+                  var mockRow = previewRow ? Object.assign({}, previewRow) : {};
+                  mockRow[editColNorm.id] = padInp.value;
+                  var calcVal = getRowColNumeric(mockRow, editColNorm, bot, 0);
+                  padHintEl.style.display = 'block';
+                  padHintEl.className = 'tb-pad-hint';
+                  padHintEl.textContent = 'Preview: ' + formatNumericValue(isNaN(calcVal) ? 0 : calcVal, editColNorm);
+                } else {
+                  padHintEl.style.display = 'none';
+                  padHintEl.textContent = '';
+                }
+              }
             }
-            var rawPaste = '';
-            try { rawPaste = cd.getData('text/plain') || ''; } catch (errP) {}
-            if (rawPaste && (/[\r\n]/.test(rawPaste) || rawPaste.indexOf('\t') !== -1)) {
-              var parsedInline = parseClipboardOrFileTextToMatrix(rawPaste, 'auto');
-              if (parsedInline.matrix.length > 1 || (parsedInline.matrix[0] && parsedInline.matrix[0].length > 1)) {
+          };
+
+          if (padInp) {
+            applyFormulaBorderValidation();
+            padInp.oninput = function () {
+              activeInp.value = padInp.value;
+              applyFormulaBorderValidation();
+              updateLiveFooterTotalsInPlace();
+            };
+            padInp.onpaste = function (e) {
+              var cd = e.clipboardData || window.clipboardData;
+              if (!cd) return;
+              if (cd.files && cd.files.length > 0) {
                 e.preventDefault();
-                if (!guardWriteAction('Paste Cells')) return;
-                var edRef = state.editingCell;
-                var sR = visibleRows.findIndex(function (r) { return r.id === edRef.rowId; });
-                var sC = bot.columns.findIndex(function (c) { return c.id === edRef.colId; });
+                var edRefFile = state.editingCell;
+                var fRIdx = visibleRows.findIndex(function (r) { return r.id === edRefFile.rowId; });
+                var fCIdx = bot.columns.findIndex(function (c) { return c.id === edRefFile.colId; });
+                closeWritePad();
                 state.editingCell = null;
-                var resInline = applyMatrixPasteToTable(bot, visibleRows, parsedInline.matrix, {
-                  mode: 'cell',
-                  startR: sR >= 0 ? sR : 0,
-                  startC: sC >= 0 ? sC : 0
+                openModal('smart_paste', {
+                  bot: bot,
+                  targetMode: 'cell',
+                  colId: edRefFile.colId,
+                  startRowIdx: fRIdx >= 0 ? fRIdx : 0,
+                  startColIdx: fCIdx >= 0 ? fCIdx : 0,
+                  pendingFile: cd.files[0]
                 });
-                renderTableView(bot);
-                showToast('Pasted ' + resInline.pastedCount + ' cell(s)' + (resInline.addedRows ? ' (+' + resInline.addedRows + ' new rows)' : ''));
                 return;
               }
-            }
-            setTimeout(function () {
-              if (document.getElementById('active-cell-input') === activeInp) {
-                applyFormulaBorderValidation();
-                updateLiveFooterTotalsInPlace();
+              var rawPaste = '';
+              try { rawPaste = cd.getData('text/plain') || ''; } catch (errP) {}
+              if (rawPaste && (/[\r\n]/.test(rawPaste) || rawPaste.indexOf('\t') !== -1)) {
+                var parsedInline = parseClipboardOrFileTextToMatrix(rawPaste, 'auto');
+                if (parsedInline.matrix.length > 1 || (parsedInline.matrix[0] && parsedInline.matrix[0].length > 1)) {
+                  e.preventDefault();
+                  if (!guardWriteAction('Paste Cells')) return;
+                  var edRef = state.editingCell;
+                  var sR = visibleRows.findIndex(function (r) { return r.id === edRef.rowId; });
+                  var sC = bot.columns.findIndex(function (c) { return c.id === edRef.colId; });
+                  closeWritePad();
+                  state.editingCell = null;
+                  var resInline = applyMatrixPasteToTable(bot, visibleRows, parsedInline.matrix, {
+                    mode: 'cell',
+                    startR: sR >= 0 ? sR : 0,
+                    startC: sC >= 0 ? sC : 0
+                  });
+                  renderTableView(bot);
+                  showToast('Pasted ' + resInline.pastedCount + ' cell(s)' + (resInline.addedRows ? ' (+' + resInline.addedRows + ' new rows)' : ''));
+                  return;
+                }
               }
-            }, 0);
-          };
-          var triggerToolbarFromEditingCell = function () {
-            if (!state.editingCell) return;
-            var edRid = state.editingCell.rowId;
-            var edCid = state.editingCell.colId;
-            window._tbOpeningExcelToolbar = true;
-            try { commitActiveCell(undefined, false, true); } catch (errC) {}
-            activateExcelCellToolbar(edRid, edCid);
-          };
-          activeInp.ondblclick = function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            triggerToolbarFromEditingCell();
-          };
-          activeInp.onclick = function (e) {
-            e.stopPropagation();
-            var prevTapEd = window._tbLastCellTap;
-            var nowTapEd = Date.now();
-            if (state.editingCell && prevTapEd && prevTapEd.botId === bot.id && prevTapEd.rowId === state.editingCell.rowId && prevTapEd.colId === state.editingCell.colId && (e.detail >= 2 || ((nowTapEd - prevTapEd.time) <= 450 && (nowTapEd - prevTapEd.time) >= 15))) {
-              e.preventDefault();
-              triggerToolbarFromEditingCell();
-            }
-          };
-          activeInp.onblur = function (e) {
-            if (window._tbOpeningExcelToolbar) return;
-            if (e && e.relatedTarget && e.relatedTarget.id === 'cell-edit-menu-btn') return;
-            if (state.cellMenu) return;
-            commitActiveCell();
-          };
-        }
-        activeInp.onkeydown = function (e) {
-          if (e.key === 'Enter') { e.preventDefault(); commitActiveCell(); }
-          else if (e.key === 'Escape') {
-            state.editingCell = null;
-            if (window._tbDateOutsideClick) {
-              document.removeEventListener('click', window._tbDateOutsideClick);
-              window._tbDateOutsideClick = null;
-            }
-            renderTableView(bot);
+              setTimeout(function () {
+                if (document.getElementById('tb-pad-input') === padInp) {
+                  activeInp.value = padInp.value;
+                  applyFormulaBorderValidation();
+                  updateLiveFooterTotalsInPlace();
+                }
+              }, 0);
+            };
+            padInp.onkeydown = function (e) {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitActiveCell(padInp.value, false);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelWritePad();
+              }
+            };
+            padInp.focus();
+            try { padInp.select(); } catch (errSel) {}
           }
-        };
+
+          if (padMicBtn) {
+            padMicBtn.onclick = function (e) {
+              e.stopPropagation();
+              var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+              if (!SpeechRec) {
+                showToast('Voice typing not supported on this browser — type directly');
+                if (padInp) padInp.focus();
+                return;
+              }
+              if (window._tbActiveSpeech) {
+                try { window._tbActiveSpeech.stop(); } catch (errSt) {}
+                window._tbActiveSpeech = null;
+                padMicBtn.classList.remove('is-listening');
+                return;
+              }
+              try {
+                var rec = new SpeechRec();
+                rec.lang = state.lang === 'am' ? 'am-ET' : 'en-US';
+                rec.interimResults = true;
+                rec.maxAlternatives = 1;
+                window._tbActiveSpeech = rec;
+                padMicBtn.classList.add('is-listening');
+                rec.onresult = function (ev) {
+                  var spoken = '';
+                  for (var ri = 0; ri < ev.results.length; ri++) {
+                    spoken += ev.results[ri][0].transcript;
+                  }
+                  if (padInp && spoken) {
+                    padInp.value = spoken.trim();
+                    activeInp.value = padInp.value;
+                    applyFormulaBorderValidation();
+                    updateLiveFooterTotalsInPlace();
+                  }
+                };
+                rec.onerror = function () {
+                  padMicBtn.classList.remove('is-listening');
+                  window._tbActiveSpeech = null;
+                };
+                rec.onend = function () {
+                  padMicBtn.classList.remove('is-listening');
+                  window._tbActiveSpeech = null;
+                  if (padInp) padInp.focus();
+                };
+                rec.start();
+              } catch (errRec) {
+                padMicBtn.classList.remove('is-listening');
+                showToast('Could not start voice input');
+              }
+            };
+          }
+
+          if (padCancelBtn) {
+            padCancelBtn.onclick = function (e) {
+              e.stopPropagation();
+              cancelWritePad();
+            };
+          }
+          if (padSaveBtn) {
+            padSaveBtn.onclick = function (e) {
+              e.stopPropagation();
+              commitActiveCell(padInp ? padInp.value : activeInp.value, false);
+            };
+          }
+
+          padBackdrop.onclick = function (e) {
+            e.stopPropagation();
+            if (e.target !== padBackdrop) return;
+            var dt = Date.now() - padOpenedAt;
+            if (dt < 380 && activeCellRect && e.clientX >= activeCellRect.left && e.clientX <= activeCellRect.right && e.clientY >= activeCellRect.top && e.clientY <= activeCellRect.bottom) {
+              var edRid = state.editingCell ? state.editingCell.rowId : null;
+              var edCid = state.editingCell ? state.editingCell.colId : null;
+              closeWritePad();
+              if (edRid && edCid) activateExcelCellToolbar(edRid, edCid);
+              return;
+            }
+            if (dt < 200) return;
+            cancelWritePad();
+          };
+          padCard.onclick = function (e) { e.stopPropagation(); };
+          padCard.onmousedown = function (e) { e.stopPropagation(); };
+          padCard.ontouchstart = function (e) { e.stopPropagation(); };
+        }
       }
 
       var hideSigmaBtn = document.getElementById('btn-hide-sigma');
