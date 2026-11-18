@@ -12,6 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
@@ -1063,14 +1064,17 @@
     /* Full-Screen Access Code Lock Screen */
     .lock-screen {
       min-height: 100vh; width: 100%;
-      background: linear-gradient(135deg, #071E4A 0%, #0D47A1 55%, #1565C0 100%);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(16, 185, 129, 0.24) 0%, transparent 42%),
+        radial-gradient(circle at 86% 88%, rgba(245, 158, 11, 0.18) 0%, transparent 40%),
+        linear-gradient(135deg, #061A40 0%, #0D47A1 54%, #0E7490 100%);
       display: flex; align-items: center; justify-content: center;
-      padding: 20px; position: relative;
+      padding: 20px 14px; position: relative;
     }
     .lock-card {
-      width: 100%; max-width: 410px; background: #fff; border-radius: 22px;
-      padding: 32px 26px 26px; box-shadow: 0 28px 64px rgba(7, 30, 74, 0.45);
-      border: 1px solid rgba(255,255,255,0.2); text-align: center;
+      width: 100%; max-width: 455px; background: #fff; border-radius: 24px;
+      padding: 24px 24px 22px; box-shadow: 0 28px 64px rgba(7, 30, 74, 0.45);
+      border: 1px solid rgba(255,255,255,0.28); text-align: center;
     }
     .lock-card.shake { animation: lockShake 0.36s ease-in-out; }
     @keyframes lockShake {
@@ -1080,8 +1084,89 @@
       60% { transform: translateX(-5px); }
       80% { transform: translateX(5px); }
     }
+    .lock-brand-showcase {
+      background: linear-gradient(135deg, #ECFDF5 0%, #EFF6FF 55%, #FFFBEB 100%);
+      border: 1px solid #BFDBFE;
+      border-radius: 18px;
+      padding: 14px 12px 12px;
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .lock-hero-img {
+      width: 122px;
+      height: 122px;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 18px;
+      padding: 6px;
+      border: 2px solid #10B981;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+    }
+    .lock-brand-strip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .lock-brand-thumb {
+      width: 46px;
+      height: 46px;
+      border-radius: 11px;
+      object-fit: cover;
+      background: #fff;
+      padding: 2px;
+      border: 1.5px solid #CBD5E1;
+      box-shadow: 0 3px 8px rgba(15, 23, 42, 0.1);
+    }
+    .lock-company-banner {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      align-items: center;
+    }
+    .lock-company-en {
+      font-size: 14.5px;
+      font-weight: 800;
+      color: #0F2D6B;
+      letter-spacing: -0.01em;
+    }
+    .lock-company-am {
+      font-size: 15px;
+      font-weight: 800;
+      color: #047857;
+      line-height: 1.35;
+    }
+    .lock-tg-greet {
+      width: 100%;
+      background: linear-gradient(135deg, #065F46 0%, #0D9488 100%);
+      color: #fff;
+      border-radius: 13px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      text-align: center;
+      box-shadow: 0 6px 16px rgba(5, 150, 105, 0.24);
+    }
+    .lock-open-time-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      color: #1E3A8A;
+      border-radius: 999px;
+      padding: 4px 11px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
     .lock-icon-ring {
-      width: 68px; height: 68px; border-radius: 999px; margin: 0 auto 14px;
+      width: 58px; height: 58px; border-radius: 999px; margin: 0 auto 10px;
       background: linear-gradient(135deg, #0D47A1, #1976D2); color: #fff;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 10px 24px rgba(25, 118, 210, 0.32);
@@ -1145,6 +1230,7 @@
     var STORAGE_DEVICE_ID = 'tablebot_device_uid_v1';
     var STORAGE_GUEST_ACTOR = 'tablebot_device_actor_v1';
     var STORAGE_TG_WEB_USER = 'tablebot_tg_webapp_user_v1';
+    var STORAGE_LAST_TG_OPENER = 'tablebot_last_tg_opener_v1';
     var STORAGE_SIGMA_HIDDEN = 'tablebot_sigma_hidden_v1';
     var STORAGE_TABLE_REP_COLLAPSED = 'tablebot_table_rep_collapsed_v1';
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
@@ -1441,14 +1527,15 @@
       try {
         var qs = new URLSearchParams(window.location.search || '');
         var hashQs = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
-        var qId = qs.get('tg_id') || hashQs.get('tg_id');
-        var qUser = qs.get('tg_user') || hashQs.get('tg_user');
+        var qId = qs.get('tg_id') || hashQs.get('tg_id') || '';
+        var qUser = qs.get('tg_user') || hashQs.get('tg_user') || '';
+        var qName = qs.get('tg_name') || hashQs.get('tg_name') || qs.get('first_name') || hashQs.get('first_name') || qs.get('name') || hashQs.get('name') || '';
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
           var tu = window.Telegram.WebApp.initDataUnsafe.user;
-          if (tu && tu.id) {
+          if (tu && (tu.id || tu.first_name || tu.username)) {
             var info = {
-              id: String(tu.id),
-              username: tu.username ? ('@' + tu.username.replace(/^@/, '')) : '',
+              id: String(tu.id || tu.username || tu.first_name || 'tg'),
+              username: tu.username ? ('@' + String(tu.username).replace(/^@/, '')) : '',
               firstName: tu.first_name || '',
               lastName: tu.last_name || ''
             };
@@ -1456,11 +1543,13 @@
             return info;
           }
         }
-        if (qId) {
+        if (qId || qName || qUser) {
+          var cleanUser = String(qUser || '').trim().replace(/^@/, '');
+          var cleanName = String(qName || '').trim() || cleanUser;
           var qInfo = {
-            id: String(qId).trim(),
-            username: qUser ? ('@' + String(qUser).trim().replace(/^@/, '')) : '',
-            firstName: qUser ? String(qUser).trim() : '',
+            id: String(qId || cleanUser || cleanName || 'tg').trim(),
+            username: cleanUser ? ('@' + cleanUser) : '',
+            firstName: cleanName,
             lastName: ''
           };
           try { localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify(qInfo)); } catch (e1) {}
@@ -1469,10 +1558,120 @@
         var savedRaw = localStorage.getItem(STORAGE_TG_WEB_USER);
         if (savedRaw) {
           var parsed = JSON.parse(savedRaw);
-          if (parsed && parsed.id) return parsed;
+          if (parsed && (parsed.id || parsed.firstName || parsed.username)) return parsed;
         }
       } catch (e) {}
       return null;
+    }
+
+    function formatTelegramWelcomeName(tgUser) {
+      if (!tgUser) return '';
+      var full = [tgUser.firstName || '', tgUser.lastName || ''].filter(Boolean).join(' ').trim();
+      if (full) return full;
+      if (tgUser.username) return String(tgUser.username).replace(/^@/, '').trim();
+      if (tgUser.displayName) return String(tgUser.displayName).trim();
+      if (tgUser.id && !/^tg_\d+$/i.test(String(tgUser.id))) return String(tgUser.id).trim();
+      return '';
+    }
+
+    function getActiveGreetingUser() {
+      var tgWeb = getTelegramWebAppUser();
+      if (tgWeb) {
+        var dn = formatTelegramWelcomeName(tgWeb);
+        if (dn) {
+          return {
+            displayName: dn,
+            username: tgWeb.username || '',
+            id: tgWeb.id || '',
+            source: 'Telegram',
+            openedAt: state.appOpenedAt || new Date().toISOString()
+          };
+        }
+      }
+      if (state.lastTelegramOpener && state.lastTelegramOpener.displayName) {
+        return {
+          displayName: state.lastTelegramOpener.displayName,
+          username: state.lastTelegramOpener.username || '',
+          id: state.lastTelegramOpener.id || '',
+          source: state.lastTelegramOpener.source || 'Telegram',
+          openedAt: state.lastTelegramOpener.openedAt || state.appOpenedAt || new Date().toISOString(),
+          botName: state.lastTelegramOpener.botName || ''
+        };
+      }
+      if (state.authSession && state.authSession.user && state.authSession.user.email) {
+        return {
+          displayName: String(state.authSession.user.email).split('@')[0],
+          username: state.authSession.user.email,
+          id: '',
+          source: 'Account',
+          openedAt: state.appOpenedAt || new Date().toISOString()
+        };
+      }
+      return null;
+    }
+
+    function formatAppOpenTimestamp(isoStr) {
+      var d = isoStr ? new Date(isoStr) : new Date();
+      if (isNaN(d.getTime())) d = new Date();
+      var timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      var dateStr = d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+      var ec = gregorianToEthiopian(d);
+      var ecMon = ETHIOPIAN_MONTHS_AM[ec.month - 1] || String(ec.month);
+      var ecStr = ecMon + ' ' + ec.day + ' ' + ec.year + ' ዓ.ም';
+      return {
+        gcText: dateStr + ' · ' + timeStr,
+        ecText: ecStr,
+        fullText: dateStr + ' · ' + timeStr + ' (' + ecStr + ')'
+      };
+    }
+
+    function markAppOpenedNow(tgUserOverride, reason) {
+      var nowIso = new Date().toISOString();
+      state.appOpenedAt = nowIso;
+      var tgInfo = tgUserOverride || getTelegramWebAppUser();
+      if (tgInfo) {
+        var dn = formatTelegramWelcomeName(tgInfo);
+        if (dn) {
+          state.lastTelegramOpener = {
+            id: String(tgInfo.id || ''),
+            username: tgInfo.username ? ('@' + String(tgInfo.username).replace(/^@/, '')) : '',
+            firstName: tgInfo.firstName || '',
+            lastName: tgInfo.lastName || '',
+            displayName: dn,
+            botName: tgInfo.botName || '',
+            source: tgInfo.source || 'Telegram',
+            openedAt: nowIso
+          };
+          try { localStorage.setItem(STORAGE_LAST_TG_OPENER, JSON.stringify(state.lastTelegramOpener)); } catch (e0) {}
+          if (tgUserOverride && tgInfo.id) {
+            try {
+              localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify({
+                id: String(tgInfo.id),
+                username: state.lastTelegramOpener.username,
+                firstName: tgInfo.firstName || dn,
+                lastName: tgInfo.lastName || ''
+              }));
+            } catch (e1) {}
+          }
+        }
+      }
+      var lockTimeEl = document.getElementById('lock-open-time-txt');
+      var heroTimeEl = document.getElementById('hero-open-time-txt');
+      var openFmt = formatAppOpenTimestamp(nowIso);
+      if (lockTimeEl) lockTimeEl.textContent = openFmt.fullText;
+      if (heroTimeEl) heroTimeEl.textContent = openFmt.fullText;
+      if (reason === 'resume' || reason === 'telegram_open') {
+        if (!isAccessUnlocked() && document.getElementById('lock-form')) {
+          var pinEl = document.getElementById('lock-code-inp');
+          var typedPin = pinEl ? pinEl.value : '';
+          renderLockScreen();
+          var newPinEl = document.getElementById('lock-code-inp');
+          if (newPinEl && typedPin) newPinEl.value = typedPin;
+        } else if (isAccessUnlocked() && !state.activeBotId && !state.modal && !state.drawerOpen) {
+          renderDashboard();
+        }
+      }
+      return openFmt;
     }
 
     function detectClientDeviceInfo() {
@@ -1586,6 +1785,7 @@
     };
 
     var BRAND_ASSETS = {
+      maedSaltMiyaw: '/assets/aistudio/IMG_20261117_233433_326_78ae2938.jpg',
       logoWhiteStars: '/assets/aistudio/file_000000003a3c8210ac093d7bf55b2a9c_7f2565a5.png',
       logoGreenStars: '/assets/aistudio/file_000000002e1481f4b0a098ac50b472ae_e5f32c46.png',
       posterAdama: '/assets/aistudio/file_000000007c048210acefecd95c486656_e7fa0c87.png',
@@ -1822,6 +2022,8 @@
       syncStatus: 'local',
       lastSyncAt: null,
       lastTgSyncAt: null,
+      appOpenedAt: new Date().toISOString(),
+      lastTelegramOpener: loadJsonStorage(STORAGE_LAST_TG_OPENER, null),
       sbClient: null,
       sbUnsub: null,
       sbAuthSub: null,
@@ -2406,7 +2608,7 @@
       return false;
     }
 
-    async function pushActivityHeartbeat(explicitDeltaSec) {
+    async function pushActivityHeartbeat(explicitDeltaSec, actionOpt) {
       try {
         var now = Date.now();
         var delta = typeof explicitDeltaSec === 'number'
@@ -2429,6 +2631,7 @@
             source: dev.source,
             telegramId: tgU ? tgU.id : '',
             telegramUsername: tgU ? tgU.username : '',
+            action: actionOpt || '',
             deltaSeconds: document.hidden ? 0 : delta
           })
         });
@@ -4463,7 +4666,27 @@
 
           if (/^\/(start|open|view|menu|list|status)\b/i.test(lowerTxt)) {
             openedCount++;
-            recordAudit('OPEN', bot, 'Telegram user opened bot via "' + txt.slice(0, 40) + '"', tgMeta);
+            var tgDisplayName = formatTelegramWelcomeName({
+              id: tgUserId,
+              username: tgUsername,
+              firstName: fromObj.first_name || '',
+              lastName: fromObj.last_name || ''
+            }) || tgHandle;
+            var tgOpenStamp = markAppOpenedNow({
+              id: tgUserId,
+              username: tgUsername,
+              firstName: fromObj.first_name || '',
+              lastName: fromObj.last_name || '',
+              botName: bot.name,
+              source: 'Telegram'
+            }, 'telegram_open');
+            sendTgReply(
+              'እንኳን ደህና መጡ ' + tgDisplayName + '!\n' +
+              'እንኳን ደህና መጡ ወደ ሂሪያ (Hiriya Salt Production PLC)\n' +
+              'Welcome, ' + tgDisplayName + '!\n' +
+              'Opened: ' + tgOpenStamp.fullText
+            );
+            recordAudit('OPEN', bot, 'Telegram user ' + tgDisplayName + ' opened bot via "' + txt.slice(0, 40) + '"', tgMeta);
             return;
           }
 
@@ -5013,15 +5236,29 @@
       state.lastRenderedYmd = getLocalYmd(new Date());
       var weekDays = getWeekCalendarStrip(state.lang, state.previewDayOffset);
       var secMgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
+      var greetUser = getActiveGreetingUser();
+      var openTimeFmt = formatAppOpenTimestamp(state.appOpenedAt);
       html += '<section class="welcome-hero-card">' +
         '<div style="display:flex;flex-direction:column;gap:10px;min-width:0;">' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
             '<span class="pill-badge" id="hero-date-badge" style="background:linear-gradient(135deg,#F59E0B,#EA580C);color:#fff;font-size:11px;padding:3px 10px;">' + esc(dayInfo.dateBadge) + '</span>' +
             '<span class="pill-badge mono" style="background:rgba(16,185,129,0.28);border:1px solid rgba(167,243,208,0.55);color:#ECFDF5;font-size:11px;padding:3px 10px;">' + esc(dayInfo.ethFull) + ' · ' + esc(dayInfo.ethDmy) + '</span>' +
+            '<span class="pill-badge" id="hero-open-time" style="background:rgba(15,23,42,0.38);border:1px solid rgba(147,197,253,0.45);color:#E0F2FE;font-size:10.5px;padding:3px 10px;"><span>App Opened:</span> <span id="hero-open-time-txt" class="mono">' + esc(openTimeFmt.fullText) + '</span></span>' +
             (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FEF3C7;font-size:10.5px;padding:3px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
             '<button type="button" class="lang-toggle-btn" id="hero-lang-toggle" style="font-size:11px;padding:3px 9px;">' + esc(t('lang_btn')) + '</button>' +
           '</div>' +
-          '<h1 id="hero-welcome-headline" style="font-size:21px;font-weight:800;line-height:1.25;letter-spacing:-0.015em;">' + esc(dayInfo.headline) + '</h1>' +
+          '<div style="display:flex;flex-direction:column;gap:4px;">' +
+            '<div style="font-size:13px;font-weight:800;color:#FDE68A;letter-spacing:0.01em;">Welcome to Hiriya Salt Production PLC &middot; እንኳን ደህና መጡ ወደ ሂሪያ</div>' +
+            (greetUser
+              ? '<div id="hero-tg-welcome" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(16,185,129,0.24);border:1px solid rgba(110,231,183,0.55);border-radius:11px;padding:6px 12px;width:fit-content;">' +
+                  '<span style="color:#6EE7B7;display:inline-flex;">' + icon('user', 15) + '</span>' +
+                  '<span style="font-size:14.5px;font-weight:800;color:#fff;">እንኳን ደህና መጡ ' + esc(greetUser.displayName) + '!</span>' +
+                  '<span style="font-size:12px;font-weight:700;color:#D1FAE5;">Welcome, ' + esc(greetUser.displayName) + '</span>' +
+                  (greetUser.username ? '<span class="mono" style="font-size:10.5px;background:rgba(15,23,42,0.35);padding:1px 7px;border-radius:999px;color:#A7F3D0;">' + esc(greetUser.username) + '</span>' : '') +
+                '</div>'
+              : '') +
+            '<h1 id="hero-welcome-headline" style="font-size:21px;font-weight:800;line-height:1.25;letter-spacing:-0.015em;">' + esc(dayInfo.headline) + '</h1>' +
+          '</div>' +
           '<div class="week-strip">' +
             weekDays.map(function (wd) {
               var cls = wd.isToday ? 'today' : (wd.isSelected ? 'preview' : '');
@@ -5045,6 +5282,7 @@
           '</div>' +
         '</div>' +
         '<div class="maed-gallery">' +
+          assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'maed-logo-box', "MA'ED Salt — MIYAW 3A", "Hiriya Salt Production PLC — MA'ED Salt (MIYAW 3A)") +
           assetImgHtml(BRAND_ASSETS.logoGreenStars, 'maed-logo-box', "MA'ED Salt Emblem", "MA'ED Salt Emblem (Green Stars)") +
           assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'maed-logo-box', "MA'ED Salt Crest", "MA'ED Salt Crest (White Stars)") +
           assetImgHtml(BRAND_ASSETS.posterAdama, 'maed-poster-box', "MA'ED Table Salt Poster", "MA'ED Table Salt — Adama, Ethiopia") +
@@ -8895,15 +9133,45 @@
         : 'Enter your access code to unlock tables and menus.';
       var btnTxt = isAm ? 'ክፈት' : 'Unlock App';
       var placeholderTxt = isAm ? 'የመግቢያ ኮድ ያስገቡ...' : 'Enter access code...';
+      var greetUser = getActiveGreetingUser();
+      var openStamp = formatAppOpenTimestamp(state.appOpenedAt || new Date().toISOString());
 
       var html = '<div class="lock-screen">' +
         '<div style="position:absolute;top:16px;right:16px;">' +
           '<button type="button" id="lock-lang-btn" class="lang-toggle-btn">' + esc(t('lang_btn')) + '</button>' +
         '</div>' +
         '<form id="lock-form" class="lock-card' + (state.lockShake ? ' shake' : '') + '" autocomplete="off">' +
-          '<div class="lock-icon-ring">' + icon('lock', 30) + '</div>' +
-          '<h1 style="font-size:21px;font-weight:800;color:#0F172A;margin-bottom:6px;">' + esc(titleTxt) + '</h1>' +
-          '<p style="font-size:13px;color:#64748B;margin-bottom:20px;line-height:1.45;">' + esc(subTxt) + '</p>' +
+          '<div class="lock-brand-showcase">' +
+            assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'lock-hero-img', "Hiriya Salt Production PLC — MA'ED Salt", "MA'ED Salt — MIYAW 3A") +
+            '<div class="lock-company-banner">' +
+              '<div class="lock-company-en">Welcome to Hiriya Salt Production PLC</div>' +
+              '<div class="lock-company-am">እንኳን ደህና መጡ ወደ ሂሪያ</div>' +
+            '</div>' +
+            '<div class="lock-brand-strip">' +
+              assetImgHtml(BRAND_ASSETS.logoGreenStars, 'lock-brand-thumb', "MA'ED Salt Green Stars", "MA'ED Salt Emblem") +
+              assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'lock-brand-thumb', "MA'ED Salt White Stars", "MA'ED Salt Crest") +
+              assetImgHtml(BRAND_ASSETS.posterAdama, 'lock-brand-thumb', "MA'ED Table Salt", "MA'ED Table Salt") +
+            '</div>' +
+          '</div>' +
+          (greetUser
+            ? '<div id="lock-welcome-greet" class="lock-tg-greet">' +
+                '<div style="font-size:15px;font-weight:800;line-height:1.35;">እንኳን ደህና መጡ ' + esc(greetUser.displayName) + '!</div>' +
+                '<div style="font-size:12px;font-weight:700;color:#D1FAE5;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">' +
+                  '<span>Welcome, ' + esc(greetUser.displayName) + '</span>' +
+                  (greetUser.username ? '<span class="mono" style="background:rgba(15,23,42,0.3);padding:1px 7px;border-radius:999px;font-size:10.5px;">' + esc(greetUser.username) + '</span>' : '') +
+                  '<span style="background:rgba(255,255,255,0.2);padding:1px 7px;border-radius:999px;font-size:10px;">' + esc(greetUser.source || 'Telegram') + '</span>' +
+                '</div>' +
+              '</div>'
+            : '') +
+          '<div class="lock-open-time-pill" id="lock-open-time">' +
+            '<span>🕒 App Opened:</span>' +
+            '<span id="lock-open-time-txt" class="mono">' + esc(openStamp.fullText) + '</span>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">' +
+            '<span style="width:28px;height:28px;border-radius:999px;background:#EFF6FF;color:#0D47A1;display:inline-flex;align-items:center;justify-content:center;">' + icon('lock', 15) + '</span>' +
+            '<h1 style="font-size:19px;font-weight:800;color:#0F172A;">' + esc(titleTxt) + '</h1>' +
+          '</div>' +
+          '<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;line-height:1.45;">' + esc(subTxt) + '</p>' +
           '<div style="text-align:left;">' +
             '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
             '<div style="display:flex;gap:8px;align-items:center;">' +
@@ -8972,6 +9240,7 @@
         if (!isAccessLockEnabled()) {
           state.lockError = '';
           state.lockShake = false;
+          markAppOpenedNow(null, 'unlock');
           unlockAppSession();
           renderApp();
           return;
@@ -8989,8 +9258,13 @@
         }
         state.lockError = '';
         state.lockShake = false;
+        markAppOpenedNow(null, 'unlock');
         unlockAppSession();
         recordAudit('AUTH', null, 'Workspace unlocked with access code', { source: 'LockScreen' });
+        var unlockedUser = getActiveGreetingUser();
+        showToast(unlockedUser
+          ? ('እንኳን ደህና መጡ ' + unlockedUser.displayName + '! · Welcome to Hiriya Salt Production PLC')
+          : 'እንኳን ደህና መጡ ወደ ሂሪያ · Welcome to Hiriya Salt Production PLC');
         renderApp();
         if (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
           getSbClient();
@@ -12608,8 +12882,24 @@
           }
           var lowerCmd = cmd.toLowerCase();
           if (/^\/(start|open|view|help|menu)\b/i.test(lowerCmd)) {
-            recordAudit('OPEN', bot, 'Telegram user opened bot via "' + cmd + '"', { actor: uid, source: 'Telegram' });
-            m.chat.push({ s: 'user', t: esc(cmd), tm: nowT }, { s: 'bot', t: 'Tracked <b>OPEN</b> by <b>' + esc(uid) + '</b> on <b>' + esc(bot.name) + '</b>.', tm: nowT });
+            var cleanSimName = uid.replace(/\s*\([^)]*\)\s*/g, '').replace(/^@/, '').trim() || uid;
+            var simOpenStamp = markAppOpenedNow({
+              id: uid,
+              username: uid.indexOf('@') !== -1 ? uid.split(/\s+/)[0] : '',
+              firstName: cleanSimName,
+              lastName: '',
+              botName: bot.name,
+              source: 'Telegram'
+            }, 'telegram_open');
+            recordAudit('OPEN', bot, 'Telegram user ' + cleanSimName + ' opened bot via "' + cmd + '"', { actor: uid, source: 'Telegram' });
+            m.chat.push(
+              { s: 'user', t: esc(cmd), tm: nowT },
+              {
+                s: 'bot',
+                t: '<b>እንኳን ደህና መጡ ' + esc(cleanSimName) + '!</b><br/>እንኳን ደህና መጡ ወደ ሂሪያ (Hiriya Salt Production PLC)<br/>Welcome, <b>' + esc(cleanSimName) + '</b>! &middot; Opened: ' + esc(simOpenStamp.fullText),
+                tm: nowT
+              }
+            );
           } else if (/^\/(delete|remove|del)\b/i.test(lowerCmd)) {
             var delIdx = bot.rows.findIndex(function (r) { return matchesActorIdentity(r._actor, uid); });
             if (delIdx === -1 && bot.rows.length > 0) delIdx = 0;
@@ -14386,15 +14676,17 @@
       if (state.adminConfig.autoSyncOnOpen) syncAllNow('focus');
     });
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) {
+      if (!document.hidden || document.visibilityState === 'visible') {
+        markAppOpenedNow(null, 'resume');
         pullSharedSecurityState('visibility');
-        pushActivityHeartbeat(1);
+        pushActivityHeartbeat(1, 'OPEN');
         if (state.adminConfig.autoSyncOnOpen) syncAllNow('visibility');
       }
     });
     window.addEventListener('pageshow', function () {
+      markAppOpenedNow(null, 'resume');
       pullSharedSecurityState('pageshow');
-      pushActivityHeartbeat(1);
+      pushActivityHeartbeat(1, 'OPEN');
       if (state.adminConfig.autoSyncOnOpen) syncAllNow('pageshow');
     });
     window.addEventListener('online', function () {
@@ -14500,6 +14792,7 @@
         if (typeof window.Telegram.WebApp.expand === 'function') window.Telegram.WebApp.expand();
       }
     } catch (e) {}
+    markAppOpenedNow(null, 'boot');
     purgeTombstonedDataFromState();
     ensureInitialFolderManifest();
     renderApp();
@@ -14512,7 +14805,7 @@
       openModal('supabase', { recoveryMode: true, authTab: 'recovery', statusType: 'success', statusMsg: 'Password recovery link detected. Enter your new password below.' });
     }
     pullSharedSecurityState('boot');
-    pushActivityHeartbeat(1);
+    pushActivityHeartbeat(1, 'OPEN');
     pullServerActivityState('boot');
     syncAllNow('boot');
     if (state.auditLogs.length > 0) {
