@@ -1410,14 +1410,128 @@
       color: #fff; border-radius: 14px; padding: 14px 16px;
       display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
     }
+    .tb-splash-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 9500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+      background:
+        radial-gradient(circle at 20% 18%, rgba(16, 185, 129, 0.34) 0%, transparent 45%),
+        radial-gradient(circle at 82% 80%, rgba(245, 158, 11, 0.24) 0%, transparent 44%),
+        linear-gradient(145deg, #04132C 0%, #0A2E6F 52%, #065F46 100%);
+      transition: opacity 0.32s ease, transform 0.32s ease;
+    }
+    .tb-splash-screen.is-leaving {
+      opacity: 0;
+      transform: scale(1.03);
+      pointer-events: none;
+    }
+    .tb-splash-card {
+      width: 100%;
+      max-width: 420px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1.5px solid rgba(255, 255, 255, 0.24);
+      border-radius: 28px;
+      padding: 28px 22px 24px;
+      text-align: center;
+      color: #fff;
+      box-shadow: 0 32px 72px rgba(2, 8, 23, 0.55);
+      animation: splashCardIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes splashCardIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .tb-splash-halo {
+      width: 144px;
+      height: 144px;
+      margin: 0 auto 14px;
+      border-radius: 26px;
+      padding: 6px;
+      background: linear-gradient(135deg, #34D399 0%, #FBBF24 50%, #60A5FA 100%);
+      box-shadow: 0 14px 36px rgba(16, 185, 129, 0.38);
+      animation: splashLogoFloat 2.4s ease-in-out infinite;
+    }
+    @keyframes splashLogoFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .tb-splash-main-logo {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 21px;
+      padding: 6px;
+      display: block;
+    }
+    .tb-splash-sublogos {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 14px 0 16px;
+    }
+    .tb-splash-thumb {
+      width: 52px;
+      height: 52px;
+      border-radius: 13px;
+      object-fit: cover;
+      background: #fff;
+      padding: 3px;
+      border: 1.5px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 6px 16px rgba(2, 8, 23, 0.28);
+    }
+    .tb-splash-progress-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 12px 0 14px;
+    }
+    .tb-splash-progress-fill {
+      height: 100%;
+      width: 24%;
+      background: linear-gradient(90deg, #34D399, #FBBF24, #60A5FA);
+      border-radius: 999px;
+      animation: splashLoadFill 1.8s ease-out forwards;
+    }
+    @keyframes splashLoadFill {
+      from { width: 14%; }
+      to { width: 100%; }
+    }
+    .tb-splash-enter-btn {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 10px 24px rgba(5, 150, 105, 0.36);
+      border: 1px solid rgba(167, 243, 208, 0.55);
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
+  <div id="splash-root"></div>
   <div id="drawer-root"></div>
   <div id="modal-root"></div>
   <div id="cyber-prompt-root"></div>
   <div id="toast-root"></div>
+  <audio id="tb-daily-voice-el" playsinline webkit-playsinline preload="auto" style="display:none;"></audio>
 
   <script>
   (function () {
@@ -2304,12 +2418,18 @@
       attemptedAutoKey: '',
       playToken: 0,
       audio: null,
+      audioCtx: null,
+      activeSourceNode: null,
       abortCtrl: null,
       progressTimer: null,
       fallbackTimer: null,
-      cachedDataUriMap: {},
+      arrayBufMap: {},
+      blobUrlMap: {},
+      inFlightBufMap: {},
       gestureListenerArmed: false,
       gestureCleanup: null,
+      splashDismissed: false,
+      splashTimer: null,
       status: 'idle', // 'idle' | 'loading' | 'playing' | 'autoplay_blocked' | 'completed'
       progress: 0,
       source: ''
@@ -2318,6 +2438,36 @@
     function getLockVoiceSessionKey(dateOverride, userOverride) {
       var p = getDailyAmharicWorkPrompt(dateOverride, userOverride);
       return p.ymd + '|' + p.dayIndex + '|' + (p.userName || '');
+    }
+
+    function getOrCreateSharedAudioCtx() {
+      if (_dailyVoiceCtrl.audioCtx) return _dailyVoiceCtrl.audioCtx;
+      if (typeof window === 'undefined') return null;
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      try {
+        _dailyVoiceCtrl.audioCtx = new AudioCtx();
+      } catch (e) {
+        _dailyVoiceCtrl.audioCtx = null;
+      }
+      return _dailyVoiceCtrl.audioCtx;
+    }
+
+    function unlockAudioCtxSync() {
+      var ctx = getOrCreateSharedAudioCtx();
+      if (!ctx) return null;
+      try {
+        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+          ctx.resume().catch(function () {});
+        }
+        // Play a 1-frame silent buffer inside user gesture to permanently unlock iOS/Android Telegram WebView audio
+        var emptyBuf = ctx.createBuffer(1, 1, 22050);
+        var src = ctx.createBufferSource();
+        src.buffer = emptyBuf;
+        src.connect(ctx.destination);
+        if (typeof src.start === 'function') src.start(0);
+      } catch (e) {}
+      return ctx;
     }
 
     function disarmAutoVoiceGestureWakeup() {
@@ -2334,6 +2484,7 @@
       _dailyVoiceCtrl.gestureListenerArmed = true;
       var events = ['pointerdown', 'touchstart', 'mousedown', 'keydown'];
       var handler = function (ev) {
+        unlockAudioCtxSync();
         if (state && state.dailyVoiceListened) {
           disarmAutoVoiceGestureWakeup();
           return;
@@ -2351,7 +2502,7 @@
           return;
         }
         disarmAutoVoiceGestureWakeup();
-        startDailyVoicePlayback({ auto: false });
+        startDailyVoicePlayback({ auto: false, fromGesture: true });
       };
       events.forEach(function (evName) {
         try { window.addEventListener(evName, handler, true); } catch (e) {}
@@ -2363,26 +2514,73 @@
       };
     }
 
-    function warmDailyVoiceCache(spokenText) {
-      if (!spokenText || _dailyVoiceCtrl.cachedDataUriMap[spokenText]) return;
-      if (typeof fetch !== 'function') return;
-      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') return;
-      fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: spokenText,
-          voice: 'Kore',
-          style: 'Warm, clear Ethiopian Amharic voice'
-        })
-      })
-        .then(function (res) { return res.ok ? res.json().catch(function () { return null; }) : null; })
-        .then(function (data) {
-          if (data && data.ok && data.audioBase64) {
-            _dailyVoiceCtrl.cachedDataUriMap[spokenText] = 'data:' + (data.mimeType || 'audio/wav') + ';base64,' + data.audioBase64;
+    function base64ToArrayBuffer(b64) {
+      var bin = atob(b64);
+      var len = bin.length;
+      var bytes = new Uint8Array(len);
+      for (var i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes.buffer;
+    }
+
+    function storeVoiceArrayBuffer(spokenText, ab) {
+      if (!ab || !ab.byteLength || ab.byteLength < 64) return null;
+      _dailyVoiceCtrl.arrayBufMap[spokenText] = ab;
+      if (!_dailyVoiceCtrl.blobUrlMap[spokenText] && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        try {
+          _dailyVoiceCtrl.blobUrlMap[spokenText] = URL.createObjectURL(new Blob([ab], { type: 'audio/wav' }));
+        } catch (e) {}
+      }
+      return ab;
+    }
+
+    function fetchDailyVoiceArrayBuffer(spokenText) {
+      if (!spokenText) return Promise.resolve(null);
+      if (_dailyVoiceCtrl.arrayBufMap[spokenText]) return Promise.resolve(_dailyVoiceCtrl.arrayBufMap[spokenText]);
+      if (_dailyVoiceCtrl.inFlightBufMap[spokenText]) return _dailyVoiceCtrl.inFlightBufMap[spokenText];
+      if (typeof fetch !== 'function') return Promise.resolve(null);
+      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') return Promise.resolve(null);
+
+      var streamUrl = '/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice');
+      var p = fetch(streamUrl)
+        .then(function (res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          if (typeof res.arrayBuffer === 'function') {
+            return res.arrayBuffer();
           }
+          return res.json().then(function (data) {
+            if (data && data.ok && data.audioBase64) return base64ToArrayBuffer(data.audioBase64);
+            return null;
+          });
         })
-        .catch(function () {});
+        .then(function (ab) {
+          return storeVoiceArrayBuffer(spokenText, ab);
+        })
+        .catch(function () {
+          return fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: spokenText, voice: 'Kore', style: 'Warm, clear Ethiopian Amharic voice' })
+          })
+            .then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; })
+            .then(function (d) {
+              if (d && d.ok && d.audioBase64) {
+                return storeVoiceArrayBuffer(spokenText, base64ToArrayBuffer(d.audioBase64));
+              }
+              return null;
+            })
+            .catch(function () { return null; });
+        })
+        .then(function (finalAb) {
+          delete _dailyVoiceCtrl.inFlightBufMap[spokenText];
+          return finalAb;
+        });
+
+      _dailyVoiceCtrl.inFlightBufMap[spokenText] = p;
+      return p;
+    }
+
+    function warmDailyVoiceCache(spokenText) {
+      return fetchDailyVoiceArrayBuffer(spokenText);
     }
 
     function stopDailyVoicePlayback(resetStatus) {
@@ -2392,13 +2590,21 @@
         try { _dailyVoiceCtrl.abortCtrl.abort(); } catch (e0) {}
         _dailyVoiceCtrl.abortCtrl = null;
       }
+      if (_dailyVoiceCtrl.activeSourceNode) {
+        try {
+          _dailyVoiceCtrl.activeSourceNode.onended = null;
+          _dailyVoiceCtrl.activeSourceNode.stop(0);
+          _dailyVoiceCtrl.activeSourceNode.disconnect();
+        } catch (eSrc) {}
+        _dailyVoiceCtrl.activeSourceNode = null;
+      }
       if (_dailyVoiceCtrl.audio) {
         try {
           _dailyVoiceCtrl.audio.onended = null;
           _dailyVoiceCtrl.audio.onerror = null;
           _dailyVoiceCtrl.audio.onplaying = null;
           _dailyVoiceCtrl.audio.pause();
-          _dailyVoiceCtrl.audio.src = '';
+          _dailyVoiceCtrl.audio.removeAttribute('src');
         } catch (e1) {}
         _dailyVoiceCtrl.audio = null;
       }
@@ -2477,8 +2683,8 @@
           gateHint.style.color = '#047857';
         } else if (st === 'autoplay_blocked') {
           gateHint.textContent = isAm
-            ? '🔊 ስልክ/ብራውዘር ድምፁን በራስ-ሰር እንዲጀምር ማንኛውንም ቦታ አንድ ጊዜ ይንኩ፤ ሳያዳምጡ አይከፈትም።'
-            : '🔊 Tap anywhere once so your browser permits audio — app stays locked until voice finishes.';
+            ? '🔊 ስልክ/ቴሌግራም ድምፅ እንዲከፍት ማንኛውንም ቦታ አንድ ጊዜ ይንኩ፤ ሳያዳምጡ አይከፈትም።'
+            : '🔊 Tap anywhere once so Telegram/browser permits audio — app stays locked until voice finishes.';
           gateHint.style.color = '#B45309';
         } else {
           gateHint.textContent = isAm
@@ -2492,23 +2698,23 @@
     function playSoftCompletionChime(isUserClick) {
       if (!isUserClick) return;
       try {
-        var AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (!AudioCtx) return;
-        var ctx = new AudioCtx();
+        var ctx = getOrCreateSharedAudioCtx();
+        if (!ctx) return;
+        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') ctx.resume().catch(function () {});
         var now = ctx.currentTime;
         var notes = [523.25, 659.25];
         notes.forEach(function (freq, i) {
           var osc = ctx.createOscillator();
           var gain = ctx.createGain();
           osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, now + i * 0.14);
-          gain.gain.setValueAtTime(0.001, now + i * 0.14);
-          gain.gain.exponentialRampToValueAtTime(0.06, now + i * 0.14 + 0.03);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.14 + 0.25);
+          osc.frequency.setValueAtTime(freq, now + i * 0.16);
+          gain.gain.setValueAtTime(0.001, now + i * 0.16);
+          gain.gain.exponentialRampToValueAtTime(0.32, now + i * 0.16 + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.16 + 0.32);
           osc.connect(gain);
           gain.connect(ctx.destination);
-          osc.start(now + i * 0.14);
-          osc.stop(now + i * 0.14 + 0.26);
+          osc.start(now + i * 0.16);
+          osc.stop(now + i * 0.16 + 0.34);
         });
       } catch (e) {}
     }
@@ -2516,6 +2722,8 @@
     function startDailyVoicePlayback(options) {
       var opts = options || {};
       var isAuto = Boolean(opts.auto);
+      var fromGesture = Boolean(opts.fromGesture);
+      if (fromGesture || !isAuto) unlockAudioCtxSync();
       var promptInfo = getDailyAmharicWorkPrompt();
       stopDailyVoicePlayback(false);
       var myToken = _dailyVoiceCtrl.playToken;
@@ -2595,6 +2803,7 @@
           var utt = new SpeechSynthesisUtterance(promptInfo.spokenText);
           utt.lang = 'am-ET';
           if (amVoice) utt.voice = amVoice;
+          utt.volume = 1.0;
           utt.rate = 0.94;
           var speechStart = Date.now();
           var settled = false;
@@ -2640,9 +2849,27 @@
         }
       }
 
-      function playAudioSrcSync(audioSrc) {
+      function playDomAudioElement(srcUrl, allowWebAudioRetryOnErr) {
         if (myToken !== _dailyVoiceCtrl.playToken) return;
-        var audio = new Audio(audioSrc);
+        var domAudio = document.getElementById('tb-daily-voice-el');
+        var audio = domAudio || (typeof Audio !== 'undefined' ? new Audio() : null);
+        if (!audio) {
+          trySpeechSynthesisFallback();
+          return;
+        }
+        try {
+          audio.onended = null;
+          audio.onerror = null;
+          audio.onplaying = null;
+          audio.pause();
+        } catch (eStop) {}
+        audio.playsInline = true;
+        try { audio.setAttribute('playsinline', ''); audio.setAttribute('webkit-playsinline', ''); } catch (eAttr) {}
+        audio.muted = false;
+        audio.volume = 1.0;
+        audio.src = srcUrl;
+        try { if (typeof audio.load === 'function') audio.load(); } catch (eLoad) {}
+
         _dailyVoiceCtrl.audio = audio;
         _dailyVoiceCtrl.status = 'loading';
         _dailyVoiceCtrl.progress = 15;
@@ -2669,10 +2896,15 @@
           completeVoice('gemini');
         };
         audio.onerror = function () {
-          if (_dailyVoiceCtrl.cachedDataUriMap[promptInfo.spokenText] === audioSrc) {
-            delete _dailyVoiceCtrl.cachedDataUriMap[promptInfo.spokenText];
+          if (allowWebAudioRetryOnErr) {
+            fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
+              if (myToken !== _dailyVoiceCtrl.playToken) return;
+              if (ab && tryWebAudioPlayback(ab, false)) return;
+              trySpeechSynthesisFallback();
+            });
+          } else {
+            trySpeechSynthesisFallback();
           }
-          trySpeechSynthesisFallback();
         };
         var p = audio.play();
         if (p && typeof p.then === 'function') {
@@ -2686,6 +2918,13 @@
             if (myToken !== _dailyVoiceCtrl.playToken) return;
             if (err && err.name === 'NotAllowedError') {
               markAutoplayBlocked();
+            } else if (allowWebAudioRetryOnErr) {
+              fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
+                if (myToken !== _dailyVoiceCtrl.playToken) return;
+                if (ab && tryWebAudioPlayback(ab, false)) return;
+                if (isAuto) markAutoplayBlocked();
+                else trySpeechSynthesisFallback();
+              });
             } else if (isAuto) {
               markAutoplayBlocked();
             } else {
@@ -2695,26 +2934,208 @@
         }
       }
 
-      if (typeof Audio === 'undefined') {
-        trySpeechSynthesisFallback();
-        return;
+      function tryWebAudioPlayback(arrayBuf, fallbackToDomOnFail) {
+        if (myToken !== _dailyVoiceCtrl.playToken) return false;
+        var ctx = getOrCreateSharedAudioCtx();
+        if (!ctx || typeof ctx.decodeAudioData !== 'function') return false;
+        if (ctx.state === 'suspended' && isAuto && !fromGesture) {
+          return false;
+        }
+        try {
+          if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+            ctx.resume().catch(function () {});
+          }
+          var copyBuf = arrayBuf.slice(0);
+          ctx.decodeAudioData(
+            copyBuf,
+            function (audioBuffer) {
+              if (myToken !== _dailyVoiceCtrl.playToken) return;
+              if (!audioBuffer || !audioBuffer.duration) {
+                if (fallbackToDomOnFail) {
+                  var bUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+                  if (bUrl) playDomAudioElement(bUrl, false);
+                  else trySpeechSynthesisFallback();
+                } else {
+                  trySpeechSynthesisFallback();
+                }
+                return;
+              }
+              try {
+                var src = ctx.createBufferSource();
+                src.buffer = audioBuffer;
+                var gain = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
+                if (gain) {
+                  gain.gain.value = 1.35;
+                  src.connect(gain);
+                  gain.connect(ctx.destination);
+                } else {
+                  src.connect(ctx.destination);
+                }
+                _dailyVoiceCtrl.activeSourceNode = src;
+                disarmAutoVoiceGestureWakeup();
+                _dailyVoiceCtrl.status = 'playing';
+                _dailyVoiceCtrl.progress = 20;
+                if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+
+                var startedAt = Date.now();
+                var durMs = Math.max(800, Math.round(audioBuffer.duration * 1000));
+                _dailyVoiceCtrl.progressTimer = setInterval(function () {
+                  if (myToken !== _dailyVoiceCtrl.playToken) return;
+                  var pct = 20 + Math.round(((Date.now() - startedAt) / durMs) * 78);
+                  _dailyVoiceCtrl.progress = Math.min(98, pct);
+                  if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+                }, 140);
+                var doneCalled = false;
+                var finishFn = function () {
+                  if (doneCalled) return;
+                  doneCalled = true;
+                  completeVoice('webaudio');
+                };
+                src.onended = finishFn;
+                _dailyVoiceCtrl.fallbackTimer = setTimeout(finishFn, durMs + 350);
+                src.start(0);
+              } catch (eStart) {
+                if (fallbackToDomOnFail) {
+                  var bUrl2 = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+                  if (bUrl2) playDomAudioElement(bUrl2, false);
+                  else trySpeechSynthesisFallback();
+                } else {
+                  trySpeechSynthesisFallback();
+                }
+              }
+            },
+            function () {
+              if (myToken !== _dailyVoiceCtrl.playToken) return;
+              if (fallbackToDomOnFail) {
+                var bUrl3 = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+                if (bUrl3) playDomAudioElement(bUrl3, false);
+                else trySpeechSynthesisFallback();
+              } else {
+                trySpeechSynthesisFallback();
+              }
+            }
+          );
+          return true;
+        } catch (eDec) {
+          return false;
+        }
       }
 
-      var cachedUri = _dailyVoiceCtrl.cachedDataUriMap[promptInfo.spokenText];
-      if (cachedUri) {
-        playAudioSrcSync(cachedUri);
-        return;
+      _dailyVoiceCtrl.status = 'loading';
+      _dailyVoiceCtrl.progress = 12;
+      if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+
+      var cachedAb = _dailyVoiceCtrl.arrayBufMap[promptInfo.spokenText];
+      if (cachedAb) {
+        if (tryWebAudioPlayback(cachedAb, true)) return;
+        var cachedBlob = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+        if (cachedBlob) {
+          playDomAudioElement(cachedBlob, true);
+          return;
+        }
       }
 
       var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
-      if (!isFileProto) {
+      if (!isFileProto && typeof fetch === 'function') {
+        if (fromGesture || !isAuto) {
+          fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
+            if (myToken !== _dailyVoiceCtrl.playToken) return;
+            if (ab) {
+              if (tryWebAudioPlayback(ab, true)) return;
+              var bUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+              if (bUrl) {
+                playDomAudioElement(bUrl, false);
+                return;
+              }
+            }
+            trySpeechSynthesisFallback();
+          });
+          return;
+        }
         var streamUrl = '/api/tts?text=' + encodeURIComponent(promptInfo.spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice');
         warmDailyVoiceCache(promptInfo.spokenText);
-        playAudioSrcSync(streamUrl);
+        playDomAudioElement(streamUrl, true);
         return;
       }
 
       trySpeechSynthesisFallback();
+    }
+
+    function dismissBrandSplash(fromUserGesture) {
+      if (_dailyVoiceCtrl.splashDismissed) return;
+      _dailyVoiceCtrl.splashDismissed = true;
+      if (_dailyVoiceCtrl.splashTimer) {
+        clearTimeout(_dailyVoiceCtrl.splashTimer);
+        _dailyVoiceCtrl.splashTimer = null;
+      }
+      if (fromUserGesture) {
+        unlockAudioCtxSync();
+      }
+      var root = document.getElementById('splash-root');
+      if (root) {
+        var scr = root.querySelector ? root.querySelector('.tb-splash-screen') : null;
+        if (scr) scr.classList.add('is-leaving');
+        setTimeout(function () {
+          var r = document.getElementById('splash-root');
+          if (r) r.innerHTML = '';
+        }, 320);
+      }
+      if (!isAccessUnlocked() && !state.dailyVoiceListened) {
+        if (fromUserGesture) {
+          startDailyVoicePlayback({ auto: false, fromGesture: true });
+        } else if (_dailyVoiceCtrl.status === 'idle' || _dailyVoiceCtrl.status === 'autoplay_blocked') {
+          startDailyVoicePlayback({ auto: true });
+        }
+      }
+    }
+
+    function showBrandSplashScreen() {
+      var root = document.getElementById('splash-root');
+      if (!root) return;
+      var promptInfo = getDailyAmharicWorkPrompt();
+      warmDailyVoiceCache(promptInfo.spokenText);
+
+      var greetUser = getActiveGreetingUser();
+      var greetLine = greetUser
+        ? ('እንኳን ደህና መጡ ' + esc(greetUser.displayName) + '!')
+        : 'እንኳን ደህና መጡ ወደ ሂሪያ!';
+
+      root.innerHTML =
+        '<div id="tb-splash-screen" class="tb-splash-screen" role="dialog" aria-label="Hiriya Salt Production PLC">' +
+          '<div class="tb-splash-card">' +
+            '<div class="tb-splash-halo">' +
+              assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'tb-splash-main-logo', "MA'ED Salt — MIYAW 3A", "MA'ED Salt — MIYAW 3A") +
+            '</div>' +
+            '<div style="font-size:17px;font-weight:800;letter-spacing:0.01em;color:#fff;">HIRIYA SALT PRODUCTION PLC</div>' +
+            '<div style="font-size:16px;font-weight:800;color:#6EE7B7;margin-top:3px;">እንኳን ደህና መጡ ወደ ሂሪያ</div>' +
+            '<div style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:5px 12px;border-radius:999px;background:rgba(16,185,129,0.22);border:1px solid rgba(110,231,183,0.45);font-size:13px;font-weight:800;color:#ECFDF5;">' +
+              '<span>' + greetLine + '</span>' +
+            '</div>' +
+            '<div class="tb-splash-sublogos">' +
+              assetImgHtml(BRAND_ASSETS.logoGreenStars, 'tb-splash-thumb', "MA'ED Salt Emblem", "MA'ED Salt Emblem") +
+              assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'tb-splash-thumb', "MA'ED Salt Crest", "MA'ED Salt Crest") +
+              assetImgHtml(BRAND_ASSETS.posterAdama, 'tb-splash-thumb', "MA'ED Table Salt", "MA'ED Table Salt") +
+            '</div>' +
+            '<div style="font-size:11.5px;font-weight:700;color:#CBD5E1;">' + esc(promptInfo.amDay) + ' · ' + esc(promptInfo.enDay) + ' · Preparing Amharic Voice &amp; Workspace...</div>' +
+            '<div class="tb-splash-progress-track"><div class="tb-splash-progress-fill"></div></div>' +
+            '<button type="button" id="splash-enter-btn" class="tb-splash-enter-btn">' +
+              '<span>🔊 ድምፅ አዳምጠው ይግቡ · Start &amp; Hear Voice</span>' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+
+      var splashEl = document.getElementById('tb-splash-screen');
+      var enterBtn = document.getElementById('splash-enter-btn');
+      var handleSplashTap = function (e) {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        dismissBrandSplash(true);
+      };
+      if (enterBtn) enterBtn.onclick = handleSplashTap;
+      if (splashEl) splashEl.onclick = handleSplashTap;
+
+      _dailyVoiceCtrl.splashTimer = setTimeout(function () {
+        dismissBrandSplash(false);
+      }, 1900);
     }
 
     function assetImgHtml(src, cls, alt, modalTitle) {
@@ -10243,7 +10664,7 @@
       var playVoiceBtn = document.getElementById('lock-voice-play-btn');
       if (playVoiceBtn) {
         playVoiceBtn.onclick = function () {
-          startDailyVoicePlayback({ auto: false });
+          startDailyVoicePlayback({ auto: false, fromGesture: true });
         };
       }
 
@@ -15864,6 +16285,7 @@
     purgeTombstonedDataFromState();
     ensureInitialFolderManifest();
     renderApp();
+    showBrandSplashScreen();
     startSharedSecurityEvents();
     startTelegramAutoPoll();
     startLiveDateWatcher();

@@ -1222,9 +1222,31 @@ async function startServer(): Promise<void> {
       return;
     }
     const audioBuf = Buffer.from(result.audioBase64, 'base64');
-    res.setHeader('Content-Type', result.mimeType || 'audio/wav');
-    res.setHeader('Content-Length', String(audioBuf.length));
+    const total = audioBuf.length;
+    const mimeType = result.mimeType || 'audio/wav';
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=3600');
+
+    const rangeHdr = req.headers.range;
+    if (typeof rangeHdr === 'string' && rangeHdr.startsWith('bytes=')) {
+      const parts = rangeHdr.replace(/^bytes=/, '').split('-');
+      const start = Math.max(0, parseInt(parts[0], 10) || 0);
+      const parsedEnd = parts[1] ? parseInt(parts[1], 10) : total - 1;
+      const end = Math.min(total - 1, Number.isFinite(parsedEnd) ? parsedEnd : total - 1);
+      if (start >= total || start > end) {
+        res.status(416).setHeader('Content-Range', `bytes */${total}`).end();
+        return;
+      }
+      const chunk = audioBuf.subarray(start, end + 1);
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+      res.setHeader('Content-Length', String(chunk.length));
+      res.send(chunk);
+      return;
+    }
+
+    res.setHeader('Content-Length', String(total));
     res.status(200).send(audioBuf);
   });
 
