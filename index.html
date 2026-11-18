@@ -1359,7 +1359,7 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 9px 13px;
+      padding: 10px 14px;
       border-radius: 10px;
       font-size: 13px;
       font-weight: 800;
@@ -1367,6 +1367,15 @@
       background: linear-gradient(135deg, #0D47A1 0%, #0D9488 100%);
       box-shadow: 0 6px 14px rgba(13, 71, 161, 0.24);
       cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+    .lock-voice-btn.is-enable-prompt {
+      background: linear-gradient(135deg, #D97706 0%, #0D9488 100%);
+      box-shadow: 0 8px 18px rgba(217, 119, 6, 0.34);
+      border: 1.5px solid rgba(254, 243, 199, 0.85);
+    }
+    .lock-voice-btn:active {
+      transform: scale(0.985);
     }
     .lock-voice-card.is-listened .lock-voice-btn {
       background: #ECFDF5;
@@ -2433,6 +2442,11 @@
       inFlightBufMap: {},
       gestureListenerArmed: false,
       gestureCleanup: null,
+      firstTapArmed: false,
+      firstTapCleanup: null,
+      gestureUnlocked: false,
+      speechUnlocked: false,
+      lastGesturePlayAt: 0,
       splashDismissed: false,
       splashTimer: null,
       status: 'idle', // 'idle' | 'loading' | 'playing' | 'autoplay_blocked' | 'completed'
@@ -2458,21 +2472,73 @@
       return _dailyVoiceCtrl.audioCtx;
     }
 
-    function unlockAudioCtxSync() {
+    function unlockAudioAndSpeechSync() {
       var ctx = getOrCreateSharedAudioCtx();
-      if (!ctx) return null;
+      if (ctx) {
+        try {
+          if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+            ctx.resume().catch(function () {});
+          }
+          // Play a 1-frame silent audio buffer on user gesture to unlock Telegram Mini App / mobile Safari & Chrome WebAudio
+          if (typeof ctx.createBuffer === 'function' && typeof ctx.createBufferSource === 'function') {
+            var emptyBuf = ctx.createBuffer(1, 1, 22050);
+            var src = ctx.createBufferSource();
+            src.buffer = emptyBuf;
+            src.connect(ctx.destination);
+            if (typeof src.start === 'function') src.start(0);
+          }
+        } catch (e) {}
+      }
       try {
-        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
-          ctx.resume().catch(function () {});
+        var synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+        if (synth) {
+          if (typeof synth.resume === 'function') {
+            synth.resume();
+          }
+          if (typeof synth.getVoices === 'function') {
+            synth.getVoices();
+          }
+          _dailyVoiceCtrl.speechUnlocked = true;
         }
-        // Play a 1-frame silent buffer inside user gesture to permanently unlock iOS/Android Telegram WebView audio
-        var emptyBuf = ctx.createBuffer(1, 1, 22050);
-        var src = ctx.createBufferSource();
-        src.buffer = emptyBuf;
-        src.connect(ctx.destination);
-        if (typeof src.start === 'function') src.start(0);
-      } catch (e) {}
+      } catch (eSynth) {}
+      _dailyVoiceCtrl.gestureUnlocked = true;
       return ctx;
+    }
+
+    function unlockAudioCtxSync() {
+      return unlockAudioAndSpeechSync();
+    }
+
+    function installFirstTapAudioUnlocker() {
+      if (_dailyVoiceCtrl.firstTapArmed) return;
+      if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+      _dailyVoiceCtrl.firstTapArmed = true;
+      var tapEvents = ['touchstart', 'pointerdown', 'click', 'keydown'];
+      var removeFirstTapListeners = function () {
+        tapEvents.forEach(function (evName) {
+          try { window.removeEventListener(evName, onFirstUserTap, true); } catch (e) {}
+        });
+        _dailyVoiceCtrl.firstTapArmed = false;
+        _dailyVoiceCtrl.firstTapCleanup = null;
+      };
+      var onFirstUserTap = function (ev) {
+        unlockAudioAndSpeechSync();
+        removeFirstTapListeners();
+        var splashEl = document.getElementById('tb-splash-screen');
+        var splashActive = Boolean(splashEl && !splashEl.classList.contains('is-leaving'));
+        if (splashActive) return;
+        if (state && state.dailyVoiceListened) return;
+        if (!document.getElementById('lock-form')) return;
+        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn, #lock-lang-btn, #lock-sync-btn, #lock-eye-btn')) return;
+        if (_dailyVoiceCtrl.status === 'autoplay_blocked' || _dailyVoiceCtrl.status === 'idle') {
+          disarmAutoVoiceGestureWakeup();
+          startDailyVoicePlayback({ auto: false, fromGesture: true });
+        }
+      };
+      tapEvents.forEach(function (evName) {
+        try { window.addEventListener(evName, onFirstUserTap, true); } catch (e) {}
+      });
+      _dailyVoiceCtrl.firstTapCleanup = removeFirstTapListeners;
     }
 
     function disarmAutoVoiceGestureWakeup() {
@@ -2493,7 +2559,7 @@
         if (splashEl && !splashEl.classList.contains('is-leaving')) {
           return;
         }
-        unlockAudioCtxSync();
+        unlockAudioAndSpeechSync();
         if (state && state.dailyVoiceListened) {
           disarmAutoVoiceGestureWakeup();
           return;
@@ -2502,8 +2568,8 @@
           disarmAutoVoiceGestureWakeup();
           return;
         }
-        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn')) {
-          disarmAutoVoiceGestureWakeup();
+        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn, #lock-lang-btn, #lock-sync-btn, #lock-eye-btn')) {
+          if (ev.target.closest('#lock-voice-play-btn')) disarmAutoVoiceGestureWakeup();
           return;
         }
         if (_dailyVoiceCtrl.status === 'playing' || _dailyVoiceCtrl.status === 'loading') {
@@ -2656,9 +2722,9 @@
       if (badge) {
         badge.className = 'lock-voice-status' + (listened ? ' is-done' : (st === 'loading' || st === 'playing' ? ' is-playing' : ''));
         if (listened) badge.textContent = isAm ? '✓ ተዳምጧል' : '✓ Listened';
-        else if (st === 'loading') badge.textContent = isAm ? '🔊 በራስ-ሰር እየጀመረ ነው...' : '🔊 Starting Auto-Voice...';
-        else if (st === 'playing') badge.textContent = isAm ? '🔊 በራስ-ሰር በመናገር ላይ...' : '🔊 Speaking Automatically...';
-        else if (st === 'autoplay_blocked') badge.textContent = isAm ? '🔊 ማንኛውንም ቦታ ይንኩ' : '🔊 Tap Anywhere to Speak';
+        else if (st === 'loading') badge.textContent = isAm ? '🔊 ድምፅ እየጀመረ ነው...' : '🔊 Starting Voice...';
+        else if (st === 'playing') badge.textContent = isAm ? '🔊 በመናገር ላይ...' : '🔊 Speaking...';
+        else if (st === 'autoplay_blocked') badge.textContent = isAm ? '🔊 ድምፅ ለመስማት ይንኩ' : '🔊 Tap to Enable Voice';
         else badge.textContent = isAm ? 'መጀመሪያ ያዳምጡ' : 'Listen Required';
       }
       if (bar) {
@@ -2666,11 +2732,13 @@
         bar.style.width = pct + '%';
       }
       if (playBtn) {
-        if (st === 'loading') playBtn.textContent = isAm ? '🔊 በራስ-ሰር ድምፁን በመክፈት ላይ...' : '🔊 Opening Automatic Voice...';
-        else if (st === 'playing') playBtn.textContent = isAm ? '🔊 በራስ-ሰር እየተናገረ ነው... (እባክዎ ያዳምጡ)' : '🔊 Speaking Automatically... (Please listen)';
-        else if (st === 'autoplay_blocked') playBtn.textContent = isAm ? '🔊 ድምፅ ለመስማት ስክሪኑን በማንኛውም ቦታ ይንኩ' : '🔊 Tap Anywhere on Page to Start Auto-Voice';
+        var needsEnablePrompt = !listened && (st === 'autoplay_blocked' || st === 'idle');
+        playBtn.classList.toggle('is-enable-prompt', needsEnablePrompt);
+        if (st === 'loading') playBtn.textContent = isAm ? '🔊 ድምፁን በመክፈት ላይ...' : '🔊 Opening Voice Audio...';
+        else if (st === 'playing') playBtn.textContent = isAm ? '🔊 እየተናገረ ነው... (እባክዎ ያዳምጡ)' : '🔊 Speaking... (Please listen)';
+        else if (needsEnablePrompt) playBtn.textContent = isAm ? '🔊 ድምፅ ለመስማት ይንኩ · Tap to Enable Voice' : '🔊 Tap to Enable Voice';
         else if (listened) playBtn.textContent = isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice';
-        else playBtn.textContent = isAm ? '🔊 ድምፅ በራስ-ሰር ይናገራል' : '🔊 Auto Daily Voice';
+        else playBtn.textContent = isAm ? '🔊 Tap to Enable Voice' : '🔊 Tap to Enable Voice';
       }
       if (codeWrap) {
         codeWrap.classList.toggle('lock-gate-locked', !listened);
@@ -2692,13 +2760,13 @@
           gateHint.style.color = '#047857';
         } else if (st === 'autoplay_blocked') {
           gateHint.textContent = isAm
-            ? '🔊 ስልክ/ቴሌግራም ድምፅ እንዲከፍት ማንኛውንም ቦታ አንድ ጊዜ ይንኩ፤ ሳያዳምጡ አይከፈትም።'
-            : '🔊 Tap anywhere once so Telegram/browser permits audio — app stays locked until voice finishes.';
+            ? '🔊 ቴሌግራም/ስልክ ድምፅ እንዲከፍት "Tap to Enable Voice" ወይም ማንኛውንም ቦታ ይንኩ።'
+            : '🔊 Tap "Tap to Enable Voice" (or anywhere on screen) so Telegram/mobile allows audio.';
           gateHint.style.color = '#B45309';
         } else {
           gateHint.textContent = isAm
-            ? '🔒 ድምፁ በራስ-ሰር እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።'
-            : '🔒 Speaking automatically — app unlocks for code entry right after listening completes.';
+            ? '🔒 ድምፁ እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።'
+            : '🔒 Speaking now — app unlocks for code entry right after listening completes.';
           gateHint.style.color = '#B45309';
         }
       }
@@ -2740,7 +2808,14 @@
       var opts = options || {};
       var isAuto = Boolean(opts.auto);
       var fromGesture = Boolean(opts.fromGesture);
-      if (fromGesture || !isAuto) unlockAudioCtxSync();
+      var nowTs = Date.now();
+      if (fromGesture && (_dailyVoiceCtrl.status === 'loading' || _dailyVoiceCtrl.status === 'playing') && (nowTs - (_dailyVoiceCtrl.lastGesturePlayAt || 0)) < 350) {
+        return;
+      }
+      if (fromGesture || !isAuto) {
+        _dailyVoiceCtrl.lastGesturePlayAt = nowTs;
+        unlockAudioAndSpeechSync();
+      }
       var promptInfo = getDailyAmharicWorkPrompt();
       var sessionKey = getLockVoiceSessionKey();
       _dailyVoiceCtrl.sessionKey = sessionKey;
@@ -2778,7 +2853,7 @@
 
       function runGuidedProgressFallback() {
         if (myToken !== _dailyVoiceCtrl.playToken) return;
-        if (isAuto) {
+        if (isAuto && !fromGesture) {
           markAutoplayBlocked();
           return;
         }
@@ -2806,17 +2881,16 @@
           runGuidedProgressFallback();
           return;
         }
+        if (typeof synth.resume === 'function') {
+          try { synth.resume(); } catch (eRes) {}
+        }
         var voices = [];
         try { voices = synth.getVoices ? synth.getVoices() : []; } catch (e0) {}
         var amVoice = voices.find(function (v) {
           return v && v.lang && v.lang.toLowerCase().indexOf('am') === 0;
         });
-        if (isAuto && !amVoice) {
+        if (isAuto && !fromGesture && !amVoice) {
           markAutoplayBlocked();
-          return;
-        }
-        if (!amVoice && voices.length === 0) {
-          runGuidedProgressFallback();
           return;
         }
         try {
@@ -2826,6 +2900,7 @@
           utt.volume = 1.0;
           utt.rate = 0.94;
           var speechStart = Date.now();
+          var speechActuallyStarted = false;
           var settled = false;
           _dailyVoiceCtrl.status = 'playing';
           _dailyVoiceCtrl.progress = 20;
@@ -2835,6 +2910,9 @@
             _dailyVoiceCtrl.progress = Math.min(94, (_dailyVoiceCtrl.progress || 20) + 10);
             if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
           }, 350);
+          utt.onstart = function () {
+            speechActuallyStarted = true;
+          };
           utt.onend = function () {
             if (settled || myToken !== _dailyVoiceCtrl.playToken) return;
             settled = true;
@@ -2849,21 +2927,33 @@
             if (settled || myToken !== _dailyVoiceCtrl.playToken) return;
             settled = true;
             var errName = ev && ev.error ? String(ev.error) : '';
-            if (isAuto && (errName === 'not-allowed' || errName === 'audio-busy')) {
+            if (isAuto && !fromGesture && (errName === 'not-allowed' || errName === 'audio-busy')) {
               markAutoplayBlocked();
             } else {
               runGuidedProgressFallback();
             }
           };
-          synth.cancel();
+          if (synth.speaking || synth.pending) {
+            try { synth.cancel(); } catch (eCan) {}
+          }
           synth.speak(utt);
+          if (typeof synth.resume === 'function') {
+            try { synth.resume(); } catch (eRes2) {}
+          }
+          var silentEngineWaitMs = (!amVoice && voices.length === 0) ? 1400 : 12000;
           _dailyVoiceCtrl.fallbackTimer = setTimeout(function () {
             if (!settled && myToken === _dailyVoiceCtrl.playToken) {
+              if (!speechActuallyStarted && !amVoice && voices.length === 0) {
+                settled = true;
+                try { if (typeof synth.cancel === 'function') synth.cancel(); } catch (eC) {}
+                runGuidedProgressFallback();
+                return;
+              }
               settled = true;
-              if (isAuto) markAutoplayBlocked();
+              if (isAuto && !fromGesture) markAutoplayBlocked();
               else completeVoice('speech');
             }
-          }, 12000);
+          }, silentEngineWaitMs);
         } catch (e1) {
           runGuidedProgressFallback();
         }
@@ -3031,7 +3121,7 @@
           if (myToken === _dailyVoiceCtrl.playToken && _dailyVoiceCtrl.status === 'loading') {
             fallbackFromDom(false);
           }
-        }, 6500);
+        }, fromGesture ? 8500 : 5500);
 
         try {
           var p = audio.play();
@@ -6892,7 +6982,8 @@
       if (heroSecBtn) heroSecBtn.onclick = function () { openModal('cyber_control', { tab: 'control' }); };
       var heroVoiceBtn = document.getElementById('hero-voice-play-btn');
       if (heroVoiceBtn) heroVoiceBtn.onclick = function () {
-        startDailyVoicePlayback({ auto: false, dashboardReplayOnly: true });
+        unlockAudioAndSpeechSync();
+        startDailyVoicePlayback({ auto: false, fromGesture: true, dashboardReplayOnly: true });
       };
       var heroResetBtn = document.getElementById('hero-reset-today');
       if (heroResetBtn) heroResetBtn.onclick = function () { state.previewDayOffset = 0; renderDashboard(); };
@@ -10693,8 +10784,8 @@
             '</div>' +
             '<div id="lock-voice-text" class="lock-voice-text">' + esc(dailyPrompt.displayText) + '</div>' +
             '<div class="lock-voice-progress"><div id="lock-voice-bar" class="lock-voice-bar" style="width:' + (isListened ? 100 : (_dailyVoiceCtrl.progress || 0)) + '%;"></div></div>' +
-            '<button type="button" id="lock-voice-play-btn" class="lock-voice-btn">' +
-              (isListened ? (isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice') : (isAm ? '🔊 ድምፅ በራስ-ሰር ይናገራል' : '🔊 Auto Daily Voice')) +
+            '<button type="button" id="lock-voice-play-btn" class="lock-voice-btn' + (isListened ? '' : ' is-enable-prompt') + '">' +
+              (isListened ? (isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice') : (isAm ? '🔊 ድምፅ ለመስማት ይንኩ · Tap to Enable Voice' : '🔊 Tap to Enable Voice')) +
             '</button>' +
           '</div>' +
           '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">' +
@@ -10705,7 +10796,7 @@
           '<div id="lock-voice-gate-hint" style="font-size:11.5px;font-weight:800;margin-bottom:10px;color:' + (isListened ? '#047857' : '#B45309') + ';">' +
             (isListened
               ? (isAm ? '✓ ድምፁን ስላዳመጡ አሁን የመግቢያ ኮድዎን ማስገባት ይችላሉ።' : '✓ Voice message heard — enter your access code below to unlock.')
-              : (isAm ? '🔒 ድምፁ በራስ-ሰር እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።' : '🔒 Speaking automatically — app unlocks for code entry right after listening completes.')) +
+              : (isAm ? '🔒 ድምፁ እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።' : '🔒 Speaking now — app unlocks for code entry right after listening completes.')) +
           '</div>' +
           '<div id="lock-code-gate-wrap" class="' + (isListened ? '' : 'lock-gate-locked') + '" style="text-align:left;">' +
             '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
@@ -10733,6 +10824,7 @@
       var playVoiceBtn = document.getElementById('lock-voice-play-btn');
       if (playVoiceBtn) {
         playVoiceBtn.onclick = function () {
+          unlockAudioAndSpeechSync();
           startDailyVoicePlayback({ auto: false, fromGesture: true });
         };
       }
@@ -16355,6 +16447,7 @@
     markAppOpenedNow(null, 'boot');
     purgeTombstonedDataFromState();
     ensureInitialFolderManifest();
+    installFirstTapAudioUnlocker();
     showBrandSplashScreen();
     renderApp();
     startSharedSecurityEvents();
