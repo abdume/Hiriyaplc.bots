@@ -47,35 +47,31 @@
     .hidden { display: none !important; }
     .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* Top App Bar */
+    /* Top App Bar — Single-Row Deep Navy (#0F172A) */
     .app-header {
       position: sticky; top: 0; z-index: 40;
-      background: linear-gradient(100deg, #0B1F52 0%, #163B8C 48%, #0E6BA8 100%);
+      background: #0F172A;
       color: #fff;
-      border-bottom: 1px solid rgba(255,255,255,0.14);
-      box-shadow: 0 6px 22px rgba(15, 23, 42, 0.16);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.22);
     }
     .header-inner {
       max-width: 1240px; margin: 0 auto;
-      padding: 9px 16px; min-height: 58px; height: auto;
+      padding: 8px 14px; min-height: 54px; height: 54px;
       display: flex; align-items: center; justify-content: space-between;
-      gap: 8px 12px; flex-wrap: wrap;
+      gap: 8px; flex-wrap: nowrap;
     }
-    .header-left { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+    .header-left { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0; }
     .header-brand-mark {
-      width: 34px; height: 34px; border-radius: 10px;
-      background: linear-gradient(135deg, #34D399 0%, #06B6D4 100%);
-      color: #06283D; font-weight: 800; font-size: 15px;
+      width: 30px; height: 30px; border-radius: 9px;
+      background: linear-gradient(135deg, #10B981 0%, #0EA5E9 100%);
+      color: #FFFFFF; font-weight: 800; font-size: 13px;
       display: inline-flex; align-items: center; justify-content: center;
-      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35);
       flex-shrink: 0;
     }
     .header-right {
-      display: flex; align-items: center; gap: 6px;
-      flex-wrap: wrap; justify-content: flex-end; max-width: 100%;
-    }
-    @media (max-width: 820px) {
-      .header-right { width: 100%; justify-content: flex-start; }
+      display: flex; align-items: center; gap: 7px;
+      flex-wrap: nowrap; justify-content: flex-end; flex-shrink: 0;
     }
     .icon-btn {
       width: 34px; height: 34px; border-radius: 10px;
@@ -83,7 +79,7 @@
       color: #fff; transition: background 0.15s, transform 0.15s;
       flex-shrink: 0;
     }
-    .icon-btn:hover { background: rgba(255,255,255,0.16); }
+    .icon-btn:hover { background: rgba(255,255,255,0.14); }
     .pill-badge {
       font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
       background: rgba(255,255,255,0.2); color: #fff;
@@ -91,31 +87,48 @@
     }
     .sync-pill {
       display: inline-flex; align-items: center; gap: 6px;
-      background: rgba(15, 23, 42, 0.36); padding: 4px 10px; border-radius: 999px;
-      font-size: 11px; font-weight: 700; color: #E0F2FE; white-space: nowrap;
-      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(16, 185, 129, 0.16); padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; color: #D1FAE5; white-space: nowrap;
+      border: 1px solid rgba(52, 211, 153, 0.4);
     }
-    .sync-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
-    .dot-synced { background: #34D399; box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25); }
+    .sync-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; flex-shrink: 0; }
+    .dot-synced { background: #10B981; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.28); }
     .dot-syncing { background: #FBBF24; animation: pulse 1.2s infinite; }
     .dot-error { background: #F87171; }
-    .dot-local { background: #93C5FD; }
+    .dot-local { background: #34D399; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+    /* Compact Single-Row Sub-Bar below Header */
+    .dash-subbar {
+      background: #1E293B;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding: 6px 14px;
+    }
+    .dash-subbar-inner {
+      max-width: 1240px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .dash-subbar-inner::-webkit-scrollbar { display: none; }
+    .dash-subbar-group {
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    }
     .header-action-btn {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 6px 11px; border-radius: 9px; white-space: nowrap; flex-shrink: 0;
-      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22);
-      color: #fff; font-size: 11.5px; font-weight: 700; transition: all 0.15s;
+      padding: 6px 11px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+      color: #F8FAFC; font-size: 12px; font-weight: 700; transition: background 0.15s;
+      min-height: 32px;
     }
-    .header-action-btn:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
+    .header-action-btn:hover { background: rgba(255,255,255,0.18); }
     .header-select {
-      background: rgba(15, 23, 42, 0.42); color: #fff; font-size: 11.5px; font-weight: 700;
-      padding: 6px 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.24);
-      outline: none; cursor: pointer; flex-shrink: 0;
+      background: rgba(15, 23, 42, 0.65); color: #fff; font-size: 12px; font-weight: 700;
+      padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+      outline: none; cursor: pointer; flex-shrink: 0; min-height: 32px; max-width: 145px;
     }
     .search-bar-wrap {
-      background: rgba(15, 23, 42, 0.25); padding: 9px 16px; border-top: 1px solid rgba(255,255,255,0.16);
+      background: #1E293B; padding: 8px 14px 10px; border-top: 1px solid rgba(255,255,255,0.1);
     }
     .search-input-box {
       max-width: 1208px; margin: 0 auto;
@@ -255,13 +268,13 @@
       white-space: nowrap;
     }
 
-    /* Dashboard 2-Column Card Grid (Table Notes Layout) */
-    .dashboard-main { max-width: 1120px; margin: 0 auto; padding: 14px 12px 104px; }
+    /* Dashboard 2-Column Card Grid */
+    .dashboard-main { max-width: 1120px; margin: 0 auto; padding: 14px 12px 36px; }
     .grid-meta {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 10px; font-size: 12px; gap: 8px; flex-wrap: wrap;
     }
-    .grid-meta-title { font-weight: 800; font-size: 13px; letter-spacing: 0.01em; color: #1E293B; display: inline-flex; align-items: center; gap: 6px; }
+    .grid-meta-title { font-weight: 800; font-size: 13.5px; letter-spacing: 0.01em; color: #0F172A; display: inline-flex; align-items: center; gap: 6px; }
     .bot-grid,
     .folder-card-grid {
       display: grid;
@@ -275,30 +288,30 @@
 
     .bot-card,
     .folder-grid-card {
-      background: #F8FAFC;
-      border-radius: 12px;
-      padding: 12px 13px;
-      min-height: 98px;
-      border: 1px solid #E5EAF2;
-      box-shadow: 0 2px 7px rgba(15, 23, 42, 0.06);
+      background: #FFFFFF;
+      border-radius: 14px;
+      padding: 13px 14px;
+      min-height: 92px;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       gap: 14px;
       cursor: pointer;
       position: relative;
-      transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
     }
     .bot-card:hover,
     .folder-grid-card:hover {
       background: #FFFFFF;
       transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.09);
       border-color: #CBD5E1;
     }
     .folder-grid-card.is-selected {
-      background: #EFF6FF;
-      border-color: #93C5FD;
+      background: #F0FDF4;
+      border-color: #34D399;
     }
     .bot-card.is-menu-open,
     .folder-grid-card.is-menu-open {
@@ -310,6 +323,13 @@
       justify-content: space-between;
       gap: 6px;
       position: relative;
+    }
+    .tn-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      min-width: 0;
     }
     .bot-card-title {
       font-size: 14.5px;
@@ -325,55 +345,62 @@
       flex: 1;
       min-width: 0;
     }
+    .folder-tbl-badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      font-size: 11px;
+      font-weight: 700;
+      color: #0F766E;
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
     .tn-dots-btn {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       border-radius: 9999px;
       color: #64748B;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      margin: -3px -5px 0 0;
+      margin: -4px -6px 0 0;
       transition: background 0.14s, color 0.14s;
     }
     .tn-dots-btn:hover {
-      background: #E2E8F0;
+      background: #F1F5F9;
       color: #0F172A;
     }
     .card-footer {
       margin-top: auto;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: 8px;
       font-size: 12px;
-      font-weight: 500;
       color: #64748B;
-      font-variant-numeric: tabular-nums;
-    }
-    .tn-card-time {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      min-width: 0;
     }
     .quick-table-btn {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      background: transparent;
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      background: #F8FAFC;
       color: #475569;
+      border: 1px solid #E2E8F0;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      transition: color 0.14s, background 0.14s;
+      transition: color 0.14s, background 0.14s, border-color 0.14s;
     }
     .bot-card:hover .quick-table-btn,
     .folder-grid-card:hover .quick-table-btn {
-      color: #1565C0;
-      background: #EFF6FF;
+      color: #065F46;
+      background: #ECFDF5;
+      border-color: #A7F3D0;
     }
 
     /* Context Dropdown Menu */
@@ -394,25 +421,6 @@
     .dropdown-item:hover { background: #EFF6FF; color: var(--blue-dark); }
     .dropdown-item.danger { color: #DC2626; }
     .dropdown-item.danger:hover { background: #FEF2F2; }
-
-    /* Circular Floating Action Buttons */
-    .fab-stack {
-      position: fixed; bottom: 22px; right: 20px; z-index: 35;
-      display: flex; flex-direction: column; align-items: center; gap: 12px;
-    }
-    .fab-secondary {
-      width: 46px; height: 46px; border-radius: 9999px;
-      background: #FFFFFF; color: #1565C0; border: 1px solid #DBEAFE;
-      box-shadow: 0 5px 16px rgba(15,23,42,0.16);
-      display: flex; align-items: center; justify-content: center; transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .fab-primary {
-      width: 56px; height: 56px; border-radius: 9999px;
-      background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%); color: #fff;
-      box-shadow: 0 8px 22px rgba(21, 101, 192, 0.44);
-      display: flex; align-items: center; justify-content: center; transition: transform 0.15s, box-shadow 0.15s;
-    }
-    .fab-secondary:hover, .fab-primary:hover { transform: scale(1.06); }
 
     /* Drawer */
     .drawer-backdrop {
@@ -868,13 +876,24 @@
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
     }
     .welcome-hero-card {
-      background: linear-gradient(125deg, #064E3B 0%, #0F766E 36%, #1E3A8A 76%, #4338CA 100%);
-      color: #fff; border-radius: 20px; padding: 20px 22px; margin-bottom: 18px;
-      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
-      border: 1px solid rgba(255,255,255,0.16);
-      display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center;
+      background: linear-gradient(135deg, #065F46 0%, #0F766E 100%);
+      color: #fff; border-radius: 18px; padding: 18px 18px 16px; margin-bottom: 16px;
+      box-shadow: 0 12px 30px rgba(6, 95, 70, 0.22);
+      border: 1px solid rgba(255,255,255,0.18);
+      display: flex; flex-direction: column; gap: 12px;
     }
-    @media (max-width: 800px) { .welcome-hero-card { grid-template-columns: 1fr; padding: 16px; } }
+    .hero-top-brand {
+      font-size: 12.5px; font-weight: 800; color: #A7F3D0; letter-spacing: 0.01em;
+    }
+    .hero-single-date-pill {
+      display: inline-flex; align-items: center; gap: 6px; width: fit-content;
+      background: rgba(15, 23, 42, 0.28); border: 1px solid rgba(255,255,255,0.22);
+      color: #F8FAFC; font-size: 12px; font-weight: 700;
+      padding: 4px 12px; border-radius: 999px; font-variant-numeric: tabular-nums;
+    }
+    .hero-greeting-title {
+      font-size: 21px; font-weight: 800; color: #FFFFFF; line-height: 1.25; letter-spacing: -0.015em;
+    }
     .cyber-badge {
       display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
       background: rgba(15,23,42,0.42); border: 1px solid rgba(252,211,77,0.45);
@@ -894,10 +913,10 @@
     .lang-toggle-btn {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 6px 11px; border-radius: 9px; font-size: 11.5px; font-weight: 800;
-      background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.32);
+      background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.26);
       color: #fff; transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
     }
-    .lang-toggle-btn:hover { background: rgba(255,255,255,0.28); }
+    .lang-toggle-btn:hover { background: rgba(255,255,255,0.24); }
     .maed-gallery {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
     }
@@ -913,28 +932,31 @@
     }
     .maed-logo-box:hover, .maed-poster-box:hover { transform: scale(1.04); }
 
-    /* Automatic Weekly Day Progression Strip */
+    /* Horizontal Scrollable 7-Day Calendar Row */
     .week-strip {
-      display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px;
+      display: flex; align-items: center; gap: 8px;
+      flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch; scrollbar-width: none;
     }
+    .week-strip::-webkit-scrollbar { display: none; }
     .day-chip {
       display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-      min-width: 62px; padding: 5px 9px; border-radius: 10px;
-      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22);
+      min-width: 72px; flex-shrink: 0; padding: 7px 10px; border-radius: 12px;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
       color: #E2E8F0; font-size: 10.5px; font-weight: 700; cursor: pointer;
       transition: background 0.15s, transform 0.15s, border-color 0.15s;
       font-variant-numeric: tabular-nums;
     }
-    .day-chip:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); }
+    .day-chip:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
     .day-chip.today {
-      background: linear-gradient(135deg, #F59E0B 0%, #EA580C 100%);
-      border-color: #FEF3C7; color: #fff;
-      box-shadow: 0 3px 10px rgba(245,158,11,0.35);
+      background: #F59E0B;
+      border-color: #FDE68A; color: #FFFFFF;
+      box-shadow: 0 4px 12px rgba(245,158,11,0.38);
     }
     .day-chip.preview {
       background: #10B981; border-color: #A7F3D0; color: #fff;
     }
-    .day-chip-num { font-size: 12.5px; font-weight: 800; line-height: 1.15; }
+    .day-chip-num { font-size: 13px; font-weight: 800; line-height: 1.2; }
     .folder-summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .dash-summary-wrap {
       background: #fff; border: 1px solid #CBD5E1; border-radius: 20px;
@@ -1641,6 +1663,8 @@
     var STORAGE_SIGMA_HIDDEN = 'tablebot_sigma_hidden_v1';
     var STORAGE_TABLE_REP_COLLAPSED = 'tablebot_table_rep_collapsed_v1';
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
+    var SESSION_LOCK_ATTEMPTS_KEY = 'tb_lock_attempts_v1';
+    var SESSION_LOCK_UNTIL_KEY = 'tb_lock_until_v1';
     var SESSION_FOLDER_UNLOCKS_KEY = 'tablebot_folder_unlocks_v1';
     var SESSION_CYBER_UNLOCK_KEY = 'tablebot_cyber_unlocked_v1';
     var SECURITY_BOT_ID = '__tablebot_security_config__';
@@ -2274,7 +2298,7 @@
         add_table_folder: '+ Table',
         no_rows_in_folder: 'No rows recorded in this folder yet — add a row right here without opening.',
         folder_subtotal: 'Folder Report Subtotal',
-        lang_btn: 'አማርኛ (AM)'
+        lang_btn: 'አማርኛ'
       },
       am: {
         all_bots: 'ሁሉም ቦቶች',
@@ -2385,12 +2409,15 @@
       var timeTxt = baseNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       var prefixAm = off === 0 ? 'ዛሬ ' : ('+' + off + ' ቀን · ');
       var prefixEn = off === 0 ? 'Welcome to Today' : ('Schedule (+' + off + 'd)');
+      var enShortDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      var enShortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       if (lang === 'am') {
         return {
           ymd: getLocalYmd(target),
           isLiveToday: off === 0,
           ethDmy: ecDmy,
           ethFull: ecMonAm + ' ' + ec.day + ' ' + ec.year + ' ዓ.ም',
+          singlePill: amDays[dIdx] + ', ' + amMonths[target.getMonth()] + ' ' + dayNum + ' · ' + ec.day + ' ' + ecMonAm + ' ' + ec.year + ' ዓ.ም',
           headline: (off === 0 ? 'እንኳን በደህና መጡ — ' : '') + prefixAm + amDays[dIdx] + ' (' + ecDmy + ')',
           dateBadge: amDays[dIdx] + ' · ' + ecMonAm + ' ' + ec.day + ' ' + ec.year + ' ዓ.ም (' + amMonths[target.getMonth()] + ' ' + dayNum + ', ' + target.getFullYear() + ') · ' + timeTxt,
           nextDayText: 'ቀጣይ: ' + amDays[nextIdx] + ' ' + nextNum
@@ -2401,6 +2428,7 @@
         isLiveToday: off === 0,
         ethDmy: ecDmy,
         ethFull: String(ec.day).padStart(2, '0') + ' ' + ecMonEn + ' ' + ec.year + ' EC',
+        singlePill: enShortDays[dIdx] + ', ' + enShortMonths[target.getMonth()] + ' ' + dayNum + ' · ' + ec.day + ' ' + ecMonEn + ' ' + ec.year + ' EC',
         headline: prefixEn + ' — ' + enDays[dIdx] + ', ' + enMonths[target.getMonth()] + ' ' + dayNum,
         dateBadge: enDays[dIdx] + ', ' + enMonths[target.getMonth()] + ' ' + dayNum + ', ' + target.getFullYear() + ' · ' + timeTxt,
         nextDayText: 'Next: ' + enDays[nextIdx] + ' ' + nextNum
@@ -2802,6 +2830,16 @@
       }
     }
 
+    function syncHeroVoiceButtonUi() {
+      var btn = document.getElementById('hero-voice-play-btn');
+      if (!btn) return;
+      var isAm = state.lang === 'am';
+      var st = _dailyVoiceCtrl.status || 'idle';
+      if (st === 'loading') btn.textContent = isAm ? '🔊 በመክፈት ላይ...' : '🔊 Starting...';
+      else if (st === 'playing') btn.textContent = isAm ? '🔊 በመናገር ላይ...' : '🔊 Speaking...';
+      else btn.textContent = isAm ? '🔊 ድምፅ አዳምጥ' : '🔊 Play Voice';
+    }
+
     function syncLockVoiceGateUi(focusCodeOnUnlock) {
       var card = document.getElementById('lock-voice-card');
       var badge = document.getElementById('lock-voice-status');
@@ -2814,6 +2852,8 @@
       var isAm = state.lang === 'am';
       var listened = Boolean(state.dailyVoiceListened);
       var st = listened ? 'completed' : (_dailyVoiceCtrl.status || 'idle');
+      var remLock = getRemainingLockoutSec();
+      var isLockedOut = remLock > 0;
 
       if (card) {
         card.classList.toggle('is-listened', listened);
@@ -2821,11 +2861,11 @@
       }
       if (badge) {
         badge.className = 'lock-voice-status' + (listened ? ' is-done' : (st === 'loading' || st === 'playing' ? ' is-playing' : ''));
-        if (listened) badge.textContent = isAm ? '✓ ተዳምጧል' : '✓ Listened';
+        if (listened) badge.textContent = isAm ? '✓ ተዳምጧል' : '✓ Ready';
         else if (st === 'loading') badge.textContent = isAm ? '🔊 ድምፅ እየጀመረ ነው...' : '🔊 Starting Voice...';
         else if (st === 'playing') badge.textContent = isAm ? '🔊 በመናገር ላይ...' : '🔊 Speaking...';
         else if (st === 'autoplay_blocked') badge.textContent = isAm ? '🔊 ድምፅ ለመስማት ይንኩ' : '🔊 Tap to Enable Voice';
-        else badge.textContent = isAm ? 'መጀመሪያ ያዳምጡ' : 'Listen Required';
+        else badge.textContent = isAm ? 'ዕለታዊ ድምፅ' : 'Daily Voice';
       }
       if (bar) {
         var pct = listened ? 100 : Math.max(0, Math.min(100, _dailyVoiceCtrl.progress || 0));
@@ -2835,39 +2875,34 @@
         var needsEnablePrompt = !listened && (st === 'autoplay_blocked' || st === 'idle');
         playBtn.classList.toggle('is-enable-prompt', needsEnablePrompt);
         if (st === 'loading') playBtn.textContent = isAm ? '🔊 ድምፁን በመክፈት ላይ...' : '🔊 Opening Voice Audio...';
-        else if (st === 'playing') playBtn.textContent = isAm ? '🔊 እየተናገረ ነው... (እባክዎ ያዳምጡ)' : '🔊 Speaking... (Please listen)';
+        else if (st === 'playing') playBtn.textContent = isAm ? '🔊 እየተናገረ ነው...' : '🔊 Speaking...';
         else if (needsEnablePrompt) playBtn.textContent = isAm ? '🔊 ድምፅ ለመስማት ይንኩ · Tap to Enable Voice' : '🔊 Tap to Enable Voice';
         else if (listened) playBtn.textContent = isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice';
-        else playBtn.textContent = isAm ? '🔊 Tap to Enable Voice' : '🔊 Tap to Enable Voice';
+        else playBtn.textContent = '🔊 Tap to Enable Voice';
       }
       if (codeWrap) {
-        codeWrap.classList.toggle('lock-gate-locked', !listened);
+        codeWrap.classList.toggle('lock-gate-locked', isLockedOut);
       }
       if (inp) {
-        inp.disabled = !listened;
-        if (listened && focusCodeOnUnlock) {
+        inp.disabled = isLockedOut;
+        if (!isLockedOut && focusCodeOnUnlock) {
           try { inp.focus(); } catch (e) {}
         }
       }
       if (submitBtn) {
-        submitBtn.disabled = !listened;
+        submitBtn.disabled = isLockedOut;
       }
       if (gateHint) {
-        if (listened) {
+        if (isLockedOut) {
           gateHint.textContent = isAm
-            ? '✓ ድምፁን ስላዳመጡ አሁን የመግቢያ ኮድዎን ማስገባት ይችላሉ።'
-            : '✓ Voice message heard — enter your access code below to unlock.';
-          gateHint.style.color = '#047857';
-        } else if (st === 'autoplay_blocked') {
-          gateHint.textContent = isAm
-            ? '🔊 ቴሌግራም/ስልክ ድምፅ እንዲከፍት "Tap to Enable Voice" ወይም ማንኛውንም ቦታ ይንኩ።'
-            : '🔊 Tap "Tap to Enable Voice" (or anywhere on screen) so Telegram/mobile allows audio.';
-          gateHint.style.color = '#B45309';
+            ? ('⛔ በተደጋጋሚ የተሳሳተ ኮድ ተሞክሯል። ለ' + remLock + ' ሰከንድ ተቆልፏል።')
+            : ('⛔ Too many failed attempts. Input locked for ' + remLock + 's.');
+          gateHint.style.color = '#DC2626';
         } else {
           gateHint.textContent = isAm
-            ? '🔒 ድምፁ እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።'
-            : '🔒 Speaking now — app unlocks for code entry right after listening completes.';
-          gateHint.style.color = '#B45309';
+            ? '🔐 የመግቢያ ኮድዎን ያስገቡ (ነባሪ: 1234)'
+            : '🔐 Enter your access code to unlock (default: 1234).';
+          gateHint.style.color = '#0F766E';
         }
       }
     }
@@ -2934,8 +2969,9 @@
         if (!opts.dashboardReplayOnly) {
           state.dailyVoiceListened = true;
           state.lockError = '';
-          syncLockVoiceGateUi(true);
+          syncLockVoiceGateUi(false);
         }
+        syncHeroVoiceButtonUi();
       }
 
       function markAutoplayBlocked() {
@@ -2949,6 +2985,7 @@
           armAutoVoiceGestureWakeup();
           syncLockVoiceGateUi(false);
         }
+        syncHeroVoiceButtonUi();
       }
 
       function runGuidedProgressFallback() {
@@ -3253,6 +3290,7 @@
       _dailyVoiceCtrl.status = 'loading';
       _dailyVoiceCtrl.progress = 12;
       if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+      syncHeroVoiceButtonUi();
 
       var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
       var cachedBlobUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
@@ -3493,12 +3531,48 @@
       if (!isAccessLockEnabled()) return true;
       try { return sessionStorage.getItem(SESSION_UNLOCK_KEY) === '1'; } catch (e) { return false; }
     }
+    function getLockFailedAttempts() {
+      try { return Math.max(0, parseInt(sessionStorage.getItem(SESSION_LOCK_ATTEMPTS_KEY) || '0', 10) || 0); } catch (e) { return 0; }
+    }
+    function getLockoutUntilMs() {
+      try {
+        var u = parseInt(sessionStorage.getItem(SESSION_LOCK_UNTIL_KEY) || '0', 10) || 0;
+        if (u > 0 && u <= Date.now()) {
+          sessionStorage.removeItem(SESSION_LOCK_UNTIL_KEY);
+          sessionStorage.setItem(SESSION_LOCK_ATTEMPTS_KEY, '0');
+          return 0;
+        }
+        return u;
+      } catch (e) { return 0; }
+    }
+    function getRemainingLockoutSec() {
+      var u = getLockoutUntilMs();
+      if (!u || u <= Date.now()) return 0;
+      return Math.ceil((u - Date.now()) / 1000);
+    }
+    function recordFailedLockAttempt() {
+      var next = getLockFailedAttempts() + 1;
+      try { sessionStorage.setItem(SESSION_LOCK_ATTEMPTS_KEY, String(next)); } catch (e) {}
+      if (next >= 5) {
+        var until = Date.now() + 60000;
+        try { sessionStorage.setItem(SESSION_LOCK_UNTIL_KEY, String(until)); } catch (e2) {}
+      }
+      return next;
+    }
+    function resetLockAttempts() {
+      try {
+        sessionStorage.removeItem(SESSION_LOCK_ATTEMPTS_KEY);
+        sessionStorage.removeItem(SESSION_LOCK_UNTIL_KEY);
+      } catch (e) {}
+    }
     function unlockAppSession() {
+      resetLockAttempts();
       try { sessionStorage.setItem(SESSION_UNLOCK_KEY, '1'); } catch (e) {}
     }
     function lockAppNow() {
       state.adminConfig.accessLockEnabled = true;
       state.adminConfig.forceLockAt = new Date().toISOString();
+      resetLockAttempts();
       try { sessionStorage.removeItem(SESSION_UNLOCK_KEY); } catch (e) {}
       pushSharedSecurityState('lock_now');
       state.drawerOpen = false;
@@ -4335,9 +4409,93 @@
 
     var syncChannel = (typeof BroadcastChannel !== 'undefined') ? new BroadcastChannel('tablebot_live_sync') : null;
 
+    var _xssEscNode = null;
     function esc(v) {
-      return String(v === undefined || v === null ? '' : v)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      var raw = String(v === undefined || v === null ? '' : v);
+      try {
+        if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+          if (!_xssEscNode) _xssEscNode = document.createElement('div');
+          _xssEscNode.textContent = raw;
+          if (_xssEscNode.innerHTML !== undefined && _xssEscNode.innerHTML !== '') {
+            return _xssEscNode.innerHTML
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#39;')
+              .replace(/`/g, '&#96;');
+          }
+        }
+      } catch (eXss) {}
+      return raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/`/g, '&#96;');
+    }
+
+    function sanitizeUserText(v, maxLen) {
+      var str = String(v === undefined || v === null ? '' : v)
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+      try {
+        if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
+          var d = document.createElement('div');
+          d.textContent = str;
+          str = d.textContent || str;
+        }
+      } catch (eSan) {}
+      str = str.replace(/[<>]/g, '').trim();
+      var cap = typeof maxLen === 'number' && maxLen > 0 ? maxLen : 500;
+      if (str.length > cap) str = str.slice(0, cap);
+      return str;
+    }
+
+    function sanitizeNumericInput(v) {
+      if (v === '' || v === undefined || v === null) return '';
+      var n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+      return (typeof n === 'number' && !isNaN(n) && isFinite(n)) ? n : '';
+    }
+
+    function sanitizeBotForSave(bot) {
+      if (!bot || typeof bot !== 'object') return bot;
+      bot.name = sanitizeUserText(bot.name, 120) || 'Untitled Table';
+      bot.folder = sanitizeUserText(normalizeFolderName(bot.folder), 80) || 'General';
+      if (bot.description !== undefined) bot.description = sanitizeUserText(bot.description, 400);
+      var cols = Array.isArray(bot.columns) ? bot.columns : [];
+      cols.forEach(function (c) {
+        if (!c || typeof c !== 'object') return;
+        c.name = sanitizeUserText(c.name, 80) || 'Column';
+      });
+      var rows = Array.isArray(bot.rows) ? bot.rows : [];
+      rows.forEach(function (r) {
+        if (!r || typeof r !== 'object') return;
+        cols.forEach(function (c) {
+          if (!c || !c.id) return;
+          var val = r[c.id];
+          if (val === undefined || val === null) return;
+          if (c.type === 'number' || c.type === 'amount') {
+            r[c.id] = sanitizeNumericInput(val);
+          } else if (c.type === 'checkbox') {
+            r[c.id] = Boolean(val);
+          } else if (typeof val === 'string') {
+            r[c.id] = sanitizeUserText(val, 2000);
+          }
+        });
+      });
+      return bot;
+    }
+
+    function debounce(fn, waitMs) {
+      var timer = null;
+      var ms = typeof waitMs === 'number' ? waitMs : 300;
+      return function () {
+        var ctx = this;
+        var args = arguments;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+          timer = null;
+          fn.apply(ctx, args);
+        }, ms);
+      };
     }
 
     function saveBotsLocal() {
@@ -5445,8 +5603,8 @@
 
     function createCustomFolder(folderName, withStarterTable) {
       if (!guardWriteAction('Add Folder')) return false;
-      var clean = String(folderName || '').trim();
-      if (!clean) { showToast('Please enter a folder name'); return false; }
+      var clean = sanitizeUserText(folderName, 80);
+      if (!clean || clean.toLowerCase() === 'all') { showToast('Please enter a valid folder name'); return false; }
       var existing = getAllFolders().find(function (f) { return f.toLowerCase() === clean.toLowerCase(); });
       if (existing) clean = existing;
       var cleared = clearFolderTombstone(clean, null);
@@ -5585,7 +5743,22 @@
       return false;
     }
 
+    var _sbPushTimers = {};
+    function scheduleSupabasePush(bot) {
+      if (!bot || !bot.id) return;
+      sanitizeBotForSave(bot);
+      saveBotsLocal();
+      broadcastLocalSync('bot_update');
+      if (_sbPushTimers[bot.id]) clearTimeout(_sbPushTimers[bot.id]);
+      _sbPushTimers[bot.id] = setTimeout(function () {
+        delete _sbPushTimers[bot.id];
+        pushBotToSupabase(bot);
+      }, 300);
+    }
+
     async function pushBotToSupabase(bot) {
+      if (!bot) return false;
+      sanitizeBotForSave(bot);
       broadcastLocalSync('bot_update');
       if (!state.supabaseConfig.isConnected) return false;
       var client = getSbClient();
@@ -5716,9 +5889,20 @@
           }
         });
 
-        state.bots = merged;
+        state.bots = merged.map(sanitizeBotForSave);
         purgeTombstonedDataFromState();
         refreshAllBotUndoBases();
+        var folderSeen = {};
+        (state.customFolders || []).forEach(function (fn) {
+          var c = sanitizeUserText(fn, 80);
+          if (c && !isFolderTombstoned(c)) folderSeen[c.toLowerCase()] = c;
+        });
+        state.bots.forEach(function (b) {
+          var bf = normalizeFolderName(b && b.folder);
+          if (bf && !isFolderTombstoned(bf)) folderSeen[bf.toLowerCase()] = bf;
+        });
+        state.customFolders = Object.keys(folderSeen).map(function (k) { return folderSeen[k]; });
+        saveCustomFolders();
         saveBotsLocal();
 
         for (var di = 0; di < toDeleteRemoteIds.length; di++) {
@@ -6390,6 +6574,7 @@
         botUndoBaseMap[updated.id] = cloneBotSnap(updated);
       }
       delete updated.isSampleSeed;
+      sanitizeBotForSave(updated);
       updated.lastEditedBy = getCurrentActor();
       updated.updatedAt = updated.updatedAt || new Date().toISOString();
       if (clearFolderTombstone(updated.folder || 'General', updated.id)) {
@@ -6401,7 +6586,7 @@
       if (auditAction) {
         recordAudit(auditAction, updated, auditSummary || ('Updated ' + updated.name));
       }
-      pushBotToSupabase(updated);
+      scheduleSupabasePush(updated);
       return true;
     }
 
@@ -6589,41 +6774,38 @@
       }, 0);
 
       var dotCls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : (state.syncStatus === 'error' || state.syncStatus === 'auth_required') ? 'dot-error' : 'dot-local';
-      var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'auth_required' ? 'Sign In Req' : state.syncStatus === 'error' ? 'Sync Error' : 'Local';
-      var blockedCount = state.workspaceUsers.filter(function (u) { return u.blocked; }).length;
+      var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'auth_required' ? 'Sign In Req' : state.syncStatus === 'error' ? 'Sync Error' : 'Live Cloud';
 
       var html = '<header class="app-header"><div class="header-inner">' +
         '<div class="header-left">' +
           '<button class="icon-btn" id="btn-open-drawer" aria-label="Menu">' + icon('menu', 21) + '</button>' +
           '<span class="header-brand-mark">TB</span>' +
-          '<div style="display:flex;flex-direction:column;line-height:1.15;">' +
-            '<span style="font-weight:800;font-size:16.5px;letter-spacing:-0.02em;">TableBot</span>' +
-            '<span style="font-size:10.5px;color:#BAE6FD;font-weight:600;" class="num-tab">' + esc(t('all_bots')) + ' · ' + filtered.length + '</span>' +
-          '</div>' +
-          '<button id="sync-pill-badge" class="sync-pill" title="Connect or manage Supabase account" style="cursor:pointer;"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></button>' +
+          '<span style="font-weight:800;font-size:17px;letter-spacing:-0.02em;color:#fff;">TableBot</span>' +
+          '<button id="sync-pill-badge" class="sync-pill" title="Cloud account &amp; sync" style="cursor:pointer;"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></button>' +
         '</div>' +
         '<div class="header-right">' +
           '<button type="button" class="lang-toggle-btn" id="btn-lang-toggle" title="Switch English / አማርኛ">' + esc(t('lang_btn')) + '</button>' +
-          '<button class="icon-btn" id="btn-dash-sync" title="Sync Browser, Telegram &amp; Supabase Now">' + icon('refresh', 17) + '</button>' +
-          '<button class="header-action-btn" id="btn-dash-excel" title="Import Excel (.xlsx, .xls, .csv)"><span style="color:#6EE7B7">' + icon('excel', 15) + '</span><span>' + esc(t('import_excel')) + '</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-backup" title="Folder Backup, Missing Files &amp; 3m+ History Restore"><span style="color:#A7F3D0">' + icon('history', 15) + '</span><span>' + esc(t('backup_restore')) + '</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-admin" title="Admin Panel: User Edits, Unwanted User Block &amp; Transmit"><span style="color:#FDE68A">' + icon('shield', 15) + '</span><span>' + esc(t('admin')) + '</span>' + (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;padding:1px 5px;">' + blockedCount + '</span>' : '') + '</button>' +
-          '<button class="header-action-btn" id="btn-dash-supabase" title="Login / Connect Supabase Account"><span style="color:' + (state.authSession ? '#6EE7B7' : '#93C5FD') + '">' + icon('cloud', 15) + '</span><span>' + (state.authSession ? 'Account' : state.supabaseConfig.isConnected ? 'Login' : 'Supabase') + '</span></button>' +
-          '<button class="header-action-btn" id="btn-dash-reports" style="background:rgba(245,158,11,0.22);border-color:rgba(252,211,77,0.45);" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FDE68A">' + icon('chart', 15) + '</span><span>' + esc(t('reports')) + '</span></button>' +
-          '<button class="icon-btn" id="btn-dash-search" title="Search bots">' + icon('search', 19) + '</button>' +
-          '<button class="icon-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')" style="width:auto;padding:0 9px;gap:4px;font-size:11px;font-weight:700;">' + icon('sort', 17) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
-          '<select id="sel-dash-filter" class="header-select">' +
-            '<option value="all"' + (state.filterType === 'all' ? ' selected' : '') + '>All</option>' +
-            '<option value="online"' + (state.filterType === 'online' ? ' selected' : '') + '>Online</option>' +
-            '<option value="simulator"' + (state.filterType === 'simulator' ? ' selected' : '') + '>Simulator</option>' +
-            '<option value="favorites"' + (state.filterType === 'favorites' ? ' selected' : '') + '>Favorites</option>' +
-          '</select>' +
+        '</div></div>' +
+        '<div class="dash-subbar"><div class="dash-subbar-inner">' +
+          '<div class="dash-subbar-group">' +
+            '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FDE68A">' + icon('chart', 14) + '</span><span>' + esc(t('reports')) + '</span></button>' +
+          '</div>' +
+          '<div class="dash-subbar-group">' +
+            '<button class="icon-btn" id="btn-dash-search" title="Search tables" style="width:32px;height:32px;">' + icon('search', 18) + '</button>' +
+            '<button class="header-action-btn" id="btn-dash-sort" title="Sort (' + state.sortOrder + ')">' + icon('sort', 15) + '<span>' + (state.sortOrder === 'recent' ? 'Time' : state.sortOrder === 'name' ? 'A-Z' : 'Rows') + '</span></button>' +
+            '<select id="sel-dash-folder" class="header-select" aria-label="Filter by folder">' +
+              '<option value="all"' + (state.selectedFolder === 'all' ? ' selected' : '') + '>All</option>' +
+              folders.map(function (fn) {
+                return '<option value="' + esc(fn) + '"' + (state.selectedFolder === fn ? ' selected' : '') + '>' + esc(fn) + '</option>';
+              }).join('') +
+            '</select>' +
+          '</div>' +
         '</div></div>';
 
       if (state.searchOpen) {
         html += '<div class="search-bar-wrap"><div class="search-input-box">' +
           '<span style="color:#94A3B8">' + icon('search', 16) + '</span>' +
-          '<input id="inp-dash-search" type="text" placeholder="Search bot name, folder, or description..." value="' + esc(state.searchQuery) + '" />' +
+          '<input id="inp-dash-search" type="text" placeholder="Search table or folder..." value="' + esc(state.searchQuery) + '" />' +
           (state.searchQuery ? '<button id="btn-clear-dash-search" style="font-weight:700;color:#64748B;">✕</button>' : '') +
         '</div></div>';
       }
@@ -6634,84 +6816,41 @@
       var dayInfo = getWelcomeDayInfo(state.lang, state.previewDayOffset);
       state.lastRenderedYmd = getLocalYmd(new Date());
       var weekDays = getWeekCalendarStrip(state.lang, state.previewDayOffset);
-      var secMgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
       var greetUser = getActiveGreetingUser();
-      var openTimeFmt = formatAppOpenTimestamp(state.appOpenedAt);
+      var greetName = (greetUser && greetUser.displayName) ? greetUser.displayName : 'Onelove A';
+      var dp = getDailyAmharicWorkPrompt();
+      var heroPlayLabel = _dailyVoiceCtrl.status === 'loading'
+        ? (state.lang === 'am' ? '🔊 በመክፈት ላይ...' : '🔊 Starting...')
+        : (_dailyVoiceCtrl.status === 'playing'
+          ? (state.lang === 'am' ? '🔊 በመናገር ላይ...' : '🔊 Speaking...')
+          : (state.lang === 'am' ? '🔊 ድምፅ አዳምጥ' : '🔊 Play Voice'));
+
       html += '<section class="welcome-hero-card">' +
-        '<div style="display:flex;flex-direction:column;gap:10px;min-width:0;">' +
-          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-            '<span class="pill-badge" id="hero-date-badge" style="background:linear-gradient(135deg,#F59E0B,#EA580C);color:#fff;font-size:11px;padding:3px 10px;">' + esc(dayInfo.dateBadge) + '</span>' +
-            '<span class="pill-badge mono" style="background:rgba(16,185,129,0.28);border:1px solid rgba(167,243,208,0.55);color:#ECFDF5;font-size:11px;padding:3px 10px;">' + esc(dayInfo.ethFull) + ' · ' + esc(dayInfo.ethDmy) + '</span>' +
-            '<span class="pill-badge" id="hero-open-time" style="background:rgba(15,23,42,0.38);border:1px solid rgba(147,197,253,0.45);color:#E0F2FE;font-size:10.5px;padding:3px 10px;"><span>App Opened:</span> <span id="hero-open-time-txt" class="mono">' + esc(openTimeFmt.fullText) + '</span></span>' +
-            (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FEF3C7;font-size:10.5px;padding:3px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
-            '<button type="button" class="lang-toggle-btn" id="hero-lang-toggle" style="font-size:11px;padding:3px 9px;">' + esc(t('lang_btn')) + '</button>' +
-          '</div>' +
-          '<div style="display:flex;flex-direction:column;gap:4px;">' +
-            '<div style="font-size:13px;font-weight:800;color:#FDE68A;letter-spacing:0.01em;">Welcome to Hiriya Salt Production PLC &middot; እንኳን ደህና መጡ ወደ ሂሪያ</div>' +
-            (greetUser
-              ? '<div id="hero-tg-welcome" style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(16,185,129,0.24);border:1px solid rgba(110,231,183,0.55);border-radius:11px;padding:6px 12px;width:fit-content;">' +
-                  '<span style="color:#6EE7B7;display:inline-flex;">' + icon('user', 15) + '</span>' +
-                  '<span style="font-size:14.5px;font-weight:800;color:#fff;">እንኳን ደህና መጡ ' + esc(greetUser.displayName) + '!</span>' +
-                  '<span style="font-size:12px;font-weight:700;color:#D1FAE5;">Welcome, ' + esc(greetUser.displayName) + '</span>' +
-                  (greetUser.username ? '<span class="mono" style="font-size:10.5px;background:rgba(15,23,42,0.35);padding:1px 7px;border-radius:999px;color:#A7F3D0;">' + esc(greetUser.username) + '</span>' : '') +
-                '</div>'
-              : '') +
-            '<h1 id="hero-welcome-headline" style="font-size:21px;font-weight:800;line-height:1.25;letter-spacing:-0.015em;">' + esc(dayInfo.headline) + '</h1>' +
-            (function () {
-              var dp = getDailyAmharicWorkPrompt();
-              return '<div class="hero-daily-checkin" id="hero-daily-checkin">' +
-                '<div style="display:flex;flex-direction:column;gap:2px;min-width:0;">' +
-                  '<span style="font-size:10.5px;font-weight:800;color:#FDE68A;text-transform:uppercase;letter-spacing:0.04em;">የዕለቱ የሥራ መልዕክት · ' + esc(dp.amDay) + '</span>' +
-                  '<span style="font-size:14px;font-weight:800;color:#fff;line-height:1.35;">' + esc(dp.displayText) + '</span>' +
-                '</div>' +
-                '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.28);border-color:rgba(110,231,183,0.65);font-size:11.5px;padding:5px 11px;white-space:nowrap;">🔊 ' + (state.lang === 'am' ? 'ድምፅ አዳምጥ' : 'Play Voice') + '</button>' +
-              '</div>';
-            })() +
-          '</div>' +
-          '<div class="week-strip">' +
-            weekDays.map(function (wd) {
-              var cls = wd.isToday ? 'today' : (wd.isSelected ? 'preview' : '');
-              return '<button type="button" class="day-chip ' + cls + '" data-day-offset="' + wd.offset + '" title="' + (wd.isToday ? 'Live Today' : 'Preview +' + wd.offset + ' day(s)') + '">' +
-                '<span style="font-size:9.5px;opacity:0.9;">' + (wd.isToday ? (state.lang === 'am' ? 'ዛሬ' : 'TODAY') : esc(wd.label)) + '</span>' +
-                '<span class="day-chip-num">' + esc(wd.label) + ' ' + wd.dayNum + '</span>' +
-                '<span style="font-size:9px;opacity:0.85;" class="mono">' + String(wd.ecDay).padStart(2, '0') + '/' + String(wd.ecMonth).padStart(2, '0') + ' EC</span>' +
-              '</button>';
-            }).join('') +
-            '<span id="hero-next-day" style="font-size:11px;color:#BAE6FD;font-weight:700;margin-left:4px;">' + esc(dayInfo.nextDayText) + '</span>' +
-          '</div>' +
-          '<div style="font-size:12px;color:#E2E8F0;line-height:1.45;">' + esc(t('welcome_tagline')) + '</div>' +
-          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;">' +
-            '<div class="cyber-badge">' +
-              assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-sm', secMgr, secMgr + ' — Manager of Cyber Security') +
-              '<span style="color:#34D399;display:inline-flex;">' + icon('shield', 14) + '</span>' +
-              '<span>' + esc(t('cyber_mgr_title')) + ': <strong style="color:#fff;">' + esc(secMgr) + '</strong></span>' +
-              '<span style="background:#10B981;color:#fff;font-size:10px;padding:1px 7px;border-radius:999px;">' + esc(t('cyber_protected')) + '</span>' +
-            '</div>' +
-            '<button type="button" id="hero-open-security" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:6px 12px;font-size:11.5px;">' + icon('shield', 13) + '<span>' + esc(t('open_security')) + '</span></button>' +
-          '</div>' +
+        '<div class="hero-top-brand">Hiriya Salt Production PLC &middot; MA’ED Table Salt</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<span class="hero-single-date-pill" id="hero-date-pill">' + esc(dayInfo.singlePill) + '</span>' +
+          (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FDE68A;font-size:10.5px;padding:3px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
         '</div>' +
-        '<div class="maed-gallery">' +
-          assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'maed-logo-box', "MA'ED Salt — MIYAW 3A", "Hiriya Salt Production PLC — MA'ED Salt (MIYAW 3A)") +
-          assetImgHtml(BRAND_ASSETS.logoGreenStars, 'maed-logo-box', "MA'ED Salt Emblem", "MA'ED Salt Emblem (Green Stars)") +
-          assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'maed-logo-box', "MA'ED Salt Crest", "MA'ED Salt Crest (White Stars)") +
-          assetImgHtml(BRAND_ASSETS.posterAdama, 'maed-poster-box', "MA'ED Table Salt Poster", "MA'ED Table Salt — Adama, Ethiopia") +
+        '<h1 class="hero-greeting-title" id="hero-welcome-headline">እንኳን ደህና መጡ, ' + esc(greetName) + '!</h1>' +
+        '<div class="hero-daily-checkin" id="hero-daily-checkin">' +
+          '<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">' +
+            '<span style="font-size:14px;font-weight:700;color:#fff;line-height:1.4;">' + esc(dp.displayText) + '</span>' +
+          '</div>' +
+          '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.32);border-color:rgba(167,243,208,0.65);font-size:12px;padding:6px 12px;white-space:nowrap;">' + heroPlayLabel + '</button>' +
+        '</div>' +
+        '<div class="week-strip">' +
+          weekDays.map(function (wd) {
+            var cls = wd.isToday ? 'today' : (wd.isSelected ? 'preview' : '');
+            return '<button type="button" class="day-chip ' + cls + '" data-day-offset="' + wd.offset + '" title="' + (wd.isToday ? 'Live Today' : 'Preview +' + wd.offset + ' day(s)') + '">' +
+              '<span style="font-size:9.5px;opacity:0.95;font-weight:800;">' + (wd.isToday ? (state.lang === 'am' ? 'ዛሬ' : 'TODAY') : esc(wd.label)) + '</span>' +
+              '<span class="day-chip-num">' + esc(wd.label) + ' ' + wd.dayNum + '</span>' +
+              '<span style="font-size:9px;opacity:0.9;" class="mono">' + String(wd.ecDay).padStart(2, '0') + '/' + String(wd.ecMonth).padStart(2, '0') + ' EC</span>' +
+            '</button>';
+          }).join('') +
         '</div>' +
       '</section>';
 
       var healthSummary = analyzeFolderHealth().summary;
-      function getFolderLatestUpdatedAt(folderName) {
-        var fLow = String(folderName || '').trim().toLowerCase();
-        var latestMs = 0;
-        var latestIso = '';
-        state.bots.forEach(function (b) {
-          if (!b || isBotTombstoned(b)) return;
-          if (normalizeFolderName(b.folder).toLowerCase() !== fLow) return;
-          var ms = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-          if (ms > latestMs) { latestMs = ms; latestIso = b.updatedAt; }
-        });
-        return latestIso;
-      }
-
       function renderFolderCardHtml(f) {
         var fLower = f.toLowerCase();
         var folderBotsAll = state.bots.filter(function (b) {
@@ -6721,15 +6860,16 @@
         var fUnlocked = isFolderUnlocked(f);
         var needsUnlock = fLocked && !fUnlocked;
         var isSel = state.selectedFolder === f;
-        var latestIso = getFolderLatestUpdatedAt(f);
         var fUndoTarget = getFolderUndoTarget(f);
         var fRedoTarget = getFolderRedoTarget(f);
-        var timeLabel = latestIso ? (timeAgo(latestIso) + ' · ' + folderBotsAll.length + ' tbl') : ('0 tables');
 
         var isMenuOpen = state.activeFolderMenuId === f;
         var fHtml = '<div class="folder-grid-card' + (isSel ? ' is-selected' : '') + (isMenuOpen ? ' is-menu-open' : '') + '" data-folder="' + esc(f) + '">' +
           '<div class="tn-card-top">' +
-            '<div class="bot-card-title">' + (fLocked ? (fUnlocked ? '🔓 ' : '🔒 ') : '') + esc(f) + '</div>' +
+            '<div class="tn-title-group">' +
+              '<div class="bot-card-title">' + (fLocked ? (fUnlocked ? '🔓 ' : '🔒 ') : '') + esc(f) + '</div>' +
+              '<span class="folder-tbl-badge">' + folderBotsAll.length + ' tbl</span>' +
+            '</div>' +
             '<button type="button" class="tn-dots-btn" data-folder-menu="' + esc(f) + '" title="Folder options">' + icon('dotsV', 16) + '</button>';
 
         if (state.activeFolderMenuId === f) {
@@ -6748,8 +6888,7 @@
 
         fHtml += '</div>' +
           '<div class="card-footer">' +
-            '<span class="tn-card-time">' + esc(timeLabel) + '</span>' +
-            '<span class="quick-table-btn" title="Open Folder">' + icon(needsUnlock ? 'lock' : 'sheetNote', 17) + '</span>' +
+            '<span class="quick-table-btn" title="Open Folder">' + icon(needsUnlock ? 'lock' : 'sheetNote', 16) + '</span>' +
           '</div>' +
         '</div>';
         return fHtml;
@@ -6758,7 +6897,7 @@
       html += '<section class="folders-bar" aria-label="Homepage Folders">' +
         '<div class="folders-bar-top">' +
           '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
-            '<span class="folder-icon-tile" style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#1E3A8A,#2563EB);">' + icon('folder', 17) + '</span>' +
+            '<span class="folder-icon-tile" style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#065F46,#0F766E);">' + icon('folder', 17) + '</span>' +
             '<div>' +
               '<div style="font-size:14px;font-weight:800;color:#0F172A;letter-spacing:-0.01em;">Folders (' + folders.length + ')</div>' +
               '<div class="num-tab" style="font-size:11.5px;color:#64748B;font-weight:600;">' + totalTablesCount + ' tables &middot; ' + totalRowsCount + ' rows</div>' +
@@ -6766,11 +6905,8 @@
           '</div>' +
           '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
             (state.selectedFolder !== 'all' ? '<button type="button" class="folder-mini-btn" data-folder="all">' + icon('grid', 12) + '<span>All Tables (' + totalTablesCount + ')</span></button>' : '') +
+            '<button type="button" class="folder-mini-btn primary" id="btn-dash-new-table" title="Create New Table">' + icon('plus', 13) + '<span>' + esc(t('add_table_folder')) + '</span></button>' +
             '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Add, manage or delete folders">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>' +
-            '<button type="button" class="folder-mini-btn" id="btn-folder-lock-bar" style="background:#FFFBEB;border-color:#FCD34D;color:#92400E;" title="Folder Lock &amp; Change Code">' + icon('lock', 12) + '<span>Folder Lock</span></button>' +
-            '<button type="button" class="folder-mini-btn" id="btn-folder-history-bar" style="background:#ECFDF5;border-color:#A7F3D0;color:#047857;" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + '<span>' + esc(t('history_restore')) + '</span>' +
-              ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
-            '</button>' +
           '</div>' +
         '</div>';
 
@@ -6876,8 +7012,7 @@
 
         cHtml += '</div>' +
           '<div class="card-footer">' +
-            '<span class="tn-card-time">' + (cardFolderLocked ? 'Locked folder' : esc(timeAgo(b.updatedAt))) + '</span>' +
-            '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'sheetNote', 17) + '</span>' +
+            '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'sheetNote', 16) + '</span>' +
           '</div></div>';
         return cHtml;
       }
@@ -6904,9 +7039,9 @@
 
         if (filtered.length === 0) {
           html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:440px;margin:24px auto;border:1px solid #E2E8F0;">' +
-            '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1D4ED8;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
+            '<div style="width:60px;height:60px;border-radius:999px;background:#ECFDF5;color:#065F46;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
             '<h3 style="font-weight:800;font-size:17px;margin-bottom:6px;">No matching tables</h3>' +
-            '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Tap the blue + button to create a new table or clear your search filter.</p>' +
+            '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Use "+ Table" or the Menu (≡) to create a new table, or clear your search filter.</p>' +
             '<button class="btn btn-primary" id="btn-empty-create">+ Create Table</button></div>';
         } else {
           html += '<div class="bot-grid">' +
@@ -7060,10 +7195,7 @@
       }
       html += '</section>';
 
-      html += '</main><div class="fab-stack">' +
-        '<button class="fab-secondary" id="fab-blank-bot" title="Quick-create Blank Bot Table">' + icon('grid', 21) + '</button>' +
-        '<button class="fab-primary" id="fab-new-bot" title="Create New Bot">' + icon('plus', 26) + '</button>' +
-      '</div>';
+      html += '</main>';
 
       document.getElementById('app').innerHTML = html;
       bindDashboardEvents();
@@ -7074,10 +7206,6 @@
       if (drawerBtn) drawerBtn.onclick = function () { state.drawerOpen = true; renderDrawer(); };
       var langBtn = document.getElementById('btn-lang-toggle');
       if (langBtn) langBtn.onclick = toggleLanguage;
-      var heroLangBtn = document.getElementById('hero-lang-toggle');
-      if (heroLangBtn) heroLangBtn.onclick = toggleLanguage;
-      var heroSecBtn = document.getElementById('hero-open-security');
-      if (heroSecBtn) heroSecBtn.onclick = function () { openModal('cyber_control', { tab: 'control' }); };
       var heroVoiceBtn = document.getElementById('hero-voice-play-btn');
       if (heroVoiceBtn) heroVoiceBtn.onclick = function () {
         unlockAudioAndSpeechSync();
@@ -7091,25 +7219,8 @@
           renderDashboard();
         };
       });
-      document.querySelectorAll('[data-preview-src]').forEach(function (img) {
-        img.onclick = function () {
-          openModal('image_preview', { src: img.getAttribute('data-preview-src'), title: img.getAttribute('data-preview-title') });
-        };
-      });
       var syncPillBtn = document.getElementById('sync-pill-badge');
       if (syncPillBtn) syncPillBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
-      var syncNowHdr = document.getElementById('btn-dash-sync');
-      if (syncNowHdr) syncNowHdr.onclick = function () { syncAllNow('manual'); };
-      var xlHdr = document.getElementById('btn-dash-excel');
-      if (xlHdr) xlHdr.onclick = function () { openModal('import_excel', { mode: 'new' }); };
-      var bkHdr = document.getElementById('btn-dash-backup');
-      if (bkHdr) bkHdr.onclick = function () { openModal('backup', { tab: 'vault', folderFilter: state.selectedFolder || 'all' }); };
-      var fhBarBtn = document.getElementById('btn-folder-history-bar');
-      if (fhBarBtn) fhBarBtn.onclick = function () { openModal('backup', { tab: 'history', folderFilter: state.selectedFolder || 'all' }); };
-      var admBtn = document.getElementById('btn-dash-admin');
-      if (admBtn) admBtn.onclick = function () { openModal('admin', { tab: 'logs' }); };
-      var sbHdrBtn = document.getElementById('btn-dash-supabase');
-      if (sbHdrBtn) sbHdrBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
       var repBtn = document.getElementById('btn-dash-reports');
       if (repBtn) repBtn.onclick = function () { openModal('reports'); };
 
@@ -7135,7 +7246,7 @@
       var stSync = document.getElementById('strip-sync-now');
       if (stSync) stSync.onclick = function () { syncAllNow('manual'); };
       var stAdmin = document.getElementById('strip-open-admin');
-      if (stAdmin) stAdmin.onclick = function () { openModal('admin', { tab: 'logs' }); };
+      if (stAdmin) stAdmin.onclick = function () { openModal('admin', { tab: 'settings' }); };
       var stHide = document.getElementById('strip-hide');
       if (stHide) stHide.onclick = function () { state.adminConfig.showDashboardActivity = false; saveAdminState(); renderDashboard(); };
 
@@ -7144,12 +7255,18 @@
         state.searchOpen = !state.searchOpen; renderDashboard();
         var inp = document.getElementById('inp-dash-search'); if (inp) inp.focus();
       };
+      var debouncedDashSearch = debounce(function (nextQuery) {
+        state.searchQuery = sanitizeUserText(nextQuery, 120);
+        renderDashboard();
+        var el = document.getElementById('inp-dash-search');
+        if (el) {
+          el.focus();
+          try { el.setSelectionRange(el.value.length, el.value.length); } catch (eRng) {}
+        }
+      }, 300);
       var sInp = document.getElementById('inp-dash-search');
       if (sInp) sInp.oninput = function (e) {
-        var pos = e.target.selectionStart;
-        state.searchQuery = e.target.value; renderDashboard();
-        var el = document.getElementById('inp-dash-search');
-        if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+        debouncedDashSearch(e.target.value);
       };
       var clrBtn = document.getElementById('btn-clear-dash-search');
       if (clrBtn) clrBtn.onclick = function () { state.searchQuery = ''; renderDashboard(); };
@@ -7158,8 +7275,15 @@
         state.sortOrder = state.sortOrder === 'recent' ? 'name' : state.sortOrder === 'name' ? 'rows' : 'recent';
         renderDashboard();
       };
-      var filterSel = document.getElementById('sel-dash-filter');
-      if (filterSel) filterSel.onchange = function (e) { state.filterType = e.target.value; renderDashboard(); };
+      var folderSel = document.getElementById('sel-dash-folder');
+      if (folderSel) folderSel.onchange = function (e) {
+        state.folderUnlockError = '';
+        state.confirmDeleteFolder = '';
+        state.selectedFolder = e.target.value || 'all';
+        renderDashboard();
+      };
+      var dashNewTblBtn = document.getElementById('btn-dash-new-table');
+      if (dashNewTblBtn) dashNewTblBtn.onclick = function () { createInstantBot(false); };
 
       document.querySelectorAll('[data-folder]').forEach(function (btn) {
         btn.onclick = function () {
@@ -7375,12 +7499,8 @@
         };
       });
 
-      var fabNew = document.getElementById('fab-new-bot');
-      if (fabNew) fabNew.onclick = function () { createInstantBot(false); };
       var emptyCreate = document.getElementById('btn-empty-create');
       if (emptyCreate) emptyCreate.onclick = function () { createInstantBot(false); };
-      var fabBlank = document.getElementById('fab-blank-bot');
-      if (fabBlank) fabBlank.onclick = function () { createInstantBot(true); };
     }
 
     function buildBlankRowForBot(bot) {
@@ -10769,62 +10889,63 @@
       });
     }
 
-    // Navigation Drawer (includes Login, Logout, Forgot Password & Admin Menu)
+    // Navigation Drawer (Account, Import Excel, Backup & Restore, Admin & All App Tools)
     function renderDrawer() {
       var root = document.getElementById('drawer-root');
       if (!isAccessUnlocked() || isCurrentUserRevoked() || !state.drawerOpen) { root.innerHTML = ''; return; }
       var cfg = state.supabaseConfig;
       var loggedIn = Boolean(state.authSession && state.authSession.email);
-      var activeEmail = getCurrentActor();
+      var activeEmail = (state.authSession && state.authSession.email) ? state.authSession.email : getCurrentActor();
+      var dotCls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : (state.syncStatus === 'error' || state.syncStatus === 'auth_required') ? 'dot-error' : 'dot-local';
+      var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'auth_required' ? 'Sign In Req' : state.syncStatus === 'error' ? 'Sync Error' : 'Live Cloud';
       var blockedCount = state.workspaceUsers.filter(function (u) { return u.blocked; }).length;
 
       root.innerHTML = '<div class="drawer-backdrop" id="drawer-bg">' +
         '<div class="drawer-panel" id="drawer-panel">' +
-          '<div class="drawer-banner">' +
+          '<div class="drawer-banner" style="background:linear-gradient(135deg,#0F172A 0%,#065F46 100%);">' +
             '<button class="icon-btn" id="drawer-close" style="position:absolute;top:12px;right:12px;">' + icon('close', 20) + '</button>' +
-            '<div class="drawer-avatar">' + icon('user', 30) + '</div>' +
-            '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#FDE68A;margin-bottom:2px;">' +
-              (loggedIn ? 'Cloud Session Active' : cfg.isConnected ? 'Supabase Configured (Sign In)' : 'Local Storage Mode') + '</div>' +
-            '<div style="font-size:11px;opacity:0.85;">' + (loggedIn ? 'Logged In as' : 'Active Profile') + '</div>' +
-            '<div class="truncate" style="font-weight:700;font-size:14px;">' + esc(activeEmail) + '</div>' +
-            '<div style="margin-top:6px;font-size:11px;background:rgba(15,23,42,0.45);padding:4px 9px 4px 5px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;color:#FEF3C7;">' +
-              assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-sm', state.adminConfig.cyberSecurityManager || 'Abdulfeta', (state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ' — Manager of Cyber Security') +
-              '<span style="color:#34D399;display:inline-flex;">' + icon('shield', 12) + '</span>' +
-              '<span>' + esc(t('cyber_mgr_title')) + ': <strong>' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + '</strong></span>' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+              '<div class="drawer-avatar" style="margin-bottom:0;width:44px;height:44px;">' + icon('user', 24) + '</div>' +
+              '<div style="min-width:0;flex:1;">' +
+                '<div style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:#A7F3D0;">Account</div>' +
+                '<div class="truncate" style="font-weight:800;font-size:13.5px;color:#fff;">' + esc(activeEmail) + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px;">' +
+              '<span class="sync-pill"><span class="sync-dot ' + dotCls + '"></span><span>' + dotTxt + '</span></span>' +
+              '<button type="button" id="drawer-auth-btn" class="btn" style="padding:5px 11px;font-size:11.5px;background:' + (loggedIn ? '#DC2626' : '#10B981') + ';color:#fff;">' +
+                icon(loggedIn ? 'logout' : 'login', 13) + '<span>' + (loggedIn ? 'Logout' : 'Login') + '</span>' +
+              '</button>' +
             '</div>' +
           '</div>' +
           '<div class="drawer-nav">' +
-            '<button class="drawer-item" id="drawer-lang-toggle"><span class="drawer-item-left"><span style="color:#0F766E;font-weight:800;font-size:13px;">አማ/EN</span><span><div><div style="font-weight:700;">Language / ቋንቋ (Amharic)</div><div style="font-size:11px;color:#64748B;">Current: ' + (state.lang === 'am' ? 'አማርኛ (Amharic)' : 'English') + '</div></div></span></span><span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;">' + (state.lang === 'am' ? 'አማ' : 'EN') + '</span></button>' +
-            '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>' + esc(t('manage_bots')) + '</span></span></button>' +
-            '<button class="drawer-item" data-nav="cyber_control"><span class="drawer-item-left">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', state.adminConfig.cyberSecurityManager || 'Abdulfeta', (state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ' — Manager of Cyber Security') + '<span><div><div style="font-weight:800;color:#065F46;">Cyber Control Panel (' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ')</div><div style="font-size:11px;color:#64748B;">Transmit, Terminate, Block/Timed Unblock &amp; Cyber Code</div></div></span></span>' +
-              '<span class="pill-badge" style="background:#047857;color:#fff;font-size:10px;">SEC</span></button>' +
-            '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('shield', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('admin_menu')) + '</div><div style="font-size:11px;color:#64748B;">Activity logs, users &amp; sync</div></div></span></span>' +
-              (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;">' + blockedCount + ' BLK</span>' : '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;font-size:10px;">' + state.auditLogs.length + '</span>') + '</button>' +
-            '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#E65100;padding:4px;border-radius:6px;display:inline-flex;">' + icon('chart', 16) + '</span><span><div><div style="font-weight:700;">' + esc(t('reports_nav')) + '</div><div style="font-size:11px;color:#64748B;">Customer ledger, paid &amp; balances</div></div></span></span></button>' +
-            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
-            '<button class="drawer-item" data-nav="login"><span class="drawer-item-left"><span style="color:#059669">' + icon('login', 19) + '</span><span><div><div style="font-weight:700;">' + (loggedIn ? 'Account &amp; Switch Login' : t('login_nav')) + '</div><div style="font-size:11px;color:#64748B;">Email &amp; Password or Magic Link</div></div></span></span></button>' +
-            '<button class="drawer-item" data-nav="forgot"><span class="drawer-item-left"><span style="color:#D97706">' + icon('lock', 19) + '</span><span>' + esc(t('forgot_pw')) + '</span></span></button>' +
-            '<button class="drawer-item" data-nav="supabase"><span class="drawer-item-left"><span style="color:#1976D2">' + icon('cloud', 19) + '</span><span>' + esc(t('cloud_sync')) + '</span></span>' +
-              (loggedIn ? '<span class="sync-dot dot-synced"></span>' : cfg.isConnected ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:999px;">Login Req</span>' : '<span style="font-size:11px;background:#F1F5F9;color:#475569;padding:2px 8px;border-radius:999px;">Offline</span>') + '</button>' +
-            '<button class="drawer-item" data-nav="telegram"><span class="drawer-item-left"><span style="color:#0288D1">' + icon('key', 19) + '</span><span>' + esc(t('telegram_nav')) + '</span></span></button>' +
-            '<button class="drawer-item" data-nav="telegram_folder"><span class="drawer-item-left"><span style="background:#E0F2FE;color:#0284C7;padding:4px;border-radius:6px;display:inline-flex;">' + icon('folder', 17) + '</span><span><div><div style="font-weight:700;">' + (state.lang === 'am' ? 'የቴሌግራም አቃፊ (Telegram Folder)' : 'Telegram Folder Set') + '</div><div style="font-size:11px;color:#64748B;">Assign bots to Telegram folder &amp; default</div></div></span></span>' +
-              '<span class="pill-badge" style="background:#0284C7;color:#fff;font-size:10px;">' + esc(state.adminConfig.telegramDefaultFolder || 'General') + '</span></button>' +
-            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
-            '<button class="drawer-item" data-nav="import_excel"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:4px;border-radius:6px;display:inline-flex;">' + icon('excel', 17) + '</span><span><div><div style="font-weight:700;">' + esc(t('import_excel')) + ' (.xlsx / .csv)</div><div style="font-size:11px;color:#64748B;">Import sheets as new tables or merge rows</div></div></span></span></button>' +
-            '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="background:#F0FDFA;color:#0F766E;padding:4px;border-radius:6px;display:inline-flex;">' + icon('history', 17) + '</span><span><div><div style="font-weight:700;">' + esc(t('backup_nav')) + '</div><div style="font-size:11px;color:#64748B;">Folder history (min/days/3+ mo), missing &amp; trash</div></div></span></span>' +
+            '<button class="drawer-item" data-nav="account"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:5px;border-radius:7px;display:inline-flex;">' + icon('cloud', 17) + '</span><span><div><div style="font-weight:800;">Account</div><div style="font-size:11px;color:#64748B;">' + esc(activeEmail) + ' · ' + dotTxt + '</div></div></span></span>' +
+              '<span class="sync-dot ' + dotCls + '"></span></button>' +
+            '<button class="drawer-item" data-nav="import_excel"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:5px;border-radius:7px;display:inline-flex;">' + icon('excel', 17) + '</span><span><div><div style="font-weight:800;">Import Excel</div><div style="font-size:11px;color:#64748B;">Import .xlsx, .xls or .csv into tables</div></div></span></span></button>' +
+            '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="background:#F0FDFA;color:#0F766E;padding:5px;border-radius:7px;display:inline-flex;">' + icon('history', 17) + '</span><span><div><div style="font-weight:800;">Backup &amp; Restore</div><div style="font-size:11px;color:#64748B;">Export backup, version history &amp; trash</div></div></span></span>' +
               (state.deletedVault.length ? '<span class="pill-badge" style="background:#D97706;color:#fff;font-size:10px;">' + state.deletedVault.length + '</span>' : '') + '</button>' +
+            '<button class="drawer-item" data-nav="admin"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:5px;border-radius:7px;display:inline-flex;">' + icon('shield', 17) + '</span><span><div><div style="font-weight:800;">Admin</div><div style="font-size:11px;color:#64748B;">Access Code / PIN settings &amp; manage folders</div></div></span></span>' +
+              (blockedCount ? '<span class="pill-badge" style="background:#DC2626;font-size:10px;">' + blockedCount + '</span>' : '') + '</button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
+            '<button class="drawer-item" data-nav="new_table"><span class="drawer-item-left"><span style="color:#0F766E">' + icon('plus', 19) + '</span><span>New Table</span></span></button>' +
+            '<button class="drawer-item" data-nav="add_folder"><span class="drawer-item-left"><span style="color:#D97706">' + icon('folder', 19) + '</span><span>Add Folder</span></span></button>' +
+            '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>All Tables &amp; Folders</span></span></button>' +
+            '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="color:#E65100">' + icon('chart', 19) + '</span><span>Reports</span></span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
+            '<button class="drawer-item" id="drawer-lang-toggle"><span class="drawer-item-left"><span style="color:#0F766E;font-weight:800;font-size:13px;">አማ/EN</span><span>Language / ቋንቋ</span></span><span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;">' + (state.lang === 'am' ? 'አማ' : 'EN') + '</span></button>' +
+            '<button class="drawer-item" data-nav="telegram"><span class="drawer-item-left"><span style="color:#0288D1">' + icon('key', 19) + '</span><span>' + esc(t('telegram_nav')) + '</span></span></button>' +
+            '<button class="drawer-item" data-nav="telegram_folder"><span class="drawer-item-left"><span style="color:#0284C7">' + icon('folder', 19) + '</span><span>Telegram Folder</span></span><span class="pill-badge" style="background:#0284C7;color:#fff;font-size:10px;">' + esc(state.adminConfig.telegramDefaultFolder || 'General') + '</span></button>' +
+            '<button class="drawer-item" data-nav="cyber_control"><span class="drawer-item-left">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-sm', state.adminConfig.cyberSecurityManager || 'Abdulfeta', 'Cyber Security') + '<span>Cyber Control (' + esc(state.adminConfig.cyberSecurityManager || 'Abdulfeta') + ')</span></span></button>' +
+            '<button class="drawer-item" data-nav="folder_lock"><span class="drawer-item-left"><span style="color:#B45309">' + icon('lock', 19) + '</span><span>Folder Lock</span></span></button>' +
+            '<button class="drawer-item" data-nav="access_code"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('lock', 19) + '</span><span>Access Code PIN</span></span></button>' +
             '<button class="drawer-item" data-nav="export_html"><span class="drawer-item-left"><span style="color:#E65100">' + icon('code', 19) + '</span><span>' + esc(t('export_html')) + '</span></span></button>' +
-            '<button class="drawer-item" data-nav="access_code"><span class="drawer-item-left"><span style="background:#EFF6FF;color:#0D47A1;padding:4px;border-radius:6px;display:inline-flex;">' + icon('lock', 16) + '</span><span><div><div style="font-weight:700;">' + (state.lang === 'am' ? 'የመግቢያ ኮድ እና መቆለፊያ' : 'Lock Screen &amp; Change Code') + '</div><div style="font-size:11px;color:#64748B;">' + (state.lang === 'am' ? 'ኮድ ቀይር ወይም መቆለፊያን አስተካክል' : 'Change lock code or lock screen option') + '</div></div></span></span>' +
-              '<span class="pill-badge" style="background:' + (isAccessLockEnabled() ? '#059669' : '#64748B') + ';color:#fff;font-size:10px;">' + (isAccessLockEnabled() ? 'ON' : 'OFF') + '</span></button>' +
-            '<button class="drawer-item" data-nav="folder_lock"><span class="drawer-item-left"><span style="background:#FEF3C7;color:#B45309;padding:4px;border-radius:6px;display:inline-flex;">' + icon('lock', 16) + '</span><span><div><div style="font-weight:700;">' + (state.lang === 'am' ? 'የአቃፊ ኮድ መቆለፊያ' : 'Folder Lock &amp; Change Code') + '</div><div style="font-size:11px;color:#64748B;">Lock individual folders &amp; change folder codes</div></div></span></span>' +
-              '<span class="pill-badge" style="background:#D97706;color:#fff;font-size:10px;">' + Object.keys(state.adminConfig.folderLocks || {}).filter(function (k) { return state.adminConfig.folderLocks[k] && state.adminConfig.folderLocks[k].enabled; }).length + '</span></button>' +
             '<button class="drawer-item" data-nav="settings"><span class="drawer-item-left"><span style="color:#64748B">' + icon('settings', 19) + '</span><span>' + esc(t('bot_settings')) + '</span></span></button>' +
             '<button class="drawer-item" data-nav="share"><span class="drawer-item-left"><span style="color:#64748B">' + icon('share', 19) + '</span><span>' + esc(t('share_app')) + '</span></span></button>' +
             '<button class="drawer-item" data-nav="help"><span class="drawer-item-left"><span style="color:#64748B">' + icon('help', 19) + '</span><span>' + esc(t('help_guide')) + '</span></span></button>' +
           '</div>' +
           '<div style="padding:14px;border-top:1px solid #E2E8F0;background:#F8FAFC;display:flex;gap:8px;flex-direction:column;">' +
             '<button class="btn btn-outline" id="drawer-lock-app" style="width:100%;color:#0D47A1;border-color:#93C5FD;background:#EFF6FF;">' + icon('lock', 15) + '<span>Lock Screen Now</span></button>' +
-            '<button class="btn btn-red" id="drawer-signout" style="width:100%;">' + icon('logout', 16) + '<span>' + (loggedIn ? t('logout') : t('logout') + ' / Reset Session') + '</span></button>' +
+            '<button class="btn btn-red" id="drawer-signout" style="width:100%;">' + icon(loggedIn ? 'logout' : 'login', 16) + '<span>' + (loggedIn ? 'Logout (' + esc(activeEmail) + ')' : 'Login / Switch Account') + '</span></button>' +
           '</div>' +
         '</div></div>';
 
@@ -10833,7 +10954,12 @@
       document.getElementById('drawer-close').onclick = function () { state.drawerOpen = false; renderDrawer(); };
       document.getElementById('drawer-lang-toggle').onclick = toggleLanguage;
       document.getElementById('drawer-lock-app').onclick = lockAppNow;
-      document.getElementById('drawer-signout').onclick = async function () {
+      var handleDrawerAuthAction = async function () {
+        if (!loggedIn) {
+          state.drawerOpen = false; renderDrawer();
+          openModal('supabase', { authTab: 'login' });
+          return;
+        }
         var prevActor = getCurrentActor();
         try {
           var client = getSbClient();
@@ -10848,25 +10974,29 @@
         state.drawerOpen = false; renderDrawer(); renderApp();
         showToast('Logged out successfully.');
       };
+      var authBtnTop = document.getElementById('drawer-auth-btn');
+      if (authBtnTop) authBtnTop.onclick = handleDrawerAuthAction;
+      document.getElementById('drawer-signout').onclick = handleDrawerAuthAction;
       document.querySelectorAll('[data-nav]').forEach(function (btn) {
         btn.onclick = function () {
           var v = btn.getAttribute('data-nav');
           state.drawerOpen = false; renderDrawer();
-          if (v === 'all_bots') { state.activeBotId = null; renderApp(); }
+          if (v === 'new_table') createInstantBot(false);
+          else if (v === 'add_folder') openModal('add_folder');
+          else if (v === 'all_bots') { state.activeBotId = null; renderApp(); }
           else if (v === 'cyber_control') openModal('cyber_control', { tab: 'control' });
-          else if (v === 'admin') openModal('admin', { tab: 'logs' });
+          else if (v === 'admin') openModal('admin', { tab: 'settings' });
           else if (v === 'access_code') openModal('access_code');
           else if (v === 'folder_lock') openModal('folder_lock');
           else if (v === 'reports') openModal('reports');
-          else if (v === 'login') openModal('supabase', { authTab: 'login' });
+          else if (v === 'account' || v === 'login' || v === 'supabase') openModal('supabase', { authTab: 'login' });
           else if (v === 'forgot') openModal('supabase', { authTab: 'forgot' });
-          else if (v === 'supabase') openModal('supabase', { authTab: 'login' });
           else if (v === 'telegram') openModal('telegram', { bot: getActiveBot() || state.bots[0], tab: 'token' });
           else if (v === 'telegram_folder') openModal('telegram_folder');
           else if (v === 'import_excel') openModal('import_excel', { mode: getActiveBot() ? 'merge' : 'new', targetBotId: getActiveBot() ? getActiveBot().id : '' });
           else if (v === 'backup') openModal('backup', { tab: 'vault', folderFilter: state.selectedFolder || 'all' });
           else if (v === 'export_html') exportStandaloneHtml();
-          else if (v === 'settings') { var t = getActiveBot() || state.bots[0]; openModal('settings', { bot: t || null }); }
+          else if (v === 'settings') { var tb = getActiveBot() || state.bots[0]; openModal('settings', { bot: tb || null }); }
           else if (v === 'share') {
             if (navigator.clipboard) navigator.clipboard.writeText(window.location.href).catch(function () {});
             showToast('App link copied to clipboard!');
@@ -10875,16 +11005,24 @@
       });
     }
 
+    var _lockoutCountdownTimer = null;
+    function clearLockoutCountdownTimer() {
+      if (_lockoutCountdownTimer) {
+        clearInterval(_lockoutCountdownTimer);
+        _lockoutCountdownTimer = null;
+      }
+    }
+
     function renderLockScreen() {
+      clearLockoutCountdownTimer();
       var isAm = state.lang === 'am';
       var titleTxt = isAm ? 'የመግቢያ ኮድ ያስፈልጋል' : 'Access Code Required';
       var subTxt = isAm
-        ? 'መጀመሪያ የዛሬውን የድምፅ መልዕክት ያዳምጡ፤ ከዚያ የመግቢያ ኮድዎን ያስገቡ።'
-        : 'Listen to today’s Amharic voice prompt first, then enter your access code.';
+        ? 'ወደ አቃፊዎች፣ ሰንጠረዦች እና ምናሌ ለመግባት የመግቢያ ኮድዎን ያስገቡ (ነባሪ: 1234)።'
+        : 'Enter your access code to unlock folders, tables, and menus (default: 1234).';
       var btnTxt = isAm ? 'ክፈት' : 'Unlock App';
-      var placeholderTxt = isAm ? 'የመግቢያ ኮድ ያስገቡ...' : 'Enter access code...';
+      var placeholderTxt = isAm ? 'የመግቢያ ኮድ ያስገቡ...' : 'Enter access code (e.g. 1234)...';
       var greetUser = getActiveGreetingUser();
-      var openStamp = formatAppOpenTimestamp(state.appOpenedAt || new Date().toISOString());
       var dailyPrompt = getDailyAmharicWorkPrompt(new Date(), greetUser);
       var voiceKey = getLockVoiceSessionKey(new Date(), greetUser);
       if (_dailyVoiceCtrl.sessionKey && _dailyVoiceCtrl.sessionKey !== voiceKey) {
@@ -10894,6 +11032,9 @@
       }
       _dailyVoiceCtrl.sessionKey = voiceKey;
       var isListened = Boolean(state.dailyVoiceListened);
+      var remLockSec = getRemainingLockoutSec();
+      var isLockedOut = remLockSec > 0;
+      var failAttempts = getLockFailedAttempts();
 
       var html = '<div class="lock-screen">' +
         '<div style="position:absolute;top:16px;right:16px;">' +
@@ -10903,33 +11044,14 @@
           '<div class="lock-brand-showcase">' +
             assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'lock-hero-img', "Hiriya Salt Production PLC — MA'ED Salt", "MA'ED Salt — MIYAW 3A") +
             '<div class="lock-company-banner">' +
-              '<div class="lock-company-en">Welcome to Hiriya Salt Production PLC</div>' +
-              '<div class="lock-company-am">እንኳን ደህና መጡ ወደ ሂሪያ</div>' +
+              '<div class="lock-company-en">Hiriya Salt Production PLC · MA’ED Table Salt</div>' +
+              '<div class="lock-company-am">እንኳን ደህና መጡ</div>' +
             '</div>' +
-            '<div class="lock-brand-strip">' +
-              assetImgHtml(BRAND_ASSETS.logoGreenStars, 'lock-brand-thumb', "MA'ED Salt Green Stars", "MA'ED Salt Emblem") +
-              assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'lock-brand-thumb', "MA'ED Salt White Stars", "MA'ED Salt Crest") +
-              assetImgHtml(BRAND_ASSETS.posterAdama, 'lock-brand-thumb', "MA'ED Table Salt", "MA'ED Table Salt") +
-            '</div>' +
-          '</div>' +
-          (greetUser
-            ? '<div id="lock-welcome-greet" class="lock-tg-greet">' +
-                '<div style="font-size:15px;font-weight:800;line-height:1.35;">እንኳን ደህና መጡ ' + esc(greetUser.displayName) + '!</div>' +
-                '<div style="font-size:12px;font-weight:700;color:#D1FAE5;margin-top:2px;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">' +
-                  '<span>Welcome, ' + esc(greetUser.displayName) + '</span>' +
-                  (greetUser.username ? '<span class="mono" style="background:rgba(15,23,42,0.3);padding:1px 7px;border-radius:999px;font-size:10.5px;">' + esc(greetUser.username) + '</span>' : '') +
-                  '<span style="background:rgba(255,255,255,0.2);padding:1px 7px;border-radius:999px;font-size:10px;">' + esc(greetUser.source || 'Telegram') + '</span>' +
-                '</div>' +
-              '</div>'
-            : '') +
-          '<div class="lock-open-time-pill" id="lock-open-time">' +
-            '<span>🕒 App Opened:</span>' +
-            '<span id="lock-open-time-txt" class="mono">' + esc(openStamp.fullText) + '</span>' +
           '</div>' +
           '<div id="lock-voice-card" class="lock-voice-card' + (isListened ? ' is-listened' : '') + '">' +
             '<div class="lock-voice-head">' +
               '<span class="lock-voice-day-pill">📅 ' + esc(dailyPrompt.amDay) + ' · ' + esc(dailyPrompt.enDay) + '</span>' +
-              '<span id="lock-voice-status" class="lock-voice-status' + (isListened ? ' is-done' : '') + '">' + (isListened ? (isAm ? '✓ ተዳምጧል' : '✓ Listened') : (isAm ? '🔊 በራስ-ሰር እየጀመረ ነው...' : '🔊 Starting Auto-Voice...')) + '</span>' +
+              '<span id="lock-voice-status" class="lock-voice-status' + (isListened ? ' is-done' : '') + '">' + (isListened ? (isAm ? '✓ ተዳምጧል' : '✓ Ready') : (isAm ? 'ዕለታዊ ድምፅ' : 'Daily Voice')) + '</span>' +
             '</div>' +
             '<div id="lock-voice-text" class="lock-voice-text">' + esc(dailyPrompt.displayText) + '</div>' +
             '<div class="lock-voice-progress"><div id="lock-voice-bar" class="lock-voice-bar" style="width:' + (isListened ? 100 : (_dailyVoiceCtrl.progress || 0)) + '%;"></div></div>' +
@@ -10942,26 +11064,26 @@
             '<h1 style="font-size:19px;font-weight:800;color:#0F172A;">' + esc(titleTxt) + '</h1>' +
           '</div>' +
           '<p style="font-size:12.5px;color:#64748B;margin-bottom:10px;line-height:1.45;">' + esc(subTxt) + '</p>' +
-          '<div id="lock-voice-gate-hint" style="font-size:11.5px;font-weight:800;margin-bottom:10px;color:' + (isListened ? '#047857' : '#B45309') + ';">' +
-            (isListened
-              ? (isAm ? '✓ ድምፁን ስላዳመጡ አሁን የመግቢያ ኮድዎን ማስገባት ይችላሉ።' : '✓ Voice message heard — enter your access code below to unlock.')
-              : (isAm ? '🔒 ድምፁ እየተናገረ ነው — ሳያዳምጡ ኮድ ማስገባት እና መክፈት አይቻልም።' : '🔒 Speaking now — app unlocks for code entry right after listening completes.')) +
+          '<div id="lock-voice-gate-hint" style="font-size:11.5px;font-weight:800;margin-bottom:10px;color:' + (isLockedOut ? '#DC2626' : '#0F766E') + ';">' +
+            (isLockedOut
+              ? ('⛔ Too many failed attempts. Input locked for ' + remLockSec + 's.')
+              : (failAttempts > 0 ? ('⚠️ ' + failAttempts + ' of 5 failed attempts used before 60s lock.') : (isAm ? '🔐 የመግቢያ ኮድዎን ያስገቡ' : '🔐 Enter access code below to continue.'))) +
           '</div>' +
-          '<div id="lock-code-gate-wrap" class="' + (isListened ? '' : 'lock-gate-locked') + '" style="text-align:left;">' +
+          '<div id="lock-code-gate-wrap" class="' + (isLockedOut ? 'lock-gate-locked' : '') + '" style="text-align:left;">' +
             '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
             '<div style="display:flex;gap:8px;align-items:center;">' +
-              '<input id="lock-code-inp" name="tablebot_lock_pin" type="' + (state.lockShowCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '"' + (isListened ? ' autofocus' : ' disabled') + ' />' +
+              '<input id="lock-code-inp" name="tablebot_lock_pin" type="' + (state.lockShowCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '"' + (isLockedOut ? ' disabled' : ' autofocus') + ' />' +
               '<button type="button" id="lock-eye-btn" class="btn btn-outline" style="padding:10px 12px;font-size:11.5px;white-space:nowrap;">' + (state.lockShowCode ? 'Hide' : 'Show') + '</button>' +
             '</div>' +
           '</div>' +
           (state.lockError
             ? '<div id="lock-err-msg" class="lock-error-box">' + icon('ban', 15) + '<span>' + esc(state.lockError) + '</span></div>'
             : '') +
-          '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;"' + (isListened ? '' : ' disabled') + '>' +
-            icon('shield', 16) + '<span>' + esc(btnTxt) + '</span>' +
+          '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;"' + (isLockedOut ? ' disabled' : '') + '>' +
+            icon('shield', 16) + '<span>' + esc(isLockedOut ? ('Locked (' + remLockSec + 's)') : btnTxt) + '</span>' +
           '</button>' +
           '<div style="margin-top:14px;font-size:11px;color:#64748B;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px dashed #E2E8F0;padding-top:10px;">' +
-            '<span style="display:inline-flex;align-items:center;gap:4px;">' + icon('shield', 12) + '<span>Synced across all browsers &amp; Telegram</span></span>' +
+            '<span style="display:inline-flex;align-items:center;gap:4px;">' + icon('shield', 12) + '<span>Session-protected access · 5 failed attempts = 60s lock</span></span>' +
             '<button type="button" id="lock-sync-btn" style="font-size:11px;font-weight:800;color:#0D47A1;text-decoration:underline;">' + (isAm ? 'ኮድ አዘምን (Sync)' : 'Sync Latest Code') + '</button>' +
           '</div>' +
         '</form>' +
@@ -10969,6 +11091,22 @@
 
       document.getElementById('app').innerHTML = html;
       state.lockShake = false;
+
+      if (isLockedOut) {
+        _lockoutCountdownTimer = setInterval(function () {
+          var left = getRemainingLockoutSec();
+          if (left <= 0) {
+            clearLockoutCountdownTimer();
+            state.lockError = '';
+            renderLockScreen();
+            return;
+          }
+          var hintEl = document.getElementById('lock-voice-gate-hint');
+          var subEl = document.getElementById('lock-submit-btn');
+          if (hintEl) hintEl.textContent = '⛔ Too many failed attempts. Input locked for ' + left + 's.';
+          if (subEl) subEl.textContent = 'Locked (' + left + 's)';
+        }, 1000);
+      }
 
       var playVoiceBtn = document.getElementById('lock-voice-play-btn');
       if (playVoiceBtn) {
@@ -10980,9 +11118,9 @@
 
       var inp = document.getElementById('lock-code-inp');
       if (inp) {
-        if (isListened) inp.focus();
+        if (!isLockedOut) { try { inp.focus(); } catch (eF) {} }
         inp.oninput = function () {
-          if (state.lockError) {
+          if (state.lockError && getRemainingLockoutSec() <= 0) {
             state.lockError = '';
             var errEl = document.getElementById('lock-err-msg');
             if (errEl) errEl.remove();
@@ -11005,14 +11143,13 @@
         state.lockShowCode = !state.lockShowCode;
         renderLockScreen();
         var nInp = document.getElementById('lock-code-inp');
-        if (nInp && state.dailyVoiceListened) { nInp.value = cur; nInp.focus(); }
+        if (nInp && getRemainingLockoutSec() <= 0) { nInp.value = cur; try { nInp.focus(); } catch (eF2) {} }
       };
       document.getElementById('lock-form').onsubmit = async function (e) {
         e.preventDefault();
-        if (!state.dailyVoiceListened) {
-          state.lockError = state.lang === 'am'
-            ? 'መጀመሪያ የዛሬውን የድምፅ መልዕክት ያዳምጡ። ሳያዳምጡ መክፈት አይቻልም።'
-            : 'Please listen to today’s voice message first before entering the access code.';
+        var remNow = getRemainingLockoutSec();
+        if (remNow > 0) {
+          state.lockError = 'Too many failed attempts. Please wait ' + remNow + ' seconds.';
           state.lockShake = true;
           renderLockScreen();
           return;
@@ -11029,6 +11166,7 @@
         await pullSharedSecurityState('lock_submit', 1500);
         if (state.supabaseConfig.isConnected) await pullSecurityConfigFromSupabase();
         if (!isAccessLockEnabled()) {
+          clearLockoutCountdownTimer();
           state.lockError = '';
           state.lockShake = false;
           stopDailyVoicePlayback(false);
@@ -11039,15 +11177,24 @@
         }
         var expected = getConfiguredAccessCode();
         if (entered !== expected) {
-          state.lockError = state.lang === 'am'
-            ? 'የተሳሳተ የመግቢያ ኮድ። እባክዎ እንደገና ይሞክሩ።'
-            : 'Incorrect access code. Please try again.';
+          var count = recordFailedLockAttempt();
+          var lockRem = getRemainingLockoutSec();
+          if (lockRem > 0) {
+            state.lockError = state.lang === 'am'
+              ? ('5 የተሳሳቱ ሙከራዎች — ለ' + lockRem + ' ሰከንድ ተቆልፏል።')
+              : ('Too many failed attempts (5/5). Locked for ' + lockRem + ' seconds.');
+          } else {
+            state.lockError = state.lang === 'am'
+              ? ('የተሳሳተ የመግቢያ ኮድ (' + count + '/5 ሙከራ)።')
+              : ('Incorrect access code (' + count + '/5 attempts). Please try again.');
+          }
           state.lockShake = true;
           renderLockScreen();
           var rInp = document.getElementById('lock-code-inp');
-          if (rInp && state.dailyVoiceListened) { rInp.value = ''; rInp.focus(); }
+          if (rInp && getRemainingLockoutSec() <= 0) { rInp.value = ''; try { rInp.focus(); } catch (eF3) {} }
           return;
         }
+        clearLockoutCountdownTimer();
         state.lockError = '';
         state.lockShake = false;
         stopDailyVoicePlayback(false);
@@ -11056,8 +11203,8 @@
         recordAudit('AUTH', null, 'Workspace unlocked with access code', { source: 'LockScreen' });
         var unlockedUser = getActiveGreetingUser();
         showToast(unlockedUser
-          ? ('እንኳን ደህና መጡ ' + unlockedUser.displayName + '! · Welcome to Hiriya Salt Production PLC')
-          : 'እንኳን ደህና መጡ ወደ ሂሪያ · Welcome to Hiriya Salt Production PLC');
+          ? ('እንኳን ደህና መጡ, ' + unlockedUser.displayName + '! · Hiriya Salt Production PLC')
+          : 'እንኳን ደህና መጡ · Hiriya Salt Production PLC');
         renderApp();
         if (window.location.hash && window.location.hash.indexOf('type=recovery') !== -1 && state.supabaseConfig.isConnected) {
           getSbClient();
@@ -11066,12 +11213,6 @@
       };
 
       syncLockVoiceGateUi(false);
-      var splashElNow = document.getElementById('tb-splash-screen');
-      var splashVisibleNow = Boolean(splashElNow && !splashElNow.classList.contains('is-leaving'));
-      if (!splashVisibleNow && !isListened && _dailyVoiceCtrl.attemptedAutoKey !== voiceKey && _dailyVoiceCtrl.status !== 'playing' && _dailyVoiceCtrl.status !== 'loading') {
-        _dailyVoiceCtrl.attemptedAutoKey = voiceKey;
-        startDailyVoicePlayback({ auto: true });
-      }
     }
 
     function renderRevokedLoggedOutScreen() {
@@ -12241,7 +12382,7 @@
 
     function renameBotTable(botId, newName) {
       if (!guardWriteAction('Rename Table')) return false;
-      var clean = String(newName || '').trim();
+      var clean = sanitizeUserText(newName, 100);
       if (!clean) { showToast('Please enter a table name'); return false; }
       var b = state.bots.find(function (x) { return x.id === botId; });
       if (!b) return false;
@@ -12253,7 +12394,7 @@
       saveBotsLocal();
       recordFolderSnapshot(b, 'RENAMED', 'Renamed "' + oldName + '" to "' + clean + '"', true);
       recordAudit('EDIT', b, 'Renamed table "' + oldName + '" to "' + clean + '"');
-      pushBotToSupabase(b);
+      scheduleSupabasePush(b);
       showToast('Renamed "' + clean + '"');
       return true;
     }
@@ -12261,7 +12402,7 @@
     function renameFolder(oldName, newName) {
       if (!guardWriteAction('Rename Folder')) return false;
       var oldClean = normalizeFolderName(oldName);
-      var newClean = String(newName || '').trim();
+      var newClean = sanitizeUserText(newName, 80);
       if (!newClean || newClean.toLowerCase() === 'all') {
         showToast('Please enter a valid folder name');
         return false;
@@ -15346,7 +15487,7 @@
                 '</div></div>';
             }).join('')) +
         '</div>';
-      } else {
+      } else if (m.tab === 'transmit') {
         var myDev = detectClientDeviceInfo();
         var myTg = myDev.telegramUser;
         tabContent = '<div style="padding:14px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:12px;display:flex;flex-direction:column;gap:8px;">' +
@@ -15398,16 +15539,49 @@
             '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600;cursor:pointer;"><span>Show Live Changes Strip on Main Dashboard</span><input type="checkbox" id="cfg-dash-strip" ' + (state.adminConfig.showDashboardActivity ? 'checked' : '') + ' /></label>' +
             '<button id="adm-force-sync" class="btn btn-green" style="width:100%;">' + icon('refresh', 14) + '<span>Force Immediate Sync All (Browser + Telegram + Supabase)</span></button>' +
           '</div>';
+      } else if (m.tab === 'settings') {
+        var allAdmFolders = getAllFolders();
+        tabContent = '<div style="padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="font-weight:800;font-size:13.5px;color:#0D47A1;display:flex;align-items:center;gap:6px;">' + icon('lock', 15) + '<span>App Access Code / PIN Settings</span></div>' +
+          '<div style="font-size:11.5px;color:#475569;">Required on every new session before showing folders, tables, or menus. 5 failed attempts lock input for 60s.</div>' +
+          '<label style="display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;background:#fff;padding:8px 10px;border-radius:8px;border:1px solid #DBEAFE;cursor:pointer;"><span>Require Access Code on Session Start</span><input type="checkbox" id="adm-pin-enabled" ' + (isAccessLockEnabled() ? 'checked' : '') + ' /></label>' +
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+            '<input id="adm-pin-inp" class="form-input mono" style="flex:1;min-width:150px;" value="' + esc(getConfiguredAccessCode()) + '" placeholder="Access Code PIN (default 1234)" />' +
+            '<button type="button" id="adm-pin-save" class="btn btn-dark-blue" style="font-size:12px;">Save Access Code</button>' +
+            '<button type="button" id="adm-pin-reset" class="btn btn-outline" style="font-size:12px;">Reset 1234</button>' +
+            '<button type="button" id="adm-pin-lock-now" class="btn btn-outline" style="font-size:12px;color:#0D47A1;">Lock Now</button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;display:flex;flex-direction:column;gap:10px;">' +
+          '<div style="font-weight:800;font-size:13.5px;color:#0F172A;display:flex;align-items:center;gap:6px;">' + icon('folder', 15) + '<span>Manage Folders (' + allAdmFolders.length + ')</span></div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<input id="adm-new-folder-inp" class="form-input" style="flex:1;min-width:170px;" placeholder="New folder name..." />' +
+            '<button type="button" id="adm-add-folder-btn" class="btn btn-green" style="font-size:12px;">+ Add Folder</button>' +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;">' +
+            allAdmFolders.map(function (fn) {
+              var cnt = state.bots.filter(function (b) { return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === fn.toLowerCase(); }).length;
+              return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#fff;border:1px solid #E2E8F0;border-radius:9px;">' +
+                '<div style="min-width:0;flex:1;"><strong style="font-size:13px;color:#0F172A;">' + esc(fn) + '</strong> <span class="folder-tbl-badge" style="margin-left:6px;">' + cnt + ' tbl</span></div>' +
+                '<div style="display:flex;gap:6px;">' +
+                  '<button type="button" class="btn btn-outline adm-ren-folder" data-fn="' + esc(fn) + '" style="padding:4px 9px;font-size:11px;">Rename</button>' +
+                  '<button type="button" class="btn btn-outline adm-del-folder" data-fn="' + esc(fn) + '" style="padding:4px 9px;font-size:11px;color:#DC2626;border-color:#FCA5A5;">Delete</button>' +
+                '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>' +
+        '</div>';
       }
 
       var admMgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
-        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', admMgr, admMgr + ' — Manager of Cyber Security') + '<div><h2 style="font-size:16px;font-weight:700;">Admin &amp; Cyber Security Control Center</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(t('cyber_mgr_title')) + ': <strong style="color:#FDE68A;">' + esc(admMgr) + '</strong> &middot; Live Phones, Telegram IDs &amp; Block Control</div></div></div>' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:10px;">' + assetImgHtml(BRAND_ASSETS.abdulfetaPhoto, 'abdulfeta-avatar abdulfeta-avatar-md', admMgr, admMgr + ' — Manager of Cyber Security') + '<div><h2 style="font-size:16px;font-weight:700;">Admin &amp; Cyber Security Control Center</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(t('cyber_mgr_title')) + ': <strong style="color:#FDE68A;">' + esc(admMgr) + '</strong> &middot; Access Code, Folders &amp; Audit</div></div></div>' +
           '<button class="icon-btn" id="adm-close">' + icon('close', 18) + '</button></header>' +
         '<div class="admin-tabs">' +
-          '<button class="admin-tab-btn ' + (m.tab === 'logs' ? 'active' : '') + '" data-admtab="logs">Activity Dashboard (' + state.auditLogs.length + ')</button>' +
-          '<button class="admin-tab-btn ' + (m.tab === 'users' ? 'active' : '') + '" data-admtab="users">Users &amp; Unwanted Block (' + userList.length + ')</button>' +
-          '<button class="admin-tab-btn ' + (m.tab === 'transmit' ? 'active' : '') + '" data-admtab="transmit">Transmit &amp; Sync Method</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'settings' ? 'active' : '') + '" data-admtab="settings">PIN &amp; Folders</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'logs' ? 'active' : '') + '" data-admtab="logs">Activity (' + state.auditLogs.length + ')</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'users' ? 'active' : '') + '" data-admtab="users">Users (' + userList.length + ')</button>' +
+          '<button class="admin-tab-btn ' + (m.tab === 'transmit' ? 'active' : '') + '" data-admtab="transmit">Transmit &amp; Sync</button>' +
         '</div>' +
         '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' + tabContent + '</div></div></div>';
 
@@ -15419,7 +15593,56 @@
         b.onclick = function () { m.tab = b.getAttribute('data-admtab'); renderAdminModal(m); };
       });
 
-      if (m.tab === 'logs') {
+      if (m.tab === 'settings') {
+        var pinEnEl = document.getElementById('adm-pin-enabled');
+        if (pinEnEl) pinEnEl.onchange = function (e) {
+          state.adminConfig.accessLockEnabled = !!e.target.checked;
+          pushSharedSecurityState('access_lock_toggle');
+          showToast('Access Code Lock ' + (state.adminConfig.accessLockEnabled ? 'Enabled' : 'Disabled'));
+        };
+        var pinSaveBtn = document.getElementById('adm-pin-save');
+        if (pinSaveBtn) pinSaveBtn.onclick = function () {
+          var nv = normalizeSecurityCode(document.getElementById('adm-pin-inp').value);
+          if (!nv) { showToast('Access Code cannot be empty'); return; }
+          var saved = setConfiguredAccessCode(nv);
+          recordAudit('AUTH', null, 'Updated app Access Code / PIN in Admin settings', { source: 'Admin' });
+          renderAdminModal(m);
+          showToast('Access Code updated to "' + saved + '"');
+        };
+        var pinResetBtn = document.getElementById('adm-pin-reset');
+        if (pinResetBtn) pinResetBtn.onclick = function () {
+          setConfiguredAccessCode('1234');
+          renderAdminModal(m);
+          showToast('Access Code reset to 1234');
+        };
+        var pinLockBtn = document.getElementById('adm-pin-lock-now');
+        if (pinLockBtn) pinLockBtn.onclick = lockAppNow;
+        var addFldAdm = document.getElementById('adm-add-folder-btn');
+        if (addFldAdm) addFldAdm.onclick = function () {
+          var fn = sanitizeUserText((document.getElementById('adm-new-folder-inp') || {}).value, 80);
+          if (!fn) { showToast('Enter a folder name'); return; }
+          if (createCustomFolder(fn, false)) {
+            renderDashboard();
+            renderAdminModal(m);
+          }
+        };
+        document.querySelectorAll('.adm-ren-folder').forEach(function (btn) {
+          btn.onclick = function () {
+            var fn = btn.getAttribute('data-fn');
+            if (fn) openModal('rename_item', { kind: 'folder', folderName: fn });
+          };
+        });
+        document.querySelectorAll('.adm-del-folder').forEach(function (btn) {
+          btn.onclick = async function () {
+            var fn = btn.getAttribute('data-fn');
+            if (!fn) return;
+            await deleteFolderWithBackup(fn);
+            renderDashboard();
+            renderAdminModal(m);
+            showToast('Deleted folder "' + fn + '"');
+          };
+        });
+      } else if (m.tab === 'logs') {
         var refLive = document.getElementById('adm-refresh-live');
         if (refLive) refLive.onclick = async function () {
           await pushActivityHeartbeat(0);
