@@ -255,65 +255,137 @@
       white-space: nowrap;
     }
 
-    /* Dashboard Grid */
-    .dashboard-main { max-width: 1240px; margin: 0 auto; padding: 18px 16px 104px; }
+    /* Dashboard 2-Column Card Grid (Table Notes Layout) */
+    .dashboard-main { max-width: 1120px; margin: 0 auto; padding: 14px 12px 104px; }
     .grid-meta {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 12px; font-size: 12px; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 10px; font-size: 12px; gap: 8px; flex-wrap: wrap;
     }
-    .grid-meta-title { font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #334155; }
-    .bot-grid {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+    .grid-meta-title { font-weight: 800; font-size: 13px; letter-spacing: 0.01em; color: #1E293B; display: inline-flex; align-items: center; gap: 6px; }
+    .bot-grid,
+    .folder-card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
     }
-    @media (min-width: 920px) { .bot-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
-    @media (max-width: 580px) { .bot-grid { grid-template-columns: 1fr; } }
+    @media (min-width: 640px) {
+      .bot-grid,
+      .folder-card-grid { gap: 14px; }
+    }
 
-    .bot-card {
+    .bot-card,
+    .folder-grid-card {
+      background: #F8FAFC;
+      border-radius: 12px;
+      padding: 12px 13px;
+      min-height: 98px;
+      border: 1px solid #E5EAF2;
+      box-shadow: 0 2px 7px rgba(15, 23, 42, 0.06);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+    }
+    .bot-card:hover,
+    .folder-grid-card:hover {
       background: #FFFFFF;
-      border-radius: 14px; padding: 15px;
-      border: 1px solid #E2E8F0;
-      border-top: 3px solid #2563EB;
-      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
-      display: flex; flex-direction: column; justify-content: space-between;
-      cursor: pointer; position: relative; transition: transform 0.16s, box-shadow 0.16s, border-color 0.16s;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+      border-color: #CBD5E1;
     }
-    .bot-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1); border-color: #CBD5E1; }
-    .bot-card-title { font-size: 15.5px; font-weight: 800; color: #0F172A; margin-bottom: 4px; letter-spacing: -0.01em; }
-    .bot-card-desc { font-size: 12px; color: var(--text-muted); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .bot-card-meta-line {
-      margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      font-size: 11.5px; font-weight: 600; color: #475569;
+    .folder-grid-card.is-selected {
+      background: #EFF6FF;
+      border-color: #93C5FD;
     }
-    .status-dot-inline {
-      width: 7px; height: 7px; border-radius: 999px; display: inline-block; flex-shrink: 0;
+    .bot-card.is-menu-open,
+    .folder-grid-card.is-menu-open {
+      z-index: 65;
     }
-    .badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-    .status-chip {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
-      text-transform: uppercase;
+    .tn-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 6px;
+      position: relative;
     }
-    .chip-online { background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; }
-    .chip-sim { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
-    .chip-folder { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; text-transform: none; }
-    .chip-user { background: #F5F3FF; color: #6D28D9; border: 1px solid #DDD6FE; font-family: 'JetBrains Mono', monospace; text-transform: none; }
+    .bot-card-title {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #0F172A;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+      flex: 1;
+      min-width: 0;
+    }
+    .tn-dots-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 9999px;
+      color: #64748B;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin: -3px -5px 0 0;
+      transition: background 0.14s, color 0.14s;
+    }
+    .tn-dots-btn:hover {
+      background: #E2E8F0;
+      color: #0F172A;
+    }
     .card-footer {
-      margin-top: 12px; padding-top: 10px; border-top: 1px solid #F1F5F9;
-      display: flex; align-items: center; justify-content: space-between;
-      font-size: 11.5px; color: #64748B; font-variant-numeric: tabular-nums;
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #64748B;
+      font-variant-numeric: tabular-nums;
+    }
+    .tn-card-time {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
     .quick-table-btn {
-      width: 32px; height: 32px; border-radius: 9px;
-      background: #EFF6FF; color: var(--blue-primary);
-      display: inline-flex; align-items: center; justify-content: center; transition: all 0.16s;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: transparent;
+      color: #475569;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: color 0.14s, background 0.14s;
     }
-    .bot-card:hover .quick-table-btn { background: #1D4ED8; color: #fff; }
+    .bot-card:hover .quick-table-btn,
+    .folder-grid-card:hover .quick-table-btn {
+      color: #1565C0;
+      background: #EFF6FF;
+    }
 
     /* Context Dropdown Menu */
     .dropdown-menu {
-      position: absolute; right: 0; top: 32px; width: 192px; z-index: 60;
+      position: absolute; right: 0; top: 28px; width: 190px; max-width: calc(100vw - 32px); z-index: 60;
       background: #fff; border-radius: 12px; border: 1px solid var(--border);
       box-shadow: 0 14px 32px rgba(15,23,42,0.18); padding: 4px 0;
+    }
+    .bot-grid > :nth-child(odd) .dropdown-menu,
+    .folder-card-grid > :nth-child(odd) .dropdown-menu {
+      right: auto;
+      left: 0;
     }
     .dropdown-item {
       width: 100%; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #334155;
@@ -323,22 +395,22 @@
     .dropdown-item.danger { color: #DC2626; }
     .dropdown-item.danger:hover { background: #FEF2F2; }
 
-    /* FABs */
+    /* Circular Floating Action Buttons */
     .fab-stack {
-      position: fixed; bottom: 24px; right: 24px; z-index: 35;
+      position: fixed; bottom: 22px; right: 20px; z-index: 35;
       display: flex; flex-direction: column; align-items: center; gap: 12px;
     }
     .fab-secondary {
-      width: 46px; height: 46px; border-radius: 14px;
-      background: #fff; color: var(--blue-mid); border: 1px solid #CBD5E1;
-      box-shadow: 0 6px 16px rgba(15,23,42,0.14);
-      display: flex; align-items: center; justify-content: center; transition: transform 0.15s;
+      width: 46px; height: 46px; border-radius: 9999px;
+      background: #FFFFFF; color: #1565C0; border: 1px solid #DBEAFE;
+      box-shadow: 0 5px 16px rgba(15,23,42,0.16);
+      display: flex; align-items: center; justify-content: center; transition: transform 0.15s, box-shadow 0.15s;
     }
     .fab-primary {
-      width: 54px; height: 54px; border-radius: 16px;
-      background: linear-gradient(135deg, #2563EB 0%, #1E3A8A 100%); color: #fff;
-      box-shadow: 0 8px 22px rgba(37, 99, 235, 0.4);
-      display: flex; align-items: center; justify-content: center; transition: transform 0.15s;
+      width: 56px; height: 56px; border-radius: 9999px;
+      background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%); color: #fff;
+      box-shadow: 0 8px 22px rgba(21, 101, 192, 0.44);
+      display: flex; align-items: center; justify-content: center; transition: transform 0.15s, box-shadow 0.15s;
     }
     .fab-secondary:hover, .fab-primary:hover { transform: scale(1.06); }
 
@@ -1669,7 +1741,8 @@
       undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
       redo: '<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>',
       mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
-      selectRow: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/>'
+      selectRow: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/>',
+      sheetNote: '<path d="M14 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><path d="M3 9h12"/><path d="M3 13h7"/><path d="M3 17h5"/><path d="M8 4v16"/><path d="m18.2 13.8 2 2L14 22l-2.8.8.8-2.8 6.2-6.2Z"/>'
     };
 
     function icon(name, size) {
@@ -2447,6 +2520,8 @@
       gestureUnlocked: false,
       speechUnlocked: false,
       lastGesturePlayAt: 0,
+      cloudTtsDisabledUntil: 0,
+      cloudTtsQuotaExceeded: false,
       splashDismissed: false,
       splashTimer: null,
       status: 'idle', // 'idle' | 'loading' | 'playing' | 'autoplay_blocked' | 'completed'
@@ -2597,8 +2672,30 @@
       return bytes.buffer;
     }
 
+    function isValidAudioArrayBuffer(ab) {
+      if (!ab || !ab.byteLength || ab.byteLength < 44) return false;
+      try {
+        var b = new Uint8Array(ab, 0, Math.min(12, ab.byteLength));
+        // RIFF....WAVE
+        if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+            b[8] === 0x57 && b[9] === 0x41 && b[10] === 0x56 && b[11] === 0x45) {
+          return true;
+        }
+        // ID3 or MP3 frame sync
+        if ((b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) || (b[0] === 0xFF && (b[1] & 0xE0) === 0xE0)) {
+          return true;
+        }
+        // OggS or fLaC
+        if ((b[0] === 0x4F && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53) ||
+            (b[0] === 0x66 && b[1] === 0x4C && b[2] === 0x61 && b[3] === 0x43)) {
+          return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+
     function storeVoiceArrayBuffer(spokenText, ab) {
-      if (!ab || !ab.byteLength || ab.byteLength < 64) return null;
+      if (!isValidAudioArrayBuffer(ab)) return null;
       _dailyVoiceCtrl.arrayBufMap[spokenText] = ab;
       if (!_dailyVoiceCtrl.blobUrlMap[spokenText] && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
         try {
@@ -2611,6 +2708,9 @@
     function fetchDailyVoiceArrayBuffer(spokenText) {
       if (!spokenText) return Promise.resolve(null);
       if (_dailyVoiceCtrl.arrayBufMap[spokenText]) return Promise.resolve(_dailyVoiceCtrl.arrayBufMap[spokenText]);
+      if (_dailyVoiceCtrl.cloudTtsDisabledUntil && Date.now() < _dailyVoiceCtrl.cloudTtsDisabledUntil) {
+        return Promise.resolve(null);
+      }
       if (_dailyVoiceCtrl.inFlightBufMap[spokenText]) return _dailyVoiceCtrl.inFlightBufMap[spokenText];
       if (typeof fetch !== 'function') return Promise.resolve(null);
       if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') return Promise.resolve(null);
@@ -2618,32 +2718,32 @@
       var streamUrl = '/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice');
       var p = fetch(streamUrl)
         .then(function (res) {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
+          if (!res || !res.ok) {
+            var status = res ? res.status : 0;
+            if (status === 429 || status === 503 || status === 400 || status === 403 || status === 502) {
+              _dailyVoiceCtrl.cloudTtsDisabledUntil = Date.now() + (status === 429 ? 15 * 60 * 1000 : 2 * 60 * 1000);
+              if (status === 429) _dailyVoiceCtrl.cloudTtsQuotaExceeded = true;
+            }
+            return null;
+          }
+          var ct = '';
+          try { ct = res.headers && typeof res.headers.get === 'function' ? String(res.headers.get('content-type') || '').toLowerCase() : ''; } catch (eHdr) {}
+          if (ct.indexOf('application/json') !== -1) {
+            return res.json().then(function (data) {
+              if (data && data.ok && data.audioBase64) return base64ToArrayBuffer(data.audioBase64);
+              return null;
+            }).catch(function () { return null; });
+          }
           if (typeof res.arrayBuffer === 'function') {
             return res.arrayBuffer();
           }
-          return res.json().then(function (data) {
-            if (data && data.ok && data.audioBase64) return base64ToArrayBuffer(data.audioBase64);
-            return null;
-          });
+          return null;
         })
         .then(function (ab) {
           return storeVoiceArrayBuffer(spokenText, ab);
         })
         .catch(function () {
-          return fetch('/api/tts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: spokenText, voice: 'Kore', style: 'Warm, clear Ethiopian Amharic voice' })
-          })
-            .then(function (r) { return r.ok ? r.json().catch(function () { return null; }) : null; })
-            .then(function (d) {
-              if (d && d.ok && d.audioBase64) {
-                return storeVoiceArrayBuffer(spokenText, base64ToArrayBuffer(d.audioBase64));
-              }
-              return null;
-            })
-            .catch(function () { return null; });
+          return null;
         })
         .then(function (finalAb) {
           delete _dailyVoiceCtrl.inFlightBufMap[spokenText];
@@ -2961,6 +3061,7 @@
 
       function tryWebAudioPlayback(arrayBuf, fallbackToDomOnFail) {
         if (myToken !== _dailyVoiceCtrl.playToken) return false;
+        if (!isValidAudioArrayBuffer(arrayBuf)) return false;
         var ctx = getOrCreateSharedAudioCtx();
         if (!ctx || typeof ctx.decodeAudioData !== 'function') return false;
         if (ctx.state === 'suspended' && isAuto && !fromGesture) {
@@ -2971,7 +3072,13 @@
             ? ctx.resume().catch(function () {})
             : Promise.resolve();
           var copyBuf = arrayBuf.slice(0);
-          ctx.decodeAudioData(
+          var decodeFailHandled = false;
+          var onDecodeErr = function () {
+            if (decodeFailHandled || myToken !== _dailyVoiceCtrl.playToken) return;
+            decodeFailHandled = true;
+            trySpeechSynthesisFallback();
+          };
+          var decPromise = ctx.decodeAudioData(
             copyBuf,
             function (audioBuffer) {
               if (myToken !== _dailyVoiceCtrl.playToken) return;
@@ -3029,11 +3136,11 @@
                 }
               });
             },
-            function () {
-              if (myToken !== _dailyVoiceCtrl.playToken) return;
-              trySpeechSynthesisFallback();
-            }
+            onDecodeErr
           );
+          if (decPromise && typeof decPromise.catch === 'function') {
+            decPromise.catch(onDecodeErr);
+          }
           return true;
         } catch (eDec) {
           return false;
@@ -3148,12 +3255,27 @@
       if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
 
       var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
-      if (!isFileProto && typeof fetch === 'function') {
-        var streamUrl = '/api/tts?text=' + encodeURIComponent(promptInfo.spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice');
-        var immediateUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText] || streamUrl;
-        warmDailyVoiceCache(promptInfo.spokenText);
-        // Always start HTML5 <audio> SYNCHRONOUSLY inside gesture / auto tick so user activation never expires
-        playDomAudioElement(immediateUrl, true);
+      var cachedBlobUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+      if (cachedBlobUrl) {
+        playDomAudioElement(cachedBlobUrl, true);
+        return;
+      }
+
+      if (!isFileProto && typeof fetch === 'function' && !(_dailyVoiceCtrl.cloudTtsDisabledUntil && Date.now() < _dailyVoiceCtrl.cloudTtsDisabledUntil)) {
+        fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
+          if (myToken !== _dailyVoiceCtrl.playToken) return;
+          if (ab && tryWebAudioPlayback(ab, true)) return;
+          var readyBlob = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+          if (readyBlob) {
+            playDomAudioElement(readyBlob, false);
+            return;
+          }
+          if (isAuto && !fromGesture) {
+            markAutoplayBlocked();
+          } else {
+            trySpeechSynthesisFallback();
+          }
+        });
         return;
       }
 
@@ -3280,6 +3402,7 @@
       confirmDeleteFolder: '',
       sortOrder: 'recent',
       activeCardMenuId: null,
+      activeFolderMenuId: null,
       dashSummaryCollapsed: false,
       dashDayBreakdownOpen: true,
       previewDayOffset: 0,
@@ -6576,40 +6699,89 @@
       '</section>';
 
       var healthSummary = analyzeFolderHealth().summary;
+      function getFolderLatestUpdatedAt(folderName) {
+        var fLow = String(folderName || '').trim().toLowerCase();
+        var latestMs = 0;
+        var latestIso = '';
+        state.bots.forEach(function (b) {
+          if (!b || isBotTombstoned(b)) return;
+          if (normalizeFolderName(b.folder).toLowerCase() !== fLow) return;
+          var ms = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          if (ms > latestMs) { latestMs = ms; latestIso = b.updatedAt; }
+        });
+        return latestIso;
+      }
+
+      function renderFolderCardHtml(f) {
+        var fLower = f.toLowerCase();
+        var folderBotsAll = state.bots.filter(function (b) {
+          return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === fLower;
+        });
+        var fLocked = isFolderLocked(f);
+        var fUnlocked = isFolderUnlocked(f);
+        var needsUnlock = fLocked && !fUnlocked;
+        var isSel = state.selectedFolder === f;
+        var latestIso = getFolderLatestUpdatedAt(f);
+        var fUndoTarget = getFolderUndoTarget(f);
+        var fRedoTarget = getFolderRedoTarget(f);
+        var timeLabel = latestIso ? (timeAgo(latestIso) + ' · ' + folderBotsAll.length + ' tbl') : ('0 tables');
+
+        var isMenuOpen = state.activeFolderMenuId === f;
+        var fHtml = '<div class="folder-grid-card' + (isSel ? ' is-selected' : '') + (isMenuOpen ? ' is-menu-open' : '') + '" data-folder="' + esc(f) + '">' +
+          '<div class="tn-card-top">' +
+            '<div class="bot-card-title">' + (fLocked ? (fUnlocked ? '🔓 ' : '🔒 ') : '') + esc(f) + '</div>' +
+            '<button type="button" class="tn-dots-btn" data-folder-menu="' + esc(f) + '" title="Folder options">' + icon('dotsV', 16) + '</button>';
+
+        if (state.activeFolderMenuId === f) {
+          fHtml += '<div class="dropdown-menu" data-stop-card="1">' +
+            '<button type="button" class="dropdown-item" data-folder-menu-act="open" data-folder-name="' + esc(f) + '">' + icon('folder', 14) + '<span>Open Folder (' + folderBotsAll.length + ')</span></button>' +
+            '<button type="button" class="dropdown-item" data-folder-menu-act="rename" data-folder-name="' + esc(f) + '">' + icon('edit', 14) + '<span>Rename Folder</span></button>' +
+            '<button type="button" class="dropdown-item" data-folder-menu-act="add_table" data-folder-name="' + esc(f) + '">' + icon('plus', 14) + '<span>New Table Here</span></button>' +
+            (fUndoTarget ? '<button type="button" class="dropdown-item" data-folder-menu-act="undo" data-folder-name="' + esc(f) + '">' + icon('undo', 14) + '<span>Undo Last Change</span></button>' : '') +
+            (fRedoTarget ? '<button type="button" class="dropdown-item" data-folder-menu-act="redo" data-folder-name="' + esc(f) + '">' + icon('redo', 14) + '<span>Redo Change</span></button>' : '') +
+            '<button type="button" class="dropdown-item" data-folder-menu-act="lock" data-folder-name="' + esc(f) + '">' + icon('lock', 14) + '<span>Folder Lock</span></button>' +
+            '<button type="button" class="dropdown-item" data-folder-menu-act="reports" data-folder-name="' + esc(f) + '">' + icon('chart', 14) + '<span>Folder Reports</span></button>' +
+            '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
+            '<button type="button" class="dropdown-item danger" data-folder-menu-act="delete" data-folder-name="' + esc(f) + '">' + icon('trash', 14) + '<span>Delete Folder</span></button>' +
+          '</div>';
+        }
+
+        fHtml += '</div>' +
+          '<div class="card-footer">' +
+            '<span class="tn-card-time">' + esc(timeLabel) + '</span>' +
+            '<span class="quick-table-btn" title="Open Folder">' + icon(needsUnlock ? 'lock' : 'sheetNote', 17) + '</span>' +
+          '</div>' +
+        '</div>';
+        return fHtml;
+      }
+
       html += '<section class="folders-bar" aria-label="Homepage Folders">' +
         '<div class="folders-bar-top">' +
           '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
             '<span class="folder-icon-tile" style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#1E3A8A,#2563EB);">' + icon('folder', 17) + '</span>' +
             '<div>' +
-              '<div style="font-size:14px;font-weight:800;color:#0F172A;letter-spacing:-0.01em;">Folder Workspace Directory</div>' +
-              '<div class="num-tab" style="font-size:11.5px;color:#64748B;font-weight:600;">' + folders.length + ' folders &middot; ' + totalTablesCount + ' tables &middot; ' + totalRowsCount + ' rows</div>' +
+              '<div style="font-size:14px;font-weight:800;color:#0F172A;letter-spacing:-0.01em;">Folders (' + folders.length + ')</div>' +
+              '<div class="num-tab" style="font-size:11.5px;color:#64748B;font-weight:600;">' + totalTablesCount + ' tables &middot; ' + totalRowsCount + ' rows</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+            (state.selectedFolder !== 'all' ? '<button type="button" class="folder-mini-btn" data-folder="all">' + icon('grid', 12) + '<span>All Tables (' + totalTablesCount + ')</span></button>' : '') +
             '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Add, manage or delete folders">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>' +
             '<button type="button" class="folder-mini-btn" id="btn-folder-lock-bar" style="background:#FFFBEB;border-color:#FCD34D;color:#92400E;" title="Folder Lock &amp; Change Code">' + icon('lock', 12) + '<span>Folder Lock</span></button>' +
             '<button type="button" class="folder-mini-btn" id="btn-folder-history-bar" style="background:#ECFDF5;border-color:#A7F3D0;color:#047857;" title="Open Folder History, Missing Files &amp; Restore">' + icon('history', 12) + '<span>' + esc(t('history_restore')) + '</span>' +
               ((healthSummary.missingFiles + healthSummary.changedFiles) > 0 ? '<span class="folder-count" style="background:#F59E0B;color:#fff;">' + (healthSummary.missingFiles + healthSummary.changedFiles) + '</span>' : '') +
             '</button>' +
           '</div>' +
-        '</div>' +
-        '<div class="folders-inner">' +
-          '<button class="folder-tab ' + (state.selectedFolder === 'all' ? 'active' : '') + '" data-folder="all">' + icon('grid', 12) + '<span>' + esc(t('all_folders')) + '</span> <span class="folder-count">' + totalTablesCount + '</span></button>';
+        '</div>';
 
-      folders.forEach(function (f) {
-        var pal = getFolderPalette(f);
-        var fLower = f.toLowerCase();
-        var cnt = state.bots.filter(function (b) { return !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === fLower; }).length;
-        var fLocked = isFolderLocked(f);
-        var fUnlocked = isFolderUnlocked(f);
-        var lockMark = fLocked ? (fUnlocked ? ' 🔓' : ' 🔒') : '';
-        var isSel = state.selectedFolder === f;
-        html += '<button class="folder-tab ' + (isSel ? 'active' : '') + '" data-folder="' + esc(f) + '" style="' + (isSel ? 'background:' + pal.grad + ';' : '') + '">' +
-          '<span style="width:8px;height:8px;border-radius:999px;background:' + (isSel ? '#fff' : pal.accent) + ';flex-shrink:0;"></span>' +
-          '<span>' + esc(f) + lockMark + '</span> <span class="folder-count">' + cnt + '</span>' +
-        '</button>';
-      });
-      html += '</div></section>';
+      if (folders.length === 0) {
+        html += '<div style="text-align:center;padding:16px;color:#64748B;font-size:12px;">No folders yet. Tap "+ Add Folder" to create one.</div>';
+      } else {
+        html += '<div class="folder-card-grid">' +
+          folders.map(function (f) { return renderFolderCardHtml(f); }).join('') +
+        '</div>';
+      }
+      html += '</section>';
 
       function buildDashboardAuditStripHtml() {
         var recentChanges = state.auditLogs.slice(0, 6);
@@ -6681,140 +6853,65 @@
         html += buildDashboardAuditStripHtml();
       }
 
-      function renderBotCardHtml(b, accentColor) {
+      function renderBotCardHtml(b) {
         var bFolder = b.folder || 'General';
         var cardFolderLocked = isFolderLocked(bFolder) && !isFolderUnlocked(bFolder);
-        var stDotColor = b.botStatus === 'online' ? '#10B981' : '#2563EB';
-        var stTxt = b.botStatus === 'online' ? 'Online' : 'Simulator';
-        var topAccent = cardFolderLocked ? '#D97706' : (b.botStatus === 'online' ? '#10B981' : (accentColor || '#2563EB'));
-        var hasEcCol = (b.columns || []).some(isEthiopianCol);
-        var metaParts = [
-          '<span style="display:inline-flex;align-items:center;gap:5px;color:' + (b.botStatus === 'online' ? '#047857' : '#1D4ED8') + ';font-weight:700;"><span class="status-dot-inline" style="background:' + stDotColor + ';"></span>' + stTxt + '</span>'
-        ];
-        if (cardFolderLocked) metaParts.push('<span style="color:#B45309;font-weight:700;">Locked</span>');
-        if (b.webhookActive) metaParts.push('<span style="color:#059669;font-weight:700;">Webhook</span>');
-        if (hasEcCol) metaParts.push('<span style="color:#047857;font-weight:700;">EC Date</span>');
-        if (b.botUsername) metaParts.push('<span class="mono" style="color:#6D28D9;">' + esc(b.botUsername) + '</span>');
-        else if (b.lastEditedBy) metaParts.push('<span class="mono" style="color:#64748B;">' + esc(b.lastEditedBy) + '</span>');
-
-        var cHtml = '<div class="bot-card" data-open-bot="' + esc(b.id) + '" style="border-top-color:' + topAccent + ';">' +
-          '<div><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;position:relative;">' +
-            '<div style="min-width:0;flex:1;">' +
-              '<div class="bot-card-title truncate">' + (cardFolderLocked ? '🔒 ' : '') + esc(b.name) + '</div>' +
-              '<div class="bot-card-desc">' + esc(b.description || 'Telegram Bot Table') + '</div>' +
-            '</div>' +
-            '<button class="icon-btn" style="color:#64748B;width:30px;height:30px;" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 17) + '</button>';
+        var isCardMenuOpen = state.activeCardMenuId === b.id;
+        var cHtml = '<div class="bot-card' + (isCardMenuOpen ? ' is-menu-open' : '') + '" data-open-bot="' + esc(b.id) + '">' +
+          '<div class="tn-card-top">' +
+            '<div class="bot-card-title">' + (cardFolderLocked ? '🔒 ' : '') + esc(b.name) + '</div>' +
+            '<button type="button" class="tn-dots-btn" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 16) + '</button>';
 
         if (state.activeCardMenuId === b.id) {
           cHtml += '<div class="dropdown-menu" data-stop-card="1">' +
-            '<button class="dropdown-item" data-menu-action="history" data-bot-id="' + esc(b.id) + '">' + icon('history', 14) + '<span>File Version History</span></button>' +
-            '<button class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename / Settings</span></button>' +
-            '<button class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
-            '<button class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
+            '<button type="button" class="dropdown-item" data-menu-action="rename_quick" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename</span></button>' +
+            '<button type="button" class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('settings', 14) + '<span>Table Settings</span></button>' +
+            '<button type="button" class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
+            '<button type="button" class="dropdown-item" data-menu-action="history" data-bot-id="' + esc(b.id) + '">' + icon('history', 14) + '<span>File Version History</span></button>' +
+            '<button type="button" class="dropdown-item" data-menu-action="csv" data-bot-id="' + esc(b.id) + '">' + icon('csv', 14) + '<span>Export CSV</span></button>' +
             '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
-            '<button class="dropdown-item danger" data-menu-action="del" data-bot-id="' + esc(b.id) + '">' + icon('trash', 14) + '<span>Delete Table</span></button>' +
+            '<button type="button" class="dropdown-item danger" data-menu-action="del" data-bot-id="' + esc(b.id) + '">' + icon('trash', 14) + '<span>Delete Table</span></button>' +
           '</div>';
         }
 
         cHtml += '</div>' +
-          '<div class="bot-card-meta-line">' + metaParts.join('<span style="color:#CBD5E1;">&middot;</span>') + '</div>' +
-          '</div>' +
           '<div class="card-footer">' +
-            (cardFolderLocked
-              ? '<span style="color:#B45309;font-weight:700;">Tap to unlock folder</span>'
-              : '<span class="num-tab"><strong>' + b.rows.length + '</strong> rows &middot; <strong>' + b.columns.length + '</strong> cols &middot; ' + timeAgo(b.updatedAt) + '</span>') +
-            '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'table', 16) + '</span>' +
+            '<span class="tn-card-time">' + (cardFolderLocked ? 'Locked folder' : esc(timeAgo(b.updatedAt))) + '</span>' +
+            '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'sheetNote', 17) + '</span>' +
           '</div></div>';
         return cHtml;
       }
 
       var selFolder = state.selectedFolder || 'all';
       if (selFolder === 'all') {
-        var visibleFolders = folders.filter(function (f) {
-          if (!q && state.filterType === 'all') return true;
-          var fl = f.toLowerCase();
-          return filtered.some(function (b) { return normalizeFolderName(b.folder).toLowerCase() === fl; });
-        });
+        if (state.confirmDeleteFolder) {
+          var delPreviewCount = state.bots.filter(function (b) {
+            return !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === String(state.confirmDeleteFolder || '').trim().toLowerCase();
+          }).length;
+          html += '<div style="margin:0 0 14px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+            '<div style="font-size:12.5px;font-weight:700;color:#991B1B;">Delete folder "' + esc(state.confirmDeleteFolder) + '" (' + delPreviewCount + ' table(s) will be archived to Deleted Bin)?</div>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<button type="button" id="dash-cancel-del-folder" class="btn btn-outline" style="padding:5px 12px;font-size:11.5px;">Cancel</button>' +
+              '<button type="button" id="dash-confirm-del-folder" class="btn btn-red" style="padding:5px 12px;font-size:11.5px;">' + icon('trash', 13) + '<span>Yes, Delete Folder</span></button>' +
+            '</div>' +
+          '</div>';
+        }
 
-        if (visibleFolders.length === 0) {
-          html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:440px;margin:32px auto;border:1px solid #E2E8F0;">' +
+        html += '<div class="grid-meta">' +
+          '<span class="grid-meta-title">' + icon('table', 15) + '<span>All Tables (' + filtered.length + ')</span></span>' +
+          '<span style="color:#64748B;font-size:11.5px;">' + esc(t('tap_card')) + '</span>' +
+        '</div>';
+
+        if (filtered.length === 0) {
+          html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:440px;margin:24px auto;border:1px solid #E2E8F0;">' +
             '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1D4ED8;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
-            '<h3 style="font-weight:800;font-size:17px;margin-bottom:6px;">No matching folders or tables</h3>' +
-            '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Create a new table or clear your search filter.</p>' +
-            '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
+            '<h3 style="font-weight:800;font-size:17px;margin-bottom:6px;">No matching tables</h3>' +
+            '<p style="font-size:12px;color:#64748B;margin-bottom:18px;">Tap the blue + button to create a new table or clear your search filter.</p>' +
+            '<button class="btn btn-primary" id="btn-empty-create">+ Create Table</button></div>';
         } else {
-          html += '<div class="folder-sections-stack">';
-          visibleFolders.forEach(function (f) {
-            var pal = getFolderPalette(f);
-            var fl = f.toLowerCase();
-            var folderBots = filtered.filter(function (b) { return normalizeFolderName(b.folder).toLowerCase() === fl; });
-            var folderRowsTotal = folderBots.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
-            var fLocked = isFolderLocked(f);
-            var fUnlocked = isFolderUnlocked(f);
-            var needsUnlock = fLocked && !fUnlocked;
-            var isCollapsed = !!state.collapsedFolders[f];
-            var isEthFolder = isFolderEthiopianCalendar(f);
-
-            var fUndoTarget = getFolderUndoTarget(f);
-            var fRedoTarget = getFolderRedoTarget(f);
-            html += '<section class="folder-section-box" style="border-color:' + pal.border + ';">' +
-              '<div class="folder-section-head' + (isCollapsed ? ' is-collapsed' : '') + '" style="background:' + pal.soft + ';border-bottom-color:' + pal.border + ';">' +
-                '<div style="display:flex;align-items:center;gap:12px;min-width:0;flex:1;">' +
-                  '<button type="button" class="folder-icon-tile" data-folder="' + esc(f) + '" style="background:' + pal.grad + ';cursor:pointer;" title="Focus folder ' + esc(f) + '">' + icon(needsUnlock ? 'lock' : 'folder', 20) + '</button>' +
-                  '<div style="min-width:0;">' +
-                    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-                      '<button type="button" data-folder="' + esc(f) + '" style="font-size:16px;font-weight:800;color:' + pal.text + ';letter-spacing:-0.01em;text-align:left;">' + esc(f) + '</button>' +
-                      (isEthFolder ? '<span class="ec-inline-tag">EC Calendar</span>' : '') +
-                      (fLocked ? '<span style="font-size:11px;font-weight:700;color:' + (fUnlocked ? '#047857' : '#B45309') + ';">' + (fUnlocked ? 'Unlocked' : 'Locked') + '</span>' : '') +
-                    '</div>' +
-                    '<div class="num-tab" style="font-size:11.5px;color:#475569;font-weight:600;margin-top:2px;">' +
-                      folderBots.length + ' ' + (folderBots.length === 1 ? 'table' : 'tables') + ' &middot; ' + folderRowsTotal + ' rows' +
-                    '</div>' +
-                  '</div>' +
-                '</div>' +
-                '<div class="folder-head-actions">' +
-                  '<button type="button" class="folder-icon-btn" data-folder-undo="' + esc(f) + '" title="' + (fUndoTarget ? ('Undo last change in ' + esc(fUndoTarget.name)) : 'Undo in ' + esc(f)) + '"' + (!fUndoTarget ? ' disabled' : '') + '>' + icon('undo', 15) + '</button>' +
-                  '<button type="button" class="folder-icon-btn" data-folder-redo="' + esc(f) + '" title="' + (fRedoTarget ? ('Redo change in ' + esc(fRedoTarget.name)) : 'Redo in ' + esc(f)) + '"' + (!fRedoTarget ? ' disabled' : '') + '>' + icon('redo', 15) + '</button>' +
-                  '<button type="button" class="folder-mini-btn primary" data-add-table-folder="' + esc(f) + '" title="Create table inside ' + esc(f) + '">' + icon('plus', 12) + '<span>Table</span></button>' +
-                  '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(f) + '" title="Open folder report">' + icon('chart', 12) + '<span>Reports</span></button>' +
-                  '<button type="button" class="folder-mini-btn" data-lock-folder="' + esc(f) + '" title="Folder lock settings">' + icon('lock', 12) + '<span>Lock</span></button>' +
-                  '<button type="button" class="folder-mini-btn danger" data-quick-del-folder="' + esc(f) + '" title="Delete folder">' + icon('trash', 12) + '<span>Delete</span></button>' +
-                  '<button type="button" class="folder-mini-btn" data-toggle-folder="' + esc(f) + '" title="' + (isCollapsed ? 'Expand folder' : 'Collapse folder') + '">' + (isCollapsed ? 'Show' : 'Hide') + '</button>' +
-                '</div>' +
-              '</div>';
-
-            if (state.confirmDeleteFolder === f) {
-              html += '<div style="margin:12px 16px 0;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
-                '<div style="font-size:12.5px;font-weight:700;color:#991B1B;">Delete folder "' + esc(f) + '" (' + folderBots.length + ' table(s) will be archived to Deleted Bin)?</div>' +
-                '<div style="display:flex;gap:8px;">' +
-                  '<button type="button" id="dash-cancel-del-folder" class="btn btn-outline" style="padding:5px 12px;font-size:11.5px;">Cancel</button>' +
-                  '<button type="button" id="dash-confirm-del-folder" class="btn btn-red" style="padding:5px 12px;font-size:11.5px;">' + icon('trash', 13) + '<span>Yes, Delete Folder</span></button>' +
-                '</div>' +
-              '</div>';
-            }
-
-            if (!isCollapsed) {
-              html += '<div class="folder-section-body">';
-              if (needsUnlock) {
-                html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;">' +
-                  '<div style="font-size:12.5px;font-weight:700;color:#92400E;">Folder "' + esc(f) + '" is protected with a folder access code (' + folderBots.length + ' tables).</div>' +
-                  '<button type="button" class="btn btn-dark-blue" data-folder="' + esc(f) + '" style="padding:6px 12px;font-size:11.5px;">' + icon('lock', 12) + '<span>Open &amp; Unlock</span></button>' +
-                '</div>';
-              } else if (folderBots.length === 0) {
-                html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;background:#FFFFFF;border:1px dashed #CBD5E1;border-radius:12px;">' +
-                  '<span style="font-size:12.5px;color:#64748B;font-weight:600;">No tables in "' + esc(f) + '" yet.</span>' +
-                  '<button type="button" class="btn btn-primary" data-add-table-folder="' + esc(f) + '" style="padding:6px 12px;font-size:11.5px;">' + icon('plus', 13) + '<span>Create Table in ' + esc(f) + '</span></button>' +
-                '</div>';
-              } else {
-                html += '<div class="bot-grid">' +
-                  folderBots.map(function (b) { return renderBotCardHtml(b, pal.accent); }).join('') +
-                '</div>';
-              }
-              html += '</div>';
-            }
-            html += '</section>';
-          });
-          html += '</div>';
+          html += '<div class="bot-grid">' +
+            filtered.map(function (b) { return renderBotCardHtml(b); }).join('') +
+          '</div>';
         }
       } else {
         var selPal = getFolderPalette(selFolder);
@@ -6838,6 +6935,7 @@
           '<div class="folder-head-actions">' +
             '<button type="button" class="folder-icon-btn on-dark" data-folder-undo="' + esc(selFolder) + '" title="' + (selUndoTarget ? ('Undo last change in ' + esc(selUndoTarget.name)) : 'Undo in ' + esc(selFolder)) + '"' + (!selUndoTarget ? ' disabled' : '') + '>' + icon('undo', 16) + '</button>' +
             '<button type="button" class="folder-icon-btn on-dark" data-folder-redo="' + esc(selFolder) + '" title="' + (selRedoTarget ? ('Redo change in ' + esc(selRedoTarget.name)) : 'Redo in ' + esc(selFolder)) + '"' + (!selRedoTarget ? ' disabled' : '') + '>' + icon('redo', 16) + '</button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-rename-cur-folder" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('edit', 12) + '<span>Rename</span></button>' +
             '<button type="button" class="folder-mini-btn" data-add-table-folder="' + esc(selFolder) + '" style="background:#fff;border-color:#fff;color:#0F172A;">' + icon('plus', 12) + '<span>Add Table</span></button>' +
             '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('chart', 12) + '<span>Reports</span></button>' +
             '<button type="button" class="folder-mini-btn" data-lock-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('lock', 12) + '<span>Lock</span></button>' +
@@ -7176,11 +7274,60 @@
         }
       };
 
+      var renCurFldBtn = document.getElementById('btn-rename-cur-folder');
+      if (renCurFldBtn) renCurFldBtn.onclick = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        if (state.selectedFolder && state.selectedFolder !== 'all') {
+          openModal('rename_item', { kind: 'folder', folderName: state.selectedFolder });
+        }
+      };
       var addFldBtn = document.getElementById('btn-add-folder');
       if (addFldBtn) addFldBtn.onclick = function () { openModal('add_folder'); };
+      document.querySelectorAll('[data-folder-menu]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          e.stopPropagation();
+          var fn = btn.getAttribute('data-folder-menu');
+          state.activeCardMenuId = null;
+          state.activeFolderMenuId = state.activeFolderMenuId === fn ? null : fn;
+          renderDashboard();
+        };
+      });
+      document.querySelectorAll('[data-folder-menu-act]').forEach(function (item) {
+        item.onclick = function (e) {
+          e.stopPropagation();
+          var act = item.getAttribute('data-folder-menu-act');
+          var fn = item.getAttribute('data-folder-name');
+          state.activeFolderMenuId = null;
+          if (!fn) return;
+          if (act === 'open') {
+            state.folderUnlockError = '';
+            state.confirmDeleteFolder = '';
+            state.selectedFolder = fn;
+            renderDashboard();
+          } else if (act === 'rename') {
+            openModal('rename_item', { kind: 'folder', folderName: fn });
+          } else if (act === 'add_table') {
+            createInstantBot(false, fn);
+          } else if (act === 'undo') {
+            var uTarget = getFolderUndoTarget(fn);
+            if (uTarget) undoTableAction(uTarget);
+          } else if (act === 'redo') {
+            var rTarget = getFolderRedoTarget(fn);
+            if (rTarget) redoTableAction(rTarget);
+          } else if (act === 'lock') {
+            openModal('folder_lock', { focusFolder: fn });
+          } else if (act === 'reports') {
+            openModal('reports', { folder: fn });
+          } else if (act === 'delete') {
+            state.confirmDeleteFolder = fn;
+            renderDashboard();
+          }
+        };
+      });
       document.querySelectorAll('[data-open-bot]').forEach(function (card) {
         card.onclick = function () {
           state.activeCardMenuId = null;
+          state.activeFolderMenuId = null;
           var bid = card.getAttribute('data-open-bot');
           var candidate = state.bots.find(function (x) { return x.id === bid; });
           var bFolder = candidate ? (candidate.folder || 'General') : 'General';
@@ -7205,6 +7352,7 @@
         btn.onclick = function (e) {
           e.stopPropagation();
           var id = btn.getAttribute('data-card-menu');
+          state.activeFolderMenuId = null;
           state.activeCardMenuId = state.activeCardMenuId === id ? null : id;
           renderDashboard();
         };
@@ -7218,7 +7366,8 @@
           var act = item.getAttribute('data-menu-action');
           var bid = item.getAttribute('data-bot-id');
           state.activeCardMenuId = null;
-          if (act === 'history') openModal('file_history', { botId: bid });
+          if (act === 'rename_quick') openModal('rename_item', { kind: 'bot', botId: bid });
+          else if (act === 'history') openModal('file_history', { botId: bid });
           else if (act === 'rename') { var b = state.bots.find(function (x) { return x.id === bid; }); if (b) openModal('settings', { bot: b }); }
           else if (act === 'dup') duplicateBot(bid);
           else if (act === 'csv') { var b2 = state.bots.find(function (x) { return x.id === bid; }); if (b2) exportBotCsv(b2); }
@@ -11066,6 +11215,7 @@
       else if (m.type === 'backup') renderBackupModal(m);
       else if (m.type === 'file_history') renderFileHistoryModal(m);
       else if (m.type === 'add_folder') renderAddFolderModal(m);
+      else if (m.type === 'rename_item') renderRenameItemModal(m);
       else if (m.type === 'image_preview') renderImagePreviewModal(m);
       else if (m.type === 'access_code') renderAccessCodeModal(m);
       else if (m.type === 'cyber_control') renderCyberControlModal(m);
@@ -12086,6 +12236,119 @@
           closeModal();
           renderApp();
         }
+      };
+    }
+
+    function renameBotTable(botId, newName) {
+      if (!guardWriteAction('Rename Table')) return false;
+      var clean = String(newName || '').trim();
+      if (!clean) { showToast('Please enter a table name'); return false; }
+      var b = state.bots.find(function (x) { return x.id === botId; });
+      if (!b) return false;
+      var oldName = b.name;
+      if (oldName === clean) return true;
+      b.name = clean;
+      b.updatedAt = new Date().toISOString();
+      b.lastEditedBy = getCurrentActor();
+      saveBotsLocal();
+      recordFolderSnapshot(b, 'RENAMED', 'Renamed "' + oldName + '" to "' + clean + '"', true);
+      recordAudit('EDIT', b, 'Renamed table "' + oldName + '" to "' + clean + '"');
+      pushBotToSupabase(b);
+      showToast('Renamed "' + clean + '"');
+      return true;
+    }
+
+    function renameFolder(oldName, newName) {
+      if (!guardWriteAction('Rename Folder')) return false;
+      var oldClean = normalizeFolderName(oldName);
+      var newClean = String(newName || '').trim();
+      if (!newClean || newClean.toLowerCase() === 'all') {
+        showToast('Please enter a valid folder name');
+        return false;
+      }
+      if (oldClean === newClean) return true;
+      var oldLow = oldClean.toLowerCase();
+      var nowIso = new Date().toISOString();
+      var actor = getCurrentActor();
+      var updatedBots = [];
+      state.bots.forEach(function (b) {
+        if (!b || isBotTombstoned(b)) return;
+        if (normalizeFolderName(b.folder).toLowerCase() === oldLow) {
+          b.folder = newClean;
+          b.updatedAt = nowIso;
+          b.lastEditedBy = actor;
+          updatedBots.push(b);
+        }
+      });
+      var nextCustom = [];
+      var seenCf = {};
+      (state.customFolders || []).forEach(function (f) {
+        var cur = String(f || '').trim();
+        if (!cur) return;
+        var mapped = cur.toLowerCase() === oldLow ? newClean : cur;
+        var ml = mapped.toLowerCase();
+        if (!seenCf[ml]) { seenCf[ml] = true; nextCustom.push(mapped); }
+      });
+      if (!seenCf[newClean.toLowerCase()] && updatedBots.length === 0) {
+        nextCustom.push(newClean);
+      }
+      state.customFolders = nextCustom;
+      saveCustomFolders();
+      if (state.adminConfig) {
+        if (String(state.adminConfig.telegramDefaultFolder || '').trim().toLowerCase() === oldLow) {
+          state.adminConfig.telegramDefaultFolder = newClean;
+        }
+        if (state.adminConfig.folderLocks) {
+          Object.keys(state.adminConfig.folderLocks).forEach(function (lk) {
+            if (String(lk || '').trim().toLowerCase() === oldLow && lk !== newClean) {
+              state.adminConfig.folderLocks[newClean] = state.adminConfig.folderLocks[lk];
+              delete state.adminConfig.folderLocks[lk];
+            }
+          });
+        }
+        saveAdminState();
+      }
+      if (String(state.selectedFolder || '').trim().toLowerCase() === oldLow) state.selectedFolder = newClean;
+      if (String(state.dashReportFolder || '').trim().toLowerCase() === oldLow) state.dashReportFolder = newClean;
+      clearFolderTombstone(newClean, null);
+      saveBotsLocal();
+      updatedBots.forEach(function (ub) { pushBotToSupabase(ub); });
+      recordAudit('EDIT', updatedBots[0] || null, 'Renamed folder "' + oldClean + '" to "' + newClean + '"');
+      showToast('Renamed folder to "' + newClean + '"');
+      return true;
+    }
+
+    function renderRenameItemModal(m) {
+      var isFolder = m.kind === 'folder';
+      var bot = !isFolder ? state.bots.find(function (x) { return x.id === m.botId; }) : null;
+      if (!isFolder && !bot) { closeModal(); return; }
+      var currentName = isFolder ? (m.folderName || '') : bot.name;
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card" style="max-width:410px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('edit', 18) +
+          '<h2 style="font-size:15.5px;font-weight:700;">' + (isFolder ? 'Rename Folder' : 'Rename Table') + '</h2></div>' +
+          '<button class="icon-btn" id="ren-close">' + icon('close', 18) + '</button></header>' +
+        '<form id="ren-form" class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
+          '<div>' +
+            '<label class="field-label" for="ren-input">' + (isFolder ? 'Folder Name' : 'Table / Customer Name') + '</label>' +
+            '<input id="ren-input" type="text" class="form-input" value="' + esc(currentName) + '" required autofocus />' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+            '<button type="button" id="ren-cancel" class="btn btn-outline">Cancel</button>' +
+            '<button type="submit" class="btn btn-primary">' + icon('check', 15) + '<span>Save Name</span></button>' +
+          '</div>' +
+        '</form></div></div>';
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('ren-close').onclick = closeModal;
+      document.getElementById('ren-cancel').onclick = closeModal;
+      var inp = document.getElementById('ren-input');
+      if (inp) { inp.focus(); try { inp.select(); } catch (eSel) {} }
+      document.getElementById('ren-form').onsubmit = function (e) {
+        e.preventDefault();
+        var nextVal = inp ? inp.value : '';
+        var ok = isFolder ? renameFolder(currentName, nextVal) : renameBotTable(bot.id, nextVal);
+        if (ok) { closeModal(); renderApp(); }
       };
     }
 
@@ -16396,6 +16659,7 @@
     document.addEventListener('click', function () {
       var dirty = false;
       if (state.activeCardMenuId) { state.activeCardMenuId = null; dirty = true; }
+      if (state.activeFolderMenuId) { state.activeFolderMenuId = null; dirty = true; }
       if (state.showMoreMenu) { state.showMoreMenu = false; dirty = true; }
       if (dirty) renderApp();
     });

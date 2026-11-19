@@ -11,10 +11,77 @@ interface TtsCacheEntry {
   cachedAt: number;
 }
 
+const TTS_CACHE_FILE = path.resolve(process.cwd(), '.tablebot-tts-cache.json');
 let cachedGenAiClient: GoogleGenAI | null = null;
 let cachedGenAiKey = '';
+let ttsQuotaCooldownUntil = 0;
+let ttsQuotaNotice = '';
 const ttsAudioCache = new Map<string, TtsCacheEntry>();
 const MAX_TTS_CACHE_ENTRIES = 48;
+
+function loadTtsCacheFromDisk() {
+  try {
+    if (!fs.existsSync(TTS_CACHE_FILE)) return;
+    const raw = fs.readFileSync(TTS_CACHE_FILE, 'utf8');
+    const parsed = JSON.parse(raw) as Record<string, TtsCacheEntry>;
+    if (parsed && typeof parsed === 'object') {
+      Object.entries(parsed).slice(-MAX_TTS_CACHE_ENTRIES).forEach(([k, v]) => {
+        if (v && typeof v.audioBase64 === 'string' && v.audioBase64.length > 64) {
+          ttsAudioCache.set(k, v);
+        }
+      });
+    }
+  } catch {
+    // ignore corrupt disk cache
+  }
+}
+
+function saveTtsCacheToDisk() {
+  try {
+    const obj: Record<string, TtsCacheEntry> = {};
+    for (const [k, v] of ttsAudioCache.entries()) {
+      obj[k] = v;
+    }
+    fs.writeFileSync(TTS_CACHE_FILE, JSON.stringify(obj), 'utf8');
+  } catch {
+    // ignore disk write errors
+  }
+}
+
+function ensureWavContainer(audioBase64: string, mimeType: string): { audioBase64: string; mimeType: string } {
+  const rawBuf = Buffer.from(audioBase64, 'base64');
+  if (rawBuf.length >= 12 && rawBuf.toString('ascii', 0, 4) === 'RIFF' && rawBuf.toString('ascii', 8, 12) === 'WAVE') {
+    return { audioBase64, mimeType: 'audio/wav' };
+  }
+  const lowerMime = mimeType.toLowerCase();
+  if (lowerMime.includes('mpeg') || lowerMime.includes('mp3') || lowerMime.includes('ogg')) {
+    return { audioBase64, mimeType };
+  }
+  // Wrap raw 24kHz mono 16-bit PCM with a valid 44-byte WAV RIFF header so decodeAudioData/<audio> always decodes cleanly
+  const sampleRate = 24000;
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + rawBuf.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(rawBuf.length, 40);
+  const wavBuf = Buffer.concat([header, rawBuf]);
+  return { audioBase64: wavBuf.toString('base64'), mimeType: 'audio/wav' };
+}
+
+loadTtsCacheFromDisk();
 
 function getTtsClient(): GoogleGenAI | null {
   const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
@@ -25,6 +92,8 @@ function getTtsClient(): GoogleGenAI | null {
       httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
     });
     cachedGenAiKey = apiKey;
+    ttsQuotaCooldownUntil = 0;
+    ttsQuotaNotice = '';
   }
   return cachedGenAiClient;
 }
@@ -1141,12 +1210,12 @@ async function startServer(): Promise<void> {
     res.json({ ok: true });
   });
 
-  const ttsInFlight = new Map<string, Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | { ok: false; status: number; error: string }>>();
+  const ttsInFlight = new Map<string, Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | { ok: false; status: number; code?: string; error: string }>>();
 
   async function synthesizeTtsAudio(rawText: string, voiceName = 'Kore', style = 'Warm, clear Ethiopian Amharic voice') {
     const text = rawText.trim().slice(0, 500);
     if (!text) {
-      return { ok: false as const, status: 400, error: 'Missing text' };
+      return { ok: false as const, status: 400, code: 'BAD_REQUEST', error: 'Missing text' };
     }
     const cacheKey = `${voiceName}::${text}`;
     const cached = ttsAudioCache.get(cacheKey);
@@ -1158,7 +1227,16 @@ async function startServer(): Promise<void> {
 
     const ai = getTtsClient();
     if (!ai) {
-      return { ok: false as const, status: 503, error: 'GEMINI_API_KEY not configured' };
+      return { ok: false as const, status: 503, code: 'NO_API_KEY', error: 'GEMINI_API_KEY not configured' };
+    }
+
+    if (Date.now() < ttsQuotaCooldownUntil) {
+      return {
+        ok: false as const,
+        status: 429,
+        code: 'RESOURCE_EXHAUSTED',
+        error: ttsQuotaNotice || 'Gemini TTS quota exhausted; using device voice fallback.',
+      };
     }
 
     const promise = (async () => {
@@ -1187,18 +1265,31 @@ async function startServer(): Promise<void> {
         });
         const inline = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
         if (!inline?.data) {
-          return { ok: false as const, status: 502, error: 'Empty TTS audio response' };
+          return { ok: false as const, status: 502, code: 'EMPTY_AUDIO', error: 'Empty TTS audio response' };
         }
-        const mimeType = inline.mimeType || 'audio/wav';
+        const normalized = ensureWavContainer(inline.data, inline.mimeType || 'audio/wav');
         if (ttsAudioCache.size >= MAX_TTS_CACHE_ENTRIES) {
           const firstKey = ttsAudioCache.keys().next().value;
           if (firstKey) ttsAudioCache.delete(firstKey);
         }
-        ttsAudioCache.set(cacheKey, { audioBase64: inline.data, mimeType, cachedAt: Date.now() });
-        return { ok: true as const, audioBase64: inline.data, mimeType, cached: false };
-      } catch (err) {
-        console.error('Gemini TTS generation error:', err);
-        return { ok: false as const, status: 502, error: 'TTS generation failed' };
+        ttsAudioCache.set(cacheKey, { audioBase64: normalized.audioBase64, mimeType: normalized.mimeType, cachedAt: Date.now() });
+        saveTtsCacheToDisk();
+        return { ok: true as const, audioBase64: normalized.audioBase64, mimeType: normalized.mimeType, cached: false };
+      } catch (err: unknown) {
+        const errObj = err as { status?: number; message?: string };
+        const errMsg = String(errObj?.message || err || '');
+        const isQuotaErr = errObj?.status === 429 || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.toLowerCase().includes('quota');
+        if (isQuotaErr) {
+          const retryMatch = errMsg.match(/retryDelay["']?\s*:\s*["']?(\d+)s/i);
+          const retrySec = retryMatch ? parseInt(retryMatch[1], 10) : 900;
+          const cooldownMs = Math.max(60_000, Math.min((Number.isFinite(retrySec) ? retrySec : 900) * 1000, 12 * 3600_000));
+          ttsQuotaCooldownUntil = Date.now() + cooldownMs;
+          ttsQuotaNotice = 'Gemini TTS free-tier daily quota exceeded; device voice fallback active.';
+          console.warn(`Gemini TTS quota cooldown active (${Math.round(cooldownMs / 60000)}m)`);
+          return { ok: false as const, status: 429, code: 'RESOURCE_EXHAUSTED', error: ttsQuotaNotice };
+        }
+        console.warn('Gemini TTS generation error:', errMsg.slice(0, 260));
+        return { ok: false as const, status: 502, code: 'TTS_FAILED', error: 'TTS generation failed' };
       } finally {
         ttsInFlight.delete(cacheKey);
       }
@@ -1218,7 +1309,7 @@ async function startServer(): Promise<void> {
       : 'Warm, clear Ethiopian Amharic voice';
     const result = await synthesizeTtsAudio(rawText, voiceName, style);
     if (!result.ok) {
-      res.status(result.status).json({ ok: false, error: result.error });
+      res.status(result.status).json({ ok: false, code: result.code || 'TTS_ERROR', error: result.error });
       return;
     }
     const audioBuf = Buffer.from(result.audioBase64, 'base64');
@@ -1260,26 +1351,11 @@ async function startServer(): Promise<void> {
       : 'Warm, clear Ethiopian Amharic voice';
     const result = await synthesizeTtsAudio(rawText, voiceName, style);
     if (!result.ok) {
-      res.status(result.status).json({ ok: false, error: result.error });
+      res.status(result.status).json({ ok: false, code: result.code || 'TTS_ERROR', error: result.error });
       return;
     }
     res.json({ ok: true, audioBase64: result.audioBase64, mimeType: result.mimeType, cached: result.cached });
   });
-
-  // Pre-warm today's default daily Amharic check-in audio on startup
-  const defaultDayPrompts = [
-    'ዛሬ እሁድ ነው፣ ለሰኞ ሥራ ተዘጋጅተሻል ወይም ተዘጋጅተሃል?',
-    'ዛሬ ሰኞ ነው፣ ኦርደር በደንብ መቀበል አለብሽ ወይም አለብህ?',
-    'ዛሬ ማክሰኞ ነው፣ የሳምንት ሽያጭሽን ቼክ አድርጊ ወይም አድርግ?',
-    'ዛሬ ሮብ ነው፣ ሽያጭ በደንብ መሸጥ አለበት?',
-    'ዛሬ ሐሙስ ነው፣ ብር ሰበሰብሽ ወይም ሰበሰብክ?',
-    'ዛሬ ዓርብ ነው፣ ማዕድ ኦርደር ሰበሰብሽ ወይም ሰበሰብክ?',
-    'ዛሬ ቅዳሜ ነው፣ የቆየባቸው ሂሳብ ተቀበልሽ ወይም ተቀበልክ?',
-  ];
-  const todayPrompt = defaultDayPrompts[new Date().getDay()];
-  if (todayPrompt && getTtsClient()) {
-    void synthesizeTtsAudio(todayPrompt);
-  }
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.status(200).json({ ok: true, port: PORT, timestamp: new Date().toISOString() });
