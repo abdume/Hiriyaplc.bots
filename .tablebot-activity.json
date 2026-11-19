@@ -14,7 +14,7 @@
       "deviceLabel": "Android Phone · Chrome",
       "telegramId": "",
       "telegramUsername": "",
-      "ip": "196.191.52.90",
+      "ip": "196.188.188.163",
       "blocked": false,
       "blockExpiresAt": null,
       "blockDurationMins": 0,
@@ -22,9 +22,9 @@
       "adds": 0,
       "edits": 0,
       "deletes": 0,
-      "activeSeconds": 264,
+      "activeSeconds": 408,
       "firstSeen": "2026-11-15T18:30:55.751Z",
-      "lastSeen": "2026-11-18T18:40:42.062Z"
+      "lastSeen": "2026-11-19T18:46:10.945Z"
     },
     {
       "id": "abdulfeta",
@@ -52,5 +52,5 @@
     }
   ],
   "logs": [],
-  "updatedAt": "2026-11-18T18:40:42.062Z"
+  "updatedAt": "2026-11-19T18:46:10.945Z"
 }

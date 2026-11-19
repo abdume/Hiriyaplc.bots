@@ -378,10 +378,52 @@
       margin-top: auto;
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: space-between;
       gap: 8px;
-      font-size: 12px;
+      font-size: 11.5px;
       color: #64748B;
+    }
+    .card-time-stamp {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748B;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .daily-chip {
+      display: inline-flex;
+      align-items: center;
+      font-size: 9.5px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: #DCFCE7;
+      color: #166534;
+      border: 1px solid #86EFAC;
+      flex-shrink: 0;
+    }
+    .folder-pager-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 4px;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.24);
+      border: 1px solid rgba(255,255,255,0.28);
+    }
+    .folder-pager-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #F8FAFC;
+      padding: 0 6px;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
     }
     .quick-table-btn {
       width: 26px;
@@ -1766,7 +1808,10 @@
       redo: '<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>',
       mic: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
       selectRow: '<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="2.5 2"/><rect x="8.5" y="8.5" width="7" height="7" rx="1"/>',
-      sheetNote: '<path d="M14 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><path d="M3 9h12"/><path d="M3 13h7"/><path d="M3 17h5"/><path d="M8 4v16"/><path d="m18.2 13.8 2 2L14 22l-2.8.8.8-2.8 6.2-6.2Z"/>'
+      sheetNote: '<path d="M14 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><path d="M3 9h12"/><path d="M3 13h7"/><path d="M3 17h5"/><path d="M8 4v16"/><path d="m18.2 13.8 2 2L14 22l-2.8.8.8-2.8 6.2-6.2Z"/>',
+      chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+      chevronRight: '<path d="m9 18 6-6-6-6"/>',
+      clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'
     };
 
     function icon(name, size) {
@@ -2528,6 +2573,7 @@
       };
     }
 
+    var SILENT_WAV_DATA_URI = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
     var _dailyVoiceCtrl = {
       sessionKey: '',
       attemptedAutoKey: '',
@@ -2540,6 +2586,7 @@
       fallbackTimer: null,
       arrayBufMap: {},
       blobUrlMap: {},
+      blobMimeMap: {},
       inFlightBufMap: {},
       gestureListenerArmed: false,
       gestureCleanup: null,
@@ -2547,7 +2594,9 @@
       firstTapCleanup: null,
       gestureUnlocked: false,
       speechUnlocked: false,
+      domAudioPrimed: false,
       lastGesturePlayAt: 0,
+      apiTtsUnavailableUntil: 0,
       cloudTtsDisabledUntil: 0,
       cloudTtsQuotaExceeded: false,
       splashDismissed: false,
@@ -2560,6 +2609,10 @@
     function getLockVoiceSessionKey(dateOverride, userOverride) {
       var p = getDailyAmharicWorkPrompt(dateOverride, userOverride);
       return p.ymd + '|' + p.dayIndex + '|' + (p.userName || '');
+    }
+
+    function getVoiceCacheKey(spokenText, dayIndex) {
+      return String(spokenText || '') + '::' + (dayIndex !== undefined && dayIndex !== null ? String(dayIndex) : 'auto');
     }
 
     function getOrCreateSharedAudioCtx() {
@@ -2592,6 +2645,30 @@
           }
         } catch (e) {}
       }
+      try {
+        var domAudio = typeof document !== 'undefined' ? document.getElementById('tb-daily-voice-el') : null;
+        if (domAudio && !_dailyVoiceCtrl.domAudioPrimed && _dailyVoiceCtrl.status !== 'playing') {
+          domAudio.muted = false;
+          domAudio.volume = 1.0;
+          domAudio.playsInline = true;
+          try { domAudio.setAttribute('playsinline', ''); domAudio.setAttribute('webkit-playsinline', ''); } catch (eA) {}
+          domAudio.src = SILENT_WAV_DATA_URI;
+          var primePlay = domAudio.play();
+          if (primePlay && typeof primePlay.then === 'function') {
+            primePlay.then(function () {
+              _dailyVoiceCtrl.domAudioPrimed = true;
+              try {
+                if (_dailyVoiceCtrl.status !== 'playing' && domAudio.src === SILENT_WAV_DATA_URI) {
+                  domAudio.pause();
+                  domAudio.currentTime = 0;
+                }
+              } catch (eP) {}
+            }).catch(function () {});
+          } else {
+            _dailyVoiceCtrl.domAudioPrimed = true;
+          }
+        }
+      } catch (eDom) {}
       try {
         var synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
         if (synth) {
@@ -2722,68 +2799,174 @@
       return false;
     }
 
-    function storeVoiceArrayBuffer(spokenText, ab) {
+    function detectAudioMime(ab) {
+      if (!ab || !ab.byteLength || ab.byteLength < 12) return 'audio/wav';
+      try {
+        var b = new Uint8Array(ab, 0, Math.min(12, ab.byteLength));
+        if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+            b[8] === 0x57 && b[9] === 0x41 && b[10] === 0x56 && b[11] === 0x45) {
+          return 'audio/wav';
+        }
+        if ((b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) || (b[0] === 0xFF && (b[1] & 0xE0) === 0xE0)) {
+          return 'audio/mpeg';
+        }
+        if (b[0] === 0x4F && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53) {
+          return 'audio/ogg';
+        }
+        if (b[0] === 0x66 && b[1] === 0x4C && b[2] === 0x61 && b[3] === 0x43) {
+          return 'audio/flac';
+        }
+      } catch (e) {}
+      return 'audio/wav';
+    }
+
+    function storeVoiceArrayBuffer(cacheKey, ab) {
       if (!isValidAudioArrayBuffer(ab)) return null;
-      _dailyVoiceCtrl.arrayBufMap[spokenText] = ab;
-      if (!_dailyVoiceCtrl.blobUrlMap[spokenText] && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+      var mime = detectAudioMime(ab);
+      _dailyVoiceCtrl.arrayBufMap[cacheKey] = ab;
+      _dailyVoiceCtrl.blobMimeMap[cacheKey] = mime;
+      if (!_dailyVoiceCtrl.blobUrlMap[cacheKey] && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
         try {
-          _dailyVoiceCtrl.blobUrlMap[spokenText] = URL.createObjectURL(new Blob([ab], { type: 'audio/wav' }));
+          _dailyVoiceCtrl.blobUrlMap[cacheKey] = URL.createObjectURL(new Blob([ab], { type: mime }));
         } catch (e) {}
       }
       return ab;
     }
 
-    function fetchDailyVoiceArrayBuffer(spokenText) {
-      if (!spokenText) return Promise.resolve(null);
-      if (_dailyVoiceCtrl.arrayBufMap[spokenText]) return Promise.resolve(_dailyVoiceCtrl.arrayBufMap[spokenText]);
-      if (_dailyVoiceCtrl.cloudTtsDisabledUntil && Date.now() < _dailyVoiceCtrl.cloudTtsDisabledUntil) {
-        return Promise.resolve(null);
+    function getStaticVoiceUrls(dayIndex) {
+      var idx = (typeof dayIndex === 'number' && dayIndex >= 0 && dayIndex <= 6) ? dayIndex : (new Date()).getDay();
+      var candidates = [
+        'voice/day-' + idx + '.mp3',
+        './voice/day-' + idx + '.mp3',
+        '/voice/day-' + idx + '.mp3',
+        'public/voice/day-' + idx + '.mp3'
+      ];
+      var out = [];
+      var seen = {};
+      var baseHref = (typeof window !== 'undefined' && window.location && window.location.href) ? window.location.href : '';
+      candidates.forEach(function (rel) {
+        var resolved = rel;
+        if (baseHref && typeof URL === 'function') {
+          try { resolved = new URL(rel, baseHref).href; } catch (eU) {}
+        }
+        if (!seen[resolved]) {
+          seen[resolved] = true;
+          out.push(resolved);
+        }
+      });
+      return out;
+    }
+
+    function fetchStaticVoiceArrayBuffer(dayIndex) {
+      if (typeof fetch !== 'function') return Promise.resolve(null);
+      if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') return Promise.resolve(null);
+      var urls = getStaticVoiceUrls(dayIndex);
+      var idx = 0;
+      function tryNext() {
+        if (idx >= urls.length) return Promise.resolve(null);
+        var url = urls[idx++];
+        return fetch(url)
+          .then(function (res) {
+            if (!res || !res.ok || typeof res.arrayBuffer !== 'function') return null;
+            return res.arrayBuffer();
+          })
+          .then(function (ab) {
+            if (isValidAudioArrayBuffer(ab)) return ab;
+            return tryNext();
+          })
+          .catch(function () {
+            return tryNext();
+          });
       }
-      if (_dailyVoiceCtrl.inFlightBufMap[spokenText]) return _dailyVoiceCtrl.inFlightBufMap[spokenText];
+      return tryNext();
+    }
+
+    function fetchWithShortTimeout(url, timeoutMs) {
+      if (typeof AbortController === 'undefined') {
+        return fetch(url);
+      }
+      var ac = new AbortController();
+      var tid = setTimeout(function () {
+        try { ac.abort(); } catch (e) {}
+      }, timeoutMs || 2400);
+      return fetch(url, { signal: ac.signal }).then(function (res) {
+        clearTimeout(tid);
+        return res;
+      }).catch(function (err) {
+        clearTimeout(tid);
+        throw err;
+      });
+    }
+
+    function fetchDailyVoiceArrayBuffer(spokenText, dayIndex) {
+      if (!spokenText && (dayIndex === undefined || dayIndex === null)) return Promise.resolve(null);
+      var resolvedDay = (typeof dayIndex === 'number' && dayIndex >= 0 && dayIndex <= 6) ? dayIndex : (new Date()).getDay();
+      var cacheKey = getVoiceCacheKey(spokenText, resolvedDay);
+      if (_dailyVoiceCtrl.arrayBufMap[cacheKey]) return Promise.resolve(_dailyVoiceCtrl.arrayBufMap[cacheKey]);
+      if (_dailyVoiceCtrl.inFlightBufMap[cacheKey]) return _dailyVoiceCtrl.inFlightBufMap[cacheKey];
       if (typeof fetch !== 'function') return Promise.resolve(null);
       if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') return Promise.resolve(null);
 
-      var streamUrl = '/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice');
-      var p = fetch(streamUrl)
-        .then(function (res) {
-          if (!res || !res.ok) {
-            var status = res ? res.status : 0;
-            if (status === 429 || status === 503 || status === 400 || status === 403 || status === 502) {
-              _dailyVoiceCtrl.cloudTtsDisabledUntil = Date.now() + (status === 429 ? 15 * 60 * 1000 : 2 * 60 * 1000);
-              if (status === 429) _dailyVoiceCtrl.cloudTtsQuotaExceeded = true;
-            }
-            return null;
-          }
-          var ct = '';
-          try { ct = res.headers && typeof res.headers.get === 'function' ? String(res.headers.get('content-type') || '').toLowerCase() : ''; } catch (eHdr) {}
-          if (ct.indexOf('application/json') !== -1) {
-            return res.json().then(function (data) {
-              if (data && data.ok && data.audioBase64) return base64ToArrayBuffer(data.audioBase64);
+      var hostStr = (typeof window !== 'undefined' && window.location && window.location.hostname) ? String(window.location.hostname).toLowerCase() : '';
+      var isStaticGithubHost = hostStr.endsWith('.github.io') || hostStr === 'github.io';
+      var skipApiTts = isStaticGithubHost || (_dailyVoiceCtrl.apiTtsUnavailableUntil && Date.now() < _dailyVoiceCtrl.apiTtsUnavailableUntil);
+
+      var tryApiPromise = (!skipApiTts && spokenText)
+        ? fetchWithShortTimeout('/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice'), 2600)
+            .then(function (res) {
+              if (!res || !res.ok) {
+                var status = res ? res.status : 0;
+                if (status === 404 || status === 405 || status === 429 || status === 501 || status === 502 || status === 503 || status === 400 || status === 403) {
+                  _dailyVoiceCtrl.apiTtsUnavailableUntil = Date.now() + ((status === 404 || status === 429) ? 15 * 60 * 1000 : 2 * 60 * 1000);
+                  if (status === 429) _dailyVoiceCtrl.cloudTtsQuotaExceeded = true;
+                }
+                return null;
+              }
+              var ct = '';
+              try { ct = res.headers && typeof res.headers.get === 'function' ? String(res.headers.get('content-type') || '').toLowerCase() : ''; } catch (eHdr) {}
+              if (ct.indexOf('text/html') !== -1) {
+                _dailyVoiceCtrl.apiTtsUnavailableUntil = Date.now() + 15 * 60 * 1000;
+                return null;
+              }
+              if (ct.indexOf('application/json') !== -1) {
+                return res.json().then(function (data) {
+                  if (data && data.ok && data.audioBase64) return base64ToArrayBuffer(data.audioBase64);
+                  return null;
+                }).catch(function () { return null; });
+              }
+              if (typeof res.arrayBuffer === 'function') {
+                return res.arrayBuffer();
+              }
               return null;
-            }).catch(function () { return null; });
-          }
-          if (typeof res.arrayBuffer === 'function') {
-            return res.arrayBuffer();
-          }
-          return null;
+            })
+            .catch(function () {
+              return null;
+            })
+        : Promise.resolve(null);
+
+      var p = tryApiPromise
+        .then(function (ab) {
+          if (isValidAudioArrayBuffer(ab)) return ab;
+          // Static pre-bundled Amharic MP3 fallback (works 100% on GitHub Pages, Telegram Mini App & all mobile browsers)
+          return fetchStaticVoiceArrayBuffer(resolvedDay);
         })
         .then(function (ab) {
-          return storeVoiceArrayBuffer(spokenText, ab);
+          return storeVoiceArrayBuffer(cacheKey, ab);
         })
         .catch(function () {
           return null;
         })
         .then(function (finalAb) {
-          delete _dailyVoiceCtrl.inFlightBufMap[spokenText];
+          delete _dailyVoiceCtrl.inFlightBufMap[cacheKey];
           return finalAb;
         });
 
-      _dailyVoiceCtrl.inFlightBufMap[spokenText] = p;
+      _dailyVoiceCtrl.inFlightBufMap[cacheKey] = p;
       return p;
     }
 
-    function warmDailyVoiceCache(spokenText) {
-      return fetchDailyVoiceArrayBuffer(spokenText);
+    function warmDailyVoiceCache(spokenText, dayIndex) {
+      return fetchDailyVoiceArrayBuffer(spokenText, dayIndex);
     }
 
     function stopDailyVoicePlayback(resetStatus) {
@@ -2952,6 +3135,7 @@
         unlockAudioAndSpeechSync();
       }
       var promptInfo = getDailyAmharicWorkPrompt();
+      var voiceCacheKey = getVoiceCacheKey(promptInfo.spokenText, promptInfo.dayIndex);
       var sessionKey = getLockVoiceSessionKey();
       _dailyVoiceCtrl.sessionKey = sessionKey;
       _dailyVoiceCtrl.attemptedAutoKey = sessionKey;
@@ -2980,7 +3164,7 @@
         if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
         _dailyVoiceCtrl.status = 'autoplay_blocked';
         _dailyVoiceCtrl.progress = 0;
-        warmDailyVoiceCache(promptInfo.spokenText);
+        warmDailyVoiceCache(promptInfo.spokenText, promptInfo.dayIndex);
         if (!opts.dashboardReplayOnly) {
           armAutoVoiceGestureWakeup();
           syncLockVoiceGateUi(false);
@@ -3077,10 +3261,10 @@
           if (typeof synth.resume === 'function') {
             try { synth.resume(); } catch (eRes2) {}
           }
-          var silentEngineWaitMs = (!amVoice && voices.length === 0) ? 1400 : 12000;
+          var silentEngineWaitMs = (!amVoice) ? 2600 : 12000;
           _dailyVoiceCtrl.fallbackTimer = setTimeout(function () {
             if (!settled && myToken === _dailyVoiceCtrl.playToken) {
-              if (!speechActuallyStarted && !amVoice && voices.length === 0) {
+              if (!speechActuallyStarted && !amVoice) {
                 settled = true;
                 try { if (typeof synth.cancel === 'function') synth.cancel(); } catch (eC) {}
                 runGuidedProgressFallback();
@@ -3113,6 +3297,10 @@
           var onDecodeErr = function () {
             if (decodeFailHandled || myToken !== _dailyVoiceCtrl.playToken) return;
             decodeFailHandled = true;
+            if (fallbackToDomOnFail) {
+              var bUrlErr = _dailyVoiceCtrl.blobUrlMap[voiceCacheKey];
+              if (bUrlErr) { playDomAudioElement(bUrlErr, false); return; }
+            }
             trySpeechSynthesisFallback();
           };
           var decPromise = ctx.decodeAudioData(
@@ -3121,7 +3309,7 @@
               if (myToken !== _dailyVoiceCtrl.playToken) return;
               if (!audioBuffer || !audioBuffer.duration) {
                 if (fallbackToDomOnFail) {
-                  var bUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+                  var bUrl = _dailyVoiceCtrl.blobUrlMap[voiceCacheKey];
                   if (bUrl) playDomAudioElement(bUrl, false);
                   else trySpeechSynthesisFallback();
                 } else {
@@ -3204,11 +3392,13 @@
         audio.muted = false;
         audio.volume = 1.0;
         audio.src = srcUrl;
+        try { if (typeof audio.load === 'function') audio.load(); } catch (eLoad) {}
 
         _dailyVoiceCtrl.audio = audio;
         _dailyVoiceCtrl.status = 'loading';
         _dailyVoiceCtrl.progress = 15;
         if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+        syncHeroVoiceButtonUi();
 
         var handledFailure = false;
         var fallbackFromDom = function (wasAutoplayReject) {
@@ -3220,7 +3410,7 @@
             return;
           }
           if (allowWebAudioRetryOnErr) {
-            fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
+            fetchDailyVoiceArrayBuffer(promptInfo.spokenText, promptInfo.dayIndex).then(function (ab) {
               if (myToken !== _dailyVoiceCtrl.playToken) return;
               if (ab && tryWebAudioPlayback(ab, false)) return;
               if (isAuto && !fromGesture) markAutoplayBlocked();
@@ -3240,6 +3430,7 @@
           _dailyVoiceCtrl.status = 'playing';
           _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
           if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+          syncHeroVoiceButtonUi();
         };
         _dailyVoiceCtrl.progressTimer = setInterval(function () {
           if (myToken !== _dailyVoiceCtrl.playToken || !_dailyVoiceCtrl.audio) return;
@@ -3253,6 +3444,7 @@
             _dailyVoiceCtrl.progress = Math.min(92, (_dailyVoiceCtrl.progress || 20) + 8);
           }
           if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+          syncHeroVoiceButtonUi();
         }, 180);
         audio.onended = function () {
           if (_dailyVoiceCtrl.fallbackTimer) { clearTimeout(_dailyVoiceCtrl.fallbackTimer); _dailyVoiceCtrl.fallbackTimer = null; }
@@ -3277,6 +3469,7 @@
               _dailyVoiceCtrl.status = 'playing';
               _dailyVoiceCtrl.progress = Math.max(20, _dailyVoiceCtrl.progress || 20);
               if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
+              syncHeroVoiceButtonUi();
             }).catch(function (err) {
               var isBlockedErr = Boolean(err && (err.name === 'NotAllowedError' || /not\s*allowed|gesture|interact/i.test(String(err.message || ''))));
               fallbackFromDom(isBlockedErr);
@@ -3293,17 +3486,21 @@
       syncHeroVoiceButtonUi();
 
       var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
-      var cachedBlobUrl = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
+      var cachedBlobUrl = _dailyVoiceCtrl.blobUrlMap[voiceCacheKey];
       if (cachedBlobUrl) {
         playDomAudioElement(cachedBlobUrl, true);
         return;
       }
 
-      if (!isFileProto && typeof fetch === 'function' && !(_dailyVoiceCtrl.cloudTtsDisabledUntil && Date.now() < _dailyVoiceCtrl.cloudTtsDisabledUntil)) {
-        fetchDailyVoiceArrayBuffer(promptInfo.spokenText).then(function (ab) {
+      if (!isFileProto && typeof fetch === 'function') {
+        fetchDailyVoiceArrayBuffer(promptInfo.spokenText, promptInfo.dayIndex).then(function (ab) {
           if (myToken !== _dailyVoiceCtrl.playToken) return;
+          var readyBlob = _dailyVoiceCtrl.blobUrlMap[voiceCacheKey];
+          if (fromGesture && readyBlob) {
+            playDomAudioElement(readyBlob, true);
+            return;
+          }
           if (ab && tryWebAudioPlayback(ab, true)) return;
-          var readyBlob = _dailyVoiceCtrl.blobUrlMap[promptInfo.spokenText];
           if (readyBlob) {
             playDomAudioElement(readyBlob, false);
             return;
@@ -3352,7 +3549,7 @@
       var root = document.getElementById('splash-root');
       if (!root) return;
       var promptInfo = getDailyAmharicWorkPrompt();
-      warmDailyVoiceCache(promptInfo.spokenText);
+      warmDailyVoiceCache(promptInfo.spokenText, promptInfo.dayIndex);
 
       var greetUser = getActiveGreetingUser();
       var greetLine = greetUser
@@ -3434,6 +3631,11 @@
       // Dashboard filters
       searchOpen: false,
       searchQuery: '',
+      folderSearchOpen: false,
+      folderSearchQuery: '',
+      folderPage: 1,
+      folderPageSize: 6,
+      folderOpenedAt: {},
       filterType: 'all',
       selectedFolder: 'all',
       dashReportFolder: '',
@@ -4915,17 +5117,58 @@
 
     function timeAgo(dateStr) {
       try {
-        var mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+        var mins = Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000));
         if (mins < 1) return 'Just now';
-        if (mins < 60) return mins + 'm ago';
+        if (mins < 60) return mins + ' min' + (mins === 1 ? '' : 's') + ' ago';
         var hrs = Math.floor(mins / 60);
         if (hrs < 24) return hrs + 'h ago';
         var days = Math.floor(hrs / 24);
-        if (days < 30) return days + 'd ago';
+        if (days < 30) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
         var mos = Math.floor(days / 30);
         if (days <= 90) return mos + ' mo ' + (days % 30) + 'd ago';
         return '3+ mo (' + days + 'd ago)';
       } catch (e) { return 'Recently'; }
+    }
+
+    function isSameLocalDay(dateStr, refDate) {
+      try {
+        var d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        return getLocalYmd(d) === getLocalYmd(refDate || new Date());
+      } catch (e) { return false; }
+    }
+
+    function formatFolderOpenTimestamp(dateStr) {
+      try {
+        var d = new Date(dateStr);
+        if (isNaN(d.getTime())) return 'Recently';
+        var diffMs = Math.max(0, Date.now() - d.getTime());
+        var totalMins = Math.floor(diffMs / 60000);
+        var hrs = Math.floor(totalMins / 60);
+        var days = Math.floor(hrs / 24);
+        var isDailyToday = isSameLocalDay(dateStr);
+        if (totalMins < 1) return 'Just now (0 mins) · Daily';
+        if (totalMins < 60) return totalMins + ' min' + (totalMins === 1 ? '' : 's') + ' ago · Daily';
+        if (isDailyToday || hrs < 24) {
+          var remMins = totalMins % 60;
+          return hrs + 'h ' + remMins + 'm ago (' + totalMins + ' mins)' + (isDailyToday ? ' · Daily' : '');
+        }
+        if (days === 1) return '1 day ago · ' + formatDmyDate(d);
+        if (days < 30) return days + ' days ago · ' + formatDmyDate(d);
+        var mos = Math.floor(days / 30);
+        return mos + ' mo ' + (days % 30) + 'd (' + days + ' days ago)';
+      } catch (e) { return 'Recently'; }
+    }
+
+    function getFolderLatestUpdatedAt(folderBots, fallbackIso) {
+      var latestMs = 0;
+      (folderBots || []).forEach(function (b) {
+        if (!b || !b.updatedAt) return;
+        var t = new Date(b.updatedAt).getTime();
+        if (!isNaN(t) && t > latestMs) latestMs = t;
+      });
+      if (latestMs > 0) return new Date(latestMs).toISOString();
+      return fallbackIso || new Date().toISOString();
     }
 
     // Detailed History Age Formatter: Minutes, Days, up to 3 Months & 3+ Months
@@ -6819,6 +7062,7 @@
       var greetUser = getActiveGreetingUser();
       var greetName = (greetUser && greetUser.displayName) ? greetUser.displayName : 'Onelove A';
       var dp = getDailyAmharicWorkPrompt();
+      warmDailyVoiceCache(dp.spokenText, dp.dayIndex);
       var heroPlayLabel = _dailyVoiceCtrl.status === 'loading'
         ? (state.lang === 'am' ? '🔊 በመክፈት ላይ...' : '🔊 Starting...')
         : (_dailyVoiceCtrl.status === 'playing'
@@ -6886,8 +7130,11 @@
           '</div>';
         }
 
+        var folderLatestIso = getFolderLatestUpdatedAt(folderBotsAll, state.appOpenedAt);
+        var folderStamp = timeAgo(folderLatestIso);
         fHtml += '</div>' +
           '<div class="card-footer">' +
+            '<span class="card-time-stamp" title="Last updated">' + icon('clock', 11) + '<span>' + esc(folderStamp) + '</span></span>' +
             '<span class="quick-table-btn" title="Open Folder">' + icon(needsUnlock ? 'lock' : 'sheetNote', 16) + '</span>' +
           '</div>' +
         '</div>';
@@ -6989,10 +7236,12 @@
         html += buildDashboardAuditStripHtml();
       }
 
-      function renderBotCardHtml(b) {
+      function renderBotCardHtml(b, accentColor, inOpenFolder) {
         var bFolder = b.folder || 'General';
         var cardFolderLocked = isFolderLocked(bFolder) && !isFolderUnlocked(bFolder);
         var isCardMenuOpen = state.activeCardMenuId === b.id;
+        var cardStamp = inOpenFolder ? formatFolderOpenTimestamp(b.updatedAt) : timeAgo(b.updatedAt);
+        var cardIsDaily = inOpenFolder && isSameLocalDay(b.updatedAt);
         var cHtml = '<div class="bot-card' + (isCardMenuOpen ? ' is-menu-open' : '') + '" data-open-bot="' + esc(b.id) + '">' +
           '<div class="tn-card-top">' +
             '<div class="bot-card-title">' + (cardFolderLocked ? '🔒 ' : '') + esc(b.name) + '</div>' +
@@ -7012,6 +7261,11 @@
 
         cHtml += '</div>' +
           '<div class="card-footer">' +
+            '<span class="card-time-stamp" title="Updated: ' + esc(formatRealDateTime(b.updatedAt)) + '">' +
+              icon('clock', 11) +
+              '<span class="truncate">' + esc(cardStamp) + '</span>' +
+              (cardIsDaily ? '<span class="daily-chip">Daily</span>' : '') +
+            '</span>' +
             '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'sheetNote', 16) + '</span>' +
           '</div></div>';
         return cHtml;
@@ -7045,42 +7299,87 @@
             '<button class="btn btn-primary" id="btn-empty-create">+ Create Table</button></div>';
         } else {
           html += '<div class="bot-grid">' +
-            filtered.map(function (b) { return renderBotCardHtml(b); }).join('') +
+            filtered.map(function (b) { return renderBotCardHtml(b, null, false); }).join('') +
           '</div>';
         }
       } else {
         var selPal = getFolderPalette(selFolder);
         var selFolderNeedsUnlock = isFolderLocked(selFolder) && !isFolderUnlocked(selFolder);
-        var selFolderRows = filtered.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
+        var fq = String(state.folderSearchQuery || '').trim().toLowerCase();
+        var folderFiltered = fq ? filtered.filter(function (b) {
+          var colMatch = (b.columns || []).some(function (c) { return (c.name || '').toLowerCase().indexOf(fq) !== -1; });
+          return (b.name || '').toLowerCase().indexOf(fq) !== -1 || (b.description || '').toLowerCase().indexOf(fq) !== -1 || colMatch;
+        }) : filtered;
+        var selFolderRows = folderFiltered.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
         var selIsEth = isFolderEthiopianCalendar(selFolder);
+        var folderAllBots = state.bots.filter(function (b) {
+          return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === String(selFolder).trim().toLowerCase();
+        });
+        if (!state.folderOpenedAt[selFolder]) {
+          state.folderOpenedAt[selFolder] = new Date().toISOString();
+        }
+        var folderLatestIso = getFolderLatestUpdatedAt(folderAllBots, state.folderOpenedAt[selFolder]);
+        var folderLatestStamp = formatFolderOpenTimestamp(folderLatestIso);
+        var folderDailyCount = folderAllBots.filter(function (b) { return isSameLocalDay(b.updatedAt); }).length;
+        var folderOpenedStamp = timeAgo(state.folderOpenedAt[selFolder]);
+
+        var pageSizeVal = (state.folderPageSize && state.folderPageSize > 0) ? state.folderPageSize : Math.max(1, folderFiltered.length);
+        var totalFolderPages = Math.max(1, Math.ceil(folderFiltered.length / pageSizeVal));
+        var curFolderPage = Math.max(1, Math.min(state.folderPage || 1, totalFolderPages));
+        state.folderPage = curFolderPage;
+        var pageStartIdx = (curFolderPage - 1) * pageSizeVal;
+        var pagedFolderBots = folderFiltered.slice(pageStartIdx, pageStartIdx + pageSizeVal);
 
         var selUndoTarget = getFolderUndoTarget(selFolder);
         var selRedoTarget = getFolderRedoTarget(selFolder);
         html += '<div class="folder-focused-banner" style="background:' + selPal.grad + ';">' +
-          '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
+          '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0;flex:1 1 280px;">' +
             '<button type="button" class="folder-mini-btn" data-folder="all" style="background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.35);color:#fff;">' + icon('back', 13) + '<span>All Folders</span></button>' +
-            '<div>' +
+            '<div style="min-width:0;">' +
               '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
                 '<span style="font-size:18px;font-weight:800;">' + esc(selFolder) + '</span>' +
                 (selIsEth ? '<span class="pill-badge" style="background:rgba(16,185,129,0.3);border:1px solid rgba(167,243,208,0.5);">EC Calendar</span>' : '') +
               '</div>' +
-              '<div class="num-tab" style="font-size:12px;color:rgba(255,255,255,0.88);font-weight:600;">' + filtered.length + ' tables &middot; ' + selFolderRows + ' rows</div>' +
+              '<div class="num-tab" style="font-size:12px;color:rgba(255,255,255,0.92);font-weight:600;margin-top:2px;">' +
+                folderFiltered.length + ' tables &middot; ' + selFolderRows + ' rows' +
+              '</div>' +
+              '<div class="num-tab" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:rgba(255,255,255,0.9);margin-top:4px;">' +
+                '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(15,23,42,0.25);padding:2px 8px;border-radius:999px;">' + icon('clock', 11) + '<span>' + esc(folderLatestStamp) + '</span></span>' +
+                '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.28);border:1px solid rgba(167,243,208,0.4);padding:2px 8px;border-radius:999px;font-weight:700;">Daily: ' + folderDailyCount + ' today</span>' +
+                '<span style="opacity:0.88;">Opened: ' + esc(folderOpenedStamp) + '</span>' +
+              '</div>' +
             '</div>' +
           '</div>' +
           '<div class="folder-head-actions">' +
             '<button type="button" class="folder-icon-btn on-dark" data-folder-undo="' + esc(selFolder) + '" title="' + (selUndoTarget ? ('Undo last change in ' + esc(selUndoTarget.name)) : 'Undo in ' + esc(selFolder)) + '"' + (!selUndoTarget ? ' disabled' : '') + '>' + icon('undo', 16) + '</button>' +
             '<button type="button" class="folder-icon-btn on-dark" data-folder-redo="' + esc(selFolder) + '" title="' + (selRedoTarget ? ('Redo change in ' + esc(selRedoTarget.name)) : 'Redo in ' + esc(selFolder)) + '"' + (!selRedoTarget ? ' disabled' : '') + '>' + icon('redo', 16) + '</button>' +
-            '<button type="button" class="folder-mini-btn" id="btn-rename-cur-folder" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('edit', 12) + '<span>Rename</span></button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-folder-add-col" style="background:rgba(59,130,246,0.34);border-color:rgba(191,219,254,0.55);color:#fff;" title="Add Column to table(s) in this folder">' + icon('plus', 12) + '<span>Add Column</span></button>' +
+            '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;" title="Folder Reports">' + icon('chart', 12) + '<span>Report</span></button>' +
+            '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-search" title="Search tables in ' + esc(selFolder) + '" style="' + (state.folderSearchOpen ? 'background:rgba(255,255,255,0.32);border-color:#fff;' : '') + '">' + icon('search', 16) + '</button>' +
+            '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-settings" title="Folder Settings">' + icon('settings', 16) + '</button>' +
+            '<div class="folder-pager-wrap" title="Folder Pages">' +
+              '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-prev-page" title="Previous Page" style="width:26px;height:26px;"' + (curFolderPage <= 1 ? ' disabled' : '') + '>' + icon('chevronLeft', 14) + '</button>' +
+              '<span class="folder-pager-label">' + curFolderPage + '/' + totalFolderPages + '</span>' +
+              '<button type="button" class="folder-mini-btn" id="btn-folder-next-page" title="Show Next Page" style="padding:4px 8px;background:rgba(255,255,255,0.22);border-color:rgba(255,255,255,0.38);color:#fff;' + (curFolderPage >= totalFolderPages ? 'opacity:0.45;' : '') + '"' + (curFolderPage >= totalFolderPages ? ' disabled' : '') + '><span>Next Page</span>' + icon('chevronRight', 12) + '</button>' +
+            '</div>' +
             '<button type="button" class="folder-mini-btn" data-add-table-folder="' + esc(selFolder) + '" style="background:#fff;border-color:#fff;color:#0F172A;">' + icon('plus', 12) + '<span>Add Table</span></button>' +
-            '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('chart', 12) + '<span>Reports</span></button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-rename-cur-folder" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('edit', 12) + '<span>Rename</span></button>' +
             '<button type="button" class="folder-mini-btn" data-lock-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('lock', 12) + '<span>Lock</span></button>' +
-            '<button type="button" class="folder-mini-btn" id="btn-del-cur-folder" style="background:rgba(220,38,38,0.9);border-color:rgba(254,202,202,0.7);color:#fff;">' + icon('trash', 12) + '<span>Delete Folder</span></button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-del-cur-folder" style="background:rgba(220,38,38,0.9);border-color:rgba(254,202,202,0.7);color:#fff;">' + icon('trash', 12) + '<span>Delete</span></button>' +
           '</div>' +
         '</div>';
 
+        if (state.folderSearchOpen) {
+          html += '<div style="margin:0 0 14px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(15,23,42,0.06);">' +
+            '<span style="color:#64748B;">' + icon('search', 16) + '</span>' +
+            '<input id="inp-folder-search" type="text" placeholder="Search tables or columns in ' + esc(selFolder) + '..." value="' + esc(state.folderSearchQuery || '') + '" style="width:100%;border:none;outline:none;font-size:13px;background:transparent;" />' +
+            (state.folderSearchQuery ? '<button type="button" id="btn-clear-folder-search" style="font-weight:700;color:#64748B;padding:2px 6px;">✕</button>' : '') +
+          '</div>';
+        }
+
         if (state.confirmDeleteFolder === selFolder) {
           html += '<div style="margin:0 0 14px;padding:10px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
-            '<div style="font-size:12.5px;font-weight:700;color:#991B1B;">Delete folder "' + esc(selFolder) + '" (' + filtered.length + ' table(s) will be archived to Deleted Bin)?</div>' +
+            '<div style="font-size:12.5px;font-weight:700;color:#991B1B;">Delete folder "' + esc(selFolder) + '" (' + folderAllBots.length + ' table(s) will be archived to Deleted Bin)?</div>' +
             '<div style="display:flex;gap:8px;">' +
               '<button type="button" id="dash-cancel-del-folder" class="btn btn-outline" style="padding:5px 12px;font-size:11.5px;">Cancel</button>' +
               '<button type="button" id="dash-confirm-del-folder" class="btn btn-red" style="padding:5px 12px;font-size:11.5px;">' + icon('trash', 13) + '<span>Yes, Delete Folder</span></button>' +
@@ -7115,11 +7414,14 @@
             '<button type="button" id="dash-folder-lock-settings" class="btn btn-outline" style="width:100%;margin-top:10px;font-size:12px;">Change / Manage Folder Lock Code (Abdulfeta)</button>' +
           '</div>';
         } else {
+          var showingRangeLabel = folderFiltered.length > 0
+            ? ('Showing ' + (pageStartIdx + 1) + '–' + (pageStartIdx + pagedFolderBots.length) + ' of ' + folderFiltered.length + ' · Page ' + curFolderPage + '/' + totalFolderPages)
+            : esc(t('tap_card'));
           html += '<div class="grid-meta"><span class="grid-meta-title">' +
-            esc(selFolder) + ' Tables (' + filtered.length + ')' +
-            '</span><span style="color:#64748B;">' + esc(t('tap_card')) + '</span></div>';
+            esc(selFolder) + ' Tables (' + folderFiltered.length + ')' +
+            '</span><span class="num-tab" style="color:#64748B;">' + showingRangeLabel + '</span></div>';
 
-          if (filtered.length === 0) {
+          if (folderFiltered.length === 0) {
             html += '<div style="background:#fff;border-radius:16px;padding:36px;text-align:center;max-width:420px;margin:30px auto;border:1px solid #E2E8F0;">' +
               '<div style="width:60px;height:60px;border-radius:999px;background:#EFF6FF;color:#1976D2;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">' + icon('bot', 30) + '</div>' +
               '<h3 style="font-weight:700;font-size:17px;margin-bottom:6px;">No bot tables in "' + esc(selFolder) + '"</h3>' +
@@ -7127,8 +7429,17 @@
               '<button class="btn btn-primary" id="btn-empty-create">+ Create Bot Table</button></div>';
           } else {
             html += '<div class="bot-grid">' +
-              filtered.map(function (b) { return renderBotCardHtml(b, selPal.accent); }).join('') +
+              pagedFolderBots.map(function (b) { return renderBotCardHtml(b, selPal.accent, true); }).join('') +
             '</div>';
+            if (totalFolderPages > 1) {
+              html += '<div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 14px;">' +
+                '<span class="num-tab" style="font-size:12px;font-weight:700;color:#475569;">Page ' + curFolderPage + ' of ' + totalFolderPages + ' (' + folderFiltered.length + ' tables)</span>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                  '<button type="button" class="btn btn-outline" id="btn-folder-prev-page-foot" style="padding:6px 12px;font-size:12px;"' + (curFolderPage <= 1 ? ' disabled' : '') + '>' + icon('chevronLeft', 13) + '<span>Prev</span></button>' +
+                  '<button type="button" class="btn btn-primary" id="btn-folder-next-page-foot" style="padding:6px 12px;font-size:12px;"' + (curFolderPage >= totalFolderPages ? ' disabled' : '') + '><span>Next Page</span>' + icon('chevronRight', 13) + '</button>' +
+                '</div>' +
+              '</div>';
+            }
           }
         }
       }
@@ -7280,10 +7591,78 @@
         state.folderUnlockError = '';
         state.confirmDeleteFolder = '';
         state.selectedFolder = e.target.value || 'all';
+        state.folderPage = 1;
+        state.folderSearchQuery = '';
+        if (state.selectedFolder && state.selectedFolder !== 'all') {
+          state.folderOpenedAt[state.selectedFolder] = new Date().toISOString();
+        }
         renderDashboard();
       };
       var dashNewTblBtn = document.getElementById('btn-dash-new-table');
       if (dashNewTblBtn) dashNewTblBtn.onclick = function () { createInstantBot(false); };
+
+      var fldAddColBtn = document.getElementById('btn-folder-add-col');
+      if (fldAddColBtn) fldAddColBtn.onclick = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        if (state.selectedFolder && state.selectedFolder !== 'all') {
+          openModal('folder_add_column', { folder: state.selectedFolder });
+        }
+      };
+      var fldSearchBtn = document.getElementById('btn-folder-search');
+      if (fldSearchBtn) fldSearchBtn.onclick = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        state.folderSearchOpen = !state.folderSearchOpen;
+        renderDashboard();
+        if (state.folderSearchOpen) {
+          var fInp = document.getElementById('inp-folder-search');
+          if (fInp) fInp.focus();
+        }
+      };
+      var debouncedFolderSearch = debounce(function (nextFq) {
+        state.folderSearchQuery = sanitizeUserText(nextFq, 120);
+        state.folderPage = 1;
+        renderDashboard();
+        var el = document.getElementById('inp-folder-search');
+        if (el) {
+          el.focus();
+          try { el.setSelectionRange(el.value.length, el.value.length); } catch (eRng) {}
+        }
+      }, 300);
+      var fldSearchInp = document.getElementById('inp-folder-search');
+      if (fldSearchInp) fldSearchInp.oninput = function (e) {
+        debouncedFolderSearch(e.target.value);
+      };
+      var clrFldSearchBtn = document.getElementById('btn-clear-folder-search');
+      if (clrFldSearchBtn) clrFldSearchBtn.onclick = function () {
+        state.folderSearchQuery = '';
+        state.folderPage = 1;
+        renderDashboard();
+      };
+      var fldSettingsBtn = document.getElementById('btn-folder-settings');
+      if (fldSettingsBtn) fldSettingsBtn.onclick = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        if (state.selectedFolder && state.selectedFolder !== 'all') {
+          openModal('folder_settings', { folder: state.selectedFolder });
+        }
+      };
+      var goPrevFolderPage = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        state.folderPage = Math.max(1, (state.folderPage || 1) - 1);
+        renderDashboard();
+      };
+      var goNextFolderPage = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        state.folderPage = (state.folderPage || 1) + 1;
+        renderDashboard();
+      };
+      var fldPrevBtn = document.getElementById('btn-folder-prev-page');
+      if (fldPrevBtn) fldPrevBtn.onclick = goPrevFolderPage;
+      var fldNextBtn = document.getElementById('btn-folder-next-page');
+      if (fldNextBtn) fldNextBtn.onclick = goNextFolderPage;
+      var fldPrevFoot = document.getElementById('btn-folder-prev-page-foot');
+      if (fldPrevFoot) fldPrevFoot.onclick = goPrevFolderPage;
+      var fldNextFoot = document.getElementById('btn-folder-next-page-foot');
+      if (fldNextFoot) fldNextFoot.onclick = goNextFolderPage;
 
       document.querySelectorAll('[data-folder]').forEach(function (btn) {
         btn.onclick = function () {
@@ -7291,8 +7670,11 @@
           state.folderUnlockError = '';
           state.confirmDeleteFolder = '';
           state.selectedFolder = nextF;
-          if (nextF && nextF !== 'all' && state.collapsedFolders) {
-            state.collapsedFolders[nextF] = false;
+          state.folderPage = 1;
+          state.folderSearchQuery = '';
+          if (nextF && nextF !== 'all') {
+            state.folderOpenedAt[nextF] = new Date().toISOString();
+            if (state.collapsedFolders) state.collapsedFolders[nextF] = false;
           }
           renderDashboard();
         };
@@ -7427,6 +7809,9 @@
             state.folderUnlockError = '';
             state.confirmDeleteFolder = '';
             state.selectedFolder = fn;
+            state.folderPage = 1;
+            state.folderSearchQuery = '';
+            state.folderOpenedAt[fn] = new Date().toISOString();
             renderDashboard();
           } else if (act === 'rename') {
             openModal('rename_item', { kind: 'folder', folderName: fn });
@@ -11356,6 +11741,8 @@
       else if (m.type === 'backup') renderBackupModal(m);
       else if (m.type === 'file_history') renderFileHistoryModal(m);
       else if (m.type === 'add_folder') renderAddFolderModal(m);
+      else if (m.type === 'folder_add_column') renderFolderAddColumnModal(m);
+      else if (m.type === 'folder_settings') renderFolderSettingsModal(m);
       else if (m.type === 'rename_item') renderRenameItemModal(m);
       else if (m.type === 'image_preview') renderImagePreviewModal(m);
       else if (m.type === 'access_code') renderAccessCodeModal(m);
@@ -12377,6 +12764,183 @@
           closeModal();
           renderApp();
         }
+      };
+    }
+
+    function renderFolderAddColumnModal(m) {
+      var folder = m.folder || state.selectedFolder || 'General';
+      var folderBots = state.bots.filter(function (b) {
+        return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === String(folder).trim().toLowerCase();
+      });
+      var maxCols = folderBots.reduce(function (mx, b) { return Math.max(mx, (b.columns || []).length); }, 0);
+      var defColName = m.colName !== undefined ? m.colName : ('Column ' + (maxCols + 1));
+      var defColType = m.colType || 'text';
+      var targetId = m.targetBotId || (folderBots.length === 1 ? folderBots[0].id : '__ALL__');
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:460px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('plus', 19) + '<div><h2 style="font-size:15.5px;font-weight:700;">Add Column in Folder</h2><div style="font-size:11px;color:#BFDBFE;">Folder: ' + esc(folder) + ' (' + folderBots.length + ' table' + (folderBots.length === 1 ? '' : 's') + ')</div></div></div>' +
+          '<button class="icon-btn" id="fac-close">' + icon('close', 18) + '</button></header>' +
+        '<form id="fac-form" class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
+          '<div><label class="field-label">Column Name</label>' +
+            '<input id="fac-name" class="form-input" value="' + esc(defColName) + '" placeholder="e.g. Quantity, Amount, Date, Notes..." required autofocus />' +
+          '</div>' +
+          '<div><label class="field-label">Column Type</label>' +
+            '<select id="fac-type" class="form-select">' +
+              '<option value="text"' + (defColType === 'text' ? ' selected' : '') + '>Text</option>' +
+              '<option value="amount"' + (defColType === 'amount' ? ' selected' : '') + '>Amount ($ / ETB)</option>' +
+              '<option value="number"' + (defColType === 'number' ? ' selected' : '') + '>Number</option>' +
+              '<option value="date"' + (defColType === 'date' ? ' selected' : '') + '>Date</option>' +
+              '<option value="checkbox"' + (defColType === 'checkbox' ? ' selected' : '') + '>Checkbox</option>' +
+              '<option value="formula"' + (defColType === 'formula' ? ' selected' : '') + '>Formula (Σ)</option>' +
+            '</select>' +
+          '</div>' +
+          (folderBots.length > 0
+            ? '<div><label class="field-label">Apply To Table(s) in "' + esc(folder) + '"</label>' +
+                '<select id="fac-target" class="form-select">' +
+                  (folderBots.length > 1 ? '<option value="__ALL__"' + (targetId === '__ALL__' ? ' selected' : '') + '>All Tables in "' + esc(folder) + '" (' + folderBots.length + ')</option>' : '') +
+                  folderBots.map(function (b) {
+                    return '<option value="' + esc(b.id) + '"' + (targetId === b.id ? ' selected' : '') + '>' + esc(b.name) + ' (' + (b.columns || []).length + ' cols)</option>';
+                  }).join('') +
+                '</select></div>'
+            : '<div style="padding:10px 12px;border-radius:10px;background:#EFF6FF;border:1px solid #BFDBFE;font-size:12px;color:#1E3A8A;">This folder has no tables yet. Adding a column will automatically create your first table in "' + esc(folder) + '".</div>') +
+          '<div style="display:flex;gap:8px;padding-top:4px;">' +
+            '<button type="button" id="fac-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+            '<button type="submit" class="btn btn-primary" style="flex:1.4;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
+          '</div>' +
+        '</form></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('fac-close').onclick = closeModal;
+      document.getElementById('fac-cancel').onclick = closeModal;
+      document.getElementById('fac-form').onsubmit = function (e) {
+        e.preventDefault();
+        if (!guardWriteAction('Add Column')) return;
+        var cname = sanitizeUserText(document.getElementById('fac-name').value, 80) || ('Column ' + (maxCols + 1));
+        var ctype = document.getElementById('fac-type').value || 'text';
+        var chosenTarget = document.getElementById('fac-target') ? document.getElementById('fac-target').value : '__ALL__';
+        var targets = chosenTarget === '__ALL__' ? folderBots : folderBots.filter(function (b) { return b.id === chosenTarget; });
+        if (targets.length === 0) {
+          var created = createInstantBot(false, folder);
+          if (created) {
+            state.activeBotId = null;
+            targets = [created];
+          }
+        }
+        var nowIso = new Date().toISOString();
+        targets.forEach(function (b, idx) {
+          if (!Array.isArray(b.columns)) b.columns = [];
+          b.columns.push({
+            id: 'col_' + Date.now() + '_' + idx,
+            name: cname,
+            type: ctype,
+            widthMultiplier: 1.0,
+            currency: ctype === 'amount' ? 'ETB' : 'None',
+            thousandSeparator: ctype === 'amount' || ctype === 'number',
+            decimals: ctype === 'amount' ? 2 : 0,
+            style: { bold: false, italic: false, align: (ctype === 'amount' || ctype === 'number' || ctype === 'formula') ? 'right' : 'left', color: '#1E293B', bgColor: '#FFFFFF' },
+            includeInGraph: true
+          });
+          b.updatedAt = nowIso;
+          b.lastEditedBy = getCurrentActor();
+          recordFolderSnapshot(b, 'COLUMN_ADDED', 'Added column "' + cname + '" from folder header', true);
+          recordAudit('ADD', b, 'Added column "' + cname + '" (' + ctype + ')');
+          scheduleSupabasePush(b);
+        });
+        saveBotsLocal();
+        closeModal();
+        renderDashboard();
+        showToast('Added column "' + cname + '" to ' + targets.length + ' table(s) in "' + folder + '"');
+      };
+    }
+
+    function renderFolderSettingsModal(m) {
+      var folder = m.folder || state.selectedFolder || 'General';
+      var folderBots = state.bots.filter(function (b) {
+        return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === String(folder).trim().toLowerCase();
+      });
+      var curPgSize = state.folderPageSize || 6;
+      var latestIso = getFolderLatestUpdatedAt(folderBots, state.folderOpenedAt[folder] || state.appOpenedAt);
+      var isLocked = isFolderLocked(folder);
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:480px;" id="m-card">' +
+        '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('settings', 19) + '<div><h2 style="font-size:15.5px;font-weight:700;">Folder Settings</h2><div style="font-size:11px;color:#BFDBFE;">' + esc(folder) + ' &middot; ' + esc(formatFolderOpenTimestamp(latestIso)) + '</div></div></div>' +
+          '<button class="icon-btn" id="fset-close">' + icon('close', 18) + '</button></header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
+          '<div><label class="field-label">Rename Folder</label>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<input id="fset-rename-inp" class="form-input" value="' + esc(folder) + '" style="flex:1;" />' +
+              '<button type="button" id="fset-rename-btn" class="btn btn-primary">Save Name</button>' +
+            '</div></div>' +
+          '<div><label class="field-label">Tables Per Page (Pagination)</label>' +
+            '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">' +
+              [4, 6, 10, 0].map(function (sz) {
+                var active = curPgSize === sz;
+                return '<button type="button" class="btn ' + (active ? 'btn-primary' : 'btn-outline') + ' fset-pgsize" data-psize="' + sz + '" style="padding:7px 8px;font-size:12px;">' + (sz === 0 ? 'All' : (sz + ' / pg')) + '</button>';
+              }).join('') +
+            '</div></div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<button type="button" id="fset-lock-btn" class="btn btn-outline" style="justify-content:center;">' + icon('lock', 14) + '<span>' + (isLocked ? 'Manage Folder Lock' : 'Set Folder Lock') + '</span></button>' +
+            '<button type="button" id="fset-rep-btn" class="btn btn-outline" style="justify-content:center;">' + icon('chart', 14) + '<span>Folder Reports</span></button>' +
+          '</div>' +
+          (folderBots.length > 0
+            ? '<div><label class="field-label">Table Settings Inside "' + esc(folder) + '"</label>' +
+                '<div style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto;">' +
+                  folderBots.map(function (b) {
+                    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:9px;">' +
+                      '<div style="min-width:0;flex:1;"><div class="truncate" style="font-size:12.5px;font-weight:700;color:#0F172A;">' + esc(b.name) + '</div>' +
+                      '<div style="font-size:10.5px;color:#64748B;">' + esc(formatFolderOpenTimestamp(b.updatedAt)) + '</div></div>' +
+                      '<button type="button" class="btn btn-outline fset-bot-set" data-bid="' + esc(b.id) + '" style="padding:4px 9px;font-size:11px;">' + icon('settings', 12) + '<span>Settings</span></button>' +
+                    '</div>';
+                  }).join('') +
+                '</div></div>'
+            : '') +
+          '<div style="display:flex;gap:8px;padding-top:4px;border-top:1px solid #E2E8F0;">' +
+            '<button type="button" id="fset-del-btn" class="btn btn-red" style="flex:1;">' + icon('trash', 14) + '<span>Delete Folder</span></button>' +
+            '<button type="button" id="fset-done-btn" class="btn btn-dark-blue" style="flex:1;">Done</button>' +
+          '</div>' +
+        '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('fset-close').onclick = closeModal;
+      document.getElementById('fset-done-btn').onclick = closeModal;
+      document.getElementById('fset-rename-btn').onclick = function () {
+        var nextName = sanitizeUserText(document.getElementById('fset-rename-inp').value, 60);
+        if (nextName && nextName !== folder && renameFolderEverywhere(folder, nextName)) {
+          state.selectedFolder = nextName;
+          m.folder = nextName;
+          renderFolderSettingsModal(m);
+          renderDashboard();
+        }
+      };
+      document.querySelectorAll('.fset-pgsize').forEach(function (b) {
+        b.onclick = function () {
+          state.folderPageSize = parseInt(b.getAttribute('data-psize'), 10) || 0;
+          state.folderPage = 1;
+          renderFolderSettingsModal(m);
+          renderDashboard();
+        };
+      });
+      document.getElementById('fset-lock-btn').onclick = function () {
+        openModal('folder_lock', { focusFolder: folder });
+      };
+      document.getElementById('fset-rep-btn').onclick = function () {
+        openModal('reports', { folder: folder });
+      };
+      document.querySelectorAll('.fset-bot-set').forEach(function (b) {
+        b.onclick = function () {
+          var bid = b.getAttribute('data-bid');
+          var target = state.bots.find(function (x) { return x.id === bid; });
+          if (target) openModal('settings', { bot: target });
+        };
+      });
+      document.getElementById('fset-del-btn').onclick = async function () {
+        var cnt = await deleteFolderWithBackup(folder);
+        closeModal();
+        showToast('Deleted folder "' + folder + '"' + (cnt > 0 ? ' (' + cnt + ' table(s) backed up)' : ''));
       };
     }
 
