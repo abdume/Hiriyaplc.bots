@@ -1711,6 +1711,7 @@
     var STORAGE_GUEST_ACTOR = 'tablebot_device_actor_v1';
     var STORAGE_TG_WEB_USER = 'tablebot_tg_webapp_user_v1';
     var STORAGE_LAST_TG_OPENER = 'tablebot_last_tg_opener_v1';
+    var STORAGE_SAVED_USER_NAME = 'tablebot_saved_user_name_v1';
     var STORAGE_SIGMA_HIDDEN = 'tablebot_sigma_hidden_v1';
     var STORAGE_TABLE_REP_COLLAPSED = 'tablebot_table_rep_collapsed_v1';
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
@@ -2036,6 +2037,27 @@
             return info;
           }
         }
+        // Parse tgWebAppData embedded in Telegram Mini App URL hash or search params
+        var rawWebAppData = hashQs.get('tgWebAppData') || qs.get('tgWebAppData') || '';
+        if (rawWebAppData) {
+          try {
+            var wdParams = new URLSearchParams(rawWebAppData);
+            var wdUserStr = wdParams.get('user');
+            if (wdUserStr) {
+              var wdUser = JSON.parse(wdUserStr);
+              if (wdUser && (wdUser.id || wdUser.first_name || wdUser.username)) {
+                var wdInfo = {
+                  id: String(wdUser.id || wdUser.username || wdUser.first_name || 'tg'),
+                  username: wdUser.username ? ('@' + String(wdUser.username).replace(/^@/, '')) : '',
+                  firstName: wdUser.first_name || '',
+                  lastName: wdUser.last_name || ''
+                };
+                try { localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify(wdInfo)); } catch (eWd) {}
+                return wdInfo;
+              }
+            }
+          } catch (eParseWd) {}
+        }
         if (qId || qName || qUser) {
           var cleanUser = String(qUser || '').trim().replace(/^@/, '');
           var cleanName = String(qName || '').trim() || cleanUser;
@@ -2067,7 +2089,61 @@
       return '';
     }
 
+    function cleanSpokenUserName(rawName) {
+      var s = String(rawName || '').trim();
+      if (!s) return '';
+      if (s.indexOf('@') > 0 && s.indexOf('.') > s.indexOf('@')) {
+        s = s.split('@')[0];
+      }
+      s = s.replace(/^@+/, '').replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+      return s.slice(0, 48);
+    }
+
+    function getSavedUserGreetingName() {
+      try {
+        var v = localStorage.getItem(STORAGE_SAVED_USER_NAME);
+        return v ? String(v).trim() : '';
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function setSavedUserGreetingName(name) {
+      var clean = sanitizeUserText(String(name || ''), 48);
+      try {
+        if (clean) localStorage.setItem(STORAGE_SAVED_USER_NAME, clean);
+        else localStorage.removeItem(STORAGE_SAVED_USER_NAME);
+      } catch (e) {}
+      if (clean) {
+        try { localStorage.setItem(STORAGE_GUEST_ACTOR, clean); } catch (eG) {}
+        state.lastTelegramOpener = Object.assign({}, state.lastTelegramOpener || {}, {
+          displayName: clean,
+          source: (state.lastTelegramOpener && state.lastTelegramOpener.source) || 'User',
+          openedAt: new Date().toISOString()
+        });
+        try { localStorage.setItem(STORAGE_LAST_TG_OPENER, JSON.stringify(state.lastTelegramOpener)); } catch (eL) {}
+      }
+      if (typeof _dailyVoiceCtrl === 'object' && _dailyVoiceCtrl) {
+        _dailyVoiceCtrl.sessionKey = '';
+        _dailyVoiceCtrl.attemptedAutoKey = '';
+      }
+      if (typeof state === 'object' && state) {
+        state.dailyVoiceListened = false;
+      }
+      return clean;
+    }
+
     function getActiveGreetingUser() {
+      var customSaved = getSavedUserGreetingName();
+      if (customSaved) {
+        return {
+          displayName: customSaved,
+          username: '',
+          id: '',
+          source: 'Saved',
+          openedAt: state.appOpenedAt || new Date().toISOString()
+        };
+      }
       var tgWeb = getTelegramWebAppUser();
       if (tgWeb) {
         var dn = formatTelegramWelcomeName(tgWeb);
@@ -2091,14 +2167,19 @@
           botName: state.lastTelegramOpener.botName || ''
         };
       }
-      if (state.authSession && state.authSession.user && state.authSession.user.email) {
-        return {
-          displayName: String(state.authSession.user.email).split('@')[0],
-          username: state.authSession.user.email,
-          id: '',
-          source: 'Account',
-          openedAt: state.appOpenedAt || new Date().toISOString()
-        };
+      if (state.authSession && state.authSession.user) {
+        var meta = state.authSession.user.user_metadata || {};
+        var authName = String(meta.full_name || meta.name || '').trim() ||
+          (state.authSession.user.email ? String(state.authSession.user.email).split('@')[0] : '');
+        if (authName) {
+          return {
+            displayName: authName,
+            username: state.authSession.user.email || '',
+            id: '',
+            source: 'Account',
+            openedAt: state.appOpenedAt || new Date().toISOString()
+          };
+        }
       }
       return null;
     }
@@ -2569,7 +2650,9 @@
       var entry = DAILY_AMHARIC_WORK_PROMPTS[idx] || DAILY_AMHARIC_WORK_PROMPTS[0];
       var greet = userOverride !== undefined ? userOverride : getActiveGreetingUser();
       var rawName = greet && greet.displayName ? String(greet.displayName).trim() : '';
+      var spokenName = cleanSpokenUserName(rawName);
       var userSuffix = rawName ? (' ' + rawName) : '';
+      var spokenSuffix = spokenName ? (' ' + spokenName) : '';
       var baseDisplay = entry.amDay + ' ነው ' + entry.displayQuestion;
       var baseSpoken = entry.amDay + ' ነው ' + entry.spokenQuestion;
       return {
@@ -2578,10 +2661,11 @@
         amDay: entry.amDay,
         enDay: entry.enDay,
         userName: rawName,
+        spokenUserName: spokenName,
         baseDisplayText: baseDisplay,
         baseSpokenText: baseSpoken,
         displayText: baseDisplay + userSuffix,
-        spokenText: baseSpoken + userSuffix
+        spokenText: baseSpoken + spokenSuffix
       };
     }
 
@@ -2722,7 +2806,7 @@
         if (splashActive) return;
         if (state && state.dailyVoiceListened) return;
         if (!document.getElementById('lock-form')) return;
-        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn, #lock-lang-btn, #lock-sync-btn, #lock-eye-btn')) return;
+        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn, #lock-lang-btn, #lock-sync-btn, #lock-eye-btn, #lock-name-wrap, #lock-user-name-inp, #lock-user-name-save, #lock-edit-name-btn, #lock-cancel-name-btn')) return;
         if (_dailyVoiceCtrl.status === 'autoplay_blocked' || _dailyVoiceCtrl.status === 'idle') {
           disarmAutoVoiceGestureWakeup();
           startDailyVoicePlayback({ auto: false, fromGesture: true });
@@ -2761,7 +2845,7 @@
           disarmAutoVoiceGestureWakeup();
           return;
         }
-        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn, #lock-lang-btn, #lock-sync-btn, #lock-eye-btn')) {
+        if (ev && ev.target && ev.target.closest && ev.target.closest('#lock-voice-play-btn, #lock-lang-btn, #lock-sync-btn, #lock-eye-btn, #lock-name-wrap, #lock-user-name-inp, #lock-user-name-save, #lock-edit-name-btn, #lock-cancel-name-btn')) {
           if (ev.target.closest('#lock-voice-play-btn')) disarmAutoVoiceGestureWakeup();
           return;
         }
@@ -3174,7 +3258,7 @@
       }
 
       function speakAppendedUserName(userName, onDone) {
-        var cleanName = String(userName || '').trim();
+        var cleanName = cleanSpokenUserName(userName);
         if (!cleanName || myToken !== _dailyVoiceCtrl.playToken) {
           onDone();
           return;
@@ -3191,14 +3275,21 @@
             var synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
             if (!synth || typeof SpeechSynthesisUtterance === 'undefined') { finish(); return; }
             if (typeof synth.resume === 'function') synth.resume();
+            var voices = [];
+            try { voices = synth.getVoices ? synth.getVoices() : []; } catch (eV) {}
             var utt = new SpeechSynthesisUtterance(cleanName);
             utt.lang = hasAmharicName ? 'am-ET' : 'en-US';
+            var preferredVoice = voices.find(function (v) {
+              return v && v.lang && v.lang.toLowerCase().indexOf(hasAmharicName ? 'am' : 'en') === 0;
+            });
+            if (preferredVoice) utt.voice = preferredVoice;
             utt.volume = 1.0;
-            utt.rate = 0.95;
-            var tid = setTimeout(finish, 2200);
+            utt.rate = 0.94;
+            var tid = setTimeout(finish, 2000);
             utt.onend = function () { clearTimeout(tid); finish(); };
             utt.onerror = function () { clearTimeout(tid); finish(); };
             synth.speak(utt);
+            if (typeof synth.resume === 'function') { try { synth.resume(); } catch (eR2) {} }
           } catch (eSp) {
             finish();
           }
@@ -3214,15 +3305,38 @@
             try { domAudio.setAttribute('referrerpolicy', 'no-referrer'); } catch (eR) {}
             domAudio.src = ttsUrl;
             try { if (typeof domAudio.load === 'function') domAudio.load(); } catch (eL) {}
-            var nameTimer = setTimeout(function () {
-              try { domAudio.pause(); } catch (eP) {}
+            var startedPlaying = false;
+            var stallTimer = setTimeout(function () {
+              if (!startedPlaying) {
+                try { domAudio.pause(); } catch (eP) {}
+                trySpeechName();
+              }
+            }, 1400);
+            var hardMaxTimer = setTimeout(function () {
+              try { domAudio.pause(); } catch (eP2) {}
+              finish();
+            }, 4200);
+            domAudio.onplaying = function () {
+              startedPlaying = true;
+              clearTimeout(stallTimer);
+            };
+            domAudio.onended = function () {
+              clearTimeout(stallTimer);
+              clearTimeout(hardMaxTimer);
+              finish();
+            };
+            domAudio.onerror = function () {
+              clearTimeout(stallTimer);
+              clearTimeout(hardMaxTimer);
               trySpeechName();
-            }, 2200);
-            domAudio.onended = function () { clearTimeout(nameTimer); finish(); };
-            domAudio.onerror = function () { clearTimeout(nameTimer); trySpeechName(); };
+            };
             var np = domAudio.play();
             if (np && typeof np.catch === 'function') {
-              np.catch(function () { clearTimeout(nameTimer); trySpeechName(); });
+              np.catch(function () {
+                clearTimeout(stallTimer);
+                clearTimeout(hardMaxTimer);
+                trySpeechName();
+              });
             }
             return;
           } catch (eAud) {}
@@ -3233,9 +3347,10 @@
       function completeVoice(sourceLabel) {
         if (myToken !== _dailyVoiceCtrl.playToken) return;
         var resolvedSrc = _dailyVoiceCtrl.blobSourceMap[voiceCacheKey] || '';
-        var needsNameAppend = resolvedSrc === 'static' && Boolean(promptInfo.userName) && (sourceLabel === 'gemini' || sourceLabel === 'webaudio' || sourceLabel === 'static');
+        var targetName = promptInfo.spokenUserName || promptInfo.userName;
+        var needsNameAppend = resolvedSrc === 'static' && Boolean(targetName) && (sourceLabel === 'gemini' || sourceLabel === 'webaudio' || sourceLabel === 'static');
         if (needsNameAppend) {
-          speakAppendedUserName(promptInfo.userName, function () {
+          speakAppendedUserName(targetName, function () {
             finalizeVoiceDone('static+name');
           });
           return;
@@ -3581,15 +3696,11 @@
         fetchDailyVoiceArrayBuffer(promptInfo.spokenText, promptInfo.dayIndex).then(function (ab) {
           if (myToken !== _dailyVoiceCtrl.playToken) return;
           var readyBlob = _dailyVoiceCtrl.blobUrlMap[voiceCacheKey];
-          if (fromGesture && readyBlob) {
+          if (readyBlob) {
             playDomAudioElement(readyBlob, true);
             return;
           }
           if (ab && tryWebAudioPlayback(ab, true)) return;
-          if (readyBlob) {
-            playDomAudioElement(readyBlob, false);
-            return;
-          }
           if (isAuto && !fromGesture) {
             markAutoplayBlocked();
           } else {
@@ -3752,6 +3863,7 @@
       redoStacks: {},
       folderLastBotId: {},
       editingTitle: false,
+      editingLockName: false,
       showMoreMenu: false,
       tableReportScope: 'table',
       tableReportCollapsed: (function () { try { return localStorage.getItem(STORAGE_TABLE_REP_COLLAPSED) !== '0'; } catch (e) { return true; } })(),
@@ -11448,6 +11560,7 @@
           '<div class="drawer-nav">' +
             '<button class="drawer-item" data-nav="account"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:5px;border-radius:7px;display:inline-flex;">' + icon('cloud', 17) + '</span><span><div><div style="font-weight:800;">Account</div><div style="font-size:11px;color:#64748B;">' + esc(activeEmail) + ' · ' + dotTxt + '</div></div></span></span>' +
               '<span class="sync-dot ' + dotCls + '"></span></button>' +
+            '<button class="drawer-item" id="drawer-voice-name-btn"><span class="drawer-item-left"><span style="background:#FFFBEB;color:#B45309;padding:5px;border-radius:7px;display:inline-flex;">' + icon('user', 17) + '</span><span><div><div style="font-weight:800;">Voice Called Name</div><div style="font-size:11px;color:#64748B;">' + esc((getActiveGreetingUser() && getActiveGreetingUser().displayName) || 'Tap to set your name') + '</div></div></span></span><span class="pill-badge" style="background:#FEF3C7;color:#92400E;font-size:10px;">Edit</span></button>' +
             '<button class="drawer-item" data-nav="import_excel"><span class="drawer-item-left"><span style="background:#ECFDF5;color:#047857;padding:5px;border-radius:7px;display:inline-flex;">' + icon('excel', 17) + '</span><span><div><div style="font-weight:800;">Import Excel</div><div style="font-size:11px;color:#64748B;">Import .xlsx, .xls or .csv into tables</div></div></span></span></button>' +
             '<button class="drawer-item" data-nav="backup"><span class="drawer-item-left"><span style="background:#F0FDFA;color:#0F766E;padding:5px;border-radius:7px;display:inline-flex;">' + icon('history', 17) + '</span><span><div><div style="font-weight:800;">Backup &amp; Restore</div><div style="font-size:11px;color:#64748B;">Export backup, version history &amp; trash</div></div></span></span>' +
               (state.deletedVault.length ? '<span class="pill-badge" style="background:#D97706;color:#fff;font-size:10px;">' + state.deletedVault.length + '</span>' : '') + '</button>' +
@@ -11480,6 +11593,33 @@
       document.getElementById('drawer-panel').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('drawer-close').onclick = function () { state.drawerOpen = false; renderDrawer(); };
       document.getElementById('drawer-lang-toggle').onclick = toggleLanguage;
+      var drawerVoiceNameBtn = document.getElementById('drawer-voice-name-btn');
+      if (drawerVoiceNameBtn) drawerVoiceNameBtn.onclick = function () {
+        var curName = (getActiveGreetingUser() && getActiveGreetingUser().displayName) || '';
+        state.drawerOpen = false;
+        renderDrawer();
+        state.editingLockName = true;
+        var modalHtml = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:400px;" id="m-card">' +
+          '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('user', 18) + '<h2 style="font-size:15px;font-weight:700;">Voice Called Name</h2></div><button class="icon-btn" id="vn-close">' + icon('close', 18) + '</button></header>' +
+          '<form id="vn-form" class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
+            '<p style="font-size:12px;color:#475569;">Enter the user name called out in daily Amharic voice greetings and updates.</p>' +
+            '<div><label class="field-label">Your Name</label><input id="vn-inp" class="form-input" value="' + esc(curName) + '" placeholder="e.g. shemse" autofocus /></div>' +
+            '<div style="display:flex;gap:8px;"><button type="button" id="vn-cancel" class="btn btn-outline" style="flex:1;">Cancel</button><button type="submit" class="btn btn-primary" style="flex:1.4;">Save &amp; Speak</button></div>' +
+          '</form></div></div>';
+        document.getElementById('modal-root').innerHTML = modalHtml;
+        document.getElementById('m-bg').onclick = closeModal;
+        document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+        document.getElementById('vn-close').onclick = closeModal;
+        document.getElementById('vn-cancel').onclick = closeModal;
+        document.getElementById('vn-form').onsubmit = function (e) {
+          e.preventDefault();
+          var nextN = setSavedUserGreetingName(document.getElementById('vn-inp').value);
+          closeModal();
+          renderDashboard();
+          startDailyVoicePlayback({ auto: false, fromGesture: true, dashboardReplayOnly: true });
+          showToast(nextN ? ('Voice name updated to "' + nextN + '"') : 'Voice name cleared');
+        };
+      };
       document.getElementById('drawer-lock-app').onclick = lockAppNow;
       var handleDrawerAuthAction = async function () {
         if (!loggedIn) {
@@ -11581,6 +11721,16 @@
               '<span id="lock-voice-status" class="lock-voice-status' + (isListened ? ' is-done' : '') + '">' + (isListened ? (isAm ? '✓ ተዳምጧል' : '✓ Ready') : (isAm ? 'ዕለታዊ ድምፅ' : 'Daily Voice')) + '</span>' +
             '</div>' +
             '<div id="lock-voice-text" class="lock-voice-text">' + esc(dailyPrompt.displayText) + '</div>' +
+            '<div id="lock-name-wrap" style="margin:8px 0;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">' +
+              ((!dailyPrompt.userName || state.editingLockName)
+                ? '<input id="lock-user-name-inp" type="text" value="' + esc(dailyPrompt.userName || '') + '" placeholder="' + (isAm ? 'ስምዎን ያስገቡ (ለምሳሌ shemse)...' : 'Your name (e.g. shemse)...') + '" style="flex:1;min-width:140px;max-width:210px;padding:6px 10px;border-radius:8px;border:1px solid #93C5FD;font-size:12px;background:#fff;color:#0F172A;outline:none;" />' +
+                  '<button type="button" id="lock-user-name-save" style="padding:6px 11px;border-radius:8px;background:#0F766E;color:#fff;font-size:11.5px;font-weight:700;">' + (isAm ? 'አስቀምጥና አዳምጥ' : 'Save & Speak') + '</button>' +
+                  (dailyPrompt.userName ? '<button type="button" id="lock-cancel-name-btn" style="padding:6px 8px;border-radius:8px;border:1px solid #CBD5E1;background:#fff;color:#64748B;font-size:11px;font-weight:700;">✕</button>' : '')
+                : '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(15,118,110,0.1);border:1px solid rgba(15,118,110,0.28);color:#065F46;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;">' +
+                    '<span>👤 ' + esc(dailyPrompt.userName) + '</span>' +
+                    '<button type="button" id="lock-edit-name-btn" style="color:#0D47A1;text-decoration:underline;font-weight:800;font-size:11px;">' + (isAm ? 'ቀይር' : 'Change') + '</button>' +
+                  '</span>') +
+            '</div>' +
             '<div class="lock-voice-progress"><div id="lock-voice-bar" class="lock-voice-bar" style="width:' + (isListened ? 100 : (_dailyVoiceCtrl.progress || 0)) + '%;"></div></div>' +
             '<button type="button" id="lock-voice-play-btn" class="lock-voice-btn' + (isListened ? '' : ' is-enable-prompt') + '">' +
               (isListened ? (isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice') : (isAm ? '🔊 ድምፅ ለመስማት ይንኩ · Tap to Enable Voice' : '🔊 Tap to Enable Voice')) +
@@ -11633,6 +11783,41 @@
           if (hintEl) hintEl.textContent = '⛔ Too many failed attempts. Input locked for ' + left + 's.';
           if (subEl) subEl.textContent = 'Locked (' + left + 's)';
         }, 1000);
+      }
+
+      var editNameBtn = document.getElementById('lock-edit-name-btn');
+      if (editNameBtn) editNameBtn.onclick = function () {
+        state.editingLockName = true;
+        renderLockScreen();
+        var ni = document.getElementById('lock-user-name-inp');
+        if (ni) { try { ni.focus(); ni.select(); } catch (eN) {} }
+      };
+      var cancelNameBtn = document.getElementById('lock-cancel-name-btn');
+      if (cancelNameBtn) cancelNameBtn.onclick = function () {
+        state.editingLockName = false;
+        renderLockScreen();
+      };
+      var saveLockName = function () {
+        var ni = document.getElementById('lock-user-name-inp');
+        if (!ni) return;
+        unlockAudioAndSpeechSync();
+        var savedN = setSavedUserGreetingName(ni.value);
+        state.editingLockName = false;
+        renderLockScreen();
+        if (savedN) {
+          startDailyVoicePlayback({ auto: false, fromGesture: true });
+        }
+      };
+      var saveNameBtn = document.getElementById('lock-user-name-save');
+      if (saveNameBtn) saveNameBtn.onclick = saveLockName;
+      var nameInpEl = document.getElementById('lock-user-name-inp');
+      if (nameInpEl) {
+        nameInpEl.onkeydown = function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            saveLockName();
+          }
+        };
       }
 
       var playVoiceBtn = document.getElementById('lock-voice-play-btn');
