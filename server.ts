@@ -1212,6 +1212,33 @@ async function startServer(): Promise<void> {
 
   const ttsInFlight = new Map<string, Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | { ok: false; status: number; code?: string; error: string }>>();
 
+  async function synthesizeFallbackGoogleTts(text: string): Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | null> {
+    try {
+      const hasAmharic = /[\u1200-\u137F]/.test(text);
+      const tl = hasAmharic ? 'am' : 'en';
+      const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(text.slice(0, 200))}`;
+      const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const tid = ac ? setTimeout(() => ac.abort(), 4500) : null;
+      const resp = await fetch(url, {
+        signal: ac ? ac.signal : undefined,
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
+      if (tid) clearTimeout(tid);
+      if (!resp.ok) return null;
+      const arrBuf = await resp.arrayBuffer();
+      const buf = Buffer.from(arrBuf);
+      if (buf.length < 128) return null;
+      return {
+        ok: true,
+        audioBase64: buf.toString('base64'),
+        mimeType: 'audio/mpeg',
+        cached: false,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async function synthesizeTtsAudio(rawText: string, voiceName = 'Kore', style = 'Warm, clear Ethiopian Amharic voice') {
     const text = rawText.trim().slice(0, 500);
     if (!text) {
@@ -1227,10 +1254,22 @@ async function startServer(): Promise<void> {
 
     const ai = getTtsClient();
     if (!ai) {
+      const fb = await synthesizeFallbackGoogleTts(text);
+      if (fb) {
+        ttsAudioCache.set(cacheKey, { audioBase64: fb.audioBase64, mimeType: fb.mimeType, cachedAt: Date.now() });
+        saveTtsCacheToDisk();
+        return fb;
+      }
       return { ok: false as const, status: 503, code: 'NO_API_KEY', error: 'GEMINI_API_KEY not configured' };
     }
 
     if (Date.now() < ttsQuotaCooldownUntil) {
+      const fb = await synthesizeFallbackGoogleTts(text);
+      if (fb) {
+        ttsAudioCache.set(cacheKey, { audioBase64: fb.audioBase64, mimeType: fb.mimeType, cachedAt: Date.now() });
+        saveTtsCacheToDisk();
+        return fb;
+      }
       return {
         ok: false as const,
         status: 429,
@@ -1265,6 +1304,8 @@ async function startServer(): Promise<void> {
         });
         const inline = response.candidates?.[0]?.content?.parts?.[0]?.inlineData;
         if (!inline?.data) {
+          const fb = await synthesizeFallbackGoogleTts(text);
+          if (fb) return fb;
           return { ok: false as const, status: 502, code: 'EMPTY_AUDIO', error: 'Empty TTS audio response' };
         }
         const normalized = ensureWavContainer(inline.data, inline.mimeType || 'audio/wav');
@@ -1284,11 +1325,19 @@ async function startServer(): Promise<void> {
           const retrySec = retryMatch ? parseInt(retryMatch[1], 10) : 900;
           const cooldownMs = Math.max(60_000, Math.min((Number.isFinite(retrySec) ? retrySec : 900) * 1000, 12 * 3600_000));
           ttsQuotaCooldownUntil = Date.now() + cooldownMs;
-          ttsQuotaNotice = 'Gemini TTS free-tier daily quota exceeded; device voice fallback active.';
+          ttsQuotaNotice = 'Gemini TTS free-tier daily quota exceeded; fallback voice active.';
           console.warn(`Gemini TTS quota cooldown active (${Math.round(cooldownMs / 60000)}m)`);
+          const fb = await synthesizeFallbackGoogleTts(text);
+          if (fb) {
+            ttsAudioCache.set(cacheKey, { audioBase64: fb.audioBase64, mimeType: fb.mimeType, cachedAt: Date.now() });
+            saveTtsCacheToDisk();
+            return fb;
+          }
           return { ok: false as const, status: 429, code: 'RESOURCE_EXHAUSTED', error: ttsQuotaNotice };
         }
         console.warn('Gemini TTS generation error:', errMsg.slice(0, 260));
+        const fb = await synthesizeFallbackGoogleTts(text);
+        if (fb) return fb;
         return { ok: false as const, status: 502, code: 'TTS_FAILED', error: 'TTS generation failed' };
       } finally {
         ttsInFlight.delete(cacheKey);

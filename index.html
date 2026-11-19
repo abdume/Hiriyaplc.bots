@@ -492,14 +492,23 @@
     .drawer-item-left { display: flex; align-items: center; gap: 14px; }
 
     /* Spreadsheet Table View */
-    .table-wrap { flex: 1; overflow: auto; background: #fff; padding-bottom: 116px; }
-    .table-wrap.sigma-hidden { padding-bottom: 72px; }
-    .table-wrap.is-writing { padding-bottom: 160px; }
-    .sheet-table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
+    .table-view-shell {
+      height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
+      background: #fff;
+    }
+    .table-view-shell .app-header { flex-shrink: 0; position: relative; top: auto; z-index: 40; }
+    .table-wrap {
+      flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch;
+      background: #fff; padding-bottom: 128px; position: relative;
+    }
+    .table-wrap.sigma-hidden { padding-bottom: 84px; }
+    .table-wrap.is-writing { padding-bottom: 170px; }
+    .sheet-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; background: #fff; }
     .sheet-table th {
-      position: sticky; top: 0; z-index: 20; background: #F8FAFC;
-      border-right: 1px solid #CBD5E1; border-bottom: 2px solid #CBD5E1;
+      position: sticky; top: 0; z-index: 26; background: #F8FAFC;
+      border-right: 1px solid #CBD5E1; border-bottom: 2px solid #94A3B8;
       padding: 10px 12px; text-align: left; font-weight: 700; color: #1E293B; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
     }
     .sheet-table th:hover { background: #EFF6FF; }
     .sheet-table th.frozen-col, .sheet-table td.frozen-col {
@@ -507,7 +516,7 @@
       width: 72px; min-width: 72px; max-width: 72px; text-align: center;
       border-right: 1px solid #CBD5E1; padding: 6px 4px;
     }
-    .sheet-table th.frozen-col { z-index: 30; }
+    .sheet-table th.frozen-col { top: 0; z-index: 36; background: #E2E8F0; }
     .sheet-table td {
       border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
       padding: 8px 12px; vertical-align: middle; height: 38px;
@@ -2508,49 +2517,49 @@
         amDay: 'እሁድ',
         enDay: 'Sunday',
         displayQuestion: 'ለሰኞ ሥራ ተዘጋጅተሻል/ል?',
-        spokenQuestion: 'ለሰኞ ሥራ ተዘጋጅተሻል ወይም ተዘጋጅተሃል?'
+        spokenQuestion: 'ለሰኞ ሥራ ተዘጋጅተሻል ወይም ተዘጋጅተሃል'
       },
       {
         dayIndex: 1,
         amDay: 'ሰኞ',
         enDay: 'Monday',
         displayQuestion: 'ኦርደር በደንብ መቀበል አለብሽ/ህ?',
-        spokenQuestion: 'ኦርደር በደንብ መቀበል አለብሽ ወይም አለብህ?'
+        spokenQuestion: 'ኦርደር በደንብ መቀበል አለብሽ ወይም አለብህ'
       },
       {
         dayIndex: 2,
         amDay: 'ማክሰኞ',
         enDay: 'Tuesday',
         displayQuestion: 'የሳምንት ሽያጭሽን ቼክ አድርጊ/ግ?',
-        spokenQuestion: 'የሳምንት ሽያጭሽን ቼክ አድርጊ ወይም አድርግ?'
+        spokenQuestion: 'የሳምንት ሽያጭሽን ቼክ አድርጊ ወይም አድርግ'
       },
       {
         dayIndex: 3,
         amDay: 'ሮብ',
         enDay: 'Wednesday',
         displayQuestion: 'ሽያጭ በደንብ መሸጥ አለበት?',
-        spokenQuestion: 'ሽያጭ በደንብ መሸጥ አለበት?'
+        spokenQuestion: 'ሽያጭ በደንብ መሸጥ አለበት'
       },
       {
         dayIndex: 4,
-        amDay: 'ሐሙስ',
+        amDay: 'ሃሙስ',
         enDay: 'Thursday',
-        displayQuestion: 'ብር ሰበሰብሽ/ክ?',
-        spokenQuestion: 'ብር ሰበሰብሽ ወይም ሰበሰብክ?'
+        displayQuestion: 'ብር ሰበሰብሺ/ክ',
+        spokenQuestion: 'ብር ሰበሰብሽ ወይም ሰበሰብክ'
       },
       {
         dayIndex: 5,
         amDay: 'ዓርብ',
         enDay: 'Friday',
         displayQuestion: 'ማዕድ ኦርደር ሰበሰብሽ/ክ?',
-        spokenQuestion: 'ማዕድ ኦርደር ሰበሰብሽ ወይም ሰበሰብክ?'
+        spokenQuestion: 'ማዕድ ኦርደር ሰበሰብሽ ወይም ሰበሰብክ'
       },
       {
         dayIndex: 6,
         amDay: 'ቅዳሜ',
         enDay: 'Saturday',
         displayQuestion: 'የቆየባቸው ሂሳብ ተቀበልሽ/ክ?',
-        spokenQuestion: 'የቆየባቸው ሂሳብ ተቀበልሽ ወይም ተቀበልክ?'
+        spokenQuestion: 'የቆየባቸው ሂሳብ ተቀበልሽ ወይም ተቀበልክ'
       }
     ];
 
@@ -2561,15 +2570,18 @@
       var greet = userOverride !== undefined ? userOverride : getActiveGreetingUser();
       var rawName = greet && greet.displayName ? String(greet.displayName).trim() : '';
       var userSuffix = rawName ? (' ' + rawName) : '';
-      var spokenUser = rawName ? (' ' + rawName) : '';
+      var baseDisplay = entry.amDay + ' ነው ' + entry.displayQuestion;
+      var baseSpoken = entry.amDay + ' ነው ' + entry.spokenQuestion;
       return {
         dayIndex: idx,
         ymd: getLocalYmd(d),
         amDay: entry.amDay,
         enDay: entry.enDay,
         userName: rawName,
-        displayText: 'ዛሬ ' + entry.amDay + ' ነው' + userSuffix + ' — ' + entry.displayQuestion,
-        spokenText: 'ዛሬ ' + entry.amDay + ' ነው' + spokenUser + '፣ ' + entry.spokenQuestion
+        baseDisplayText: baseDisplay,
+        baseSpokenText: baseSpoken,
+        displayText: baseDisplay + userSuffix,
+        spokenText: baseSpoken + userSuffix
       };
     }
 
@@ -2587,6 +2599,7 @@
       arrayBufMap: {},
       blobUrlMap: {},
       blobMimeMap: {},
+      blobSourceMap: {},
       inFlightBufMap: {},
       gestureListenerArmed: false,
       gestureCleanup: null,
@@ -2820,11 +2833,12 @@
       return 'audio/wav';
     }
 
-    function storeVoiceArrayBuffer(cacheKey, ab) {
+    function storeVoiceArrayBuffer(cacheKey, ab, sourceTag) {
       if (!isValidAudioArrayBuffer(ab)) return null;
       var mime = detectAudioMime(ab);
       _dailyVoiceCtrl.arrayBufMap[cacheKey] = ab;
       _dailyVoiceCtrl.blobMimeMap[cacheKey] = mime;
+      if (sourceTag) _dailyVoiceCtrl.blobSourceMap[cacheKey] = sourceTag;
       if (!_dailyVoiceCtrl.blobUrlMap[cacheKey] && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
         try {
           _dailyVoiceCtrl.blobUrlMap[cacheKey] = URL.createObjectURL(new Blob([ab], { type: mime }));
@@ -2912,7 +2926,7 @@
       var skipApiTts = isStaticGithubHost || (_dailyVoiceCtrl.apiTtsUnavailableUntil && Date.now() < _dailyVoiceCtrl.apiTtsUnavailableUntil);
 
       var tryApiPromise = (!skipApiTts && spokenText)
-        ? fetchWithShortTimeout('/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice'), 2600)
+        ? fetchWithShortTimeout('/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice'), 2800)
             .then(function (res) {
               if (!res || !res.ok) {
                 var status = res ? res.status : 0;
@@ -2946,12 +2960,13 @@
 
       var p = tryApiPromise
         .then(function (ab) {
-          if (isValidAudioArrayBuffer(ab)) return ab;
+          if (isValidAudioArrayBuffer(ab)) {
+            return storeVoiceArrayBuffer(cacheKey, ab, 'api');
+          }
           // Static pre-bundled Amharic MP3 fallback (works 100% on GitHub Pages, Telegram Mini App & all mobile browsers)
-          return fetchStaticVoiceArrayBuffer(resolvedDay);
-        })
-        .then(function (ab) {
-          return storeVoiceArrayBuffer(cacheKey, ab);
+          return fetchStaticVoiceArrayBuffer(resolvedDay).then(function (staticAb) {
+            return storeVoiceArrayBuffer(cacheKey, staticAb, 'static');
+          });
         })
         .catch(function () {
           return null;
@@ -3142,7 +3157,7 @@
       stopDailyVoicePlayback(false);
       var myToken = _dailyVoiceCtrl.playToken;
 
-      function completeVoice(sourceLabel) {
+      function finalizeVoiceDone(sourceLabel) {
         if (myToken !== _dailyVoiceCtrl.playToken) return;
         disarmAutoVoiceGestureWakeup();
         if (_dailyVoiceCtrl.progressTimer) { clearInterval(_dailyVoiceCtrl.progressTimer); _dailyVoiceCtrl.progressTimer = null; }
@@ -3156,6 +3171,76 @@
           syncLockVoiceGateUi(false);
         }
         syncHeroVoiceButtonUi();
+      }
+
+      function speakAppendedUserName(userName, onDone) {
+        var cleanName = String(userName || '').trim();
+        if (!cleanName || myToken !== _dailyVoiceCtrl.playToken) {
+          onDone();
+          return;
+        }
+        var doneOnce = false;
+        var finish = function () {
+          if (doneOnce) return;
+          doneOnce = true;
+          onDone();
+        };
+        var hasAmharicName = /[\u1200-\u137F]/.test(cleanName);
+        var trySpeechName = function () {
+          try {
+            var synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+            if (!synth || typeof SpeechSynthesisUtterance === 'undefined') { finish(); return; }
+            if (typeof synth.resume === 'function') synth.resume();
+            var utt = new SpeechSynthesisUtterance(cleanName);
+            utt.lang = hasAmharicName ? 'am-ET' : 'en-US';
+            utt.volume = 1.0;
+            utt.rate = 0.95;
+            var tid = setTimeout(finish, 2200);
+            utt.onend = function () { clearTimeout(tid); finish(); };
+            utt.onerror = function () { clearTimeout(tid); finish(); };
+            synth.speak(utt);
+          } catch (eSp) {
+            finish();
+          }
+        };
+        var domAudio = document.getElementById('tb-daily-voice-el');
+        if (domAudio && typeof navigator === 'object' && navigator.onLine !== false) {
+          try {
+            var ttsUrl = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=' + (hasAmharicName ? 'am' : 'en') + '&client=tw-ob&q=' + encodeURIComponent(cleanName);
+            domAudio.onended = null;
+            domAudio.onerror = null;
+            domAudio.onplaying = null;
+            domAudio.referrerPolicy = 'no-referrer';
+            try { domAudio.setAttribute('referrerpolicy', 'no-referrer'); } catch (eR) {}
+            domAudio.src = ttsUrl;
+            try { if (typeof domAudio.load === 'function') domAudio.load(); } catch (eL) {}
+            var nameTimer = setTimeout(function () {
+              try { domAudio.pause(); } catch (eP) {}
+              trySpeechName();
+            }, 2200);
+            domAudio.onended = function () { clearTimeout(nameTimer); finish(); };
+            domAudio.onerror = function () { clearTimeout(nameTimer); trySpeechName(); };
+            var np = domAudio.play();
+            if (np && typeof np.catch === 'function') {
+              np.catch(function () { clearTimeout(nameTimer); trySpeechName(); });
+            }
+            return;
+          } catch (eAud) {}
+        }
+        trySpeechName();
+      }
+
+      function completeVoice(sourceLabel) {
+        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        var resolvedSrc = _dailyVoiceCtrl.blobSourceMap[voiceCacheKey] || '';
+        var needsNameAppend = resolvedSrc === 'static' && Boolean(promptInfo.userName) && (sourceLabel === 'gemini' || sourceLabel === 'webaudio' || sourceLabel === 'static');
+        if (needsNameAppend) {
+          speakAppendedUserName(promptInfo.userName, function () {
+            finalizeVoiceDone('static+name');
+          });
+          return;
+        }
+        finalizeVoiceDone(sourceLabel);
       }
 
       function markAutoplayBlocked() {
@@ -7353,6 +7438,7 @@
           '<div class="folder-head-actions">' +
             '<button type="button" class="folder-icon-btn on-dark" data-folder-undo="' + esc(selFolder) + '" title="' + (selUndoTarget ? ('Undo last change in ' + esc(selUndoTarget.name)) : 'Undo in ' + esc(selFolder)) + '"' + (!selUndoTarget ? ' disabled' : '') + '>' + icon('undo', 16) + '</button>' +
             '<button type="button" class="folder-icon-btn on-dark" data-folder-redo="' + esc(selFolder) + '" title="' + (selRedoTarget ? ('Redo change in ' + esc(selRedoTarget.name)) : 'Redo in ' + esc(selFolder)) + '"' + (!selRedoTarget ? ' disabled' : '') + '>' + icon('redo', 16) + '</button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-folder-versions" style="background:rgba(16,185,129,0.28);border-color:rgba(167,243,208,0.5);color:#fff;" title="File Versions &amp; History">' + icon('history', 12) + '<span>Versions</span></button>' +
             '<button type="button" class="folder-mini-btn" id="btn-folder-add-col" style="background:rgba(59,130,246,0.34);border-color:rgba(191,219,254,0.55);color:#fff;" title="Add Column to table(s) in this folder">' + icon('plus', 12) + '<span>Add Column</span></button>' +
             '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;" title="Folder Reports">' + icon('chart', 12) + '<span>Report</span></button>' +
             '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-search" title="Search tables in ' + esc(selFolder) + '" style="' + (state.folderSearchOpen ? 'background:rgba(255,255,255,0.32);border-color:#fff;' : '') + '">' + icon('search', 16) + '</button>' +
@@ -7601,6 +7687,15 @@
       var dashNewTblBtn = document.getElementById('btn-dash-new-table');
       if (dashNewTblBtn) dashNewTblBtn.onclick = function () { createInstantBot(false); };
 
+      var fldVersionsBtn = document.getElementById('btn-folder-versions');
+      if (fldVersionsBtn) fldVersionsBtn.onclick = function (e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        var curF = state.selectedFolder || 'General';
+        var firstBot = state.bots.find(function (b) {
+          return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === String(curF).trim().toLowerCase();
+        });
+        openModal('file_history', { botId: firstBot ? firstBot.id : '' });
+      };
       var fldAddColBtn = document.getElementById('btn-folder-add-col');
       if (fldAddColBtn) fldAddColBtn.onclick = function (e) {
         if (e && e.stopPropagation) e.stopPropagation();
@@ -8342,33 +8437,51 @@
       var selCount = Object.keys(state.selectedRowIds).filter(function (k) { return state.selectedRowIds[k]; }).length;
       var statusBg = bot.botStatus === 'online' ? 'background:#10B981;color:#fff;' : 'background:#60A5FA;color:#0F172A;';
 
-      var html = '<div style="min-height:100vh;display:flex;flex-direction:column;">' +
+      var folderBotsList = state.bots.filter(function (b) {
+        return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === String(botFolder).trim().toLowerCase();
+      });
+      var curBotPageIdx = Math.max(0, folderBotsList.findIndex(function (b) { return b.id === bot.id; }));
+      var totalFolderFilePages = Math.max(1, folderBotsList.length);
+      var hasMultiFilesInFolder = folderBotsList.length > 1;
+
+      var html = '<div class="table-view-shell">' +
         '<header class="app-header"><div class="header-inner">' +
-          '<div class="header-left">' +
-            '<button class="icon-btn" id="btn-table-back" title="Back to All Bots">' + icon('back', 22) + '</button>' +
-            '<div style="min-width:0;">' +
-              '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<div class="header-left" style="min-width:0;flex:1;">' +
+            '<button class="icon-btn" id="btn-table-back" title="Back to Folder / Tables">' + icon('back', 22) + '</button>' +
+            '<div style="min-width:0;flex:1;">' +
+              '<div style="display:flex;align-items:center;gap:6px;min-width:0;">' +
                 (state.editingTitle
-                  ? '<input id="inp-title-edit" type="text" value="' + esc(bot.name) + '" style="background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:16px;padding:2px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.5);outline:none;max-width:220px;" />'
-                  : '<button id="btn-edit-title" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:16px;color:#fff;padding:2px 6px;border-radius:6px;" title="Click to rename bot"><span class="truncate" style="max-width:220px;">' + esc(bot.name) + '</span><span style="opacity:0.75">' + icon('edit', 13) + '</span></button>'
+                  ? '<input id="inp-title-edit" type="text" value="' + esc(bot.name) + '" style="background:rgba(255,255,255,0.2);color:#fff;font-weight:700;font-size:15.5px;padding:2px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.5);outline:none;max-width:190px;" />'
+                  : '<button id="btn-edit-title" style="display:inline-flex;align-items:center;gap:5px;font-weight:700;font-size:15.5px;color:#fff;padding:2px 4px;border-radius:6px;min-width:0;max-width:100%;" title="Click to rename file"><span class="truncate">' + esc(bot.name) + '</span><span style="opacity:0.75;flex-shrink:0;">' + icon('edit', 13) + '</span></button>'
                 ) +
-                '<span class="pill-badge" style="' + statusBg + 'font-size:10px;text-transform:uppercase;">' + esc(bot.botStatus) + '</span>' +
-                (bot.webhookActive ? '<span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;" title="' + esc(bot.webhookUrl || '') + '">WEBHOOK PUSH</span>' : '') +
+                '<span class="pill-badge" style="' + statusBg + 'font-size:9.5px;text-transform:uppercase;flex-shrink:0;">' + esc(bot.botStatus) + '</span>' +
+                (bot.webhookActive ? '<span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:9.5px;flex-shrink:0;" title="' + esc(bot.webhookUrl || '') + '">WEBHOOK</span>' : '') +
               '</div>' +
-              '<div style="font-size:11px;color:#BFDBFE;">' + esc(bot.folder || 'General') + ' &middot; ' + bot.rows.length + ' records &middot; ' + esc(getCurrentActor()) + '</div>' +
+              '<div class="truncate" style="font-size:11px;color:#BFDBFE;">' + esc(botFolder) + ' &middot; ' + bot.rows.length + ' rows &middot; ' + esc(formatFolderOpenTimestamp(bot.updatedAt)) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="header-right">' +
-            '<button type="button" class="icon-btn" id="btn-hdr-undo" title="Undo (Ctrl+Z)"' + (undoCount === 0 ? ' disabled' : '') + '>' + icon('undo', 19) + '</button>' +
-            '<button type="button" class="icon-btn" id="btn-hdr-redo" title="Redo (Ctrl+Y)"' + (redoCount === 0 ? ' disabled' : '') + '>' + icon('redo', 19) + '</button>' +
+            '<button type="button" class="icon-btn" id="btn-hdr-undo" title="Undo (Ctrl+Z)"' + (undoCount === 0 ? ' disabled' : '') + '>' + icon('undo', 18) + '</button>' +
+            '<button type="button" class="icon-btn" id="btn-hdr-redo" title="Redo (Ctrl+Y)"' + (redoCount === 0 ? ' disabled' : '') + '>' + icon('redo', 18) + '</button>' +
             '<button type="button" class="lang-toggle-btn" id="btn-table-lang" title="Switch English / አማርኛ">' + esc(t('lang_btn')) + '</button>' +
-            (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 10px;font-size:11.5px;">' + icon('trash', 14) + '<span>Delete (' + selCount + ')</span></button>' : '') +
-            '<button class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>' + esc(t('sync')) + '</span></button>' +
-            '<button class="header-action-btn" id="btn-table-history" title="Open File Version History (3m+ &amp; Restore)"><span style="color:#A7F3D0">' + icon('history', 14) + '</span><span>' + esc(t('versions')) + '</span></button>' +
-            '<button class="header-action-btn" id="btn-table-add-col" title="Add New Column"><span style="color:#93C5FD">' + icon('plus', 14) + '</span><span>' + esc(t('add_column')) + '</span></button>' +
-            '<button class="header-action-btn" id="btn-table-reports"><span style="color:#FCD34D">' + icon('chart', 15) + '</span><span>' + esc(t('reports')) + '</span></button>' +
-            '<button class="icon-btn" id="btn-table-search" title="Search rows">' + icon('search', 20) + '</button>' +
-            '<button class="icon-btn" id="btn-table-settings" title="Bot Settings">' + icon('settings', 19) + '</button>' +
+            (selCount > 0 ? '<button class="btn btn-red" id="btn-del-rows" style="padding:5px 9px;font-size:11px;">' + icon('trash', 13) + '<span>(' + selCount + ')</span></button>' : '') +
+          '</div></div>' +
+          '<div class="dash-subbar"><div class="dash-subbar-inner">' +
+            '<div class="dash-subbar-group">' +
+              '<button type="button" class="header-action-btn" id="btn-table-history" title="Open File Version History (3m+ &amp; Restore)"><span style="color:#6EE7B7">' + icon('history', 14) + '</span><span>' + esc(t('versions')) + '</span></button>' +
+              '<button type="button" class="header-action-btn" id="btn-table-search" title="Search rows" style="' + (state.tableSearchOpen ? 'background:rgba(59,130,246,0.38);border-color:#93C5FD;' : '') + '">' + icon('search', 14) + '<span>Search</span></button>' +
+              '<button type="button" class="header-action-btn" id="btn-table-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 14) + '</span><span>' + esc(t('reports')) + '</span></button>' +
+              '<button type="button" class="header-action-btn" id="btn-table-settings" title="Table Settings">' + icon('settings', 14) + '<span>Settings</span></button>' +
+              '<button type="button" class="header-action-btn" id="btn-table-add-col" title="Add New Column" style="background:rgba(37,99,235,0.36);border-color:rgba(147,197,253,0.55);"><span style="color:#BFDBFE">' + icon('plus', 14) + '</span><span>' + esc(t('add_column')) + '</span></button>' +
+              '<button type="button" class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>' + esc(t('sync')) + '</span></button>' +
+            '</div>' +
+            '<div class="dash-subbar-group">' +
+              '<div class="folder-pager-wrap" style="background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.22);" title="' + (hasMultiFilesInFolder ? 'Switch table in folder' : 'Scroll next page') + '">' +
+                '<button type="button" class="folder-icon-btn on-dark" id="btn-table-prev-page" title="' + (hasMultiFilesInFolder ? 'Previous Table in Folder' : 'Scroll Up') + '" style="width:26px;height:26px;"' + (hasMultiFilesInFolder && curBotPageIdx <= 0 ? ' disabled' : '') + '>' + icon('chevronLeft', 14) + '</button>' +
+                '<span class="folder-pager-label num-tab">' + (hasMultiFilesInFolder ? ((curBotPageIdx + 1) + '/' + totalFolderFilePages) : (bot.rows.length + 'r')) + '</span>' +
+                '<button type="button" class="folder-mini-btn" id="btn-table-next-page" title="' + (hasMultiFilesInFolder ? 'Next Table in Folder' : 'Scroll Next Page') + '" style="padding:4px 9px;background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.35);color:#fff;"><span>Next Page</span>' + icon('chevronRight', 12) + '</button>' +
+              '</div>' +
+            '</div>' +
           '</div></div>';
 
       if (state.tableSearchOpen) {
@@ -8941,8 +9054,37 @@
       if (tLangBtn) tLangBtn.onclick = toggleLanguage;
       document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
       document.getElementById('btn-table-history').onclick = function () { openModal('file_history', { botId: bot.id }); };
-      document.getElementById('btn-table-reports').onclick = function () { openModal('reports'); };
+      document.getElementById('btn-table-reports').onclick = function () { openModal('reports', { folder: bot.folder || 'General' }); };
       document.getElementById('btn-table-settings').onclick = function () { openModal('settings', { bot: bot }); };
+      var tblPrevPageBtn = document.getElementById('btn-table-prev-page');
+      var tblNextPageBtn = document.getElementById('btn-table-next-page');
+      var switchTableFolderPage = function (dir) {
+        var bFld = normalizeFolderName(bot.folder).toLowerCase();
+        var siblings = state.bots.filter(function (b) {
+          return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === bFld;
+        });
+        if (siblings.length > 1) {
+          var curI = siblings.findIndex(function (b) { return b.id === bot.id; });
+          if (curI === -1) curI = 0;
+          var nextI = (curI + dir + siblings.length) % siblings.length;
+          if (siblings[nextI]) {
+            cleanupTableGlobalListeners();
+            state.activeBotId = siblings[nextI].id;
+            state.editingCell = null;
+            state.selectedRange = null;
+            state.extraCells = {};
+            renderApp();
+            return;
+          }
+        }
+        var wrapEl = document.querySelector('.table-wrap');
+        if (wrapEl) {
+          var step = Math.max(220, Math.round((wrapEl.clientHeight || 420) * 0.78));
+          wrapEl.scrollBy ? wrapEl.scrollBy({ top: dir * step, behavior: 'smooth' }) : (wrapEl.scrollTop += dir * step);
+        }
+      };
+      if (tblPrevPageBtn) tblPrevPageBtn.onclick = function () { switchTableFolderPage(-1); };
+      if (tblNextPageBtn) tblNextPageBtn.onclick = function () { switchTableFolderPage(1); };
       document.getElementById('btn-table-search').onclick = function () {
         state.tableSearchOpen = !state.tableSearchOpen; renderTableView(bot);
         var i = document.getElementById('inp-table-search'); if (i) i.focus();
@@ -9760,8 +9902,8 @@
         var barW = Math.min(vw - 16, ftbEl.offsetWidth || 340);
         var barH = ftbEl.offsetHeight || 46;
         var theadEl = document.querySelector('.sheet-table thead');
-        var theadBottom = theadEl && theadEl.getBoundingClientRect ? theadEl.getBoundingClientRect().bottom : 98;
-        var minSafeTop = Math.max(64, Math.min(130, theadBottom + 4));
+        var theadBottom = theadEl && theadEl.getBoundingClientRect ? theadEl.getBoundingClientRect().bottom : 148;
+        var minSafeTop = Math.max(64, Math.min(220, theadBottom + 4));
         var topPos = minTop - barH - 9;
         if (topPos < minSafeTop) {
           var belowPos = maxBottom + 9;
