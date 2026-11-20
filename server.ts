@@ -1212,25 +1212,81 @@ async function startServer(): Promise<void> {
 
   const ttsInFlight = new Map<string, Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | { ok: false; status: number; code?: string; error: string }>>();
 
-  async function synthesizeFallbackGoogleTts(text: string): Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | null> {
+  function stripLeadingId3v2(buf: Buffer): Buffer {
+    if (buf.length >= 10 && buf.toString('ascii', 0, 3) === 'ID3') {
+      const size =
+        ((buf[6] & 0x7f) << 21) |
+        ((buf[7] & 0x7f) << 14) |
+        ((buf[8] & 0x7f) << 7) |
+        (buf[9] & 0x7f);
+      const offset = 10 + size;
+      if (offset < buf.length) return buf.subarray(offset);
+    }
+    return buf;
+  }
+
+  function splitBilingualTtsSegments(text: string): Array<{ tl: 'am' | 'en'; text: string }> {
+    const parts: Array<{ tl: 'am' | 'en'; text: string }> = [];
+    const re =
+      /([\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF]+[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF\s,?!።፣፤፥፦0-9]*)|([A-Za-z0-9][A-Za-z0-9\s._'-]*)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      const seg = m[0].replace(/^[\s,፣።]+|[\s,፣።]+$/g, '').trim();
+      if (!seg) continue;
+      const isAm = /[\u1200-\u137F]/.test(seg);
+      parts.push({ tl: isAm ? 'am' : 'en', text: seg });
+    }
+    if (parts.length === 0 && text.trim()) {
+      parts.push({ tl: /[\u1200-\u137F]/.test(text) ? 'am' : 'en', text: text.trim() });
+    }
+    return parts;
+  }
+
+  async function fetchGoogleTtsSegment(segText: string, tl: 'am' | 'en'): Promise<Buffer | null> {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(segText.slice(0, 200))}`;
+    const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const tid = ac ? setTimeout(() => ac.abort(), 4500) : null;
     try {
-      const hasAmharic = /[\u1200-\u137F]/.test(text);
-      const tl = hasAmharic ? 'am' : 'en';
-      const url = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${tl}&client=tw-ob&q=${encodeURIComponent(text.slice(0, 200))}`;
-      const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const tid = ac ? setTimeout(() => ac.abort(), 4500) : null;
       const resp = await fetch(url, {
         signal: ac ? ac.signal : undefined,
         headers: { 'User-Agent': 'Mozilla/5.0' },
       });
-      if (tid) clearTimeout(tid);
       if (!resp.ok) return null;
       const arrBuf = await resp.arrayBuffer();
       const buf = Buffer.from(arrBuf);
-      if (buf.length < 128) return null;
+      return buf.length >= 128 ? buf : null;
+    } finally {
+      if (tid) clearTimeout(tid);
+    }
+  }
+
+  async function synthesizeFallbackGoogleTts(text: string): Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | null> {
+    try {
+      const segments = splitBilingualTtsSegments(text);
+      if (segments.length <= 1) {
+        const only = segments[0] || { tl: /[\u1200-\u137F]/.test(text) ? ('am' as const) : ('en' as const), text };
+        const buf = await fetchGoogleTtsSegment(only.text, only.tl);
+        if (!buf) return null;
+        return {
+          ok: true,
+          audioBase64: buf.toString('base64'),
+          mimeType: 'audio/mpeg',
+          cached: false,
+        };
+      }
+      const chunkBufs: Buffer[] = [];
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        const b = await fetchGoogleTtsSegment(seg.text, seg.tl);
+        if (b) {
+          chunkBufs.push(i === 0 ? b : stripLeadingId3v2(b));
+        }
+      }
+      if (chunkBufs.length === 0) return null;
+      const combined = Buffer.concat(chunkBufs);
       return {
         ok: true,
-        audioBase64: buf.toString('base64'),
+        audioBase64: combined.toString('base64'),
         mimeType: 'audio/mpeg',
         cached: false,
       };
@@ -1244,7 +1300,7 @@ async function startServer(): Promise<void> {
     if (!text) {
       return { ok: false as const, status: 400, code: 'BAD_REQUEST', error: 'Missing text' };
     }
-    const cacheKey = `${voiceName}::${text}`;
+    const cacheKey = `v2::${voiceName}::${text}`;
     const cached = ttsAudioCache.get(cacheKey);
     if (cached) {
       return { ok: true as const, audioBase64: cached.audioBase64, mimeType: cached.mimeType, cached: true };

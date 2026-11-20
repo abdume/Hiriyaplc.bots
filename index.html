@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
   <title>TableBot - Telegram Bot Manager &amp; Cloud Database</title>
   <meta name="description" content="Mobile-first Table Notes inspired Telegram Bot Manager &amp; Live Cloud Database with Supabase multi-device sync, spreadsheet data editor, and daily/weekly/monthly reports." />
   <meta property="og:title" content="TableBot - Telegram Bot Manager &amp; Cloud Database" />
@@ -1685,7 +1686,8 @@
   <div id="modal-root"></div>
   <div id="cyber-prompt-root"></div>
   <div id="toast-root"></div>
-  <audio id="tb-daily-voice-el" playsinline webkit-playsinline preload="auto" style="display:none;"></audio>
+  <audio id="tb-daily-voice-el" referrerpolicy="no-referrer" playsinline webkit-playsinline preload="auto" style="display:none;"></audio>
+  <audio id="tb-name-voice-el" referrerpolicy="no-referrer" playsinline webkit-playsinline preload="auto" style="display:none;"></audio>
 
   <script>
   (function () {
@@ -2017,13 +2019,36 @@
       }
     }
 
+    function parseTelegramInitUserFromQueryString(rawStr) {
+      if (!rawStr) return null;
+      try {
+        var wdParams = new URLSearchParams(rawStr);
+        var wdUserStr = wdParams.get('user');
+        if (wdUserStr) {
+          var wdUser = null;
+          try { wdUser = JSON.parse(wdUserStr); } catch (eJ1) {
+            try { wdUser = JSON.parse(decodeURIComponent(wdUserStr)); } catch (eJ2) {}
+          }
+          if (wdUser && (wdUser.id || wdUser.first_name || wdUser.username)) {
+            return {
+              id: String(wdUser.id || wdUser.username || wdUser.first_name || 'tg'),
+              username: wdUser.username ? ('@' + String(wdUser.username).replace(/^@/, '')) : '',
+              firstName: wdUser.first_name || '',
+              lastName: wdUser.last_name || ''
+            };
+          }
+        }
+      } catch (e) {}
+      return null;
+    }
+
     function getTelegramWebAppUser() {
       try {
         var qs = new URLSearchParams(window.location.search || '');
         var hashQs = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
         var qId = qs.get('tg_id') || hashQs.get('tg_id') || '';
-        var qUser = qs.get('tg_user') || hashQs.get('tg_user') || '';
-        var qName = qs.get('tg_name') || hashQs.get('tg_name') || qs.get('first_name') || hashQs.get('first_name') || qs.get('name') || hashQs.get('name') || '';
+        var qUser = qs.get('tg_user') || hashQs.get('tg_user') || qs.get('username') || hashQs.get('username') || '';
+        var qName = qs.get('tg_name') || hashQs.get('tg_name') || qs.get('first_name') || hashQs.get('first_name') || qs.get('name') || hashQs.get('name') || qs.get('user') || hashQs.get('user') || '';
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
           var tu = window.Telegram.WebApp.initDataUnsafe.user;
           if (tu && (tu.id || tu.first_name || tu.username)) {
@@ -2037,26 +2062,21 @@
             return info;
           }
         }
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+          var sdkInfo = parseTelegramInitUserFromQueryString(window.Telegram.WebApp.initData);
+          if (sdkInfo) {
+            try { localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify(sdkInfo)); } catch (eSdk) {}
+            return sdkInfo;
+          }
+        }
         // Parse tgWebAppData embedded in Telegram Mini App URL hash or search params
         var rawWebAppData = hashQs.get('tgWebAppData') || qs.get('tgWebAppData') || '';
         if (rawWebAppData) {
-          try {
-            var wdParams = new URLSearchParams(rawWebAppData);
-            var wdUserStr = wdParams.get('user');
-            if (wdUserStr) {
-              var wdUser = JSON.parse(wdUserStr);
-              if (wdUser && (wdUser.id || wdUser.first_name || wdUser.username)) {
-                var wdInfo = {
-                  id: String(wdUser.id || wdUser.username || wdUser.first_name || 'tg'),
-                  username: wdUser.username ? ('@' + String(wdUser.username).replace(/^@/, '')) : '',
-                  firstName: wdUser.first_name || '',
-                  lastName: wdUser.last_name || ''
-                };
-                try { localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify(wdInfo)); } catch (eWd) {}
-                return wdInfo;
-              }
-            }
-          } catch (eParseWd) {}
+          var wdInfo = parseTelegramInitUserFromQueryString(rawWebAppData);
+          if (wdInfo) {
+            try { localStorage.setItem(STORAGE_TG_WEB_USER, JSON.stringify(wdInfo)); } catch (eWd) {}
+            return wdInfo;
+          }
         }
         if (qId || qName || qUser) {
           var cleanUser = String(qUser || '').trim().replace(/^@/, '');
@@ -2095,7 +2115,9 @@
       if (s.indexOf('@') > 0 && s.indexOf('.') > s.indexOf('@')) {
         s = s.split('@')[0];
       }
-      s = s.replace(/^@+/, '').replace(/[._-]+/g, ' ').replace(/\s+/g, ' ').trim();
+      s = s.replace(/^@+/, '').replace(/[._-]+/g, ' ');
+      // Keep Latin, digits, Ethiopic script, and whitespace; strip emojis/symbols that confuse TTS
+      s = s.replace(/[^A-Za-z0-9\u1200-\u137F\s]/g, ' ').replace(/\s+/g, ' ').trim();
       return s.slice(0, 48);
     }
 
@@ -2131,6 +2153,14 @@
         state.dailyVoiceListened = false;
       }
       return clean;
+    }
+
+    function isHumanGreetingCandidate(raw) {
+      var v = String(raw || '').trim();
+      if (!v) return false;
+      if (/^guest@tablebot\.local$/i.test(v)) return false;
+      if (/^(Browser-User|Android-Phone|iPhone-User|tg[_-]|dev[_-])/i.test(v)) return false;
+      return Boolean(cleanSpokenUserName(v));
     }
 
     function getActiveGreetingUser() {
@@ -2181,6 +2211,28 @@
           };
         }
       }
+      try {
+        var sbStored = (localStorage.getItem(STORAGE_SB_EMAIL) || '').trim();
+        if (isHumanGreetingCandidate(sbStored)) {
+          return {
+            displayName: cleanSpokenUserName(sbStored),
+            username: sbStored,
+            id: '',
+            source: 'Account',
+            openedAt: state.appOpenedAt || new Date().toISOString()
+          };
+        }
+        var guestStored = (localStorage.getItem(STORAGE_GUEST_ACTOR) || '').trim();
+        if (isHumanGreetingCandidate(guestStored)) {
+          return {
+            displayName: cleanSpokenUserName(guestStored),
+            username: guestStored,
+            id: '',
+            source: 'User',
+            openedAt: state.appOpenedAt || new Date().toISOString()
+          };
+        }
+      } catch (eFallbackUser) {}
       return null;
     }
 
@@ -2630,10 +2682,10 @@
       },
       {
         dayIndex: 5,
-        amDay: 'ዓርብ',
+        amDay: 'አርብ',
         enDay: 'Friday',
-        displayQuestion: 'ማዕድ ኦርደር ሰበሰብሽ/ክ?',
-        spokenQuestion: 'ማዕድ ኦርደር ሰበሰብሽ ወይም ሰበሰብክ'
+        displayQuestion: 'መዕድ ኦርደር ሰበሰብሺ/ክ',
+        spokenQuestion: 'መዕድ ኦርደር ሰበሰብሽ ወይም ሰበሰብክ'
       },
       {
         dayIndex: 6,
@@ -2652,9 +2704,9 @@
       var rawName = greet && greet.displayName ? String(greet.displayName).trim() : '';
       var spokenName = cleanSpokenUserName(rawName);
       var userSuffix = rawName ? (' ' + rawName) : '';
-      var spokenSuffix = spokenName ? (' ' + spokenName) : '';
-      var baseDisplay = entry.amDay + ' ነው ' + entry.displayQuestion;
-      var baseSpoken = entry.amDay + ' ነው ' + entry.spokenQuestion;
+      var spokenSuffix = spokenName ? (', ' + spokenName) : '';
+      var baseDisplay = 'ዛሬ ቀኑ ' + entry.amDay + ' ነዉ ' + entry.displayQuestion;
+      var baseSpoken = 'ዛሬ ቀኑ ' + entry.amDay + ' ነው፣ ' + entry.spokenQuestion;
       return {
         dayIndex: idx,
         ymd: getLocalYmd(d),
@@ -2743,27 +2795,34 @@
         } catch (e) {}
       }
       try {
-        var domAudio = typeof document !== 'undefined' ? document.getElementById('tb-daily-voice-el') : null;
-        if (domAudio && !_dailyVoiceCtrl.domAudioPrimed && _dailyVoiceCtrl.status !== 'playing') {
-          domAudio.muted = false;
-          domAudio.volume = 1.0;
-          domAudio.playsInline = true;
-          try { domAudio.setAttribute('playsinline', ''); domAudio.setAttribute('webkit-playsinline', ''); } catch (eA) {}
-          domAudio.src = SILENT_WAV_DATA_URI;
-          var primePlay = domAudio.play();
-          if (primePlay && typeof primePlay.then === 'function') {
-            primePlay.then(function () {
+        var audioIds = ['tb-daily-voice-el', 'tb-name-voice-el'];
+        if (typeof document !== 'undefined' && !_dailyVoiceCtrl.domAudioPrimed && _dailyVoiceCtrl.status !== 'playing') {
+          audioIds.forEach(function (elId) {
+            var el = document.getElementById(elId);
+            if (!el) return;
+            el.muted = elId === 'tb-name-voice-el';
+            el.volume = 1.0;
+            el.playsInline = true;
+            el.referrerPolicy = 'no-referrer';
+            try { el.setAttribute('playsinline', ''); el.setAttribute('webkit-playsinline', ''); el.setAttribute('referrerpolicy', 'no-referrer'); } catch (eA) {}
+            el.src = SILENT_WAV_DATA_URI;
+            var primePlay = el.play();
+            if (primePlay && typeof primePlay.then === 'function') {
+              primePlay.then(function () {
+                _dailyVoiceCtrl.domAudioPrimed = true;
+                try {
+                  if ((_dailyVoiceCtrl.status !== 'playing' || elId === 'tb-name-voice-el') && el.src === SILENT_WAV_DATA_URI) {
+                    el.pause();
+                    el.currentTime = 0;
+                    el.muted = false;
+                  }
+                } catch (eP) {}
+              }).catch(function () { el.muted = false; });
+            } else {
               _dailyVoiceCtrl.domAudioPrimed = true;
-              try {
-                if (_dailyVoiceCtrl.status !== 'playing' && domAudio.src === SILENT_WAV_DATA_URI) {
-                  domAudio.pause();
-                  domAudio.currentTime = 0;
-                }
-              } catch (eP) {}
-            }).catch(function () {});
-          } else {
-            _dailyVoiceCtrl.domAudioPrimed = true;
-          }
+              el.muted = false;
+            }
+          });
         }
       } catch (eDom) {}
       try {
@@ -2774,6 +2833,15 @@
           }
           if (typeof synth.getVoices === 'function') {
             synth.getVoices();
+          }
+          // Speak an empty silent utterance on first user tap so iOS Safari / WKWebView unlocks SpeechSynthesis for async fallback
+          if (!_dailyVoiceCtrl.speechUnlocked && typeof SpeechSynthesisUtterance !== 'undefined' && !synth.speaking) {
+            try {
+              var silentUtt = new SpeechSynthesisUtterance(' ');
+              silentUtt.volume = 0;
+              silentUtt.rate = 10;
+              synth.speak(silentUtt);
+            } catch (eSil) {}
           }
           _dailyVoiceCtrl.speechUnlocked = true;
         }
@@ -3010,7 +3078,7 @@
       var skipApiTts = isStaticGithubHost || (_dailyVoiceCtrl.apiTtsUnavailableUntil && Date.now() < _dailyVoiceCtrl.apiTtsUnavailableUntil);
 
       var tryApiPromise = (!skipApiTts && spokenText)
-        ? fetchWithShortTimeout('/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice'), 2800)
+        ? fetchWithShortTimeout('/api/tts?text=' + encodeURIComponent(spokenText) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice'), 5000)
             .then(function (res) {
               if (!res || !res.ok) {
                 var status = res ? res.status : 0;
@@ -3093,6 +3161,16 @@
         } catch (e1) {}
         _dailyVoiceCtrl.audio = null;
       }
+      try {
+        var nameAud = typeof document !== 'undefined' ? document.getElementById('tb-name-voice-el') : null;
+        if (nameAud) {
+          nameAud.onended = null;
+          nameAud.onerror = null;
+          nameAud.onplaying = null;
+          nameAud.pause();
+          nameAud.currentTime = 0;
+        }
+      } catch (eNa) {}
       if (_dailyVoiceCtrl.progressTimer) {
         clearInterval(_dailyVoiceCtrl.progressTimer);
         _dailyVoiceCtrl.progressTimer = null;
@@ -3257,6 +3335,36 @@
         syncHeroVoiceButtonUi();
       }
 
+      function getNameTtsCandidateUrls(cleanName) {
+        if (!cleanName) return [];
+        var hasAmharicName = /[\u1200-\u137F]/.test(cleanName);
+        var urls = [];
+        var hostStr = (typeof window !== 'undefined' && window.location && window.location.hostname) ? String(window.location.hostname).toLowerCase() : '';
+        var isStaticGithubHost = hostStr.endsWith('.github.io') || hostStr === 'github.io';
+        var skipApi = isStaticGithubHost || (_dailyVoiceCtrl.apiTtsUnavailableUntil && Date.now() < _dailyVoiceCtrl.apiTtsUnavailableUntil) || (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
+        if (!skipApi) {
+          urls.push('/api/tts?text=' + encodeURIComponent(cleanName) + '&voice=Kore&style=' + encodeURIComponent('Clear name greeting'));
+        }
+        urls.push('https://translate.google.com/translate_tts?ie=UTF-8&tl=' + (hasAmharicName ? 'am' : 'en') + '&client=tw-ob&q=' + encodeURIComponent(cleanName));
+        return urls;
+      }
+
+      function preloadNameVoiceEl(userName) {
+        var cleanName = cleanSpokenUserName(userName);
+        if (!cleanName) return;
+        var nameAudio = document.getElementById('tb-name-voice-el');
+        var urls = getNameTtsCandidateUrls(cleanName);
+        if (!nameAudio || !urls.length) return;
+        try {
+          nameAudio.referrerPolicy = 'no-referrer';
+          try { nameAudio.setAttribute('referrerpolicy', 'no-referrer'); } catch (eAttr) {}
+          if (nameAudio.dataset && nameAudio.dataset.preloadedFor === cleanName && nameAudio.src === urls[0]) return;
+          nameAudio.src = urls[0];
+          if (nameAudio.dataset) nameAudio.dataset.preloadedFor = cleanName;
+          if (typeof nameAudio.load === 'function') nameAudio.load();
+        } catch (ePre) {}
+      }
+
       function speakAppendedUserName(userName, onDone) {
         var cleanName = cleanSpokenUserName(userName);
         if (!cleanName || myToken !== _dailyVoiceCtrl.playToken) {
@@ -3285,73 +3393,126 @@
             if (preferredVoice) utt.voice = preferredVoice;
             utt.volume = 1.0;
             utt.rate = 0.94;
-            var tid = setTimeout(finish, 2000);
+            var tid = setTimeout(finish, 3200);
             utt.onend = function () { clearTimeout(tid); finish(); };
             utt.onerror = function () { clearTimeout(tid); finish(); };
-            synth.speak(utt);
-            if (typeof synth.resume === 'function') { try { synth.resume(); } catch (eR2) {} }
+            var doSpeak = function () {
+              if (doneOnce || myToken !== _dailyVoiceCtrl.playToken) return;
+              synth.speak(utt);
+              if (typeof synth.resume === 'function') { try { synth.resume(); } catch (eR2) {} }
+            };
+            if (synth.speaking || synth.pending) {
+              try { synth.cancel(); } catch (eCan) {}
+              setTimeout(doSpeak, 45);
+            } else {
+              doSpeak();
+            }
           } catch (eSp) {
             finish();
           }
         };
-        var domAudio = document.getElementById('tb-daily-voice-el');
-        if (domAudio && typeof navigator === 'object' && navigator.onLine !== false) {
+
+        var candidateUrls = getNameTtsCandidateUrls(cleanName);
+        var nameAudioEl = document.getElementById('tb-name-voice-el');
+        var mainAudioEl = document.getElementById('tb-daily-voice-el');
+        var attempts = [];
+        if (nameAudioEl && candidateUrls.length) {
+          attempts.push({ el: nameAudioEl, url: candidateUrls[0] });
+        }
+        candidateUrls.forEach(function (u) {
+          if (mainAudioEl) attempts.push({ el: mainAudioEl, url: u });
+        });
+
+        if (attempts.length === 0 || (typeof navigator === 'object' && navigator.onLine === false)) {
+          trySpeechName();
+          return;
+        }
+
+        var attemptIdx = 0;
+        function tryNextNameAttempt() {
+          if (doneOnce || myToken !== _dailyVoiceCtrl.playToken) return;
+          if (attemptIdx >= attempts.length) {
+            trySpeechName();
+            return;
+          }
+          var cur = attempts[attemptIdx++];
+          var el = cur.el;
+          var ttsUrl = cur.url;
           try {
-            var ttsUrl = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=' + (hasAmharicName ? 'am' : 'en') + '&client=tw-ob&q=' + encodeURIComponent(cleanName);
-            domAudio.onended = null;
-            domAudio.onerror = null;
-            domAudio.onplaying = null;
-            domAudio.referrerPolicy = 'no-referrer';
-            try { domAudio.setAttribute('referrerpolicy', 'no-referrer'); } catch (eR) {}
-            domAudio.src = ttsUrl;
-            try { if (typeof domAudio.load === 'function') domAudio.load(); } catch (eL) {}
+            el.onended = null;
+            el.onerror = null;
+            el.onplaying = null;
+            el.muted = false;
+            el.volume = 1.0;
+            el.playsInline = true;
+            el.referrerPolicy = 'no-referrer';
+            try { el.setAttribute('referrerpolicy', 'no-referrer'); el.setAttribute('playsinline', ''); el.setAttribute('webkit-playsinline', ''); } catch (eR) {}
+            var alreadyLoaded = Boolean(el.src && el.src.indexOf(ttsUrl) !== -1 && el.readyState >= 2);
+            if (alreadyLoaded) {
+              try { el.currentTime = 0; } catch (eCt) {}
+            } else {
+              el.src = ttsUrl;
+              try { if (typeof el.load === 'function') el.load(); } catch (eL) {}
+            }
             var startedPlaying = false;
+            var movedNext = false;
             var stallTimer = setTimeout(function () {
-              if (!startedPlaying) {
-                try { domAudio.pause(); } catch (eP) {}
-                trySpeechName();
+              if (!startedPlaying && !movedNext) {
+                movedNext = true;
+                try { el.pause(); } catch (eP) {}
+                tryNextNameAttempt();
               }
-            }, 1400);
+            }, 3800);
             var hardMaxTimer = setTimeout(function () {
-              try { domAudio.pause(); } catch (eP2) {}
+              try { el.pause(); } catch (eP2) {}
               finish();
-            }, 4200);
-            domAudio.onplaying = function () {
+            }, 7000);
+            el.onplaying = function () {
               startedPlaying = true;
               clearTimeout(stallTimer);
             };
-            domAudio.onended = function () {
+            el.onended = function () {
               clearTimeout(stallTimer);
               clearTimeout(hardMaxTimer);
               finish();
             };
-            domAudio.onerror = function () {
+            el.onerror = function () {
+              if (movedNext) return;
+              movedNext = true;
               clearTimeout(stallTimer);
               clearTimeout(hardMaxTimer);
-              trySpeechName();
+              tryNextNameAttempt();
             };
-            var np = domAudio.play();
+            var np = el.play();
             if (np && typeof np.catch === 'function') {
               np.catch(function () {
+                if (movedNext) return;
+                movedNext = true;
                 clearTimeout(stallTimer);
                 clearTimeout(hardMaxTimer);
-                trySpeechName();
+                tryNextNameAttempt();
               });
             }
-            return;
-          } catch (eAud) {}
+          } catch (eAud) {
+            tryNextNameAttempt();
+          }
         }
-        trySpeechName();
+        tryNextNameAttempt();
       }
 
+      var completeVoiceCalled = false;
       function completeVoice(sourceLabel) {
-        if (myToken !== _dailyVoiceCtrl.playToken) return;
+        if (myToken !== _dailyVoiceCtrl.playToken || completeVoiceCalled) return;
+        completeVoiceCalled = true;
         var resolvedSrc = _dailyVoiceCtrl.blobSourceMap[voiceCacheKey] || '';
         var targetName = promptInfo.spokenUserName || promptInfo.userName;
-        var needsNameAppend = resolvedSrc === 'static' && Boolean(targetName) && (sourceLabel === 'gemini' || sourceLabel === 'webaudio' || sourceLabel === 'static');
+        var needsNameAppend = Boolean(targetName) && (
+          (resolvedSrc === 'static' && (sourceLabel === 'gemini' || sourceLabel === 'webaudio' || sourceLabel === 'static')) ||
+          sourceLabel === 'guided'
+        );
         if (needsNameAppend) {
           speakAppendedUserName(targetName, function () {
-            finalizeVoiceDone('static+name');
+            finalizeVoiceDone(sourceLabel === 'guided' ? 'guided+name' : 'static+name');
           });
           return;
         }
@@ -3684,6 +3845,8 @@
       _dailyVoiceCtrl.progress = 12;
       if (!opts.dashboardReplayOnly) syncLockVoiceGateUi(false);
       syncHeroVoiceButtonUi();
+      var pendingTargetName = promptInfo.spokenUserName || promptInfo.userName;
+      if (pendingTargetName) preloadNameVoiceEl(pendingTargetName);
 
       var isFileProto = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
       var cachedBlobUrl = _dailyVoiceCtrl.blobUrlMap[voiceCacheKey];
@@ -7277,7 +7440,10 @@
           '<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">' +
             '<span style="font-size:14px;font-weight:700;color:#fff;line-height:1.4;">' + esc(dp.displayText) + '</span>' +
           '</div>' +
-          '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.32);border-color:rgba(167,243,208,0.65);font-size:12px;padding:6px 12px;white-space:nowrap;">' + heroPlayLabel + '</button>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<button type="button" id="hero-voice-name-btn" class="lang-toggle-btn" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.35);font-size:11.5px;padding:6px 10px;white-space:nowrap;">' + (dp.userName ? ('👤 ' + esc(dp.userName)) : '👤 Set Name') + '</button>' +
+            '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.32);border-color:rgba(167,243,208,0.65);font-size:12px;padding:6px 12px;white-space:nowrap;">' + heroPlayLabel + '</button>' +
+          '</div>' +
         '</div>' +
         '<div class="week-strip">' +
           weekDays.map(function (wd) {
@@ -7719,6 +7885,18 @@
       if (heroVoiceBtn) heroVoiceBtn.onclick = function () {
         unlockAudioAndSpeechSync();
         startDailyVoicePlayback({ auto: false, fromGesture: true, dashboardReplayOnly: true });
+      };
+      var heroNameBtn = document.getElementById('hero-voice-name-btn');
+      if (heroNameBtn) heroNameBtn.onclick = function () {
+        var curN = (getActiveGreetingUser() && getActiveGreetingUser().displayName) || '';
+        openAppPrompt('Your Name for Daily Voice', curN, 'e.g. shemse', function (newVal) {
+          var saved = setSavedUserGreetingName(newVal || '');
+          renderDashboard();
+          if (saved) {
+            unlockAudioAndSpeechSync();
+            startDailyVoicePlayback({ auto: false, fromGesture: true, dashboardReplayOnly: true });
+          }
+        });
       };
       var heroResetBtn = document.getElementById('hero-reset-today');
       if (heroResetBtn) heroResetBtn.onclick = function () { state.previewDayOffset = 0; renderDashboard(); };
@@ -11812,6 +11990,14 @@
       if (saveNameBtn) saveNameBtn.onclick = saveLockName;
       var nameInpEl = document.getElementById('lock-user-name-inp');
       if (nameInpEl) {
+        nameInpEl.oninput = function () {
+          var typed = sanitizeUserText(String(nameInpEl.value || ''), 48);
+          var vTextEl = document.getElementById('lock-voice-text');
+          if (vTextEl) {
+            var livePrompt = getDailyAmharicWorkPrompt(new Date(), typed ? { displayName: typed } : null);
+            vTextEl.textContent = livePrompt.displayText;
+          }
+        };
         nameInpEl.onkeydown = function (e) {
           if (e.key === 'Enter') {
             e.preventDefault();
@@ -11824,6 +12010,12 @@
       if (playVoiceBtn) {
         playVoiceBtn.onclick = function () {
           unlockAudioAndSpeechSync();
+          var niNow = document.getElementById('lock-user-name-inp');
+          if (niNow && String(niNow.value || '').trim()) {
+            setSavedUserGreetingName(niNow.value);
+            state.editingLockName = false;
+            renderLockScreen();
+          }
           startDailyVoicePlayback({ auto: false, fromGesture: true });
         };
       }
@@ -11859,6 +12051,11 @@
       };
       document.getElementById('lock-form').onsubmit = async function (e) {
         e.preventDefault();
+        var niSub = document.getElementById('lock-user-name-inp');
+        if (niSub && String(niSub.value || '').trim()) {
+          setSavedUserGreetingName(niSub.value);
+          state.editingLockName = false;
+        }
         var remNow = getRemainingLockoutSec();
         if (remNow > 0) {
           state.lockError = 'Too many failed attempts. Please wait ' + remNow + ' seconds.';
@@ -17823,6 +18020,24 @@
       }
     } catch (e) {}
     markAppOpenedNow(null, 'boot');
+    function checkLateTelegramUserHydration() {
+      try {
+        if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.ready === 'function') {
+          window.Telegram.WebApp.ready();
+        }
+      } catch (eR) {}
+      var lateTg = getTelegramWebAppUser();
+      if (lateTg && formatTelegramWelcomeName(lateTg)) {
+        var prevName = (state.lastTelegramOpener && state.lastTelegramOpener.displayName) || '';
+        var nextName = formatTelegramWelcomeName(lateTg);
+        if (!prevName || prevName !== nextName) {
+          markAppOpenedNow(lateTg, 'telegram_open');
+        }
+      }
+    }
+    window.addEventListener('load', checkLateTelegramUserHydration);
+    setTimeout(checkLateTelegramUserHydration, 350);
+    setTimeout(checkLateTelegramUserHydration, 1100);
     purgeTombstonedDataFromState();
     ensureInitialFolderManifest();
     installFirstTapAudioUnlocker();
