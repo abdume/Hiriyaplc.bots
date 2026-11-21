@@ -1201,7 +1201,7 @@
       background: var(--blue-dark); color: #fff; padding: 14px 18px;
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
     }
-    .modal-body { flex: 1; overflow-y: auto; padding: 18px; background: #fff; }
+    .modal-body { flex: 1; overflow-y: auto; padding: 18px; background: #fff; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scroll-padding-bottom: 100px; }
     .modal-body.tinted { background: var(--bg-app); }
     .field-label {
       display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
@@ -1214,6 +1214,25 @@
     .form-input:focus, .form-select:focus, .form-textarea:focus {
       border-color: var(--blue-primary); box-shadow: 0 0 0 3px rgba(25,118,210,0.12);
     }
+    .tb-formula-textarea {
+      min-height: 54px; max-height: 148px; overflow-y: auto;
+      white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+      line-height: 1.45; font-size: 13px; resize: vertical;
+      touch-action: pan-y; -webkit-overflow-scrolling: touch;
+    }
+    .tb-formula-ops { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    .tb-formula-op-btn {
+      min-width: 30px; height: 28px; padding: 0 8px; border-radius: 7px;
+      border: 1px solid #C4B5FD; background: #FFFFFF; color: #5B21B6;
+      font-weight: 800; font-size: 12.5px; display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .tb-formula-op-btn:hover { background: #EDE9FE; }
+    .tb-formula-preview {
+      font-size: 11px; font-weight: 700; padding: 6px 9px; border-radius: 8px;
+      background: #EDE9FE; color: #4C1D95; border: 1px solid #DDD6FE;
+    }
+    .tb-formula-preview.is-error { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       padding: 9px 15px; border-radius: 10px; font-size: 12.5px; font-weight: 700;
@@ -6037,9 +6056,17 @@
       return isFinite(n) ? n : NaN;
     }
 
+    function normalizeFormulaOperators(expr) {
+      return String(expr === undefined || expr === null ? '' : expr)
+        .replace(/[\u00D7\u2715]/g, '*')
+        .replace(/[\u00F7]/g, '/')
+        .replace(/[\u2212\u2013\u2014]/g, '-')
+        .replace(/\u00A0/g, ' ');
+    }
+
     function evalSafeArithmetic(expr) {
       if (!expr) return NaN;
-      var cleaned = String(expr).replace(/,/g, '').replace(/%/g, '/100').trim();
+      var cleaned = normalizeFormulaOperators(expr).replace(/,/g, '').replace(/%/g, '/100').trim();
       if (!cleaned || !/^[0-9+\-*/().\s]+$/.test(cleaned)) return NaN;
       try {
         var res = (new Function('"use strict"; return (' + cleaned + ');'))();
@@ -6047,6 +6074,39 @@
       } catch (e) {
         return NaN;
       }
+    }
+
+    function getFormulaRefNumeric(row, oc, bot, depth) {
+      if (!row || !oc) return NaN;
+      if (oc.type === 'formula') return evalFormulaCell(row, oc, bot, depth || 0);
+      if (oc.type === 'amount' || oc.type === 'number') return parseNumSafe(row[oc.id]);
+      return parseNumSafe(row[oc.id]);
+    }
+
+    function resolveFormulaColumnRefs(expr, col, bot, getColReplacementFn) {
+      var resolved = normalizeFormulaOperators(expr);
+      if (!bot || !bot.columns) return resolved;
+      var byLowerName = {};
+      bot.columns.forEach(function (oc) {
+        if ((col && oc.id === col.id) || !oc.name) return;
+        var cleanName = String(oc.name || '').trim();
+        if (!cleanName) return;
+        var key = cleanName.toLowerCase();
+        if (!byLowerName[key]) byLowerName[key] = { name: cleanName, cols: [] };
+        byLowerName[key].cols.push(oc);
+      });
+      var entries = Object.keys(byLowerName).map(function (k) { return byLowerName[k]; });
+      entries.sort(function (a, b) { return b.name.length - a.name.length; });
+      entries.forEach(function (entry) {
+        var escName = entry.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var repVal = getColReplacementFn(entry.cols);
+        resolved = resolved.replace(new RegExp('\\{\\s*' + escName + '\\s*\\}', 'gi'), repVal);
+        resolved = resolved.replace(
+          new RegExp('(^|[^A-Za-z0-9_\\u00C0-\\uFFFF])' + escName + '(?=$|[^A-Za-z0-9_\\u00C0-\\uFFFF])', 'gi'),
+          '$1' + repVal
+        );
+      });
+      return resolved;
     }
 
     function validateCellFormulaSyntax(rawVal, col, bot) {
@@ -6061,7 +6121,7 @@
         if (!isNaN(parseNumSafe(s))) return { valid: true, reason: '' };
         return { valid: false, reason: 'Formula cells must start with "=" (e.g. =Amount*2) or be a valid number.' };
       }
-      var expr = s.slice(1).trim();
+      var expr = normalizeFormulaOperators(s.slice(1)).trim();
       if (!expr) {
         return { valid: false, reason: 'Formula expression after "=" cannot be empty.' };
       }
@@ -6081,18 +6141,7 @@
       if (depth !== 0) {
         return { valid: false, reason: 'Unclosed parenthesis "(".' };
       }
-      var resolved = expr;
-      if (bot && bot.columns) {
-        var colsSorted = bot.columns.slice().sort(function (a, b) {
-          return String(b.name || '').length - String(a.name || '').length;
-        });
-        colsSorted.forEach(function (oc) {
-          if ((col && oc.id === col.id) || !oc.name) return;
-          var escName = oc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          resolved = resolved.replace(new RegExp('\\{' + escName + '\\}', 'gi'), '1');
-          resolved = resolved.replace(new RegExp('(^|[^A-Za-z0-9_])' + escName + '(?=$|[^A-Za-z0-9_])', 'gi'), '$11');
-        });
-      }
+      var resolved = resolveFormulaColumnRefs(expr, col, bot, function () { return '1'; });
       if (/[{}]/.test(resolved)) {
         return { valid: false, reason: 'Unknown or unclosed column reference "{...}".' };
       }
@@ -6136,15 +6185,16 @@
       if (rawStr.charAt(0) === '=') {
         expr = rawStr.slice(1).trim();
       } else if (col && col.formulaExpr && String(col.formulaExpr).trim()) {
-        expr = String(col.formulaExpr).trim().replace(/^=/, '').trim();
+        expr = String(col.formulaExpr).trim().replace(/^=+/, '').trim();
       } else {
         return parseNumSafe(raw);
       }
+      expr = normalizeFormulaOperators(expr);
       if (!expr) return NaN;
       var upper = expr.toUpperCase();
       if (upper === 'SUM_ALL' || upper === 'SUM(*)' || upper === 'SUM(ALL)') {
         var rowTotal = 0, anyVal = false;
-        if (bot && bot.columns) {
+        if (bot && bot.columns && row) {
           bot.columns.forEach(function (oc) {
             if (oc.id !== col.id && (oc.type === 'amount' || oc.type === 'number')) {
               var v = parseNumSafe(row[oc.id]);
@@ -6154,41 +6204,42 @@
         }
         return anyVal ? rowTotal : NaN;
       }
-      if (rawStr.charAt(0) !== '=' && bot && bot.columns) {
+      if (rawStr.charAt(0) !== '=' && bot && bot.columns && row) {
         var hasAnyNumInput = bot.columns.some(function (oc) {
           if (oc.id === col.id) return false;
           if (oc.type === 'amount' || oc.type === 'number') return !isNaN(parseNumSafe(row[oc.id]));
           if (oc.type === 'formula') {
             var ov = row[oc.id];
-            return ov !== undefined && ov !== null && String(ov).trim() !== '';
+            if (ov !== undefined && ov !== null && String(ov).trim() !== '') return true;
+            return !isNaN(evalFormulaCell(row, oc, bot, d + 1));
           }
+          if (!isNaN(parseNumSafe(row[oc.id]))) return true;
           return false;
         });
         if (!hasAnyNumInput) return NaN;
       }
-      var resolved = expr;
-      if (bot && bot.columns) {
-        var colsSorted = bot.columns.slice().sort(function (a, b) {
-          return String(b.name || '').length - String(a.name || '').length;
-        });
-        colsSorted.forEach(function (oc) {
-          if (oc.id === col.id || !oc.name) return;
-          var escName = oc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          var valNum = getRowColNumeric(row, oc, bot, d + 1);
-          var repVal = isNaN(valNum) ? '0' : String(valNum);
-          resolved = resolved.replace(new RegExp('\\{' + escName + '\\}', 'gi'), repVal);
-          resolved = resolved.replace(new RegExp('(^|[^A-Za-z0-9_])' + escName + '(?=$|[^A-Za-z0-9_])', 'gi'), '$1' + repVal);
-        });
-      }
-      resolved = resolved.replace(/SUM\s*\(([^()]+)\)/gi, function (_, inner) {
-        var parts = inner.split(/[,;]/);
-        var s = 0;
-        parts.forEach(function (p) {
-          var v = evalSafeArithmetic(p);
-          if (!isNaN(v)) s += v;
-        });
-        return String(s);
+      var resolved = resolveFormulaColumnRefs(expr, col, bot, function (sameNameCols) {
+        for (var i = 0; i < sameNameCols.length; i++) {
+          var vNum = getFormulaRefNumeric(row, sameNameCols[i], bot, d + 1);
+          if (!isNaN(vNum)) {
+            return vNum < 0 ? ('(' + String(vNum) + ')') : String(vNum);
+          }
+        }
+        return '0';
       });
+      var prevResolved;
+      do {
+        prevResolved = resolved;
+        resolved = resolved.replace(/SUM\s*\(([^()]+)\)/gi, function (_, inner) {
+          var parts = inner.split(/[,;]/);
+          var s = 0;
+          parts.forEach(function (p) {
+            var v = evalSafeArithmetic(p);
+            if (!isNaN(v)) s += v;
+          });
+          return s < 0 ? ('(' + String(s) + ')') : String(s);
+        });
+      } while (resolved !== prevResolved);
       return evalSafeArithmetic(resolved);
     }
 
@@ -13685,6 +13736,63 @@
       };
     }
 
+    function insertFormulaTokenIntoBox(el, token, isOperator) {
+      if (!el) return '';
+      var val = String(el.value || '');
+      var start = typeof el.selectionStart === 'number' ? el.selectionStart : val.length;
+      var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : val.length;
+      var before = val.slice(0, start);
+      var after = val.slice(end);
+      var insertStr = String(token || '');
+      if (!isOperator) {
+        var trimmedBefore = before.replace(/\s+$/, '');
+        if (trimmedBefore && !/[+\-*/(,;]$/.test(trimmedBefore)) {
+          insertStr = ' + ' + insertStr;
+        } else if (trimmedBefore && /[,;]$/.test(trimmedBefore) && before.slice(-1) !== ' ') {
+          insertStr = ' ' + insertStr;
+        }
+      }
+      var nextVal = before + insertStr + after;
+      el.value = nextVal;
+      var nextPos = before.length + insertStr.length;
+      try { el.focus({ preventScroll: true }); } catch (errF) { try { el.focus(); } catch (errF2) {} }
+      try { if (typeof el.setSelectionRange === 'function') el.setSelectionRange(nextPos, nextPos); } catch (errS) {}
+      if (el.tagName === 'TEXTAREA' && el.style) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(148, Math.max(54, el.scrollHeight || 54)) + 'px';
+      }
+      return nextVal;
+    }
+
+    function buildFormulaPreviewStatus(exprVal, colDraft, refBot) {
+      var rawExpr = String(exprVal || '').trim().replace(/^=+/, '').trim();
+      if (!rawExpr) {
+        return { valid: true, isError: false, text: 'Enter column formula above (e.g. Quantity * Amount or SUM_ALL).' };
+      }
+      var checkCol = Object.assign({}, colDraft || { id: '__draft__', type: 'formula' }, { type: 'formula', formulaExpr: rawExpr });
+      var vRes = validateCellFormulaSyntax('=' + rawExpr, checkCol, refBot);
+      if (!vRes.valid) {
+        return { valid: false, isError: true, text: '⚠ ' + (vRes.reason || 'Invalid formula syntax') };
+      }
+      if (!refBot || !refBot.rows || refBot.rows.length === 0) {
+        return { valid: true, isError: false, text: '✓ Valid formula — add a row with numbers to see live result.' };
+      }
+      var sampleIdx = -1;
+      var sampleNum = NaN;
+      for (var ri = 0; ri < refBot.rows.length; ri++) {
+        var cand = evalFormulaCell(refBot.rows[ri], checkCol, refBot, 0);
+        if (!isNaN(cand)) {
+          sampleIdx = ri;
+          sampleNum = cand;
+          break;
+        }
+      }
+      if (sampleIdx >= 0 && !isNaN(sampleNum)) {
+        return { valid: true, isError: false, text: '✓ Valid · Row #' + (sampleIdx + 1) + ' Preview: ' + formatNumericValue(sampleNum, checkCol) };
+      }
+      return { valid: true, isError: false, text: '✓ Valid formula — fill numeric values in rows to compute.' };
+    }
+
     function renderFolderAddColumnModal(m) {
       var folder = m.folder || state.selectedFolder || 'General';
       var folderBots = state.bots.filter(function (b) {
@@ -13694,8 +13802,33 @@
       var defColName = m.colName !== undefined ? m.colName : ('Column ' + (maxCols + 1));
       var defColType = m.colType || 'text';
       var targetId = m.targetBotId || (folderBots.length === 1 ? folderBots[0].id : '__ALL__');
+      var previewBot = targetId !== '__ALL__'
+        ? (folderBots.find(function (b) { return b.id === targetId; }) || folderBots[0] || null)
+        : (folderBots[0] || null);
 
-      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:460px;" id="m-card">' +
+      var availColNames = [];
+      var seenNames = {};
+      var chipSourceBots = targetId !== '__ALL__' && previewBot ? [previewBot] : folderBots;
+      chipSourceBots.forEach(function (b) {
+        (b.columns || []).forEach(function (c) {
+          var cn = String(c.name || '').trim();
+          if (cn && !seenNames[cn.toLowerCase()]) {
+            seenNames[cn.toLowerCase()] = true;
+            availColNames.push(cn);
+          }
+        });
+      });
+      if (availColNames.length === 0) {
+        availColNames = ['Quantity', 'Amount'];
+      }
+      var facFormulaPrev = defColType === 'formula'
+        ? buildFormulaPreviewStatus(m.formulaExpr || '', { id: '__new_formula__', type: 'formula', decimals: 2, thousandSeparator: true }, previewBot || { columns: availColNames.map(function (n, idx) { return { id: 'tmp_' + idx, name: n, type: 'number' }; }), rows: [] })
+        : null;
+
+      var prevModalBody = document.querySelector('#m-card .modal-body');
+      var savedModalScrollTop = prevModalBody ? prevModalBody.scrollTop : 0;
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:480px;" id="m-card">' +
         '<header class="modal-header"><div style="display:flex;align-items:center;gap:8px;">' + icon('plus', 19) + '<div><h2 style="font-size:15.5px;font-weight:700;">Add Column in Folder</h2><div style="font-size:11px;color:#BFDBFE;">Folder: ' + esc(folder) + ' (' + folderBots.length + ' table' + (folderBots.length === 1 ? '' : 's') + ')</div></div></div>' +
           '<button class="icon-btn" id="fac-close">' + icon('close', 18) + '</button></header>' +
         '<form id="fac-form" class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
@@ -13712,6 +13845,25 @@
               '<option value="formula"' + (defColType === 'formula' ? ' selected' : '') + '>Formula (Σ)</option>' +
             '</select>' +
           '</div>' +
+          (defColType === 'formula'
+            ? '<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">' +
+                '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#5B21B6;">Formula Expression (Σ Row Calculation)</div>' +
+                '<textarea id="fac-formula-expr" class="form-textarea mono tb-formula-textarea" rows="2" wrap="soft" placeholder="e.g. Quantity * Amount or SUM_ALL">' + esc(m.formulaExpr || '') + '</textarea>' +
+                '<div class="tb-formula-ops">' +
+                  ['+', '-', '*', '/', '(', ')'].map(function (op) {
+                    return '<button type="button" class="tb-formula-op-btn fac-fop" data-fop="' + op + '">' + op + '</button>';
+                  }).join('') +
+                  '<button type="button" class="tb-formula-op-btn" id="fac-fclear" style="font-size:11px;color:#B91C1C;border-color:#FECACA;">Clear</button>' +
+                '</div>' +
+                '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+                  '<button type="button" class="btn btn-outline fac-fpreset" data-fexpr="SUM_ALL" style="padding:3px 8px;font-size:10.5px;">SUM_ALL (Number + Amount)</button>' +
+                  availColNames.map(function (cn) {
+                    return '<button type="button" class="btn btn-outline fac-fchip" data-cname="' + esc(cn) + '" style="padding:3px 8px;font-size:10.5px;">+ ' + esc(cn) + '</button>';
+                  }).join('') +
+                '</div>' +
+                '<div id="fac-formula-preview" class="tb-formula-preview' + (facFormulaPrev && facFormulaPrev.isError ? ' is-error' : '') + '">' + esc(facFormulaPrev ? facFormulaPrev.text : '') + '</div>' +
+              '</div>'
+            : '') +
           (folderBots.length > 0
             ? '<div><label class="field-label">Apply To Table(s) in "' + esc(folder) + '"</label>' +
                 '<select id="fac-target" class="form-select">' +
@@ -13728,15 +13880,85 @@
         '</form></div></div>';
 
       document.getElementById('modal-root').innerHTML = html;
+      var newModalBody = document.querySelector('#m-card .modal-body');
+      if (newModalBody && savedModalScrollTop > 0) newModalBody.scrollTop = savedModalScrollTop;
       document.getElementById('m-bg').onclick = closeModal;
       document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('fac-close').onclick = closeModal;
       document.getElementById('fac-cancel').onclick = closeModal;
+
+      var facNameEl = document.getElementById('fac-name');
+      if (facNameEl) facNameEl.oninput = function (e) { m.colName = e.target.value; };
+      var facTypeEl = document.getElementById('fac-type');
+      if (facTypeEl) facTypeEl.onchange = function (e) {
+        m.colName = facNameEl ? facNameEl.value : m.colName;
+        m.colType = e.target.value || 'text';
+        var tEl = document.getElementById('fac-target');
+        if (tEl) m.targetBotId = tEl.value;
+        renderFolderAddColumnModal(m);
+      };
+      var facTargetEl = document.getElementById('fac-target');
+      if (facTargetEl) facTargetEl.onchange = function (e) {
+        m.colName = facNameEl ? facNameEl.value : m.colName;
+        m.colType = facTypeEl ? facTypeEl.value : m.colType;
+        m.targetBotId = e.target.value;
+        renderFolderAddColumnModal(m);
+      };
+
+      var facFormulaEl = document.getElementById('fac-formula-expr');
+      var updateFacPreview = function () {
+        if (!facFormulaEl) return;
+        m.formulaExpr = facFormulaEl.value;
+        facFormulaEl.style.height = 'auto';
+        facFormulaEl.style.height = Math.min(148, Math.max(54, facFormulaEl.scrollHeight || 54)) + 'px';
+        var prevEl = document.getElementById('fac-formula-preview');
+        if (prevEl) {
+          var stPrev = buildFormulaPreviewStatus(m.formulaExpr, { id: '__new_formula__', type: 'formula', decimals: 2, thousandSeparator: true }, previewBot || { columns: availColNames.map(function (n, idx) { return { id: 'tmp_' + idx, name: n, type: 'number' }; }), rows: [] });
+          prevEl.className = 'tb-formula-preview' + (stPrev.isError ? ' is-error' : '');
+          prevEl.textContent = stPrev.text;
+        }
+      };
+      if (facFormulaEl) {
+        facFormulaEl.style.height = 'auto';
+        facFormulaEl.style.height = Math.min(148, Math.max(54, facFormulaEl.scrollHeight || 54)) + 'px';
+        facFormulaEl.oninput = updateFacPreview;
+      }
+      document.querySelectorAll('.fac-fop').forEach(function (b) {
+        b.onclick = function () {
+          if (!facFormulaEl) return;
+          insertFormulaTokenIntoBox(facFormulaEl, b.getAttribute('data-fop'), true);
+          updateFacPreview();
+        };
+      });
+      var facClearBtn = document.getElementById('fac-fclear');
+      if (facClearBtn) facClearBtn.onclick = function () {
+        if (!facFormulaEl) return;
+        facFormulaEl.value = '';
+        updateFacPreview();
+      };
+      document.querySelectorAll('.fac-fpreset').forEach(function (b) {
+        b.onclick = function () {
+          if (!facFormulaEl) return;
+          facFormulaEl.value = b.getAttribute('data-fexpr') || '';
+          updateFacPreview();
+        };
+      });
+      document.querySelectorAll('.fac-fchip').forEach(function (b) {
+        b.onclick = function () {
+          if (!facFormulaEl) return;
+          insertFormulaTokenIntoBox(facFormulaEl, b.getAttribute('data-cname') || '', false);
+          updateFacPreview();
+        };
+      });
+
       document.getElementById('fac-form').onsubmit = function (e) {
         e.preventDefault();
         if (!guardWriteAction('Add Column')) return;
         var cname = sanitizeUserText(document.getElementById('fac-name').value, 80) || ('Column ' + (maxCols + 1));
         var ctype = document.getElementById('fac-type').value || 'text';
+        var rawFormula = ctype === 'formula' && document.getElementById('fac-formula-expr')
+          ? String(document.getElementById('fac-formula-expr').value || '').trim().replace(/^=+/, '').trim()
+          : '';
         var chosenTarget = document.getElementById('fac-target') ? document.getElementById('fac-target').value : '__ALL__';
         var targets = chosenTarget === '__ALL__' ? folderBots : folderBots.filter(function (b) { return b.id === chosenTarget; });
         if (targets.length === 0) {
@@ -13753,11 +13975,12 @@
             id: 'col_' + Date.now() + '_' + idx,
             name: cname,
             type: ctype,
-            widthMultiplier: 1.0,
+            formulaExpr: ctype === 'formula' ? rawFormula : undefined,
+            widthMultiplier: ctype === 'formula' ? 1.2 : 1.0,
             currency: ctype === 'amount' ? 'ETB' : 'None',
-            thousandSeparator: ctype === 'amount' || ctype === 'number',
-            decimals: ctype === 'amount' ? 2 : 0,
-            style: { bold: false, italic: false, align: (ctype === 'amount' || ctype === 'number' || ctype === 'formula') ? 'right' : 'left', color: '#1E293B', bgColor: '#FFFFFF' },
+            thousandSeparator: ctype === 'amount' || ctype === 'number' || ctype === 'formula',
+            decimals: (ctype === 'amount' || ctype === 'formula') ? 2 : 0,
+            style: { bold: ctype === 'amount' || ctype === 'formula', italic: false, align: (ctype === 'amount' || ctype === 'number' || ctype === 'formula') ? 'right' : 'left', color: ctype === 'formula' ? '#6D28D9' : ctype === 'amount' ? '#E65100' : '#1E293B', bgColor: '#FFFFFF' },
             includeInGraph: true
           });
           b.updatedAt = nowIso;
@@ -14426,13 +14649,22 @@
         var colChips = bot.columns.filter(function (c) { return c.id !== origCol.id; }).map(function (c) {
           return '<button type="button" class="btn btn-outline col-fchip" data-cname="' + esc(c.name) + '" style="padding:3px 8px;font-size:10.5px;">+ ' + esc(c.name) + '</button>';
         }).join('');
-        html += '<div style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">' +
+        var fPrevStatus = buildFormulaPreviewStatus(d.formulaExpr || '', d, bot);
+        html += '<div id="col-formula-card" style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">' +
           '<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#5B21B6;">Formula Expression (Σ Row Calculation)</div>' +
-          '<input id="col-formula-expr" class="form-input mono" placeholder="e.g. Total Amount - Paid Amount or SUM_ALL" value="' + esc(d.formulaExpr || '') + '" style="font-size:12px;" />' +
+          '<textarea id="col-formula-expr" class="form-textarea mono tb-formula-textarea" rows="2" wrap="soft" placeholder="e.g. Total Amount - Paid Amount or SUM_ALL">' + esc(d.formulaExpr || '') + '</textarea>' +
+          '<div class="tb-formula-ops">' +
+            ['+', '-', '*', '/', '(', ')'].map(function (op) {
+              return '<button type="button" class="tb-formula-op-btn col-fop" data-fop="' + op + '">' + op + '</button>';
+            }).join('') +
+            '<button type="button" class="tb-formula-op-btn" id="col-fback" title="Backspace">⌫</button>' +
+            '<button type="button" class="tb-formula-op-btn" id="col-fclear" style="font-size:11px;color:#B91C1C;border-color:#FECACA;">Clear</button>' +
+          '</div>' +
           '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
             '<button type="button" class="btn btn-outline col-fpreset" data-fexpr="SUM_ALL" style="padding:3px 8px;font-size:10.5px;">SUM_ALL (Number + Amount)</button>' +
             colChips +
           '</div>' +
+          '<div id="col-formula-preview" class="tb-formula-preview' + (fPrevStatus.isError ? ' is-error' : '') + '">' + esc(fPrevStatus.text) + '</div>' +
           '<div style="font-size:11px;color:#6D28D9;">Tip: Enter <code>ColumnA - ColumnB</code>, <code>Quantity * Amount</code>, or type <code>=100+50</code> directly inside any cell.</div>' +
         '</div>';
       }
@@ -14518,7 +14750,11 @@
             '</label>' +
           '</div></div></div></div>';
 
+      var prevColBodyEl = document.querySelector('#m-card .modal-body');
+      var prevColScrollTop = prevColBodyEl ? prevColBodyEl.scrollTop : 0;
       document.getElementById('modal-root').innerHTML = html;
+      var curColBodyEl = document.querySelector('#m-card .modal-body');
+      if (curColBodyEl && prevColScrollTop > 0) curColBodyEl.scrollTop = prevColScrollTop;
       document.getElementById('m-bg').onclick = closeModal;
       document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('col-back').onclick = closeModal;
@@ -14636,15 +14872,82 @@
         };
       });
       var fExprInp = document.getElementById('col-formula-expr');
-      if (fExprInp) fExprInp.oninput = function (e) { d.formulaExpr = e.target.value; };
+      var syncColFormulaBoxUI = function () {
+        if (!fExprInp) return;
+        d.formulaExpr = fExprInp.value;
+        fExprInp.style.height = 'auto';
+        fExprInp.style.height = Math.min(148, Math.max(54, fExprInp.scrollHeight || 54)) + 'px';
+        var prevEl = document.getElementById('col-formula-preview');
+        if (prevEl) {
+          var stPrev = buildFormulaPreviewStatus(d.formulaExpr, d, bot);
+          prevEl.className = 'tb-formula-preview' + (stPrev.isError ? ' is-error' : '');
+          prevEl.textContent = stPrev.text;
+        }
+      };
+      if (fExprInp) {
+        fExprInp.style.height = 'auto';
+        fExprInp.style.height = Math.min(148, Math.max(54, fExprInp.scrollHeight || 54)) + 'px';
+        fExprInp.oninput = syncColFormulaBoxUI;
+        fExprInp.onfocus = function () {
+          setTimeout(function () {
+            var card = document.getElementById('col-formula-card');
+            if (card && typeof card.scrollIntoView === 'function') {
+              try { card.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (eS) {}
+            }
+          }, 180);
+        };
+      }
+      document.querySelectorAll('.col-fop').forEach(function (b) {
+        b.onclick = function () {
+          if (!fExprInp) return;
+          insertFormulaTokenIntoBox(fExprInp, b.getAttribute('data-fop'), true);
+          syncColFormulaBoxUI();
+        };
+      });
+      var fBackBtn = document.getElementById('col-fback');
+      if (fBackBtn) fBackBtn.onclick = function () {
+        if (!fExprInp) return;
+        var val = String(fExprInp.value || '');
+        var sPos = typeof fExprInp.selectionStart === 'number' ? fExprInp.selectionStart : val.length;
+        var ePos = typeof fExprInp.selectionEnd === 'number' ? fExprInp.selectionEnd : val.length;
+        if (sPos !== ePos) {
+          fExprInp.value = val.slice(0, sPos) + val.slice(ePos);
+          try { if (typeof fExprInp.setSelectionRange === 'function') fExprInp.setSelectionRange(sPos, sPos); } catch (eR) {}
+        } else if (sPos > 0) {
+          fExprInp.value = val.slice(0, sPos - 1) + val.slice(ePos);
+          try { if (typeof fExprInp.setSelectionRange === 'function') fExprInp.setSelectionRange(sPos - 1, sPos - 1); } catch (eR2) {}
+        }
+        try { fExprInp.focus({ preventScroll: true }); } catch (eF) {}
+        syncColFormulaBoxUI();
+      };
+      var fClearBtn = document.getElementById('col-fclear');
+      if (fClearBtn) fClearBtn.onclick = function () {
+        if (!fExprInp) return;
+        fExprInp.value = '';
+        try { fExprInp.focus({ preventScroll: true }); } catch (eF) {}
+        syncColFormulaBoxUI();
+      };
       document.querySelectorAll('.col-fpreset').forEach(function (b) {
-        b.onclick = function () { d.formulaExpr = b.getAttribute('data-fexpr'); renderColumnModal(m); };
+        b.onclick = function () {
+          d.formulaExpr = b.getAttribute('data-fexpr') || '';
+          if (fExprInp) {
+            fExprInp.value = d.formulaExpr;
+            syncColFormulaBoxUI();
+          } else {
+            renderColumnModal(m);
+          }
+        };
       });
       document.querySelectorAll('.col-fchip').forEach(function (b) {
         b.onclick = function () {
-          var cname = b.getAttribute('data-cname');
-          d.formulaExpr = (d.formulaExpr ? d.formulaExpr + ' + ' : '') + cname;
-          renderColumnModal(m);
+          var cname = b.getAttribute('data-cname') || '';
+          if (fExprInp) {
+            insertFormulaTokenIntoBox(fExprInp, cname, false);
+            syncColFormulaBoxUI();
+          } else {
+            d.formulaExpr = (d.formulaExpr ? d.formulaExpr + ' + ' : '') + cname;
+            renderColumnModal(m);
+          }
         };
       });
       document.getElementById('w-minus').onclick = function () { d.widthMultiplier = Math.max(0.5, Number(((d.widthMultiplier || 1) - 0.1).toFixed(1))); renderColumnModal(m); };
@@ -14704,6 +15007,12 @@
       document.getElementById('col-save').onclick = function () {
         if (!guardWriteAction('Edit Column Properties')) return;
         d.name = (d.name || '').trim() || 'Untitled Column';
+        if (d.type === 'formula') {
+          var fBoxNow = document.getElementById('col-formula-expr');
+          if (fBoxNow) d.formulaExpr = fBoxNow.value;
+          d.formulaExpr = String(d.formulaExpr || '').trim().replace(/^=+/, '').trim();
+          if (d.decimals === undefined) d.decimals = 2;
+        }
         var prevColSnapshot = Object.assign({}, origCol);
         bot.columns = bot.columns.map(function (c) { return c.id === origCol.id ? d : c; });
         if (d.type === 'date') {
@@ -15286,7 +15595,11 @@
             var rawVal = row[c.id];
             var rawDisp = c.type === 'checkbox' ? (rawVal ? 'Yes' : 'No') : formatCell(rawVal, c, row, bot);
             var dispVal = (isNumType && typeof rawDisp === 'string') ? rawDisp.replace(/^\$\s*/, '') : rawDisp;
-            var hasVal = c.type === 'checkbox' ? !!rawVal : (isNumType ? (!isNaN(numVal) && (rawVal !== '' && rawVal !== undefined && rawVal !== null)) : (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== ''));
+            var hasVal = c.type === 'checkbox'
+              ? !!rawVal
+              : (c.type === 'formula'
+                  ? !isNaN(numVal)
+                  : (isNumType ? (!isNaN(numVal) && (rawVal !== '' && rawVal !== undefined && rawVal !== null)) : (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '')));
             var cleanCurr = (c.currency && c.currency !== 'None' && c.currency !== '$') ? c.currency : '';
             allCols.push({
               id: c.id,
