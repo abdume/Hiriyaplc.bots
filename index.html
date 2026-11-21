@@ -8048,6 +8048,10 @@
         renderAllColumnsBar(dashAllCols, dashScopeLabel + ' — Column Header Data Summary (' + (dashIsEth ? 'Ethiopian Calendar' : 'All Dates') + ')');
 
         if (state.dashDayBreakdownOpen) {
+          var dashMatchRows = (dashDaily.filtered && dashDaily.filtered.length > 0) ? dashDaily.filtered : (dashWeekly.filtered || []);
+          var dashMatchTitle = (dashDaily.filtered && dashDaily.filtered.length > 0)
+            ? ('Today\'s Matching Rows (' + todayDisplayStr + ' · ' + dashDaily.filtered.length + ')')
+            : ('Last 7 Days Matching Rows (' + weekDisplayStr + ' · ' + (dashWeekly.filtered || []).length + ')');
           html += '<div class="dash-day-breakdown">' +
             renderDynamicDayBreakdownTable(
               dashDays.slice(0, 7),
@@ -8056,6 +8060,7 @@
               'Σ Weekly Total (' + weekDisplayStr + ')',
               dashDaily.todayYmd || todayDisplayStr
             ) +
+            renderMatchingRowsBreakdownTable(dashMatchRows, dashWeekly, dashMatchTitle) +
           '</div>';
         }
       }
@@ -8125,6 +8130,20 @@
       if (dSumToggle) dSumToggle.onclick = function () { state.dashSummaryCollapsed = !state.dashSummaryCollapsed; renderDashboard(); };
       document.querySelectorAll('.dash-sum-card[data-open-rper]').forEach(function (card) {
         card.onclick = function () { openModal('reports', { period: card.getAttribute('data-open-rper'), folder: curDashRepFolder }); };
+      });
+      document.querySelectorAll('.rep-jump-row[data-bid]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          var bid = btn.getAttribute('data-bid');
+          var rid = btn.getAttribute('data-rid');
+          if (!bid) return;
+          state.activeBotId = bid;
+          state.tableSearchQuery = '';
+          state.editingCell = null;
+          state._resetTableScroll = !rid;
+          state._pendingScrollToRowId = rid || null;
+          renderApp();
+        };
       });
 
       var stSync = document.getElementById('strip-sync-now');
@@ -8504,7 +8523,7 @@
       if (col.type === 'date') {
         var sDate = String(rawVal === undefined || rawVal === null ? '' : rawVal).trim();
         if (sDate === '') return '';
-        return formatAutoDateStr(col, parseFlexibleDate(sDate, undefined, col));
+        return formatAutoDateStr(col, parseFlexibleDate(sDate, undefined, col, isEthiopianCol(col) ? true : undefined));
       }
       if (col.type === 'formula') {
         return rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
@@ -9389,6 +9408,10 @@
           '</div>';
 
         if (!state.tableReportCollapsed && tblWeekly) {
+          var tblMatchRows = (tblDaily && tblDaily.filtered && tblDaily.filtered.length > 0) ? tblDaily.filtered : (tblWeekly.filtered || []);
+          var tblMatchTitle = (tblDaily && tblDaily.filtered && tblDaily.filtered.length > 0)
+            ? ('Today\'s Matching Rows (' + tblTodayDmy + ' · ' + tblDaily.filtered.length + ')')
+            : ('Last 7 Days Matching Rows (' + tblWeekSub + ' · ' + (tblWeekly.filtered || []).length + ')');
           html += '<div class="dash-sum-cards">' +
             renderColorfulSummaryCard('Daily Report', tblTodayDmy, tblDaily, 'daily', 'sum-card-daily tbl-sum-card', 'data-open-rper="daily"') +
             renderColorfulSummaryCard('Weekly Sum', tblWeekSub, tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
@@ -9403,6 +9426,7 @@
               'Σ Weekly Total (' + tblWeekSub + ')',
               tblDaily.todayYmd || tblTodayDmy
             ) +
+            renderMatchingRowsBreakdownTable(tblMatchRows, tblWeekly, tblMatchTitle) +
           '</div>';
         }
         html += '</section>';
@@ -9991,7 +10015,7 @@
           if (String(raw || '').trim() === '') {
             parsed = '';
           } else {
-            parsed = formatAutoDateStr(col, parseFlexibleDate(raw, undefined, col));
+            parsed = formatAutoDateStr(col, parseFlexibleDate(raw, undefined, col, isEthiopianCol(col) ? true : undefined));
           }
         }
         var oldVal = '';
@@ -11604,7 +11628,7 @@
             var isEcMode = Boolean(editCol && isEthiopianCol(editCol));
             var isDtMode = Boolean(editCol && (editCol.dateFormat === 'dmy_time' || editCol.dateFormat === 'iso'));
             var calKey = bot.id + '::' + state.editingCell.rowId + '::' + state.editingCell.colId;
-            var curRefDate = activeInp.value ? parseFlexibleDate(activeInp.value) : new Date();
+            var curRefDate = activeInp.value ? parseFlexibleDate(activeInp.value, undefined, editCol, isEcMode) : new Date();
             var calState;
             if (state._calDraft && state._calDraft.key === calKey) {
               calState = state._calDraft;
@@ -12169,6 +12193,29 @@
       if (tblSumOpenRep) tblSumOpenRep.onclick = function () { openModal('reports', { folder: bot.folder || 'General', botId: state.tableReportScope === 'table' ? bot.id : 'all' }); };
       document.querySelectorAll('.tbl-sum-card[data-open-rper]').forEach(function (card) {
         card.onclick = function () { openModal('reports', { period: card.getAttribute('data-open-rper'), folder: bot.folder || 'General', botId: state.tableReportScope === 'table' ? bot.id : 'all' }); };
+      });
+      document.querySelectorAll('.rep-jump-row[data-rid]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          var bid = btn.getAttribute('data-bid');
+          var rid = btn.getAttribute('data-rid');
+          if (bid && bid !== bot.id) {
+            state.activeBotId = bid;
+            state.tableSearchQuery = '';
+            state._pendingScrollToRowId = rid || null;
+            renderApp();
+            return;
+          }
+          var wrapEl = document.querySelector('.table-wrap');
+          var trEl = wrapEl && rid ? findTableRowElById(wrapEl, rid) : null;
+          if (trEl) {
+            scrollRowIntoTableView(wrapEl, trEl, true, true);
+          } else if (rid) {
+            state.tableSearchQuery = '';
+            state._pendingScrollToRowId = rid;
+            renderTableView(bot);
+          }
+        };
       });
     }
 
@@ -15534,15 +15581,73 @@
           var res4g = buildFromGcParts(yVal, mVal, dVal, yHh, yMm, ySs, Boolean(ymdM[4]), false, true);
           if (res4g) return res4g;
         }
-        // 5. Full ISO timestamp or natural date string
-        var norm = s.indexOf(' ') !== -1 && s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
-        var parsed = new Date(norm);
-        if (!isNaN(parsed.getTime())) {
-          if (preferEthiopian || isEcCol || hasEthTag) {
-            var ep = getEthiopiaInstantParts(parsed);
-            return buildFromGcParts(ep.gy, ep.gm, ep.gd, ep.hh, ep.mm, ep.ss, true, Boolean(isEcCol || hasEthTag), true);
+        // 4b. Embedded date inside mixed text (e.g. "paid 12/03/2019 7000" or "cash 12 Hidar 2019 5000")
+        var embNamedRe = /(?:^|\s)(\d{1,2})\s+([^\d\s\/\-]+)\s+(\d{4})(?:[ T·,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?(?=\s|$|[,.])/ig;
+        var embNamedM;
+        while ((embNamedM = embNamedRe.exec(s)) !== null) {
+          var embEm = parseEthiopianMonthName(embNamedM[2]);
+          if (embEm >= 1) {
+            var embGp1 = ethiopianToGregorianParts(parseInt(embNamedM[3], 10), embEm, parseInt(embNamedM[1], 10));
+            var embH1 = embNamedM[4] ? applyAmPmHours(parseInt(embNamedM[4], 10), embNamedM[7]) : 12;
+            var embRes1 = buildFromGcParts(embGp1.year, embGp1.month, embGp1.day, embH1, embNamedM[5] ? parseInt(embNamedM[5], 10) : 0, embNamedM[6] ? parseInt(embNamedM[6], 10) : 0, Boolean(embNamedM[4]), true, true);
+            if (embRes1) return embRes1;
           }
-          return buildFromGcParts(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate(), parsed.getHours(), parsed.getMinutes(), parsed.getSeconds(), true, false, true);
+        }
+        var embYmdM = s.match(/(?:^|\s)(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[ T·,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?(?=\s|$|[,.])/i);
+        if (embYmdM) {
+          var eyY = parseInt(embYmdM[1], 10);
+          var eyM = parseInt(embYmdM[2], 10);
+          var eyD = parseInt(embYmdM[3], 10);
+          if (eyY >= 1900 && eyY <= 2150 && eyM >= 1 && eyM <= 30 && eyD >= 1 && eyD <= 31) {
+            var eyHh = embYmdM[4] ? applyAmPmHours(parseInt(embYmdM[4], 10), embYmdM[7]) : 12;
+            var eyMm = embYmdM[5] ? parseInt(embYmdM[5], 10) : 0;
+            var eySs = embYmdM[6] ? parseInt(embYmdM[6], 10) : 0;
+            var eyTreatEth = hasEthTag || eyM === 13 || (isEcCol && eyY <= curEcYr + 3) || ((preferEthiopian || !explicitGcCol) && eyY >= 1990 && eyY <= curEcYr + 2);
+            if (eyTreatEth) {
+              if (eyM > 13 && eyD <= 13 && eyM <= 30) { var tmpEm = eyM; eyM = eyD; eyD = tmpEm; }
+              var eyGp = ethiopianToGregorianParts(eyY, eyM, eyD);
+              var eyRes = buildFromGcParts(eyGp.year, eyGp.month, eyGp.day, eyHh, eyMm, eySs, Boolean(embYmdM[4]), true, true);
+              if (eyRes) return eyRes;
+            }
+            var eyResG = buildFromGcParts(eyY, eyM, eyD, eyHh, eyMm, eySs, Boolean(embYmdM[4]), false, true);
+            if (eyResG) return eyResG;
+          }
+        }
+        var embDmyM = s.match(/(?:^|\s)(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T·,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?(?=\s|$|[,.])/i);
+        if (embDmyM) {
+          var ep1 = parseInt(embDmyM[1], 10);
+          var ep2 = parseInt(embDmyM[2], 10);
+          var eyr = parseInt(embDmyM[3], 10);
+          if (eyr < 100) eyr += 2000;
+          if (eyr >= 1900 && eyr <= 2150 && ep1 >= 1 && ep1 <= 31 && ep2 >= 1 && ep2 <= 31 && (ep1 <= 13 || ep2 <= 13)) {
+            var eHh3 = embDmyM[4] ? applyAmPmHours(parseInt(embDmyM[4], 10), embDmyM[7]) : 12;
+            var eMm3 = embDmyM[5] ? parseInt(embDmyM[5], 10) : 0;
+            var eSs3 = embDmyM[6] ? parseInt(embDmyM[6], 10) : 0;
+            var eTreatEth3 = hasEthTag || ep2 === 13 || (isEcCol && eyr <= curEcYr + 3) || ((preferEthiopian || !explicitGcCol) && eyr >= 1990 && eyr <= curEcYr + 2);
+            if (eTreatEth3) {
+              var eeDay = ep1, eeMon = ep2;
+              if (eeMon > 13 && eeDay <= 13 && eeMon <= 30) { eeMon = ep1; eeDay = ep2; }
+              var egp3 = ethiopianToGregorianParts(eyr, eeMon, eeDay);
+              var eres3 = buildFromGcParts(egp3.year, egp3.month, egp3.day, eHh3, eMm3, eSs3, Boolean(embDmyM[4]), true, true);
+              if (eres3) return eres3;
+            }
+            var egDay = ep1, egMon = ep2;
+            if (ep2 > 12 && ep1 <= 12) { egMon = ep1; egDay = ep2; }
+            var eres3g = buildFromGcParts(eyr, egMon, egDay, eHh3, eMm3, eSs3, Boolean(embDmyM[4]), false, true);
+            if (eres3g) return eres3g;
+          }
+        }
+        // 5. Full ISO timestamp or natural date string (ignore bare integers like "7000" or "5000")
+        if (!/^-?\d+(?:\.\d+)?$/.test(s)) {
+          var norm = s.indexOf(' ') !== -1 && s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
+          var parsed = new Date(norm);
+          if (!isNaN(parsed.getTime())) {
+            if (preferEthiopian || isEcCol || hasEthTag) {
+              var ep = getEthiopiaInstantParts(parsed);
+              return buildFromGcParts(ep.gy, ep.gm, ep.gd, ep.hh, ep.mm, ep.ss, true, Boolean(isEcCol || hasEthTag), true);
+            }
+            return buildFromGcParts(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate(), parsed.getHours(), parsed.getMinutes(), parsed.getSeconds(), true, false, true);
+          }
         }
       }
 
@@ -15553,6 +15658,35 @@
         return buildFromGcParts(fbp.gy, fbp.gm, fbp.gd, fbp.hh, fbp.mm, fbp.ss, true, Boolean(isEcCol), false);
       }
       return buildFromGcParts(fb.getFullYear(), fb.getMonth() + 1, fb.getDate(), fb.getHours(), fb.getMinutes(), fb.getSeconds(), true, false, false);
+    }
+
+    function extractAmountFromMixedCell(rawVal, col, row, bot) {
+      if (col && (col.type === 'amount' || col.type === 'number' || col.type === 'formula')) {
+        var nDirect = getRowColNumeric(row, col, bot, 0);
+        if (!isNaN(nDirect)) return nDirect;
+      }
+      if (rawVal === undefined || rawVal === null) return NaN;
+      var s = String(rawVal).trim();
+      if (!s) return NaN;
+      var stripped = s
+        .replace(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}(?:[ T·,]+\d{1,2}:\d{1,2}(?::\d{1,2})?(?:\s*(?:AM|PM))?)?/ig, ' ')
+        .replace(/\b\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}(?:[ T·,]+\d{1,2}:\d{1,2}(?::\d{1,2})?(?:\s*(?:AM|PM))?)?/ig, ' ')
+        .replace(/\b(?:EC|E\.C\.)\b/ig, ' ')
+        .replace(/,/g, '')
+        .trim();
+      var matches = stripped.match(/-?\d+(?:\.\d+)?/g);
+      if (!matches || !matches.length) return NaN;
+      var val = parseFloat(matches[matches.length - 1]);
+      return (typeof val === 'number' && !isNaN(val) && isFinite(val)) ? val : NaN;
+    }
+
+    function hasExplicitDatePattern(rawStr) {
+      var s = String(rawStr === undefined || rawStr === null ? '' : rawStr).trim();
+      if (!s) return false;
+      if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(s)) return true;
+      if (/\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/.test(s)) return true;
+      if (/(?:meskerem|meskrem|maskaram|tikimt|tikemt|teqemt|tiqimt|hidar|hedar|tahsas|tahisas|tahesas|tir|ter|yekatit|yakatit|megabit|magabit|miazia|miyazia|miyaziya|miaziya|ginbot|genbot|sene|hamle|nehase|nahase|pagume|pagumen|መስከረም|ጥቅምት|ኅዳር|ህዳር|ታኅሣሥ|ታህሳስ|ታኅሳስ|ታህሣሥ|ጥር|የካቲት|መጋቢት|ሚያዝያ|ሚያዚያ|ግንቦት|ሠኔ|ሰኔ|ሐምሌ|ሃምሌ|ሀምሌ|ነሐሴ|ነሃሴ|ነሀሴ|ጳጉሜ|ጳጉሜን|ጰጉሜ|ጰጉሜን)/i.test(s)) return true;
+      return false;
     }
 
     function parseFlexibleDate(raw, fallbackIso, col, preferEthiopian) {
@@ -15729,8 +15863,78 @@
           findCol(['paid', 'col_paid', 'amount', 'price', 'target', 'col_amount'], balCol ? (function () { var m = {}; m[balCol.id] = true; return m; }()) : null);
         var allDateCols = bot.columns.filter(function (c) { return c.type === 'date'; });
         var textDateCols = bot.columns.filter(function (c) { return c.type !== 'date' && /date|time|ቀን|eth|day/i.test(String(c.name || '')); });
+        var otherTextCols = bot.columns.filter(function (c) {
+          return (c.type === 'text' || !c.type || c.type === 'button') && !/date|time|ቀን|eth|day/i.test(String(c.name || ''));
+        });
         var defaultEthDateCol = allDateCols.find(function (c) { return isEthiopianCol(c); }) || null;
         var fallbackDateCol = allDateCols[0] || textDateCols[0] || findCol(['date', 'time', 'ቀን']);
+
+        var colNameCounts = {};
+        var botColMetaList = (bot.columns || []).map(function (c) {
+          var baseKey = String(c.name || 'Column').trim().toLowerCase() || 'column';
+          colNameCounts[baseKey] = (colNameCounts[baseKey] || 0) + 1;
+          var occ = colNameCounts[baseKey];
+          var colKey = occ === 1 ? baseKey : (baseKey + ' #' + occ);
+          var dispName = occ === 1 ? (c.name || 'Column') : ((c.name || 'Column') + ' (' + occ + ')');
+          return { col: c, colKey: colKey, dispName: dispName };
+        });
+
+        var isMoneyTextCol = function (c) {
+          if (!c) return false;
+          var cn = String(c.name || '').toLowerCase();
+          return (totCol && c.id === totCol.id) || (paidCol && c.id === paidCol.id) || (balCol && c.id === balCol.id) ||
+            isPaidColName(cn) || isBalanceColName(cn) || /total|amount|price|invoice|birr|etb|cost|fee|sum/i.test(cn);
+        };
+
+        var buildDateEntry = function (metaObj, colObj, fbIso, priority) {
+          var ecP = metaObj.ec;
+          var eDmy = String(ecP.day).padStart(2, '0') + '/' + String(ecP.month).padStart(2, '0') + '/' + ecP.year;
+          var eMList = (state && state.lang === 'am') ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+          var eNamed = String(ecP.day).padStart(2, '0') + ' ' + (eMList[ecP.month - 1] || ecP.month) + ' ' + ecP.year;
+          var eYmd = String(ecP.year) + '-' + String(ecP.month).padStart(2, '0') + '-' + String(ecP.day).padStart(2, '0');
+          var gDmy = String(metaObj.gd).padStart(2, '0') + '/' + String(metaObj.gm).padStart(2, '0') + '/' + metaObj.gy;
+          var uDayMs = Date.UTC(metaObj.gy, metaObj.gm - 1, metaObj.gd);
+          var wd = daysShort[new Date(uDayMs).getUTCDay()];
+          var fbInst = new Date(fbIso);
+          var hrB = metaObj.hh;
+          var minD = metaObj.mm;
+          if (!metaObj.hasExplicitTime && !isNaN(fbInst.getTime())) {
+            if (preferEth) {
+              var fbEatP = getEthiopiaInstantParts(fbInst);
+              hrB = fbEatP.hh;
+              minD = fbEatP.mm;
+            } else {
+              hrB = fbInst.getHours();
+              minD = fbInst.getMinutes();
+            }
+          }
+          var tStr = formatClock12(hrB, minD, null, preferEth ? 'EAT' : '');
+          var isEthF = Boolean(preferEth || isEthiopianCol(colObj) || metaObj.isExplicitEth);
+          var dispDt = preferEth
+            ? (eDmy + ' EC · ' + formatClock12(hrB, minD, null, 'EAT'))
+            : (gDmy + ' · ' + formatClock12(hrB, minD, null, ''));
+          return {
+            col: colObj || null,
+            priority: priority,
+            meta: metaObj,
+            isEth: isEthF,
+            ec: ecP,
+            gy: metaObj.gy,
+            gm: metaObj.gm,
+            gd: metaObj.gd,
+            hours: hrB,
+            weekday: wd,
+            utcDayMs: uDayMs,
+            ethDmy: eDmy,
+            ethNamed: eNamed,
+            ethYmd: eYmd,
+            ethTimeStr: tStr,
+            ymd: metaObj.ymd,
+            dmy: gDmy,
+            dt: dispDt,
+            parsedMs: metaObj.date.getTime()
+          };
+        };
 
         bot.rows.forEach(function (row, idx) {
           var hasUserData = bot.columns.some(function (c) {
@@ -15751,16 +15955,49 @@
           });
           if (!hasUserData) return;
 
-          var rowDateCol =
-            allDateCols.find(function (c) { return isEthiopianCol(c) && row[c.id] !== undefined && row[c.id] !== null && String(row[c.id]).trim() !== ''; }) ||
-            allDateCols.find(function (c) { return row[c.id] !== undefined && row[c.id] !== null && String(row[c.id]).trim() !== ''; }) ||
-            textDateCols.find(function (c) {
-              var rv = row[c.id];
-              if (rv === undefined || rv === null || String(rv).trim() === '') return false;
-              return parseFlexibleDateMeta(rv, undefined, c, preferEth).parsedFromString;
-            }) ||
-            defaultEthDateCol ||
-            fallbackDateCol;
+          var fallbackIso = row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString();
+          var dateCandidates = [];
+          allDateCols.forEach(function (c) {
+            var rv = row[c.id];
+            if (rv === undefined || rv === null || String(rv).trim() === '') return;
+            var mObj = parseFlexibleDateMeta(rv, fallbackIso, c, preferEth);
+            if (!mObj.parsedFromString) return;
+            var isPaidDateCol = isPaidColName(c.name) || /paid|payment|pay|settle|deposit|ክፍያ/i.test(String(c.name || ''));
+            var isExplicitEntry = (c.autoInsertDate !== true || row._dateEdited === true);
+            var prio = (isExplicitEntry ? 30 : 10) + (isPaidDateCol ? 8 : 0) + (isEthiopianCol(c) ? 2 : 0);
+            dateCandidates.push(buildDateEntry(mObj, c, fallbackIso, prio));
+          });
+          textDateCols.forEach(function (c) {
+            var rv = row[c.id];
+            if (rv === undefined || rv === null || String(rv).trim() === '') return;
+            var mObj = parseFlexibleDateMeta(rv, fallbackIso, c, preferEth);
+            if (!mObj.parsedFromString) return;
+            var isPaidDateCol = isPaidColName(c.name) || /paid|payment|pay|settle|deposit|ክፍያ/i.test(String(c.name || ''));
+            dateCandidates.push(buildDateEntry(mObj, c, fallbackIso, isPaidDateCol ? 28 : 22));
+          });
+          otherTextCols.forEach(function (c) {
+            var rv = row[c.id];
+            if (rv === undefined || rv === null) return;
+            var rvStr = String(rv).trim();
+            if (!rvStr || !hasExplicitDatePattern(rvStr)) return;
+            var mObj = parseFlexibleDateMeta(rvStr, fallbackIso, c, preferEth);
+            if (!mObj.parsedFromString) return;
+            var isPaidTxt = isPaidColName(c.name) || /\bpaid\b/i.test(rvStr);
+            dateCandidates.push(buildDateEntry(mObj, c, fallbackIso, isPaidTxt ? 24 : 18));
+          });
+
+          dateCandidates.sort(function (a, b) {
+            if (b.priority !== a.priority) return b.priority - a.priority;
+            return b.parsedMs - a.parsedMs;
+          });
+
+          var primaryEntry = dateCandidates[0] || null;
+          if (!primaryEntry) {
+            var fbCol = defaultEthDateCol || fallbackDateCol;
+            var fbMeta = parseFlexibleDateMeta('', fallbackIso, fbCol, preferEth);
+            primaryEntry = buildDateEntry(fbMeta, fbCol, fallbackIso, 0);
+          }
+          var rowDateCol = primaryEntry.col;
 
           var cname = cnameCol && row[cnameCol.id] !== undefined && row[cnameCol.id] !== '' ? String(row[cnameCol.id]) : (bot.name + ' #' + (idx + 1));
           var qual = qualCol && row[qualCol.id] !== undefined && row[qualCol.id] !== '' ? String(row[qualCol.id]) : '';
@@ -15776,6 +16013,10 @@
           var colNum = function (col) {
             if (!col) return 0;
             var n = getRowColNumeric(row, col, bot, 0);
+            if ((isNaN(n) || n === 0) && (col.type === 'text' || !col.type) && isMoneyTextCol(col)) {
+              var mixedN = extractAmountFromMixedCell(row[col.id], col, row, bot);
+              if (!isNaN(mixedN)) n = mixedN;
+            }
             return isNaN(n) ? 0 : n;
           };
           var qtyVal = 0;
@@ -15802,11 +16043,20 @@
 
           var rowNumFormulaSum = 0;
           var allCols = [];
-          bot.columns.forEach(function (c) {
+          botColMetaList.forEach(function (metaC) {
+            var c = metaC.col;
+            var rawVal = row[c.id];
             var isNumType = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
             var numVal = isNumType ? getRowColNumeric(row, c, bot, 0) : NaN;
+            var mixedNum = NaN;
+            if (!isNumType && isMoneyTextCol(c) && rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+              mixedNum = extractAmountFromMixedCell(rawVal, c, row, bot);
+              if (!isNaN(mixedNum)) {
+                isNumType = true;
+                numVal = mixedNum;
+              }
+            }
             if (isNumType && !isNaN(numVal)) rowNumFormulaSum += numVal;
-            var rawVal = row[c.id];
             var rawDisp = c.type === 'checkbox' ? (rawVal ? 'Yes' : 'No') : formatCell(rawVal, c, row, bot);
             var dispVal = (isNumType && typeof rawDisp === 'string') ? rawDisp.replace(/^\$\s*/, '') : rawDisp;
             var hasVal = c.type === 'checkbox'
@@ -15817,8 +16067,9 @@
             var cleanCurr = (c.currency && c.currency !== 'None' && c.currency !== '$') ? c.currency : '';
             allCols.push({
               id: c.id,
-              name: c.name || 'Column',
-              type: c.type || 'text',
+              colKey: metaC.colKey,
+              name: metaC.dispName,
+              type: isNumType && c.type === 'text' ? 'amount' : (c.type || 'text'),
               isNumeric: isNumType,
               isCurrency: Boolean(cleanCurr),
               currency: cleanCurr,
@@ -15841,39 +16092,9 @@
           if (paidVal <= 0 && totVal > 0 && !balCol) paidVal = totVal;
           var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
 
-          var rawDate = rowDateCol && row[rowDateCol.id] ? String(row[rowDateCol.id]).trim() : '';
-          var fallbackIso = row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString();
-          var meta = parseFlexibleDateMeta(rawDate, fallbackIso, rowDateCol, preferEth);
-          var ecParts = meta.ec;
-          var ethDmy = String(ecParts.day).padStart(2, '0') + '/' + String(ecParts.month).padStart(2, '0') + '/' + ecParts.year;
-          var ethMList = (state && state.lang === 'am') ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
-          var ethNamed = String(ecParts.day).padStart(2, '0') + ' ' + (ethMList[ecParts.month - 1] || ecParts.month) + ' ' + ecParts.year;
-          var ethYmd = String(ecParts.year) + '-' + String(ecParts.month).padStart(2, '0') + '-' + String(ecParts.day).padStart(2, '0');
-          var dmy = String(meta.gd).padStart(2, '0') + '/' + String(meta.gm).padStart(2, '0') + '/' + meta.gy;
-          var utcDayMs = Date.UTC(meta.gy, meta.gm - 1, meta.gd);
-          var weekday = daysShort[new Date(utcDayMs).getUTCDay()];
-
-          var fbInstant = new Date(fallbackIso);
-          var hrForBucket = meta.hh;
-          var minForDisplay = meta.mm;
-          if (!meta.hasExplicitTime && !isNaN(fbInstant.getTime())) {
-            if (preferEth) {
-              var fbEat = getEthiopiaInstantParts(fbInstant);
-              hrForBucket = fbEat.hh;
-              minForDisplay = fbEat.mm;
-            } else {
-              hrForBucket = fbInstant.getHours();
-              minForDisplay = fbInstant.getMinutes();
-            }
-          }
-          var ethTimeStr = formatClock12(hrForBucket, minForDisplay, null, preferEth ? 'EAT' : '');
-          var isEth = Boolean(preferEth || isEthiopianCol(rowDateCol) || meta.isExplicitEth);
-          var dt = preferEth
-            ? (ethDmy + ' EC · ' + formatClock12(hrForBucket, minForDisplay, null, 'EAT'))
-            : (dmy + ' · ' + formatClock12(hrForBucket, minForDisplay, null, ''));
-
           items.push({
             id: row.id,
+            rowNumber: idx + 1,
             botId: bot.id,
             botName: bot.name,
             folder: folderName,
@@ -15886,23 +16107,24 @@
             numFormulaSum: rowNumFormulaSum,
             allCols: allCols,
             status: st,
-            date: dt,
+            date: primaryEntry.dt,
             dateCol: rowDateCol || null,
-            isEthiopian: isEth,
-            ec: ecParts,
-            gy: meta.gy,
-            gm: meta.gm,
-            gd: meta.gd,
-            hours: hrForBucket,
-            weekday: weekday,
-            utcDayMs: utcDayMs,
-            ethDmy: ethDmy,
-            ethNamed: ethNamed,
-            ethYmd: ethYmd,
-            ethTimeStr: ethTimeStr,
-            ymd: meta.ymd,
-            dmy: dmy,
-            parsedMs: meta.date.getTime(),
+            dateMetas: dateCandidates,
+            isEthiopian: primaryEntry.isEth,
+            ec: primaryEntry.ec,
+            gy: primaryEntry.gy,
+            gm: primaryEntry.gm,
+            gd: primaryEntry.gd,
+            hours: primaryEntry.hours,
+            weekday: primaryEntry.weekday,
+            utcDayMs: primaryEntry.utcDayMs,
+            ethDmy: primaryEntry.ethDmy,
+            ethNamed: primaryEntry.ethNamed,
+            ethYmd: primaryEntry.ethYmd,
+            ethTimeStr: primaryEntry.ethTimeStr,
+            ymd: primaryEntry.ymd,
+            dmy: primaryEntry.dmy,
+            parsedMs: primaryEntry.parsedMs,
             rawUpdatedAt: fallbackIso
           });
         });
@@ -15930,23 +16152,23 @@
         lines.push('"' + String(c.name).replace(/"/g, '""') + ' Summary:","' + String(c.summaryValue || '').replace(/"/g, '""') + '"');
       });
       lines.push('');
-      var headerRow = ['"#"', '"Table / Bot"'].concat(cols.map(function (c) { return '"' + String(c.name).replace(/"/g, '""') + '"'; })).concat(['"Date"']);
+      var headerRow = ['"#"', '"Row #"', '"Table / Bot"'].concat(cols.map(function (c) { return '"' + String(c.name).replace(/"/g, '""') + '"'; })).concat(['"Date"']);
       lines.push(headerRow.join(','));
       if (items.length === 0) {
-        lines.push('"—","No rows in this folder for selected period"');
+        lines.push('"—","—","No rows in this folder for selected period"');
       } else {
         items.forEach(function (it, i) {
           var colByKey = {};
-          (it.allCols || []).forEach(function (ac) { colByKey[String(ac.name || '').trim().toLowerCase()] = ac; });
+          (it.allCols || []).forEach(function (ac) { colByKey[ac.colKey || String(ac.name || '').trim().toLowerCase()] = ac; });
           var vals = cols.map(function (c) {
             var ac = colByKey[c.key];
             var v = ac ? (ac.display !== undefined && ac.display !== '—' ? ac.display : '') : '';
             return '"' + String(v).replace(/"/g, '""') + '"';
           });
-          lines.push([i + 1, '"' + it.botName.replace(/"/g, '""') + '"'].concat(vals).concat(['"' + it.date + '"']).join(','));
+          lines.push([i + 1, '"Row ' + (it.rowNumber || (i + 1)) + '"', '"' + it.botName.replace(/"/g, '""') + '"'].concat(vals).concat(['"' + it.date + '"']).join(','));
         });
       }
-      var totRow = ['"Σ TOTALS"', '"' + items.length + ' rows"'].concat(cols.map(function (c) { return '"' + String(c.summaryValue || '').replace(/"/g, '""') + '"'; })).concat(['""']);
+      var totRow = ['"Σ TOTALS"', '""', '"' + items.length + ' rows"'].concat(cols.map(function (c) { return '"' + String(c.summaryValue || '').replace(/"/g, '""') + '"'; })).concat(['""']);
       lines.push(totRow.join(','));
       downloadBlob(lines.join('\n'), 'TableBot_' + targetFolder.replace(/\s+/g, '_') + '_' + period + '_Report_' + dStr + '.csv', 'text/csv;charset=utf-8;');
       showToast('Downloaded CSV Report for "' + targetFolder + '"');
@@ -15962,20 +16184,20 @@
       var colSummaryHtml = cols.map(function (c) {
         return '<span style="display:inline-block;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:4px 10px;margin:3px 6px 3px 0;font-size:12px;"><strong>' + esc(c.name) + ':</strong> ' + esc(c.summaryValue) + '</span>';
       }).join('');
-      var thHtml = '<th>#</th><th>Table</th>' + cols.map(function (c) { return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.name) + '</th>'; }).join('') + '<th>Date</th>';
+      var thHtml = '<th>#</th><th>Row</th><th>Table</th>' + cols.map(function (c) { return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.name) + '</th>'; }).join('') + '<th>Date</th>';
       var rowsHtml = items.length === 0
-        ? '<tr><td colspan="' + (cols.length + 3) + '" style="text-align:center;color:#64748B;">No rows in "' + esc(targetFolder) + '" yet.</td></tr>'
+        ? '<tr><td colspan="' + (cols.length + 4) + '" style="text-align:center;color:#64748B;">No rows in "' + esc(targetFolder) + '" yet.</td></tr>'
         : items.map(function (it, i) {
             var colByKey = {};
-            (it.allCols || []).forEach(function (ac) { colByKey[String(ac.name || '').trim().toLowerCase()] = ac; });
+            (it.allCols || []).forEach(function (ac) { colByKey[ac.colKey || String(ac.name || '').trim().toLowerCase()] = ac; });
             var tds = cols.map(function (c) {
               var ac = colByKey[c.key];
               var txt = (ac && ac.hasValue) ? ac.display : '—';
               return '<td style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';font-weight:' + (c.isNumeric ? '700' : '400') + ';">' + esc(txt) + '</td>';
             }).join('');
-            return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td>' + esc(it.botName) + '</td>' + tds + '<td>' + esc(it.date) + '</td></tr>';
+            return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td style="text-align:center;">#' + (it.rowNumber || (i + 1)) + '</td><td>' + esc(it.botName) + '</td>' + tds + '<td>' + esc(it.date) + '</td></tr>';
           }).join('');
-      var tfootHtml = '<tr style="background:#EFF6FF;font-weight:800;"><td colspan="2">Σ Totals (' + items.length + ' rows)</td>' +
+      var tfootHtml = '<tr style="background:#EFF6FF;font-weight:800;"><td colspan="3">Σ Totals (' + items.length + ' rows)</td>' +
         cols.map(function (c) { return '<td style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.summaryValue) + '</td>'; }).join('') +
         '<td></td></tr>';
       var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + esc(targetFolder) + ' Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}h2{font-size:14px;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;}th,td{border:1px solid #CBD5E1;padding:7px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
@@ -16038,7 +16260,7 @@
         g.totalPaid += it.paidAmount;
         g.totalRemaining += it.remainingBalance;
         (it.allCols || []).forEach(function (ac) {
-          var ck = String(ac.name || 'Column').trim().toLowerCase();
+          var ck = ac.colKey || String(ac.name || 'Column').trim().toLowerCase();
           if (ac.isNumeric) {
             g.colTotals[ck] = (g.colTotals[ck] || 0) + (Number(ac.numeric) || 0);
           }
@@ -16069,13 +16291,36 @@
       var nowEc = nowCtx.ec;
       var todayUtcMs = nowCtx.utcDayMs;
 
-      var filtered = allItems.filter(function (it) {
-        if (!isAllFolders && it.folder !== fld) return false;
+      var matchesPeriodMeta = function (mObj) {
+        if (!mObj) return false;
+        if (per === 'all') return true;
+        var itemEc = mObj.ec || gregorianPartsToEthiopian(mObj.gy, mObj.gm, mObj.gd);
+        if (per === 'daily') {
+          if (useEthCal) {
+            return itemEc.year === nowEc.year && itemEc.month === nowEc.month && itemEc.day === nowEc.day;
+          }
+          return mObj.ymd === todayYmd;
+        }
+        if (per === 'weekly') {
+          var dayDiff = Math.round((todayUtcMs - mObj.utcDayMs) / 86400000);
+          return dayDiff >= -1 && dayDiff <= 6;
+        }
+        if (useEthCal) {
+          return itemEc.month === nowEc.month && itemEc.year === nowEc.year;
+        }
+        return mObj.gm === nowCtx.gm && mObj.gy === nowCtx.gy;
+      };
+
+      var filtered = [];
+      allItems.forEach(function (it) {
+        if (!isAllFolders && it.folder !== fld) return;
         if (q) {
           var hitBase = it.customerName.toLowerCase().indexOf(q) !== -1 ||
             it.qualityOrQuantity.toLowerCase().indexOf(q) !== -1 ||
             it.folder.toLowerCase().indexOf(q) !== -1 ||
             it.botName.toLowerCase().indexOf(q) !== -1 ||
+            ('row ' + it.rowNumber).indexOf(q) !== -1 ||
+            ('#' + it.rowNumber).indexOf(q) !== -1 ||
             String(it.dmy || '').toLowerCase().indexOf(q) !== -1 ||
             String(it.date || '').toLowerCase().indexOf(q) !== -1 ||
             String(it.ethDmy || '').toLowerCase().indexOf(q) !== -1 ||
@@ -16083,26 +16328,45 @@
           var hitCols = (it.allCols || []).some(function (ac) {
             return String(ac.name || '').toLowerCase().indexOf(q) !== -1 || String(ac.display || '').toLowerCase().indexOf(q) !== -1;
           });
-          if (!hitBase && !hitCols) return false;
+          var hitDateCands = (it.dateMetas || []).some(function (dm) {
+            return String(dm.ethDmy || '').toLowerCase().indexOf(q) !== -1 ||
+              String(dm.dmy || '').toLowerCase().indexOf(q) !== -1 ||
+              String(dm.ethNamed || '').toLowerCase().indexOf(q) !== -1;
+          });
+          if (!hitBase && !hitCols && !hitDateCands) return;
         }
-        if (stF === 'paid' && it.remainingBalance > 0.01) return false;
-        if (stF === 'remaining' && it.remainingBalance <= 0.01) return false;
-        if (per === 'all') return true;
-        var itemEc = it.ec || gregorianPartsToEthiopian(it.gy, it.gm, it.gd);
-        if (per === 'daily') {
-          if (useEthCal) {
-            return itemEc.year === nowEc.year && itemEc.month === nowEc.month && itemEc.day === nowEc.day;
-          }
-          return it.ymd === todayYmd;
+        if (stF === 'paid' && it.remainingBalance > 0.01) return;
+        if (stF === 'remaining' && it.remainingBalance <= 0.01) return;
+        if (per === 'all') {
+          filtered.push(it);
+          return;
         }
-        if (per === 'weekly') {
-          var dayDiff = Math.round((todayUtcMs - it.utcDayMs) / 86400000);
-          return dayDiff >= -1 && dayDiff <= 6;
+        var cands = (it.dateMetas && it.dateMetas.length > 0) ? it.dateMetas : null;
+        if (cands) {
+          var matched = cands.find(matchesPeriodMeta);
+          if (!matched) return;
+          filtered.push(Object.assign({}, it, {
+            date: matched.dt || it.date,
+            dateCol: matched.col || it.dateCol,
+            isEthiopian: Boolean(useEthCal || matched.isEth),
+            ec: matched.ec,
+            gy: matched.gy,
+            gm: matched.gm,
+            gd: matched.gd,
+            hours: matched.hours,
+            weekday: matched.weekday,
+            utcDayMs: matched.utcDayMs,
+            ethDmy: matched.ethDmy,
+            ethNamed: matched.ethNamed,
+            ethYmd: matched.ethYmd,
+            ethTimeStr: matched.ethTimeStr,
+            ymd: matched.ymd,
+            dmy: matched.dmy,
+            parsedMs: matched.parsedMs
+          }));
+          return;
         }
-        if (useEthCal) {
-          return itemEc.month === nowEc.month && itemEc.year === nowEc.year;
-        }
-        return it.gm === nowCtx.gm && it.gy === nowCtx.gy;
+        if (matchesPeriodMeta(it)) filtered.push(it);
       });
 
       var met = { totalInvoiced: 0, totalPaid: 0, totalRemaining: 0, totalQuantity: 0, numFormulaSum: 0, rowCount: filtered.length, paidCount: 0, balCount: 0 };
@@ -16118,13 +16382,14 @@
 
       var colMap = {};
       var colOrder = [];
-      var ensureColMeta = function (c) {
-        var key = String(c.name || 'Column').trim().toLowerCase();
+      var ensureColMeta = function (c, forcedKey, forcedName) {
+        var key = forcedKey || c.colKey || String(c.name || 'Column').trim().toLowerCase() || 'column';
+        var label = forcedName || c.name || 'Column';
         if (!colMap[key]) {
           var cleanCurr = (c.currency && c.currency !== 'None' && c.currency !== '$') ? c.currency : '';
           colMap[key] = {
             key: key,
-            name: c.name || 'Column',
+            name: label,
             type: c.type || 'text',
             isNumeric: (c.type === 'amount' || c.type === 'number' || c.type === 'formula' || !!c.isNumeric),
             isCurrency: Boolean(cleanCurr),
@@ -16135,8 +16400,8 @@
             count: 0,
             checkedCount: 0,
             latestDisplay: '',
-            isBalance: isBalanceColName(c.name),
-            isPaid: isPaidColName(c.name)
+            isBalance: isBalanceColName(label),
+            isPaid: isPaidColName(label)
           };
           colOrder.push(colMap[key]);
         }
@@ -16149,12 +16414,20 @@
         if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return;
         if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return;
         if (!isAllFolders && bf !== fld) return;
-        (b.columns || []).forEach(function (c) { ensureColMeta(c); });
+        var bNameCnt = {};
+        (b.columns || []).forEach(function (c) {
+          var bk = String(c.name || 'Column').trim().toLowerCase() || 'column';
+          bNameCnt[bk] = (bNameCnt[bk] || 0) + 1;
+          var occ = bNameCnt[bk];
+          var ck = occ === 1 ? bk : (bk + ' #' + occ);
+          var dn = occ === 1 ? (c.name || 'Column') : ((c.name || 'Column') + ' (' + occ + ')');
+          ensureColMeta(c, ck, dn);
+        });
       });
 
       filtered.forEach(function (it) {
         (it.allCols || []).forEach(function (ac) {
-          var m = ensureColMeta(ac);
+          var m = ensureColMeta(ac, ac.colKey, ac.name);
           if (ac.isNumeric) {
             m.isNumeric = true;
             m.total += (Number(ac.numeric) || 0);
@@ -16203,7 +16476,7 @@
           };
           tItems.forEach(function (it) {
             (it.allCols || []).forEach(function (ac) {
-              if (String(ac.name || '').trim().toLowerCase() === cm.key) {
+              if ((ac.colKey || String(ac.name || '').trim().toLowerCase()) === cm.key) {
                 if (ac.isNumeric) tColObj.total += (Number(ac.numeric) || 0);
                 if (ac.checked) tColObj.checkedCount++;
                 if (ac.hasValue) {
@@ -16368,6 +16641,47 @@
       '</table>';
     }
 
+    function renderMatchingRowsBreakdownTable(items, repSummary, headingText) {
+      if (!items || items.length === 0) return '';
+      var cols = (repSummary && repSummary.columnSummaries) ? repSummary.columnSummaries : [];
+      var displayCols = cols.filter(function (c) { return c.type !== 'date'; }).slice(0, 6);
+      if (displayCols.length === 0) displayCols = cols.slice(0, 6);
+      var list = items.slice(0, 60);
+      var colHeaderColors = ['#6D28D9', '#0D47A1', '#15803D', '#C2410C', '#0891B2', '#BE185D'];
+      var ths = displayCols.map(function (c, i) {
+        var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : colHeaderColors[i % colHeaderColors.length]);
+        return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';color:' + clr + ';">' + esc(c.name) + '</th>';
+      }).join('');
+      var bodyRows = list.map(function (it, idx) {
+        var colByKey = {};
+        (it.allCols || []).forEach(function (ac) { colByKey[ac.colKey || String(ac.name || '').trim().toLowerCase()] = ac; });
+        var tds = displayCols.map(function (c, i) {
+          var ac = colByKey[c.key];
+          var txt = (ac && ac.hasValue) ? String(ac.display || '').replace(/^\$\s*/, '') : '—';
+          var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : '#1E293B');
+          return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';font-weight:' + (c.isNumeric ? '700' : '500') + ';color:' + clr + ';">' + esc(txt) + '</td>';
+        }).join('');
+        var dChip = it.ethDmy ? (it.ethDmy + ' EC') : (it.dmy || it.date);
+        return '<tr>' +
+          '<td class="mono" style="font-weight:800;color:#0D47A1;white-space:nowrap;">Row #' + (it.rowNumber || (idx + 1)) + '</td>' +
+          '<td style="font-weight:600;color:#334155;">' + esc(it.botName) + '</td>' +
+          tds +
+          '<td class="mono" style="font-size:11px;color:#475569;white-space:nowrap;">' + esc(dChip) + '</td>' +
+          '<td style="text-align:right;"><button type="button" class="btn btn-outline rep-jump-row" data-bid="' + esc(it.botId) + '" data-rid="' + esc(it.id) + '" style="padding:2px 8px;font-size:10.5px;">Go</button></td>' +
+        '</tr>';
+      }).join('');
+      return '<div style="margin-top:10px;border-top:1px dashed #CBD5E1;padding-top:10px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">' +
+          '<span style="font-size:11.5px;font-weight:800;color:#0F172A;">' + esc(headingText || ('Matching Rows (' + items.length + ')')) + '</span>' +
+          (items.length > list.length ? '<span style="font-size:10.5px;color:#64748B;">Showing first ' + list.length + ' of ' + items.length + ' rows</span>' : '') +
+        '</div>' +
+        '<div style="overflow-x:auto;"><table class="folder-summary-table">' +
+          '<thead><tr><th>Row #</th><th>Table</th>' + ths + '<th>Date</th><th style="text-align:right;">Row</th></tr></thead>' +
+          '<tbody>' + bodyRows + '</tbody>' +
+        '</table></div>' +
+      '</div>';
+    }
+
     function renderReportsModal(m) {
       var allFolders = getAllFolders();
       if (!m.period) m.period = 'all';
@@ -16422,7 +16736,7 @@
           var hr = (it.hours !== undefined && !isNaN(it.hours)) ? it.hours : (it.parsedMs ? new Date(it.parsedMs).getHours() : 12);
           var idx = isNaN(hr) ? 1 : (hr < 12 ? 0 : hr < 17 ? 1 : 2);
           var nv = primaryNumCol
-            ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
+            ? ((it.allCols || []).find(function (ac) { return (ac.colKey || String(ac.name || '').trim().toLowerCase()) === primaryNumCol.key; }) || {}).numeric || 0
             : 1;
           hBuckets[idx].v += Math.max(0, Number(nv) || 0);
           hBuckets[idx].c += 1;
@@ -16434,7 +16748,7 @@
         filtered.forEach(function (it) {
           var key = it.weekday || wDays[(it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol, isEthCal)).getDay()];
           var nv = primaryNumCol
-            ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
+            ? ((it.allCols || []).find(function (ac) { return (ac.colKey || String(ac.name || '').trim().toLowerCase()) === primaryNumCol.key; }) || {}).numeric || 0
             : 1;
           if (!wMap[key]) wMap[key] = { l: key, v: 0, c: 0 };
           wMap[key].v += Math.max(0, Number(nv) || 0);
@@ -16449,7 +16763,7 @@
             : (it.gd || new Date(it.parsedMs || Date.now()).getDate());
           var idx = dom <= 7 ? 0 : dom <= 14 ? 1 : dom <= 21 ? 2 : 3;
           var nv = primaryNumCol
-            ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
+            ? ((it.allCols || []).find(function (ac) { return (ac.colKey || String(ac.name || '').trim().toLowerCase()) === primaryNumCol.key; }) || {}).numeric || 0
             : 1;
           wkB[idx].v += Math.max(0, Number(nv) || 0);
           wkB[idx].c += 1;
@@ -16613,12 +16927,12 @@
             }).join('') +
           '</div>' +
         '</div>' +
-        '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>#</th><th>Table / Bot</th>' +
+        '<div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>#</th><th>Row</th><th>Table / Bot</th>' +
           colSummaries.map(function (c) { return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.name) + '</th>'; }).join('') +
           '<th>Real-Time Date</th><th class="no-print" style="text-align:center;">Action</th></tr></thead><tbody>';
 
       if (filtered.length === 0) {
-        html += '<tr><td colspan="' + (colSummaries.length + 4) + '" style="text-align:center;padding:18px;color:#64748B;">No matching rows in <strong>' + esc(folderScopeLabel) + '</strong> for this period. ' +
+        html += '<tr><td colspan="' + (colSummaries.length + 5) + '" style="text-align:center;padding:18px;color:#64748B;">No matching rows in <strong>' + esc(folderScopeLabel) + '</strong> for this period. ' +
           (folderBotsAll[0]
             ? '<button type="button" class="btn btn-primary rep-open-bot" data-bid="' + esc(folderBotsAll[0].id) + '" style="padding:4px 10px;font-size:11px;margin-left:8px;">Open "' + esc(folderBotsAll[0].name) + '"</button>'
             : (!isAllFoldersScope ? '<button type="button" class="btn btn-primary rep-new-in-folder" data-rfolder="' + esc(m.folder) + '" style="padding:4px 10px;font-size:11px;margin-left:8px;">+ Add Table in ' + esc(m.folder) + '</button>' : '')
@@ -16626,19 +16940,20 @@
       } else {
         filtered.forEach(function (it, idx) {
           var colByKey = {};
-          (it.allCols || []).forEach(function (ac) { colByKey[String(ac.name || '').trim().toLowerCase()] = ac; });
+          (it.allCols || []).forEach(function (ac) { colByKey[ac.colKey || String(ac.name || '').trim().toLowerCase()] = ac; });
           var hasBal = it.remainingBalance > 0.01;
           html += '<tr><td class="mono" style="color:#94A3B8;">' + (idx + 1) + '</td>' +
-            '<td><button type="button" class="rep-open-bot" data-bid="' + esc(it.botId) + '" style="font-weight:600;color:#1565C0;text-decoration:underline;text-align:left;">' + esc(it.botName) + '</button></td>' +
+            '<td class="mono" style="font-weight:800;color:#0D47A1;white-space:nowrap;">#' + (it.rowNumber || (idx + 1)) + '</td>' +
+            '<td><button type="button" class="rep-open-bot" data-bid="' + esc(it.botId) + '" data-rid="' + esc(it.id) + '" style="font-weight:600;color:#1565C0;text-decoration:underline;text-align:left;">' + esc(it.botName) + '</button></td>' +
             colSummaries.map(function (c) {
               var ac = colByKey[c.key];
               var txt = (ac && ac.hasValue) ? String(ac.display || '').replace(/^\$\s*/, '') : '—';
               return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';font-weight:' + (c.isNumeric ? '700' : '500') + ';">' + esc(txt) + '</td>';
             }).join('') +
             '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + esc(it.date) + '</td>' +
-            '<td class="no-print" style="text-align:center;">' + (hasBal ? '<button class="btn btn-primary rep-remind" data-cust="' + esc(it.customerName) + '" data-bal="' + it.remainingBalance.toFixed(2) + '" style="padding:4px 9px;font-size:11px;">' + icon('send', 11) + '<span>Remind</span></button>' : '<button type="button" class="btn btn-outline rep-open-bot" data-bid="' + esc(it.botId) + '" style="padding:3px 8px;font-size:10.5px;">Open</button>') + '</td></tr>';
+            '<td class="no-print" style="text-align:center;">' + (hasBal ? '<button class="btn btn-primary rep-remind" data-cust="' + esc(it.customerName) + '" data-bal="' + it.remainingBalance.toFixed(2) + '" style="padding:4px 9px;font-size:11px;">' + icon('send', 11) + '<span>Remind</span></button>' : '<button type="button" class="btn btn-outline rep-open-bot" data-bid="' + esc(it.botId) + '" data-rid="' + esc(it.id) + '" style="padding:3px 8px;font-size:10.5px;">Open</button>') + '</td></tr>';
         });
-        html += '<tr style="background:#EFF6FF;font-weight:800;color:#0D47A1;"><td colspan="2">Σ ' + esc(folderScopeLabel) + ' Column Totals (' + filtered.length + ' rows)</td>' +
+        html += '<tr style="background:#EFF6FF;font-weight:800;color:#0D47A1;"><td colspan="3">Σ ' + esc(folderScopeLabel) + ' Column Totals (' + filtered.length + ' rows)</td>' +
           colSummaries.map(function (c) {
             return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.summaryValue) + '</td>';
           }).join('') +
@@ -16693,7 +17008,11 @@
       document.querySelectorAll('.rep-open-bot').forEach(function (b) {
         b.onclick = function () {
           var bid = b.getAttribute('data-bid');
+          var rid = b.getAttribute('data-rid');
           state.activeBotId = bid;
+          state.tableSearchQuery = '';
+          state._resetTableScroll = !rid;
+          state._pendingScrollToRowId = rid || null;
           var targetBot = getActiveBot();
           if (targetBot) recordAudit('OPEN', targetBot, 'Opened table "' + targetBot.name + '" from Reports', { source: 'Browser' });
           closeModal(); renderApp();
@@ -17958,7 +18277,7 @@
 
     function inferExcelColType(headerName, sampleValues) {
       var h = String(headerName || '').toLowerCase();
-      if (h.indexOf('date') !== -1 || h.indexOf('time') !== -1 || h.indexOf('day') !== -1) return 'date';
+      if (h.indexOf('date') !== -1 || h.indexOf('time') !== -1 || h.indexOf('day') !== -1 || h.indexOf('ቀን') !== -1) return 'date';
       if (h.indexOf('paid') !== -1 || h.indexOf('check') !== -1 || h.indexOf('done') !== -1 || h.indexOf('active') !== -1) {
         var boolHits = sampleValues.filter(function (v) { return typeof v === 'boolean' || /^(true|false|yes|no)$/i.test(String(v).trim()); }).length;
         if (boolHits > 0 && boolHits >= Math.ceil(sampleValues.length / 2)) return 'checkbox';
@@ -17973,11 +18292,11 @@
           var s = String(v).trim();
           if (/^[$€£¥₹]/.test(s)) curHits++;
           if (/^-?[$€£¥₹]?\s*[0-9,]+(\.[0-9]+)?$/.test(s)) numHits++;
-          else if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(s)) dateHits++;
+          else if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(s) || /^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}(?:\s|$)/.test(s) || hasExplicitDatePattern(s)) dateHits++;
         }
       });
       if (boolHits2 === nonEmpty.length) return 'checkbox';
-      if (dateHits >= Math.ceil(nonEmpty.length * 0.7)) return 'date';
+      if (dateHits >= Math.ceil(nonEmpty.length * 0.6)) return 'date';
       if (numHits >= Math.ceil(nonEmpty.length * 0.7)) {
         if (curHits > 0 || /amount|price|cost|total|paid|balance|revenue|fee|usd|eur/i.test(h)) return 'amount';
         return 'number';
@@ -18023,7 +18342,11 @@
           });
         });
         var colTypes = headers.map(function (h, idx) {
-          var samples = body.slice(0, 20).map(function (r) { return r[idx]; });
+          var samples = [];
+          for (var ri = 0; ri < body.length && samples.length < 60; ri++) {
+            var cellV = body[ri][idx];
+            if (cellV !== '' && cellV !== null && cellV !== undefined) samples.push(cellV);
+          }
           return inferExcelColType(h, samples);
         });
         return { name: sh.name, headers: headers, colTypes: colTypes, rows: body, selected: true };
