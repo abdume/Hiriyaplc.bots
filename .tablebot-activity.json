@@ -22,9 +22,9 @@
       "adds": 0,
       "edits": 0,
       "deletes": 0,
-      "activeSeconds": 721,
+      "activeSeconds": 1455,
       "firstSeen": "2026-11-15T18:30:55.751Z",
-      "lastSeen": "2026-11-20T20:10:39.144Z"
+      "lastSeen": "2026-11-21T13:15:00.620Z"
     },
     {
       "id": "abdulfeta",
@@ -52,5 +52,5 @@
     }
   ],
   "logs": [],
-  "updatedAt": "2026-11-20T20:10:39.144Z"
+  "updatedAt": "2026-11-21T13:15:00.620Z"
 }

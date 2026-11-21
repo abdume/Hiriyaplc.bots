@@ -525,6 +525,8 @@
     .sheet-table tr:nth-child(even) td:not(.frozen-col) { background: #FAFBFC; }
     .sheet-table tr:hover td:not(.frozen-col) { background: #EFF6FF; }
     .sheet-table tr.selected td:not(.frozen-col) { background: #DBEAFE; }
+    .sheet-table tr.row-just-added td:not(.frozen-col) { background: #DCFCE7 !important; transition: background 1.2s ease; }
+    .sheet-table tr.row-just-added td.frozen-col { background: #BBF7D0 !important; transition: background 1.2s ease; }
     .row-act-btn {
       width: 20px; height: 20px; border-radius: 5px; border: 1px solid #CBD5E1;
       background: #fff; color: #334155; font-size: 11px; font-weight: 800;
@@ -4031,6 +4033,11 @@
       tableReportScope: 'table',
       tableReportCollapsed: (function () { try { return localStorage.getItem(STORAGE_TABLE_REP_COLLAPSED) !== '0'; } catch (e) { return true; } })(),
       sigmaFooterHidden: (function () { try { return localStorage.getItem(STORAGE_SIGMA_HIDDEN) === '1'; } catch (e) { return false; } })(),
+      _lastRenderedTableBotId: null,
+      _resetTableScroll: false,
+      _scrollAnchorRowId: null,
+      _pendingScrollToRowId: null,
+      _pendingBgTableRefresh: false,
       // Drawer & Modals
       drawerOpen: false,
       modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin'|'cyber_control'|'folder_lock'|'folder_unlock_prompt', ... }
@@ -5017,6 +5024,25 @@
       return (typeof n === 'number' && !isNaN(n) && isFinite(n)) ? n : '';
     }
 
+    function sanitizeRowForSave(row, cols) {
+      if (!row || typeof row !== 'object') return row;
+      var listCols = Array.isArray(cols) ? cols : [];
+      for (var ci = 0; ci < listCols.length; ci++) {
+        var c = listCols[ci];
+        if (!c || !c.id) continue;
+        var val = row[c.id];
+        if (val === undefined || val === null) continue;
+        if (c.type === 'number' || c.type === 'amount') {
+          row[c.id] = sanitizeNumericInput(val);
+        } else if (c.type === 'checkbox') {
+          row[c.id] = Boolean(val);
+        } else if (typeof val === 'string') {
+          row[c.id] = sanitizeUserText(val, 2000);
+        }
+      }
+      return row;
+    }
+
     function sanitizeBotForSave(bot) {
       if (!bot || typeof bot !== 'object') return bot;
       bot.name = sanitizeUserText(bot.name, 120) || 'Untitled Table';
@@ -5028,22 +5054,53 @@
         c.name = sanitizeUserText(c.name, 80) || 'Column';
       });
       var rows = Array.isArray(bot.rows) ? bot.rows : [];
-      rows.forEach(function (r) {
-        if (!r || typeof r !== 'object') return;
-        cols.forEach(function (c) {
-          if (!c || !c.id) return;
-          var val = r[c.id];
-          if (val === undefined || val === null) return;
-          if (c.type === 'number' || c.type === 'amount') {
-            r[c.id] = sanitizeNumericInput(val);
-          } else if (c.type === 'checkbox') {
-            r[c.id] = Boolean(val);
-          } else if (typeof val === 'string') {
-            r[c.id] = sanitizeUserText(val, 2000);
-          }
-        });
-      });
+      for (var ri = 0; ri < rows.length; ri++) {
+        sanitizeRowForSave(rows[ri], cols);
+      }
       return bot;
+    }
+
+    function fastCloneRowObj(r) {
+      if (!r || typeof r !== 'object') return r;
+      var copy = Object.assign({}, r);
+      if (r._comments && typeof r._comments === 'object') {
+        var cMap = {};
+        var keys = Object.keys(r._comments);
+        for (var ki = 0; ki < keys.length; ki++) {
+          var k = keys[ki];
+          cMap[k] = r._comments[k] && typeof r._comments[k] === 'object' ? Object.assign({}, r._comments[k]) : r._comments[k];
+        }
+        copy._comments = cMap;
+      }
+      return copy;
+    }
+
+    function fastCloneRows(rows) {
+      if (!Array.isArray(rows)) return [];
+      var out = new Array(rows.length);
+      for (var i = 0; i < rows.length; i++) out[i] = fastCloneRowObj(rows[i]);
+      return out;
+    }
+
+    function fastCloneCols(cols) {
+      if (!Array.isArray(cols)) return [];
+      var out = new Array(cols.length);
+      for (var i = 0; i < cols.length; i++) {
+        var c = cols[i];
+        if (!c || typeof c !== 'object') { out[i] = c; continue; }
+        var cc = Object.assign({}, c);
+        if (c.style && typeof c.style === 'object') cc.style = Object.assign({}, c.style);
+        out[i] = cc;
+      }
+      return out;
+    }
+
+    function fastCloneBotObj(bot) {
+      if (!bot || typeof bot !== 'object') return bot;
+      var copy = Object.assign({}, bot);
+      copy.columns = fastCloneCols(bot.columns);
+      copy.rows = fastCloneRows(bot.rows);
+      return copy;
     }
 
     function debounce(fn, waitMs) {
@@ -5620,7 +5677,7 @@
         if (ageSec < 20 && latestForBot.rowCount === (bot.rows || []).length && latestForBot.colCount === (bot.columns || []).length) {
           latestForBot.timestamp = nowIso;
           latestForBot.diffSummary = diffSummary;
-          latestForBot.botSnapshot = JSON.parse(JSON.stringify(bot));
+          latestForBot.botSnapshot = fastCloneBotObj(bot);
           state.folderManifest[bot.id] = {
             id: bot.id, name: bot.name, folder: folder,
             rowCount: (bot.rows || []).length, colCount: (bot.columns || []).length,
@@ -5643,7 +5700,7 @@
         colCount: (bot.columns || []).length,
         hash: sig,
         diffSummary: diffSummary,
-        botSnapshot: JSON.parse(JSON.stringify(bot))
+        botSnapshot: fastCloneBotObj(bot)
       };
       state.folderHistory.unshift(snap);
       if (state.folderHistory.length > 180) {
@@ -6347,10 +6404,12 @@
     }
 
     var _sbPushTimers = {};
-    function scheduleSupabasePush(bot) {
+    function scheduleSupabasePush(bot, skipLocalSave) {
       if (!bot || !bot.id) return;
-      sanitizeBotForSave(bot);
-      saveBotsLocal();
+      if (!skipLocalSave) {
+        sanitizeBotForSave(bot);
+        saveBotsLocal();
+      }
       broadcastLocalSync('bot_update');
       if (_sbPushTimers[bot.id]) clearTimeout(_sbPushTimers[bot.id]);
       _sbPushTimers[bot.id] = setTimeout(function () {
@@ -6956,6 +7015,7 @@
 
     async function syncAllNow(reason) {
       if (isCurrentUserRevoked()) return;
+      flushPendingPersist();
       await pullSharedSecurityState(reason || 'sync_all');
       if (state.supabaseConfig.isConnected) {
         await pullAndMergeSupabase(reason || 'auto');
@@ -7002,8 +7062,9 @@
       if (!bot) return null;
       return {
         name: String(bot.name || ''),
-        columns: JSON.parse(JSON.stringify(bot.columns || [])),
-        rows: JSON.parse(JSON.stringify(bot.rows || []))
+        rev: Number(bot._rev || 0),
+        columns: fastCloneCols(bot.columns || []),
+        rows: fastCloneRows(bot.rows || [])
       };
     }
 
@@ -7039,6 +7100,7 @@
     function undoTableAction(bot) {
       if (!bot) return false;
       if (!guardWriteAction('Undo')) return false;
+      flushPendingPersist();
       var stack = state.undoStacks[bot.id];
       if (!stack || stack.length === 0) {
         showToast('Nothing to undo');
@@ -7052,8 +7114,8 @@
       if (state.redoStacks[bot.id].length > 50) state.redoStacks[bot.id].shift();
 
       bot.name = snap.name;
-      bot.columns = JSON.parse(JSON.stringify(snap.columns || []));
-      bot.rows = JSON.parse(JSON.stringify(snap.rows || []));
+      bot.columns = fastCloneCols(snap.columns || []);
+      bot.rows = fastCloneRows(snap.rows || []);
       bot.updatedAt = new Date().toISOString();
 
       window._tbIsUndoRedo = true;
@@ -7080,6 +7142,7 @@
     function redoTableAction(bot) {
       if (!bot) return false;
       if (!guardWriteAction('Redo')) return false;
+      flushPendingPersist();
       var stack = state.redoStacks[bot.id];
       if (!stack || stack.length === 0) {
         showToast('Nothing to redo');
@@ -7093,8 +7156,8 @@
       if (state.undoStacks[bot.id].length > 50) state.undoStacks[bot.id].shift();
 
       bot.name = snap.name;
-      bot.columns = JSON.parse(JSON.stringify(snap.columns || []));
-      bot.rows = JSON.parse(JSON.stringify(snap.rows || []));
+      bot.columns = fastCloneCols(snap.columns || []);
+      bot.rows = fastCloneRows(snap.rows || []);
       bot.updatedAt = new Date().toISOString();
 
       window._tbIsUndoRedo = true;
@@ -7152,20 +7215,78 @@
       return withRedo[0];
     }
 
-    function updateBot(updated, auditAction, auditSummary) {
+    var _pendingPersistQueue = [];
+    var _pendingPersistTimer = null;
+
+    function flushPendingPersist() {
+      if (_pendingPersistTimer) {
+        clearTimeout(_pendingPersistTimer);
+        _pendingPersistTimer = null;
+      }
+      if (!_pendingPersistQueue.length) return;
+      var items = _pendingPersistQueue.slice();
+      _pendingPersistQueue = [];
+      var latestBots = {};
+      var didBotsSave = false;
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        if (!it || !it.bot) continue;
+        latestBots[it.bot.id] = it.bot;
+        if (!didBotsSave) {
+          saveBotsLocal();
+          didBotsSave = true;
+        }
+        recordFolderSnapshot(it.bot, 'MODIFIED', it.auditSummary || ('Updated ' + it.bot.name), false);
+        if (it.auditAction) {
+          recordAudit(it.auditAction, it.bot, it.auditSummary || ('Updated ' + it.bot.name));
+        }
+      }
+      Object.keys(latestBots).forEach(function (bid) {
+        scheduleSupabasePush(latestBots[bid], true);
+      });
+    }
+
+    function schedulePostPaintPersist(updated, auditAction, auditSummary) {
+      _pendingPersistQueue.push({
+        bot: updated,
+        auditAction: auditAction,
+        auditSummary: auditSummary
+      });
+      if (_pendingPersistTimer) return;
+      _pendingPersistTimer = setTimeout(function () {
+        _pendingPersistTimer = null;
+        flushPendingPersist();
+      }, 24);
+    }
+
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('pagehide', flushPendingPersist);
+      window.addEventListener('beforeunload', flushPendingPersist);
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', function () {
+          if (document.hidden) flushPendingPersist();
+        });
+      }
+    }
+
+    function updateBot(updated, auditAction, auditSummary, opts) {
+      opts = opts || {};
       if (!guardWriteAction(auditSummary || 'Edit Bot')) return false;
       if (updated && updated.id) {
         if (!state.folderLastBotId) state.folderLastBotId = {};
         state.folderLastBotId[updated.folder || 'General'] = updated.id;
       }
+      updated._rev = (Number(updated._rev) || 0) + 1;
       if (!window._tbIsUndoRedo && updated && updated.id) {
         var prevSnap = botUndoBaseMap[updated.id];
         if (prevSnap) {
-          var changedSnap = (
-            prevSnap.name !== String(updated.name || '') ||
-            JSON.stringify(prevSnap.columns) !== JSON.stringify(updated.columns || []) ||
-            JSON.stringify(prevSnap.rows) !== JSON.stringify(updated.rows || [])
-          );
+          var changedSnap = Boolean(opts.forceSnap || prevSnap.rev !== updated._rev || prevSnap.name !== String(updated.name || ''));
+          if (!changedSnap) {
+            changedSnap = (
+              JSON.stringify(prevSnap.columns) !== JSON.stringify(updated.columns || []) ||
+              JSON.stringify(prevSnap.rows) !== JSON.stringify(updated.rows || [])
+            );
+          }
           if (changedSnap) {
             if (!state.undoStacks[updated.id]) state.undoStacks[updated.id] = [];
             prevSnap.label = auditSummary || auditAction || 'Change';
@@ -7177,19 +7298,29 @@
         botUndoBaseMap[updated.id] = cloneBotSnap(updated);
       }
       delete updated.isSampleSeed;
-      sanitizeBotForSave(updated);
+      if (opts.editedRow) {
+        updated.name = sanitizeUserText(updated.name, 120) || 'Untitled Table';
+        updated.folder = sanitizeUserText(normalizeFolderName(updated.folder), 80) || 'General';
+        sanitizeRowForSave(opts.editedRow, updated.columns);
+      } else {
+        sanitizeBotForSave(updated);
+      }
       updated.lastEditedBy = getCurrentActor();
       updated.updatedAt = updated.updatedAt || new Date().toISOString();
       if (clearFolderTombstone(updated.folder || 'General', updated.id)) {
         pushSharedSecurityState('update_bot');
       }
       state.bots = state.bots.map(function (b) { return b.id === updated.id ? updated : b; });
-      saveBotsLocal();
-      recordFolderSnapshot(updated, 'MODIFIED', auditSummary || ('Updated ' + updated.name), false);
-      if (auditAction) {
-        recordAudit(auditAction, updated, auditSummary || ('Updated ' + updated.name));
+      if (opts.deferPersist) {
+        schedulePostPaintPersist(updated, auditAction, auditSummary);
+      } else {
+        saveBotsLocal();
+        recordFolderSnapshot(updated, 'MODIFIED', auditSummary || ('Updated ' + updated.name), false);
+        if (auditAction) {
+          recordAudit(auditAction, updated, auditSummary || ('Updated ' + updated.name));
+        }
+        scheduleSupabasePush(updated, true);
       }
-      scheduleSupabasePush(updated);
       return true;
     }
 
@@ -7247,6 +7378,7 @@
       state.activeBotId = newBot.id;
       state.selectedRowIds = {};
       state.editingCell = null;
+      state._resetTableScroll = true;
       showToast('Created "' + botName + '" — tap headers or settings to customize');
       renderApp();
       return newBot;
@@ -8230,6 +8362,9 @@
             return;
           }
           state.activeBotId = bid;
+          state._resetTableScroll = true;
+          state._scrollAnchorRowId = null;
+          state._pendingScrollToRowId = null;
           state.selectedRowIds = {};
           state.editingCell = null;
           state.tableSearchQuery = '';
@@ -8669,6 +8804,229 @@
       return { pastedCount: pastedCount, addedRows: addedRows, addedCols: addedCols };
     }
 
+    function renderTableRowHtml(bot, row, idx, selBounds) {
+      var isSel = !!state.selectedRowIds[row.id];
+      var rowHtml = '<tr data-row-id="' + esc(row.id) + '" class="' + (isSel ? 'selected' : '') + '">' +
+        '<td class="frozen-col" data-row-id="' + esc(row.id) + '"><div style="display:flex;align-items:center;justify-content:center;gap:3px;">' +
+          '<input type="checkbox" class="chk-row" data-row-id="' + esc(row.id) + '" ' + (isSel ? 'checked' : '') + ' />' +
+          '<span class="mono row-num-lbl" style="font-size:11px;color:#64748B;">' + (idx + 1) + '</span>' +
+          '<button type="button" class="row-act-btn" data-row-menu="' + esc(row.id) + '" title="Row &amp; Cell Menu: Add, Delete, Copy, Paste">▾</button>' +
+        '</div></td>';
+
+      var cols = bot.columns || [];
+      for (var cIdx = 0; cIdx < cols.length; cIdx++) {
+        var col = cols[cIdx];
+        var val = row[col.id];
+        var isEd = state.editingCell && state.editingCell.rowId === row.id && state.editingCell.colId === col.id;
+        var inRect = selBounds && idx >= selBounds.minR && idx <= selBounds.maxR && cIdx >= selBounds.minC && cIdx <= selBounds.maxC;
+        var inExtra = !!(state.extraCells && state.extraCells[row.id + '::' + col.id]);
+        var isCellSel = !isEd && (inRect || inExtra);
+        var isAnchorCell = !isEd && selBounds && idx === selBounds.anchorR && cIdx === selBounds.anchorC;
+        var isTopLeftHandleCell = !isEd && selBounds && idx === selBounds.minR && cIdx === selBounds.minC;
+        var isHandleCell = !isEd && selBounds && idx === selBounds.maxR && cIdx === selBounds.maxC;
+        var edgeCls = '';
+        if (!isEd && inRect && selBounds) {
+          if (idx === selBounds.minR) edgeCls += ' cell-sel-edge-t';
+          if (idx === selBounds.maxR) edgeCls += ' cell-sel-edge-b';
+          if (cIdx === selBounds.minC) edgeCls += ' cell-sel-edge-l';
+          if (cIdx === selBounds.maxC) edgeCls += ' cell-sel-edge-r';
+        } else if (!isEd && inExtra) {
+          edgeCls += ' cell-sel-edge-t cell-sel-edge-b cell-sel-edge-l cell-sel-edge-r';
+        }
+        var cellSelClass = (isCellSel ? ' cell-selected' : '') + (isAnchorCell ? ' cell-anchor' : '') + edgeCls;
+        var commentObj = row._comments && row._comments[col.id] ? row._comments[col.id] : null;
+        var commentMarkHtml = commentObj && commentObj.text ? '<span class="cell-comment-mark" title="Comment: ' + esc(commentObj.text) + '"></span>' : '';
+        var commentBadgeHtml = commentObj && commentObj.text ? '<span class="cell-comment-badge" title="' + esc(commentObj.text) + '">' + icon('comment', 9) + '<span>' + esc(commentObj.text) + '</span></span>' : '';
+        var handleHtml = (isTopLeftHandleCell ? '<span class="cell-sel-handle-tl" id="cell-sel-handle-tl" title="Drag corner to resize selection"></span>' : '') +
+          (isHandleCell ? '<span class="cell-sel-handle" id="cell-sel-handle" title="Drag down or across to select range"></span>' : '');
+
+        var st = col.style || {};
+        var bg = !isEd && st.bgColor && st.bgColor !== '#FFFFFF' ? 'background:' + st.bgColor + ';' : '';
+        var align = 'text-align:' + (st.align || (col.type === 'formula' || col.type === 'number' || col.type === 'amount' ? 'right' : 'left')) + ';';
+
+        if (col.type === 'checkbox') {
+          rowHtml += '<td class="cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="text-align:center;' + bg + '">' +
+            commentMarkHtml +
+            '<input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' />' +
+            handleHtml +
+          '</td>';
+        } else if (isEd) {
+          var isDateCol = col.type === 'date';
+          var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
+          var cellFsEd = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
+          var dispEdStr = formatCell(val, col, row, bot);
+          if (isDateCol) {
+            rowHtml += '<td class="cell-clickable cell-menu-target cell-selectable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #2563EB;' + align + '">' +
+              '<span style="color:#0D47A1;font-weight:700;font-size:' + cellFsEd + 'px;line-height:1.35;">' + esc(dispEdStr) + '</span>' +
+              '<input id="active-cell-input" type="hidden" data-date-edit="1" value="' + esc(inpVal) + '" />' +
+            '</td>';
+          } else {
+            rowHtml += '<td class="cell-clickable cell-menu-target cell-selectable" id="tb-active-edit-td" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #0B57D0;' + align + '">' +
+              '<span style="color:#0F172A;font-weight:700;font-size:' + cellFsEd + 'px;line-height:1.35;">' + esc(dispEdStr) + '</span>' +
+              '<input id="active-cell-input" type="hidden" value="' + esc(inpVal) + '" />' +
+            '</td>';
+          }
+        } else {
+          var isAmt = col.type === 'amount';
+          var isFrm = col.type === 'formula';
+          var isNum = col.type === 'number';
+          var color = isAmt ? '#E65100' : isFrm ? '#6D28D9' : isNum ? '#0D47A1' : (st.color || '#1E293B');
+          var fw = (st.bold || isAmt || isFrm) ? '700' : '400';
+          var fs = st.italic ? 'italic' : 'normal';
+          var cellFontSize = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
+          var commentTip = commentObj && commentObj.text ? ' | Comment: ' + commentObj.text : '';
+          var titleTip = isFrm && col.formulaExpr
+            ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to edit; drag or right-click for toolbar)' + esc(commentTip) + '"'
+            : ' title="Click to write/edit · Drag, long-press, or right-click for toolbar' + esc(commentTip) + '"';
+          rowHtml += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
+            commentMarkHtml +
+            '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';font-size:' + cellFontSize + 'px;line-height:1.35;">' + esc(formatCell(val, col, row, bot)) + '</span>' +
+            commentBadgeHtml +
+            handleHtml +
+          '</td>';
+        }
+      }
+      rowHtml += '<td style="background:#F8FAFC;"></td></tr>';
+      return rowHtml;
+    }
+
+    function findTableRowElById(wrapEl, rowId) {
+      if (!wrapEl || !rowId) return null;
+      var trs = wrapEl.querySelectorAll('tbody tr[data-row-id]');
+      for (var i = 0; i < trs.length; i++) {
+        if (trs[i].getAttribute('data-row-id') === rowId) return trs[i];
+      }
+      return null;
+    }
+
+    function captureTableScrollAnchor(botId, preferRowId) {
+      if (state._lastRenderedTableBotId !== botId || state._resetTableScroll) return null;
+      var prevWrap = document.querySelector('.table-wrap');
+      if (!prevWrap) return null;
+      var scrollTop = Number(prevWrap.scrollTop) || 0;
+      var scrollLeft = Number(prevWrap.scrollLeft) || 0;
+      var wrapRect = typeof prevWrap.getBoundingClientRect === 'function' ? prevWrap.getBoundingClientRect() : null;
+      var thead = prevWrap.querySelector('thead');
+      var theadH = thead && typeof thead.getBoundingClientRect === 'function' ? (thead.getBoundingClientRect().height || 38) : 38;
+      var anchorRowId = null;
+      var anchorRelTop = null;
+      if (preferRowId) {
+        var prefTr = findTableRowElById(prevWrap, preferRowId);
+        if (prefTr) {
+          anchorRowId = preferRowId;
+          if (wrapRect && typeof prefTr.getBoundingClientRect === 'function') {
+            var pr = prefTr.getBoundingClientRect();
+            if (pr && (pr.height > 0 || pr.top !== 0 || wrapRect.top !== 0)) {
+              anchorRelTop = pr.top - wrapRect.top;
+            }
+          }
+        }
+      }
+      if (!anchorRowId && scrollTop > 0 && wrapRect) {
+        var trs = prevWrap.querySelectorAll('tbody tr[data-row-id]');
+        for (var i = 0; i < trs.length; i++) {
+          var tr = trs[i];
+          if (typeof tr.getBoundingClientRect !== 'function') continue;
+          var rRect = tr.getBoundingClientRect();
+          if (rRect.height <= 0 && rRect.top === 0 && rRect.bottom === 0) continue;
+          if (rRect.bottom >= wrapRect.top + theadH - 2) {
+            anchorRowId = tr.getAttribute('data-row-id');
+            anchorRelTop = rRect.top - wrapRect.top;
+            break;
+          }
+        }
+      }
+      return {
+        scrollTop: scrollTop,
+        scrollLeft: scrollLeft,
+        anchorRowId: anchorRowId,
+        anchorRelTop: anchorRelTop,
+        preferRowId: preferRowId || null
+      };
+    }
+
+    function scrollRowIntoTableView(wrapEl, trEl, preferLowerView, highlight) {
+      if (!wrapEl || !trEl) return;
+      var wrapRect = typeof wrapEl.getBoundingClientRect === 'function' ? wrapEl.getBoundingClientRect() : null;
+      var trRect = typeof trEl.getBoundingClientRect === 'function' ? trEl.getBoundingClientRect() : null;
+      var thead = wrapEl.querySelector('thead');
+      var theadH = thead && typeof thead.getBoundingClientRect === 'function' ? (thead.getBoundingClientRect().height || 40) : 40;
+      var maxScroll = Math.max(0, (wrapEl.scrollHeight || 0) - (wrapEl.clientHeight || 0));
+      var hasGeom = wrapRect && trRect && (wrapRect.height > 0 || trRect.height > 0);
+      if (hasGeom) {
+        var viewH = wrapEl.clientHeight || wrapRect.height || 400;
+        var curTop = Number(wrapEl.scrollTop) || 0;
+        var trAbsTop = (trRect.top - wrapRect.top) + curTop;
+        var trH = trRect.height || 38;
+        if (preferLowerView) {
+          var desiredInWrap = Math.max(theadH + 16, Math.min(viewH - trH - 110, Math.round(viewH * 0.56)));
+          var targetScroll = Math.max(0, trAbsTop - desiredInWrap);
+          if (maxScroll > 0) targetScroll = Math.min(maxScroll, targetScroll);
+          wrapEl.scrollTop = targetScroll;
+        } else {
+          var minTop = wrapRect.top + theadH + 4;
+          var maxBot = wrapRect.bottom - 96;
+          if (trRect.top < minTop) {
+            wrapEl.scrollTop = Math.max(0, curTop - (minTop - trRect.top));
+          } else if (trRect.bottom > maxBot) {
+            var nextTop = curTop + (trRect.bottom - maxBot);
+            wrapEl.scrollTop = maxScroll > 0 ? Math.min(maxScroll, nextTop) : nextTop;
+          }
+        }
+      } else {
+        var fallbackTop = Number(trEl.offsetTop) || 0;
+        if (fallbackTop > 0) {
+          wrapEl.scrollTop = Math.max(0, fallbackTop - 120);
+        } else if (maxScroll > 0) {
+          wrapEl.scrollTop = maxScroll;
+        }
+      }
+      if (highlight && trEl.classList) {
+        trEl.classList.add('row-just-added');
+        setTimeout(function () {
+          if (trEl && trEl.classList) trEl.classList.remove('row-just-added');
+        }, 1500);
+      }
+    }
+
+    function restoreTableScrollAnchor(newWrap, captured, pendingRowId) {
+      if (!newWrap) return;
+      if (captured) {
+        newWrap.scrollLeft = captured.scrollLeft || 0;
+      }
+      if (pendingRowId) {
+        var pendingTr = findTableRowElById(newWrap, pendingRowId);
+        if (pendingTr) {
+          scrollRowIntoTableView(newWrap, pendingTr, true, true);
+        } else if (captured && captured.scrollTop > 0) {
+          newWrap.scrollTop = captured.scrollTop;
+        }
+        return;
+      }
+      if (!captured) return;
+      var maxScroll = Math.max(0, (newWrap.scrollHeight || 0) - (newWrap.clientHeight || 0));
+      newWrap.scrollTop = maxScroll > 0 ? Math.min(maxScroll, captured.scrollTop) : captured.scrollTop;
+      if (captured.anchorRowId && captured.anchorRelTop !== null) {
+        var anchorTr = findTableRowElById(newWrap, captured.anchorRowId);
+        if (anchorTr && typeof anchorTr.getBoundingClientRect === 'function' && typeof newWrap.getBoundingClientRect === 'function') {
+          var nwRect = newWrap.getBoundingClientRect();
+          var aRect = anchorTr.getBoundingClientRect();
+          if (nwRect && aRect && (nwRect.height > 0 || aRect.height > 0)) {
+            var curRelTop = aRect.top - nwRect.top;
+            var delta = curRelTop - captured.anchorRelTop;
+            if (Math.abs(delta) > 1) {
+              var adjTop = Math.max(0, (Number(newWrap.scrollTop) || 0) + delta);
+              newWrap.scrollTop = maxScroll > 0 ? Math.min(maxScroll, adjTop) : adjTop;
+            }
+          }
+        }
+      }
+      if (captured.preferRowId) {
+        var prefTr = findTableRowElById(newWrap, captured.preferRowId);
+        if (prefTr) scrollRowIntoTableView(newWrap, prefTr, false, false);
+      }
+    }
+
     // Spreadsheet Table View
     function renderTableView(bot) {
       var botFolder = bot.folder || 'General';
@@ -8734,6 +9092,14 @@
       var totalFolderFilePages = Math.max(1, folderBotsList.length);
       var hasMultiFilesInFolder = folderBotsList.length > 1;
 
+      var preferAnchorRowId = state._scrollAnchorRowId || (state.editingCell && state.editingCell.rowId) || null;
+      var capturedScroll = captureTableScrollAnchor(bot.id, preferAnchorRowId);
+      var pendingScrollRowId = state._pendingScrollToRowId || null;
+      state._lastRenderedTableBotId = bot.id;
+      state._resetTableScroll = false;
+      state._scrollAnchorRowId = null;
+      state._pendingScrollToRowId = null;
+
       var html = '<div class="table-view-shell">' +
         '<header class="app-header"><div class="header-inner">' +
           '<div class="header-left" style="min-width:0;flex:1;">' +
@@ -8747,7 +9113,7 @@
                 '<span class="pill-badge" style="' + statusBg + 'font-size:9.5px;text-transform:uppercase;flex-shrink:0;">' + esc(bot.botStatus) + '</span>' +
                 (bot.webhookActive ? '<span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:9.5px;flex-shrink:0;" title="' + esc(bot.webhookUrl || '') + '">WEBHOOK</span>' : '') +
               '</div>' +
-              '<div class="truncate" style="font-size:11px;color:#BFDBFE;">' + esc(botFolder) + ' &middot; ' + bot.rows.length + ' rows &middot; ' + esc(formatFolderOpenTimestamp(bot.updatedAt)) + '</div>' +
+              '<div id="tbl-hdr-sub" class="truncate" style="font-size:11px;color:#BFDBFE;">' + esc(botFolder) + ' &middot; ' + bot.rows.length + ' rows &middot; ' + esc(formatFolderOpenTimestamp(bot.updatedAt)) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="header-right">' +
@@ -8768,7 +9134,7 @@
             '<div class="dash-subbar-group">' +
               '<div class="folder-pager-wrap" style="background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.22);" title="' + (hasMultiFilesInFolder ? 'Switch table in folder' : 'Scroll next page') + '">' +
                 '<button type="button" class="folder-icon-btn on-dark" id="btn-table-prev-page" title="' + (hasMultiFilesInFolder ? 'Previous Table in Folder' : 'Scroll Up') + '" style="width:26px;height:26px;"' + (hasMultiFilesInFolder && curBotPageIdx <= 0 ? ' disabled' : '') + '>' + icon('chevronLeft', 14) + '</button>' +
-                '<span class="folder-pager-label num-tab">' + (hasMultiFilesInFolder ? ((curBotPageIdx + 1) + '/' + totalFolderFilePages) : (bot.rows.length + 'r')) + '</span>' +
+                '<span id="tbl-pager-lbl" class="folder-pager-label num-tab" data-multi-files="' + (hasMultiFilesInFolder ? '1' : '0') + '">' + (hasMultiFilesInFolder ? ((curBotPageIdx + 1) + '/' + totalFolderFilePages) : (bot.rows.length + 'r')) + '</span>' +
                 '<button type="button" class="folder-mini-btn" id="btn-table-next-page" title="' + (hasMultiFilesInFolder ? 'Next Table in Folder' : 'Scroll Next Page') + '" style="padding:4px 9px;background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.35);color:#fff;"><span>Next Page</span>' + icon('chevronRight', 12) + '</button>' +
               '</div>' +
             '</div>' +
@@ -8865,90 +9231,11 @@
 
       var selectedCellsMeta = getSelectedCellsMeta();
 
-      visibleRows.forEach(function (row, idx) {
-        var isSel = !!state.selectedRowIds[row.id];
-        html += '<tr class="' + (isSel ? 'selected' : '') + '">' +
-          '<td class="frozen-col" data-row-id="' + esc(row.id) + '"><div style="display:flex;align-items:center;justify-content:center;gap:3px;">' +
-            '<input type="checkbox" class="chk-row" data-row-id="' + esc(row.id) + '" ' + (isSel ? 'checked' : '') + ' />' +
-            '<span class="mono" style="font-size:11px;color:#64748B;">' + (idx + 1) + '</span>' +
-            '<button type="button" class="row-act-btn" data-row-menu="' + esc(row.id) + '" title="Row &amp; Cell Menu: Add, Delete, Copy, Paste">▾</button>' +
-          '</div></td>';
-
-        bot.columns.forEach(function (col, cIdx) {
-          var val = row[col.id];
-          var isEd = state.editingCell && state.editingCell.rowId === row.id && state.editingCell.colId === col.id;
-          var inRect = selBounds && idx >= selBounds.minR && idx <= selBounds.maxR && cIdx >= selBounds.minC && cIdx <= selBounds.maxC;
-          var inExtra = !!(state.extraCells && state.extraCells[row.id + '::' + col.id]);
-          var isCellSel = !isEd && (inRect || inExtra);
-          var isAnchorCell = !isEd && selBounds && idx === selBounds.anchorR && cIdx === selBounds.anchorC;
-          var isTopLeftHandleCell = !isEd && selBounds && idx === selBounds.minR && cIdx === selBounds.minC;
-          var isHandleCell = !isEd && selBounds && idx === selBounds.maxR && cIdx === selBounds.maxC;
-          var edgeCls = '';
-          if (!isEd && inRect && selBounds) {
-            if (idx === selBounds.minR) edgeCls += ' cell-sel-edge-t';
-            if (idx === selBounds.maxR) edgeCls += ' cell-sel-edge-b';
-            if (cIdx === selBounds.minC) edgeCls += ' cell-sel-edge-l';
-            if (cIdx === selBounds.maxC) edgeCls += ' cell-sel-edge-r';
-          } else if (!isEd && inExtra) {
-            edgeCls += ' cell-sel-edge-t cell-sel-edge-b cell-sel-edge-l cell-sel-edge-r';
-          }
-          var cellSelClass = (isCellSel ? ' cell-selected' : '') + (isAnchorCell ? ' cell-anchor' : '') + edgeCls;
-          var commentObj = row._comments && row._comments[col.id] ? row._comments[col.id] : null;
-          var commentMarkHtml = commentObj && commentObj.text ? '<span class="cell-comment-mark" title="Comment: ' + esc(commentObj.text) + '"></span>' : '';
-          var commentBadgeHtml = commentObj && commentObj.text ? '<span class="cell-comment-badge" title="' + esc(commentObj.text) + '">' + icon('comment', 9) + '<span>' + esc(commentObj.text) + '</span></span>' : '';
-          var handleHtml = (isTopLeftHandleCell ? '<span class="cell-sel-handle-tl" id="cell-sel-handle-tl" title="Drag corner to resize selection"></span>' : '') +
-            (isHandleCell ? '<span class="cell-sel-handle" id="cell-sel-handle" title="Drag down or across to select range"></span>' : '');
-
-          var st = col.style || {};
-          var bg = !isEd && st.bgColor && st.bgColor !== '#FFFFFF' ? 'background:' + st.bgColor + ';' : '';
-          var align = 'text-align:' + (st.align || (col.type === 'formula' || col.type === 'number' || col.type === 'amount' ? 'right' : 'left')) + ';';
-
-          if (col.type === 'checkbox') {
-            html += '<td class="cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="text-align:center;' + bg + '">' +
-              commentMarkHtml +
-              '<input type="checkbox" class="chk-cell" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" ' + (val ? 'checked' : '') + ' />' +
-              handleHtml +
-            '</td>';
-          } else if (isEd) {
-            var isDateCol = col.type === 'date';
-            var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
-            var cellFsEd = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
-            var dispEdStr = formatCell(val, col, row, bot);
-            if (isDateCol) {
-              html += '<td class="cell-clickable cell-menu-target cell-selectable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #2563EB;' + align + '">' +
-                '<span style="color:#0D47A1;font-weight:700;font-size:' + cellFsEd + 'px;line-height:1.35;">' + esc(dispEdStr) + '</span>' +
-                '<input id="active-cell-input" type="hidden" data-date-edit="1" value="' + esc(inpVal) + '" />' +
-              '</td>';
-            } else {
-              html += '<td class="cell-clickable cell-menu-target cell-selectable" id="tb-active-edit-td" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #0B57D0;' + align + '">' +
-                '<span style="color:#0F172A;font-weight:700;font-size:' + cellFsEd + 'px;line-height:1.35;">' + esc(dispEdStr) + '</span>' +
-                '<input id="active-cell-input" type="hidden" value="' + esc(inpVal) + '" />' +
-              '</td>';
-            }
-          } else {
-            var isAmt = col.type === 'amount';
-            var isFrm = col.type === 'formula';
-            var isNum = col.type === 'number';
-            var color = isAmt ? '#E65100' : isFrm ? '#6D28D9' : isNum ? '#0D47A1' : (st.color || '#1E293B');
-            var fw = (st.bold || isAmt || isFrm) ? '700' : '400';
-            var fs = st.italic ? 'italic' : 'normal';
-            var cellFontSize = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
-            var commentTip = commentObj && commentObj.text ? ' | Comment: ' + commentObj.text : '';
-            var titleTip = isFrm && col.formulaExpr
-              ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to edit; drag or right-click for toolbar)' + esc(commentTip) + '"'
-              : ' title="Click to write/edit · Drag, long-press, or right-click for toolbar' + esc(commentTip) + '"';
-            html += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:text;' + align + bg + '">' +
-              commentMarkHtml +
-              '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(color) + ';font-weight:' + fw + ';font-style:' + fs + ';font-size:' + cellFontSize + 'px;line-height:1.35;">' + esc(formatCell(val, col, row, bot)) + '</span>' +
-              commentBadgeHtml +
-              handleHtml +
-            '</td>';
-          }
-        });
-        html += '<td style="background:#F8FAFC;"></td>';
-        html += '</tr>';
-      });
-      html += '</tbody>';
+      var rowHtmlParts = new Array(visibleRows.length);
+      for (var rIdxHtml = 0; rIdxHtml < visibleRows.length; rIdxHtml++) {
+        rowHtmlParts[rIdxHtml] = renderTableRowHtml(bot, visibleRows[rIdxHtml], rIdxHtml, selBounds);
+      }
+      html += rowHtmlParts.join('') + '</tbody>';
 
       // Last Row Down Sum Row (Number, Formula & Amount column totals directly under the rows)
       var labelPlaced = false;
@@ -8968,7 +9255,7 @@
           '</td>';
         } else if (!labelPlaced) {
           labelPlaced = true;
-          html += '<td style="color:#1E3A8A;font-size:13.5px;font-weight:900;">Σ Last Row Sum (' + visibleRows.length + ' rows)</td>';
+          html += '<td id="tbl-foot-sum-lbl" style="color:#1E3A8A;font-size:13.5px;font-weight:900;">Σ Last Row Sum (' + visibleRows.length + ' rows)</td>';
         } else {
           html += '<td></td>';
         }
@@ -8985,21 +9272,27 @@
           (state.rowClipboard ? '<button type="button" class="btn btn-outline" id="btn-bar-paste-row" style="padding:7px 12px;font-size:12px;border-color:#86EFAC;color:#047857;background:#ECFDF5;">' + icon('copy', 13) + '<span>Paste Copied Row</span></button>' : '') +
           (state.sigmaFooterHidden && !isWritingCell ? '<button type="button" id="btn-show-sigma" class="sigma-show-chip" title="Show fixed Live Totals bar at bottom">' + icon('chart', 12) + '<span>Σ Show Live Totals</span></button>' : '') +
         '</div>' +
-        '<span style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Tap cell to write &middot; Long-press &amp; drag down/across for Copy/Cut/Paste toolbar</span>' +
+        '<span id="tbl-bar-stats" style="font-size:12px;color:#64748B;font-weight:500;">' + visibleRows.length + ' rows &middot; ' + bot.columns.length + ' columns &middot; Tap cell to write &middot; Long-press &amp; drag down/across for Copy/Cut/Paste toolbar</span>' +
       '</div>';
 
       // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report — hidden completely while writing in a cell so table stays unobstructed
       if (!isWritingCell) {
         var tblFolder = bot.folder || 'General';
-        var tblScopeBot = state.tableReportScope === 'folder' ? 'all' : bot.id;
-        var tblScopeFld = tblFolder;
-        var tblDaily = calculateLiveReportSummary('daily', tblScopeFld, 'all', '', tblScopeBot);
-        var tblWeekly = calculateLiveReportSummary('weekly', tblScopeFld, 'all', '', tblScopeBot);
-        var tblMonthly = calculateLiveReportSummary('monthly', tblScopeFld, 'all', '', tblScopeBot);
-        var tblIsEth = tblWeekly.isEthiopianCal || tblDaily.isEthiopianCal || (bot.columns || []).some(isEthiopianCol);
-        var tblDays = groupReportItemsByDay(tblWeekly.filtered, tblIsEth);
-        var tblTodayDmy = tblDaily.todayDisplayLabel || formatDmyDate(new Date());
-        var tblMonthSub = tblMonthly.isEthiopianCal ? tblMonthly.monthDisplayLabel : 'This Month';
+        var tblIsEth = (bot.columns || []).some(isEthiopianCol);
+        var tblTodayDmy = tblIsEth ? formatEthiopianDate(new Date(), 'dmy', state.lang) : formatDmyDate(new Date());
+        var tblDaily = null, tblWeekly = null, tblMonthly = null, tblDays = null;
+        var tblMonthSub = 'This Month';
+        if (!state.tableReportCollapsed) {
+          var tblScopeBot = state.tableReportScope === 'folder' ? 'all' : bot.id;
+          var tblScopeFld = tblFolder;
+          tblDaily = calculateLiveReportSummary('daily', tblScopeFld, 'all', '', tblScopeBot);
+          tblWeekly = calculateLiveReportSummary('weekly', tblScopeFld, 'all', '', tblScopeBot);
+          tblMonthly = calculateLiveReportSummary('monthly', tblScopeFld, 'all', '', tblScopeBot);
+          tblIsEth = tblWeekly.isEthiopianCal || tblDaily.isEthiopianCal || tblIsEth;
+          tblDays = groupReportItemsByDay(tblWeekly.filtered, tblIsEth);
+          tblTodayDmy = tblDaily.todayDisplayLabel || tblTodayDmy;
+          tblMonthSub = tblMonthly.isEthiopianCal ? tblMonthly.monthDisplayLabel : 'This Month';
+        }
 
         html += '<section class="dash-summary-wrap" style="margin:14px 16px 24px;">' +
           '<div class="dash-summary-head">' +
@@ -9022,7 +9315,7 @@
             '</div>' +
           '</div>';
 
-        if (!state.tableReportCollapsed) {
+        if (!state.tableReportCollapsed && tblWeekly) {
           html += '<div class="dash-sum-cards">' +
             renderColorfulSummaryCard('Daily Report', tblTodayDmy, tblDaily, 'daily', 'sum-card-daily tbl-sum-card', 'data-open-rper="daily"') +
             renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
@@ -9245,6 +9538,8 @@
       }
 
       document.getElementById('app').innerHTML = html;
+      var newTableWrapEl = document.querySelector('.table-wrap');
+      restoreTableScrollAnchor(newTableWrapEl, capturedScroll, pendingScrollRowId);
       bindTableEvents(bot, visibleRows, selBounds, selectedCellsMeta);
     }
 
@@ -9322,6 +9617,7 @@
     function bindTableEvents(bot, visibleRows, selBounds, selectedCellsMeta) {
       cleanupTableGlobalListeners();
       document.getElementById('btn-table-back').onclick = function () {
+        flushPendingPersist();
         cleanupTableGlobalListeners();
         state.activeBotId = null;
         state.editingCell = null;
@@ -9360,6 +9656,9 @@
           if (siblings[nextI]) {
             cleanupTableGlobalListeners();
             state.activeBotId = siblings[nextI].id;
+            state._resetTableScroll = true;
+            state._scrollAnchorRowId = null;
+            state._pendingScrollToRowId = null;
             state.editingCell = null;
             state.selectedRange = null;
             state.extraCells = {};
@@ -9436,13 +9735,82 @@
         return buildBlankRowForBot(bot);
       };
 
+      var refreshTableHeaderStats = function (rowsList) {
+        var cnt = rowsList ? rowsList.length : bot.rows.length;
+        var hdrSubEl = document.getElementById('tbl-hdr-sub');
+        if (hdrSubEl) {
+          hdrSubEl.innerHTML = esc(bot.folder || 'General') + ' &middot; ' + bot.rows.length + ' rows &middot; ' + esc(formatFolderOpenTimestamp(bot.updatedAt));
+        }
+        var barStatsEl = document.getElementById('tbl-bar-stats');
+        if (barStatsEl) {
+          barStatsEl.innerHTML = cnt + ' rows &middot; ' + bot.columns.length + ' columns &middot; Tap cell to write &middot; Long-press &amp; drag down/across for Copy/Cut/Paste toolbar';
+        }
+        var footLblEl = document.getElementById('tbl-foot-sum-lbl');
+        if (footLblEl) {
+          footLblEl.textContent = 'Σ Last Row Sum (' + cnt + ' rows)';
+        }
+        var pagerLblEl = document.getElementById('tbl-pager-lbl');
+        if (pagerLblEl && pagerLblEl.getAttribute('data-multi-files') !== '1') {
+          pagerLblEl.textContent = bot.rows.length + 'r';
+        }
+        var uCnt = getUndoCount(bot.id);
+        var rCnt = getRedoCount(bot.id);
+        var hUndo = document.getElementById('btn-hdr-undo');
+        if (hUndo) hUndo.disabled = (uCnt === 0);
+        var hRedo = document.getElementById('btn-hdr-redo');
+        if (hRedo) hRedo.disabled = (rCnt === 0);
+        var bUndo = document.getElementById('btn-bar-undo');
+        if (bUndo) {
+          bUndo.disabled = (uCnt === 0);
+          var spU = bUndo.querySelector('span');
+          if (spU) spU.textContent = 'Undo' + (uCnt > 0 ? ' (' + uCnt + ')' : '');
+        }
+        var bRedo = document.getElementById('btn-bar-redo');
+        if (bRedo) {
+          bRedo.disabled = (rCnt === 0);
+          var spR = bRedo.querySelector('span');
+          if (spR) spR.textContent = 'Redo' + (rCnt > 0 ? ' (' + rCnt + ')' : '');
+        }
+      };
+
+      var appendRowToTableFast = function (nr, auditAction, auditSummary, hasPresetValues) {
+        bot.rows.push(nr);
+        bot.updatedAt = nr._updatedAt || new Date().toISOString();
+        updateBot(bot, auditAction, auditSummary, { deferPersist: true, editedRow: nr });
+        var tableElNow = document.querySelector('.sheet-table');
+        var tbodyElNow = tableElNow && tableElNow.tBodies && tableElNow.tBodies[0] ? tableElNow.tBodies[0] : null;
+        var wrapElNow = document.querySelector('.table-wrap');
+        if (!state.tableSearchQuery && tbodyElNow && wrapElNow) {
+          visibleRows.push(nr);
+          var newIdx = visibleRows.length - 1;
+          var rowHtml = renderTableRowHtml(bot, nr, newIdx, null);
+          tbodyElNow.insertAdjacentHTML('beforeend', rowHtml);
+          refreshTableHeaderStats(visibleRows);
+          if (hasPresetValues) {
+            bot.columns.forEach(function (sumCol) {
+              if (sumCol.type !== 'amount' && sumCol.type !== 'number' && sumCol.type !== 'formula') return;
+              var el = document.querySelector('[data-sum-val-col="' + sumCol.id + '"]');
+              if (!el) return;
+              var total = 0;
+              for (var ri = 0; ri < visibleRows.length; ri++) {
+                var n = getRowColNumeric(visibleRows[ri], sumCol, bot, 0);
+                if (!isNaN(n)) total += n;
+              }
+              el.textContent = formatNumericValue(total, sumCol);
+            });
+          }
+          var newTrEl = findTableRowElById(wrapElNow, nr.id) || tbodyElNow.lastElementChild;
+          if (newTrEl) scrollRowIntoTableView(wrapElNow, newTrEl, true, true);
+          return;
+        }
+        state._pendingScrollToRowId = nr.id;
+        renderTableView(bot);
+      };
+
       document.getElementById('btn-add-row').onclick = function () {
         if (!guardWriteAction('Add Row')) return;
         var nr = buildBlankRow();
-        bot.rows.push(nr);
-        bot.updatedAt = nr._updatedAt;
-        updateBot(bot, 'ADD', 'Added new row #' + bot.rows.length);
-        renderTableView(bot);
+        appendRowToTableFast(nr, 'ADD', 'Added new row #' + (bot.rows.length + 1), false);
       };
 
       var pasteBarBtn = document.getElementById('btn-bar-paste-row');
@@ -9458,10 +9826,7 @@
             nr[c.id] = state.rowClipboard.byName[k];
           }
         });
-        bot.rows.push(nr);
-        bot.updatedAt = nowIso;
-        updateBot(bot, 'ADD', 'Pasted copied row as row #' + bot.rows.length);
-        renderTableView(bot);
+        appendRowToTableFast(nr, 'ADD', 'Pasted copied row as row #' + (bot.rows.length + 1), true);
         showToast('Pasted row #' + bot.rows.length);
       };
 
@@ -9483,48 +9848,47 @@
         if (e.target.checked) visibleRows.forEach(function (r) { state.selectedRowIds[r.id] = true; });
         renderTableView(bot);
       };
-      document.querySelectorAll('.chk-row').forEach(function (chk) {
-        chk.onchange = function () {
-          state.selectedRowIds[chk.getAttribute('data-row-id')] = chk.checked;
-          renderTableView(bot);
-        };
-      });
-      document.querySelectorAll('.chk-cell').forEach(function (chk) {
-        chk.onchange = function () {
-          if (!guardWriteAction('Toggle Checkbox')) { renderTableView(bot); return; }
-          var rid = chk.getAttribute('data-row-id'), cid = chk.getAttribute('data-col-id');
-          var colObj = bot.columns.find(function (c) { return c.id === cid; });
-          var nowIso = new Date().toISOString();
-          bot.rows.forEach(function (r) {
-            if (r.id === rid) {
-              r[cid] = chk.checked;
-              r._actor = getCurrentActor();
-              r._updatedAt = nowIso;
-              autoFillRowDates(bot, r, nowIso, cid);
-            }
-          });
-          bot.updatedAt = nowIso;
-          updateBot(bot, 'EDIT', 'Toggled "' + (colObj ? colObj.name : cid) + '" -> ' + chk.checked);
-          renderTableView(bot);
-        };
-      });
 
-      document.querySelectorAll('[data-edit-col]').forEach(function (th) {
-        th.onclick = function () {
-          var cid = th.getAttribute('data-edit-col');
-          var col = bot.columns.find(function (c) { return c.id === cid; });
-          if (col) openModal('column', { bot: bot, column: col });
+      var sheetTableElForDel = document.querySelector('.sheet-table');
+      if (sheetTableElForDel) {
+        sheetTableElForDel.onchange = function (e) {
+          var t = e.target;
+          if (!t || !t.classList) return;
+          if (t.classList.contains('chk-row')) {
+            var rIdChk = t.getAttribute('data-row-id');
+            state.selectedRowIds[rIdChk] = t.checked;
+            state._scrollAnchorRowId = rIdChk;
+            renderTableView(bot);
+          } else if (t.classList.contains('chk-cell')) {
+            if (!guardWriteAction('Toggle Checkbox')) { renderTableView(bot); return; }
+            var rid = t.getAttribute('data-row-id'), cid = t.getAttribute('data-col-id');
+            var colObj = bot.columns.find(function (c) { return c.id === cid; });
+            var nowIso = new Date().toISOString();
+            var targetChkRow = bot.rows.find(function (r) { return r.id === rid; });
+            if (targetChkRow) {
+              targetChkRow[cid] = t.checked;
+              targetChkRow._actor = getCurrentActor();
+              targetChkRow._updatedAt = nowIso;
+              autoFillRowDates(bot, targetChkRow, nowIso, cid);
+            }
+            bot.updatedAt = nowIso;
+            state._scrollAnchorRowId = rid;
+            updateBot(bot, 'EDIT', 'Toggled "' + (colObj ? colObj.name : cid) + '" -> ' + t.checked, { deferPersist: true, editedRow: targetChkRow });
+            renderTableView(bot);
+          }
         };
-      });
+      }
 
       var activeInp = document.getElementById('active-cell-input');
       var commitActiveCell = function (overrideVal, allowBlankDate, skipRender) {
         var ed = state.editingCell;
         if (!ed || !activeInp) return;
+        state._scrollAnchorRowId = ed.rowId;
         state.editingCell = null;
         window._tbLastCellTap = null;
         state.autoOpenDateCal = false;
         state._calDraft = null;
+        state._pendingBgTableRefresh = false;
         var oldCalBg = document.getElementById('tb-cal-backdrop');
         if (oldCalBg) oldCalBg.remove();
         var oldCal = document.getElementById('tb-cal-popover');
@@ -9559,23 +9923,22 @@
         }
         var oldVal = '';
         var nowIso = new Date().toISOString();
-        bot.rows.forEach(function (r) {
-          if (r.id === ed.rowId) {
-            oldVal = r[ed.colId];
-            r[ed.colId] = parsed;
-            r._actor = getCurrentActor();
-            r._updatedAt = nowIso;
-            if (col && col.type === 'date' && String(parsed).trim() !== '') {
-              r._dateEdited = true;
-            }
-            if (col && col.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
-              autoFillRowDates(bot, r, nowIso, ed.colId);
-            }
+        var editedRowObj = bot.rows.find(function (r) { return r.id === ed.rowId; });
+        if (editedRowObj) {
+          oldVal = editedRowObj[ed.colId];
+          editedRowObj[ed.colId] = parsed;
+          editedRowObj._actor = getCurrentActor();
+          editedRowObj._updatedAt = nowIso;
+          if (col && col.type === 'date' && String(parsed).trim() !== '') {
+            editedRowObj._dateEdited = true;
           }
-        });
+          if (col && col.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
+            autoFillRowDates(bot, editedRowObj, nowIso, ed.colId);
+          }
+        }
         bot.updatedAt = nowIso;
         if (String(oldVal === undefined || oldVal === null ? '' : oldVal) !== String(parsed)) {
-          updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"');
+          updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"', { deferPersist: true, editedRow: editedRowObj });
         }
         if (!skipRender) renderTableView(bot);
       };
@@ -9589,6 +9952,7 @@
         state.extraCells = {};
         state.toolbarSubMode = null;
         state.cellMenu = null;
+        state._scrollAnchorRowId = rid;
         state.editingCell = { rowId: rid, colId: cid };
         state.autoOpenDateCal = (colObj.type === 'date');
         state._calDraft = null;
@@ -9598,7 +9962,7 @@
         }
         var ci = document.getElementById('tb-pad-input') || document.getElementById('active-cell-input');
         if (ci) {
-          ci.focus();
+          try { ci.focus({ preventScroll: true }); } catch (errF) { try { ci.focus(); } catch (errF2) {} }
           try { ci.select(); } catch (err2) {}
         }
       };
@@ -9997,6 +10361,7 @@
       var openCellContextMenu = function (rowId, colId, clientX, clientY) {
         var resolvedColId = colId || (bot.columns[0] ? bot.columns[0].id : '');
         ensureCellSelectedForMenu(rowId, resolvedColId);
+        state._scrollAnchorRowId = rowId;
         state.cellMenu = {
           rowId: rowId,
           colId: resolvedColId,
@@ -10005,23 +10370,6 @@
         };
         renderTableView(bot);
       };
-
-      document.querySelectorAll('.row-act-btn[data-row-menu]').forEach(function (btn) {
-        btn.onclick = function (e) {
-          e.stopPropagation();
-          var rid = btn.getAttribute('data-row-menu');
-          var rect = btn.getBoundingClientRect();
-          openCellContextMenu(rid, bot.columns[0] ? bot.columns[0].id : '', rect.right + 4, rect.bottom + 4);
-        };
-      });
-
-      document.querySelectorAll('.cell-menu-target').forEach(function (td) {
-        td.oncontextmenu = function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          openCellContextMenu(td.getAttribute('data-row-id'), td.getAttribute('data-col-id'), e.clientX, e.clientY);
-        };
-      });
 
       var editMenuBtn = document.getElementById('cell-edit-menu-btn');
       if (editMenuBtn && state.editingCell) {
@@ -10071,6 +10419,7 @@
               var visSelR = visibleRows.findIndex(function (r) { return r.id === cm.rowId; });
               var colSelI = targetCol ? bot.columns.findIndex(function (c) { return c.id === targetCol.id; }) : 0;
               state.editingCell = null;
+              state._scrollAnchorRowId = cm.rowId;
               if (visSelR !== -1) {
                 state.selectedRange = { botId: bot.id, anchorR: visSelR, anchorC: Math.max(0, colSelI), focusR: visSelR, focusC: Math.max(0, colSelI) };
                 state.extraCells = {};
@@ -10091,6 +10440,7 @@
                 state.selectedRange = { botId: bot.id, anchorR: visR, anchorC: colI, focusR: visR, focusC: colI };
                 state.extraCells = {};
               }
+              state._scrollAnchorRowId = cm.rowId;
               executeContextualAction(act, fallbackTargets, fallbackBounds);
               return;
             }
@@ -10102,7 +10452,8 @@
               bot.rows.splice(insertAt, 0, newRow);
               bot.updatedAt = nowIso;
               state.editingCell = null;
-              updateBot(bot, 'ADD', 'Added row #' + (insertAt + 1));
+              state._pendingScrollToRowId = newRow.id;
+              updateBot(bot, 'ADD', 'Added row #' + (insertAt + 1), { deferPersist: true, editedRow: newRow });
               renderTableView(bot);
               showToast('Added row #' + (insertAt + 1));
             } else if (act === 'copy_row') {
@@ -10117,6 +10468,7 @@
               if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(textParts.join('\t')).catch(function () {});
               }
+              state._scrollAnchorRowId = targetRow.id;
               renderTableView(bot);
               showToast('Copied Row #' + (rIdx + 1));
             } else if (act === 'paste_row_into' && state.rowClipboard) {
@@ -10133,7 +10485,8 @@
               targetRow._updatedAt = nowIso;
               bot.updatedAt = nowIso;
               state.editingCell = null;
-              updateBot(bot, 'EDIT', 'Pasted row data into Row #' + (rIdx + 1));
+              state._scrollAnchorRowId = targetRow.id;
+              updateBot(bot, 'EDIT', 'Pasted row data into Row #' + (rIdx + 1), { deferPersist: true, editedRow: targetRow });
               renderTableView(bot);
               showToast('Pasted into Row #' + (rIdx + 1));
             } else if (act === 'paste_row_below' && state.rowClipboard) {
@@ -10150,7 +10503,8 @@
               bot.rows.splice(rIdx + 1, 0, pastedRow);
               bot.updatedAt = nowIso;
               state.editingCell = null;
-              updateBot(bot, 'ADD', 'Pasted copied row below Row #' + (rIdx + 1));
+              state._pendingScrollToRowId = pastedRow.id;
+              updateBot(bot, 'ADD', 'Pasted copied row below Row #' + (rIdx + 1), { deferPersist: true, editedRow: pastedRow });
               renderTableView(bot);
               showToast('Pasted copied row below Row #' + (rIdx + 1));
             } else if (act === 'delete_row') {
@@ -10553,7 +10907,7 @@
       var dragCtx = null;
       var sheetTableEl = document.querySelector('.sheet-table');
       var tblWrapElDrag = document.querySelector('.table-wrap');
-      var allCellEls = Array.prototype.slice.call(document.querySelectorAll('td.cell-selectable'));
+      var dragCellEls = null;
 
       var formatSelPreviewText = function (aR, aC, fR, fC) {
         var minR = Math.min(aR, fR), maxR = Math.max(aR, fR);
@@ -10570,7 +10924,10 @@
       var paintDragPreview = function (aR, aC, fR, fC) {
         var minR = Math.min(aR, fR), maxR = Math.max(aR, fR);
         var minC = Math.min(aC, fC), maxC = Math.max(aC, fC);
-        allCellEls.forEach(function (cellEl) {
+        if (!dragCellEls && sheetTableEl) {
+          dragCellEls = Array.prototype.slice.call(sheetTableEl.querySelectorAll('td.cell-selectable'));
+        }
+        (dragCellEls || []).forEach(function (cellEl) {
           var cr = parseInt(cellEl.getAttribute('data-r-idx'), 10);
           var cc = parseInt(cellEl.getAttribute('data-c-idx'), 10);
           var inside = cr >= minR && cr <= maxR && cc >= minC && cc <= maxC;
@@ -10836,62 +11193,67 @@
         };
       }
 
-      document.querySelectorAll('td.cell-selectable').forEach(function (td) {
-        var lpTimer = null;
-        var lpStartX = 0, lpStartY = 0;
-        var lpCurX = 0, lpCurY = 0;
+      if (sheetTableEl) {
+        var lpState = { timer: null, startX: 0, startY: 0, curX: 0, curY: 0 };
+        var isInnerControlTarget = function (el) {
+          return Boolean(el && el.closest && (el.closest('.chk-cell') || el.closest('#cell-sel-handle') || el.closest('#cell-sel-handle-tl') || el.closest('#active-cell-input') || el.closest('#date-picker-pop') || el.closest('#cell-edit-wrap')));
+        };
+        var clearLpTimer = function () {
+          if (lpState.timer) {
+            clearTimeout(lpState.timer);
+            lpState.timer = null;
+          }
+        };
 
-        td.ontouchstart = function (e) {
-          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#cell-sel-handle-tl') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+        sheetTableEl.oncontextmenu = function (e) {
+          var tdMenu = e.target && e.target.closest ? e.target.closest('.cell-menu-target') : null;
+          if (!tdMenu) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openCellContextMenu(tdMenu.getAttribute('data-row-id'), tdMenu.getAttribute('data-col-id'), e.clientX, e.clientY);
+        };
+
+        sheetTableEl.ontouchstart = function (e) {
+          if (!e.target || !e.target.closest) return;
+          var td = e.target.closest('td.cell-selectable');
+          if (!td || isInnerControlTarget(e.target)) return;
           if (!e.touches || e.touches.length !== 1) return;
-          lpStartX = lpCurX = e.touches[0].clientX;
-          lpStartY = lpCurY = e.touches[0].clientY;
+          lpState.startX = lpState.curX = e.touches[0].clientX;
+          lpState.startY = lpState.curY = e.touches[0].clientY;
           var rIdx = parseInt(td.getAttribute('data-r-idx'), 10);
           var cIdx = parseInt(td.getAttribute('data-c-idx'), 10);
           if (isNaN(rIdx) || isNaN(cIdx)) return;
-          if (lpTimer) clearTimeout(lpTimer);
-          lpTimer = setTimeout(function () {
-            lpTimer = null;
+          clearLpTimer();
+          lpState.timer = setTimeout(function () {
+            lpState.timer = null;
             window._tbSuppressCellClickUntil = Date.now() + 700;
             if (state.editingCell && activeInp) commitActiveCell(undefined, false, true);
             state.cellMenu = null;
             if (typeof navigator !== 'undefined' && navigator.vibrate) {
               try { navigator.vibrate(18); } catch (eV) {}
             }
-            beginLiveRangeDrag('touch', rIdx, cIdx, rIdx, cIdx, lpCurX, lpCurY, true);
+            beginLiveRangeDrag('touch', rIdx, cIdx, rIdx, cIdx, lpState.curX, lpState.curY, true);
           }, 340);
         };
 
-        td.ontouchmove = function (e) {
+        sheetTableEl.ontouchmove = function (e) {
           if (!e.touches || !e.touches[0]) return;
-          lpCurX = e.touches[0].clientX;
-          lpCurY = e.touches[0].clientY;
-          if (!lpTimer) return;
-          var dx = Math.abs(lpCurX - lpStartX);
-          var dy = Math.abs(lpCurY - lpStartY);
-          if (dx > 10 || dy > 10) {
-            clearTimeout(lpTimer);
-            lpTimer = null;
-          }
+          lpState.curX = e.touches[0].clientX;
+          lpState.curY = e.touches[0].clientY;
+          if (!lpState.timer) return;
+          var dx = Math.abs(lpState.curX - lpState.startX);
+          var dy = Math.abs(lpState.curY - lpState.startY);
+          if (dx > 10 || dy > 10) clearLpTimer();
         };
 
-        td.ontouchend = function () {
-          if (lpTimer) {
-            clearTimeout(lpTimer);
-            lpTimer = null;
-          }
-        };
+        sheetTableEl.ontouchend = clearLpTimer;
+        sheetTableEl.ontouchcancel = clearLpTimer;
 
-        td.ontouchcancel = function () {
-          if (lpTimer) {
-            clearTimeout(lpTimer);
-            lpTimer = null;
-          }
-        };
-
-        td.onmousedown = function (e) {
-          if (e.button !== 0) return;
-          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#cell-sel-handle-tl') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+        sheetTableEl.onmousedown = function (e) {
+          if (e.button !== 0 || !e.target || !e.target.closest) return;
+          if (e.target.closest('.row-act-btn[data-row-menu]')) return;
+          var td = e.target.closest('td.cell-selectable');
+          if (!td || isInnerControlTarget(e.target)) return;
           e.stopPropagation();
           state.cellMenu = null;
           var rid = td.getAttribute('data-row-id');
@@ -10915,6 +11277,7 @@
             state.selectedRange.focusR = rIdx;
             state.selectedRange.focusC = cIdx;
             state.toolbarSubMode = null;
+            state._scrollAnchorRowId = rid;
             renderTableView(bot);
             return;
           }
@@ -10943,6 +11306,7 @@
               state.selectedRange = null;
             }
             state.toolbarSubMode = null;
+            state._scrollAnchorRowId = rid;
             renderTableView(bot);
             return;
           }
@@ -10950,8 +11314,25 @@
           beginLiveRangeDrag('mouse', rIdx, cIdx, rIdx, cIdx, e.clientX, e.clientY, false);
         };
 
-        td.onclick = function (e) {
-          if (e.target && e.target.closest && (e.target.closest('.chk-cell') || e.target.closest('#cell-sel-handle') || e.target.closest('#cell-sel-handle-tl') || e.target.closest('#active-cell-input') || e.target.closest('#date-picker-pop') || e.target.closest('#cell-edit-wrap'))) return;
+        sheetTableEl.onclick = function (e) {
+          if (!e.target || !e.target.closest) return;
+          var thEdit = e.target.closest('th[data-edit-col]');
+          if (thEdit) {
+            var editCid = thEdit.getAttribute('data-edit-col');
+            var editColObj = bot.columns.find(function (c) { return c.id === editCid; });
+            if (editColObj) openModal('column', { bot: bot, column: editColObj });
+            return;
+          }
+          var rowMenuBtn = e.target.closest('.row-act-btn[data-row-menu]');
+          if (rowMenuBtn) {
+            e.stopPropagation();
+            var rmRid = rowMenuBtn.getAttribute('data-row-menu');
+            var rmRect = rowMenuBtn.getBoundingClientRect();
+            openCellContextMenu(rmRid, bot.columns[0] ? bot.columns[0].id : '', rmRect.right + 4, rmRect.bottom + 4);
+            return;
+          }
+          var td = e.target.closest('td.cell-selectable');
+          if (!td || isInnerControlTarget(e.target)) return;
           e.stopPropagation();
           if (window._tbSuppressCellClickUntil && Date.now() < window._tbSuppressCellClickUntil) return;
           if (e.shiftKey || e.ctrlKey || e.metaKey) return;
@@ -10976,15 +11357,17 @@
           }
         };
 
-        td.ondblclick = function (e) {
-          if (e.target && e.target.closest && e.target.closest('.chk-cell')) return;
+        sheetTableEl.ondblclick = function (e) {
+          if (!e.target || !e.target.closest) return;
+          var td = e.target.closest('td.cell-selectable');
+          if (!td || e.target.closest('.chk-cell')) return;
           e.stopPropagation();
           dragCtx = null;
           var rid = td.getAttribute('data-row-id');
           var cid = td.getAttribute('data-col-id');
           activateExcelCellToolbar(rid, cid);
         };
-      });
+      }
 
       // Click outside table cells / floating toolbar clears active cell selection
       if (selectedCellsMeta.length > 0 && !state.editingCell) {
@@ -11131,9 +11514,11 @@
           };
           var cancelDateEdit = function () {
             closeCalPopover();
+            if (state.editingCell) state._scrollAnchorRowId = state.editingCell.rowId;
             state.editingCell = null;
             state.autoOpenDateCal = false;
             state._calDraft = null;
+            state._pendingBgTableRefresh = false;
             if (window._tbDateOutsideClick) {
               document.removeEventListener('click', window._tbDateOutsideClick);
               window._tbDateOutsideClick = null;
@@ -11369,8 +11754,10 @@
           };
           var cancelWritePad = function () {
             closeWritePad();
+            if (state.editingCell) state._scrollAnchorRowId = state.editingCell.rowId;
             state.editingCell = null;
             window._tbLastCellTap = null;
+            state._pendingBgTableRefresh = false;
             renderTableView(bot);
           };
 
@@ -12225,18 +12612,25 @@
         return;
       }
       var bot = getActiveBot();
-      if (bot) renderTableView(bot);
-      else {
+      if (bot) {
+        if (!forceLockRender && (state.editingCell || document.getElementById('tb-sheet-backdrop') || document.getElementById('cell-context-menu'))) {
+          state._pendingBgTableRefresh = true;
+          return;
+        }
+        renderTableView(bot);
+      } else {
         cleanupTableGlobalListeners();
         state.selectedRange = null;
         state.extraCells = {};
         state.toolbarSubMode = null;
+        state._lastRenderedTableBotId = null;
         renderDashboard();
       }
     }
 
     function openModal(type, extra) {
       if (!isAccessUnlocked() || isCurrentUserRevoked()) return;
+      flushPendingPersist();
       state.modal = Object.assign({ type: type }, extra || {});
       renderModal();
     }
