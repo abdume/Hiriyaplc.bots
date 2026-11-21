@@ -1737,6 +1737,7 @@
     var STORAGE_SAVED_USER_NAME = 'tablebot_saved_user_name_v1';
     var STORAGE_SIGMA_HIDDEN = 'tablebot_sigma_hidden_v1';
     var STORAGE_TABLE_REP_COLLAPSED = 'tablebot_table_rep_collapsed_v1';
+    var STORAGE_REPORT_CAL_MODE = 'tablebot_report_cal_mode_v1';
     var SESSION_UNLOCK_KEY = 'tablebot_access_unlocked';
     var SESSION_LOCK_ATTEMPTS_KEY = 'tb_lock_attempts_v1';
     var SESSION_LOCK_UNTIL_KEY = 'tb_lock_until_v1';
@@ -4051,6 +4052,7 @@
       showMoreMenu: false,
       tableReportScope: 'table',
       tableReportCollapsed: (function () { try { return localStorage.getItem(STORAGE_TABLE_REP_COLLAPSED) !== '0'; } catch (e) { return true; } })(),
+      reportCalendarMode: (function () { try { var v = localStorage.getItem(STORAGE_REPORT_CAL_MODE); return v === 'gregorian' ? 'gregorian' : 'ethiopian'; } catch (e) { return 'ethiopian'; } })(),
       sigmaFooterHidden: (function () { try { return localStorage.getItem(STORAGE_SIGMA_HIDDEN) === '1'; } catch (e) { return false; } })(),
       _lastRenderedTableBotId: null,
       _resetTableScroll: false,
@@ -7600,7 +7602,7 @@
       html += '<main class="dashboard-main">';
 
       var dayInfo = getWelcomeDayInfo(state.lang, state.previewDayOffset);
-      state.lastRenderedYmd = getLocalYmd(new Date());
+      state.lastRenderedYmd = state.reportCalendarMode !== 'gregorian' ? getReportNowContext(true).ymd : getLocalYmd(new Date());
       var weekDays = getWeekCalendarStrip(state.lang, state.previewDayOffset);
       var greetUser = getActiveGreetingUser();
       var greetName = (greetUser && greetUser.displayName) ? greetUser.displayName : 'Onelove A';
@@ -7994,17 +7996,20 @@
       var dashFoldersList = getAllFolders();
       var dashFolderScope = (state.selectedFolder && state.selectedFolder !== 'all')
         ? state.selectedFolder
-        : (state.dashReportFolder && dashFoldersList.indexOf(state.dashReportFolder) !== -1
+        : ((state.dashReportFolder && (state.dashReportFolder === 'all' || dashFoldersList.indexOf(state.dashReportFolder) !== -1))
             ? state.dashReportFolder
-            : (dashFoldersList[0] || 'General'));
+            : 'all');
       var dashDaily = calculateLiveReportSummary('daily', dashFolderScope, 'all', '');
       var dashWeekly = calculateLiveReportSummary('weekly', dashFolderScope, 'all', '');
       var dashMonthly = calculateLiveReportSummary('monthly', dashFolderScope, 'all', '');
       var dashAllCols = calculateLiveReportSummary('all', dashFolderScope, 'all', '');
-      var dashIsEth = Boolean(dashWeekly.isEthiopianCal || dashDaily.isEthiopianCal || dashMonthly.isEthiopianCal || isFolderEthiopianCalendar(dashFolderScope));
+      var dashIsEth = Boolean(dashWeekly.isEthiopianCal || dashDaily.isEthiopianCal || dashMonthly.isEthiopianCal);
       var dashDays = groupReportItemsByDay(dashWeekly.filtered, dashIsEth);
       var todayDisplayStr = dashDaily.todayDisplayLabel || formatDmyDate(new Date());
-      var monthDisplayStr = dashMonthly.isEthiopianCal ? (dashMonthly.monthDisplayLabel || 'This Month') : 'This Month';
+      var weekDisplayStr = dashWeekly.weekDisplayLabel || 'Last 7 Days';
+      var monthDisplayStr = dashMonthly.monthDisplayLabel || 'This Month';
+      var dashScopeLabel = dashFolderScope === 'all' ? 'All Folders' : dashFolderScope;
+      var dashClockStr = dashDaily.liveClockLabel || '';
 
       html += '<section class="dash-summary-wrap" style="margin-top:22px;">' +
         '<div class="dash-summary-head">' +
@@ -8013,14 +8018,17 @@
             '<div>' +
               '<div style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
                 '<span>Summary Cards &mdash; Daily, Weekly &amp; Monthly</span>' +
-                '<span class="pill-badge" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.28);font-size:10.5px;">Folder: ' + esc(dashFolderScope) + '</span>' +
-                (dashIsEth ? '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">Ethiopian Calendar</span>' : '') +
+                '<span class="pill-badge" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.28);font-size:10.5px;">' + (dashFolderScope === 'all' ? 'All Folders' : ('Folder: ' + esc(dashScopeLabel))) + '</span>' +
+                '<span class="pill-badge" style="background:' + (dashIsEth ? '#10B981' : '#334155') + ';color:#fff;font-size:10px;">' + (dashIsEth ? 'Ethiopian Calendar' : 'Gregorian Calendar') + '</span>' +
+                (dashClockStr ? '<span id="dash-rep-live-clock" class="pill-badge mono" style="background:rgba(15,23,42,0.35);color:#FDE68A;border:1px solid rgba(253,230,138,0.35);font-size:10.5px;">' + esc(dashClockStr) + '</span>' : '') +
               '</div>' +
-              '<div style="font-size:11px;color:#BAE6FD;">Column Header Data calculated by Day (' + esc(todayDisplayStr) + '), Week &amp; Month (' + esc(monthDisplayStr) + ')</div>' +
+              '<div style="font-size:11px;color:#BAE6FD;">Day: ' + esc(todayDisplayStr) + ' &middot; Week: ' + esc(weekDisplayStr) + ' &middot; Month: ' + esc(monthDisplayStr) + '</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<button type="button" id="dash-rep-cal-toggle" class="btn" style="background:' + (dashIsEth ? '#10B981' : 'rgba(255,255,255,0.2)') + ';color:#fff;border:1px solid rgba(255,255,255,0.38);padding:5px 10px;font-size:11px;" title="Switch Report Calendar (Ethiopian / Gregorian)">' + (dashIsEth ? 'EC (Ethiopia)' : 'GC (Gregorian)') + '</button>' +
             '<select id="dash-rep-folder" class="header-select" title="Select folder for Report Summary Cards">' +
+              '<option value="all"' + (dashFolderScope === 'all' ? ' selected' : '') + '>All Folders</option>' +
               dashFoldersList.map(function (fn) {
                 return '<option value="' + esc(fn) + '"' + (dashFolderScope === fn ? ' selected' : '') + '>' + esc(fn) + '</option>';
               }).join('') +
@@ -8034,18 +8042,18 @@
       if (!state.dashSummaryCollapsed) {
         html += '<div class="dash-sum-cards">' +
           renderColorfulSummaryCard('Daily Report', todayDisplayStr, dashDaily, 'daily', 'sum-card-daily', 'data-open-rper="daily"') +
-          renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', dashWeekly, 'weekly', 'sum-card-weekly', 'data-open-rper="weekly"') +
+          renderColorfulSummaryCard('Weekly Sum', weekDisplayStr, dashWeekly, 'weekly', 'sum-card-weekly', 'data-open-rper="weekly"') +
           renderColorfulSummaryCard('Monthly Sum', monthDisplayStr, dashMonthly, 'monthly', 'sum-card-monthly', 'data-open-rper="monthly"') +
         '</div>' +
-        renderAllColumnsBar(dashAllCols, 'Folder: ' + dashFolderScope + ' — Column Header Data Summary (' + (dashIsEth ? 'Ethiopian Calendar' : 'All Dates') + ')');
+        renderAllColumnsBar(dashAllCols, dashScopeLabel + ' — Column Header Data Summary (' + (dashIsEth ? 'Ethiopian Calendar' : 'All Dates') + ')');
 
         if (state.dashDayBreakdownOpen) {
           html += '<div class="dash-day-breakdown">' +
             renderDynamicDayBreakdownTable(
               dashDays.slice(0, 7),
               dashWeekly,
-              'No dated rows in the last 7 days for "' + dashFolderScope + '". Add rows with dates (e.g. ' + todayDisplayStr + ') to calculate daily & weekly column summaries automatically.',
-              'Σ Weekly Total (7 Days)',
+              'No dated rows in the last 7 days for "' + dashScopeLabel + '". Add rows with dates (e.g. ' + todayDisplayStr + ') to calculate daily & weekly column summaries automatically.',
+              'Σ Weekly Total (' + weekDisplayStr + ')',
               dashDaily.todayYmd || todayDisplayStr
             ) +
           '</div>';
@@ -8096,11 +8104,17 @@
 
       var curDashRepFolder = (state.selectedFolder && state.selectedFolder !== 'all')
         ? state.selectedFolder
-        : (state.dashReportFolder || (getAllFolders()[0] || 'General'));
+        : (state.dashReportFolder || 'all');
+      var dRepCalBtn = document.getElementById('dash-rep-cal-toggle');
+      if (dRepCalBtn) dRepCalBtn.onclick = function () {
+        state.reportCalendarMode = state.reportCalendarMode === 'gregorian' ? 'ethiopian' : 'gregorian';
+        try { localStorage.setItem(STORAGE_REPORT_CAL_MODE, state.reportCalendarMode); } catch (e) {}
+        renderDashboard();
+      };
       var dRepFldSel = document.getElementById('dash-rep-folder');
       if (dRepFldSel) dRepFldSel.onchange = function (e) {
         state.dashReportFolder = e.target.value;
-        if (state.selectedFolder && state.selectedFolder !== 'all') state.selectedFolder = e.target.value;
+        if (state.selectedFolder && state.selectedFolder !== 'all' && e.target.value !== 'all') state.selectedFolder = e.target.value;
         renderDashboard();
       };
       var dSumOpenRep = document.getElementById('dash-sum-open-rep');
@@ -9329,20 +9343,26 @@
       // Automatic Bottom (Underneath) Last-Row & Daily/Weekly Report — hidden completely while writing in a cell so table stays unobstructed
       if (!isWritingCell) {
         var tblFolder = bot.folder || 'General';
-        var tblIsEth = (bot.columns || []).some(isEthiopianCol);
-        var tblTodayDmy = tblIsEth ? formatEthiopianDate(new Date(), 'dmy', state.lang) : formatDmyDate(new Date());
+        var tblUseEthPref = state.reportCalendarMode !== 'gregorian';
+        var tblCtxInit = getReportNowContext(tblUseEthPref);
+        var tblIsEth = tblUseEthPref;
+        var tblTodayDmy = formatReportDateChip(tblCtxInit, tblIsEth, state && state.lang);
+        var tblWeekSub = formatReportWeekLabel(tblCtxInit, tblIsEth, state && state.lang);
+        var tblMonthSub = formatReportMonthLabel(tblCtxInit, tblIsEth, state && state.lang);
+        var tblClockStr = tblCtxInit.liveClockLabel;
         var tblDaily = null, tblWeekly = null, tblMonthly = null, tblDays = null;
-        var tblMonthSub = 'This Month';
         if (!state.tableReportCollapsed) {
           var tblScopeBot = state.tableReportScope === 'folder' ? 'all' : bot.id;
           var tblScopeFld = tblFolder;
           tblDaily = calculateLiveReportSummary('daily', tblScopeFld, 'all', '', tblScopeBot);
           tblWeekly = calculateLiveReportSummary('weekly', tblScopeFld, 'all', '', tblScopeBot);
           tblMonthly = calculateLiveReportSummary('monthly', tblScopeFld, 'all', '', tblScopeBot);
-          tblIsEth = tblWeekly.isEthiopianCal || tblDaily.isEthiopianCal || tblIsEth;
+          tblIsEth = Boolean(tblWeekly.isEthiopianCal || tblDaily.isEthiopianCal);
           tblDays = groupReportItemsByDay(tblWeekly.filtered, tblIsEth);
           tblTodayDmy = tblDaily.todayDisplayLabel || tblTodayDmy;
-          tblMonthSub = tblMonthly.isEthiopianCal ? tblMonthly.monthDisplayLabel : 'This Month';
+          tblWeekSub = tblWeekly.weekDisplayLabel || tblWeekSub;
+          tblMonthSub = tblMonthly.monthDisplayLabel || tblMonthSub;
+          tblClockStr = tblDaily.liveClockLabel || tblClockStr;
         }
 
         html += '<section class="dash-summary-wrap" style="margin:14px 16px 24px;">' +
@@ -9353,12 +9373,14 @@
                 '<div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
                   '<span>Last-Row Automatic Report</span>' +
                   '<span class="pill-badge" style="background:rgba(255,255,255,0.22);font-size:10.5px;">' + (state.tableReportScope === 'folder' ? 'Folder: ' + esc(tblFolder) : 'Table: ' + esc(bot.name)) + '</span>' +
-                  (tblIsEth ? '<span class="pill-badge" style="background:#10B981;color:#fff;font-size:10px;">Ethiopian Calendar</span>' : '') +
+                  '<span class="pill-badge" style="background:' + (tblIsEth ? '#10B981' : '#334155') + ';color:#fff;font-size:10px;">' + (tblIsEth ? 'Ethiopian Calendar' : 'Gregorian Calendar') + '</span>' +
+                  (tblClockStr ? '<span id="tbl-rep-live-clock" class="pill-badge mono" style="background:rgba(15,23,42,0.35);color:#FDE68A;border:1px solid rgba(253,230,138,0.35);font-size:10px;">' + esc(tblClockStr) + '</span>' : '') +
                 '</div>' +
-                '<div style="font-size:11px;color:#DBEAFE;">Column Header Name Summary Cards calculated automatically below rows (' + esc(tblTodayDmy) + ')</div>' +
+                '<div style="font-size:11px;color:#DBEAFE;">Day: ' + esc(tblTodayDmy) + ' &middot; Week: ' + esc(tblWeekSub) + ' &middot; Month: ' + esc(tblMonthSub) + '</div>' +
               '</div>' +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+              '<button type="button" id="tbl-sum-cal-toggle" class="btn" style="padding:4px 9px;font-size:11px;' + (tblIsEth ? 'background:#10B981;color:#fff;' : 'background:rgba(255,255,255,0.2);color:#fff;') + '" title="Switch Calendar (Ethiopian / Gregorian)">' + (tblIsEth ? 'EC (Ethiopia)' : 'GC (Gregorian)') + '</button>' +
               '<button type="button" id="tbl-sum-scope-table" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope !== 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">This Table</button>' +
               '<button type="button" id="tbl-sum-scope-folder" class="btn" style="padding:4px 9px;font-size:11px;' + (state.tableReportScope === 'folder' ? 'background:#fff;color:#0D47A1;' : 'background:rgba(255,255,255,0.16);color:#fff;') + '">Folder (' + esc(tblFolder) + ')</button>' +
               '<button type="button" id="tbl-sum-open-rep" class="btn" style="background:#F59E0B;color:#fff;padding:4px 10px;font-size:11px;">' + icon('chart', 12) + '<span>Full Report</span></button>' +
@@ -9369,17 +9391,17 @@
         if (!state.tableReportCollapsed && tblWeekly) {
           html += '<div class="dash-sum-cards">' +
             renderColorfulSummaryCard('Daily Report', tblTodayDmy, tblDaily, 'daily', 'sum-card-daily tbl-sum-card', 'data-open-rper="daily"') +
-            renderColorfulSummaryCard('Weekly Sum', 'Last 7 Days', tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
+            renderColorfulSummaryCard('Weekly Sum', tblWeekSub, tblWeekly, 'weekly', 'sum-card-weekly tbl-sum-card', 'data-open-rper="weekly"') +
             renderColorfulSummaryCard('Monthly Sum', tblMonthSub, tblMonthly, 'monthly', 'sum-card-monthly tbl-sum-card', 'data-open-rper="monthly"') +
           '</div>' +
-          renderAllColumnsBar(tblWeekly, (state.tableReportScope === 'folder' ? 'Folder: ' + tblFolder : bot.name) + ' — Column Header Data Summary') +
+          renderAllColumnsBar(tblWeekly, (state.tableReportScope === 'folder' ? 'Folder: ' + tblFolder : bot.name) + ' — Column Header Data Summary (' + (tblIsEth ? 'Ethiopian Calendar' : 'Gregorian') + ')') +
           '<div class="dash-day-breakdown">' +
             renderDynamicDayBreakdownTable(
               tblDays.slice(0, 7),
               tblWeekly,
               'No filled dated rows in the last 7 days yet. Add data to any row above to calculate Daily & Weekly column summaries here automatically.',
-              'Σ Weekly Total (7 Days)',
-              tblDaily.todayYmd || getLocalYmd(new Date())
+              'Σ Weekly Total (' + tblWeekSub + ')',
+              tblDaily.todayYmd || tblTodayDmy
             ) +
           '</div>';
         }
@@ -12127,6 +12149,12 @@
         };
       }
 
+      var tblCalToggle = document.getElementById('tbl-sum-cal-toggle');
+      if (tblCalToggle) tblCalToggle.onclick = function () {
+        state.reportCalendarMode = state.reportCalendarMode === 'gregorian' ? 'ethiopian' : 'gregorian';
+        try { localStorage.setItem(STORAGE_REPORT_CAL_MODE, state.reportCalendarMode); } catch (e) {}
+        renderTableView(bot);
+      };
       var tblScopeTable = document.getElementById('tbl-sum-scope-table');
       if (tblScopeTable) tblScopeTable.onclick = function () { state.tableReportScope = 'table'; renderTableView(bot); };
       var tblScopeFolder = document.getElementById('tbl-sum-scope-folder');
@@ -15021,7 +15049,8 @@
           if (calChanged || fmtChanged) {
             bot.rows.forEach(function (r) {
               if (r[d.id] && String(r[d.id]).trim() !== '') {
-                var parsedOld = parseFlexibleDate(r[d.id], undefined, prevColSnapshot);
+                var snapCol = Object.assign({}, prevColSnapshot, { calendarType: prevColSnapshot.calendarType || 'gregorian' });
+                var parsedOld = parseFlexibleDate(r[d.id], undefined, snapCol);
                 r[d.id] = formatAutoDateStr(d, parsedOld);
               }
             });
@@ -15279,10 +15308,8 @@
       return { year: gy, month: gm, day: gd };
     }
 
-    function gregorianToEthiopian(dateInput) {
-      var d = dateInput instanceof Date ? dateInput : new Date(dateInput || Date.now());
-      if (isNaN(d.getTime())) d = new Date();
-      var jdn = gregorianToJdn(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    function gregorianPartsToEthiopian(gy, gm, gd) {
+      var jdn = gregorianToJdn(gy, gm, gd);
       var r = (jdn - 1723856) % 1461;
       if (r < 0) r += 1461;
       var n = (r % 365) + 365 * Math.floor(r / 1460);
@@ -15292,9 +15319,19 @@
       return { year: ey, month: em, day: ed };
     }
 
-    function ethiopianToGregorian(ey, em, ed, hh, mm, ss) {
+    function ethiopianToGregorianParts(ey, em, ed) {
       var jdn = (1723856 + 365) + 365 * (ey - 1) + Math.floor(ey / 4) + 30 * em + ed - 31;
-      var g = jdnToGregorian(jdn);
+      return jdnToGregorian(jdn);
+    }
+
+    function gregorianToEthiopian(dateInput) {
+      var d = dateInput instanceof Date ? dateInput : new Date(dateInput || Date.now());
+      if (isNaN(d.getTime())) d = new Date();
+      return gregorianPartsToEthiopian(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    }
+
+    function ethiopianToGregorian(ey, em, ed, hh, mm, ss) {
+      var g = ethiopianToGregorianParts(ey, em, ed);
       return new Date(g.year, g.month - 1, g.day, hh !== undefined ? hh : 12, mm !== undefined ? mm : 0, ss !== undefined ? ss : 0);
     }
 
@@ -15307,90 +15344,219 @@
       return 30;
     }
 
+    function getEthiopiaInstantParts(dateInput) {
+      var d = dateInput instanceof Date ? dateInput : new Date(dateInput || Date.now());
+      if (isNaN(d.getTime())) d = new Date();
+      var eat = new Date(d.getTime() + 3 * 3600000);
+      var gy = eat.getUTCFullYear();
+      var gm = eat.getUTCMonth() + 1;
+      var gd = eat.getUTCDate();
+      return {
+        gy: gy,
+        gm: gm,
+        gd: gd,
+        hh: eat.getUTCHours(),
+        mm: eat.getUTCMinutes(),
+        ss: eat.getUTCSeconds(),
+        weekdayIdx: eat.getUTCDay(),
+        ymd: gy + '-' + String(gm).padStart(2, '0') + '-' + String(gd).padStart(2, '0'),
+        ms: d.getTime()
+      };
+    }
+
+    function formatClock12(hh, mm, ss, suffix) {
+      var h24 = Number(hh) || 0;
+      var ap = h24 >= 12 ? 'PM' : 'AM';
+      var h12 = h24 % 12;
+      if (h12 === 0) h12 = 12;
+      var base = String(h12).padStart(2, '0') + ':' + String(Number(mm) || 0).padStart(2, '0');
+      if (ss !== undefined && ss !== null) base += ':' + String(Number(ss) || 0).padStart(2, '0');
+      return base + ' ' + ap + (suffix ? ' ' + suffix : '');
+    }
+
+    function getReportNowContext(useEthCal) {
+      var now = new Date();
+      var gy, gm, gd, hh, mm, ss, weekdayIdx;
+      if (useEthCal) {
+        var eat = getEthiopiaInstantParts(now);
+        gy = eat.gy; gm = eat.gm; gd = eat.gd;
+        hh = eat.hh; mm = eat.mm; ss = eat.ss;
+        weekdayIdx = eat.weekdayIdx;
+      } else {
+        gy = now.getFullYear(); gm = now.getMonth() + 1; gd = now.getDate();
+        hh = now.getHours(); mm = now.getMinutes(); ss = now.getSeconds();
+        weekdayIdx = now.getDay();
+      }
+      var ymd = gy + '-' + String(gm).padStart(2, '0') + '-' + String(gd).padStart(2, '0');
+      var ec = gregorianPartsToEthiopian(gy, gm, gd);
+      var utcDayMs = Date.UTC(gy, gm - 1, gd);
+      return {
+        now: now,
+        useEthCal: Boolean(useEthCal),
+        gy: gy, gm: gm, gd: gd,
+        hh: hh, mm: mm, ss: ss,
+        weekdayIdx: weekdayIdx,
+        ymd: ymd,
+        ec: ec,
+        utcDayMs: utcDayMs,
+        liveClockLabel: formatClock12(hh, mm, ss, useEthCal ? 'EAT' : '')
+      };
+    }
+
     function isEthiopianCol(col) {
       return Boolean(col && (col.calendarType === 'ethiopian' || String(col.dateFormat || '').indexOf('eth') === 0));
     }
 
     function parseEthiopianMonthName(tok) {
-      var low = String(tok || '').trim().toLowerCase();
-      if (!low) return -1;
+      var raw = String(tok || '').replace(/[\.,:;()\[\]]/g, '').trim();
+      if (!raw) return -1;
+      var low = raw.toLowerCase();
+      var aliases = {
+        meskerem: 1, meskrem: 1, maskaram: 1, 'መስከረም': 1,
+        tikimt: 2, tikemt: 2, teqemt: 2, tiqimt: 2, 'ጥቅምት': 2,
+        hidar: 3, hedar: 3, 'ኅዳር': 3, 'ህዳር': 3,
+        tahsas: 4, tahisas: 4, tahesas: 4, 'ታኅሣሥ': 4, 'ታህሳስ': 4, 'ታኅሳስ': 4, 'ታህሣሥ': 4,
+        tir: 5, ter: 5, 'ጥር': 5,
+        yekatit: 6, yakatit: 6, 'የካቲት': 6,
+        megabit: 7, magabit: 7, 'መጋቢት': 7,
+        miazia: 8, miyazia: 8, miyaziya: 8, miaziya: 8, 'ሚያዝያ': 8, 'ሚያዚያ': 8,
+        ginbot: 9, genbot: 9, 'ግንቦት': 9,
+        sene: 10, 'ሠኔ': 10, 'ሰኔ': 10,
+        hamle: 11, 'ሐምሌ': 11, 'ሃምሌ': 11, 'ሀምሌ': 11,
+        nehase: 12, nahase: 12, 'ነሐሴ': 12, 'ነሃሴ': 12, 'ነሀሴ': 12,
+        pagume: 13, pagumen: 13, 'ጳጉሜ': 13, 'ጳጉሜን': 13, 'ጰጉሜ': 13, 'ጰጉሜን': 13
+      };
+      if (aliases[raw]) return aliases[raw];
+      if (aliases[low]) return aliases[low];
       for (var i = 0; i < ETHIOPIAN_MONTHS_EN.length; i++) {
-        if (ETHIOPIAN_MONTHS_EN[i].toLowerCase() === low || ETHIOPIAN_MONTHS_AM[i] === String(tok || '').trim()) {
+        if (ETHIOPIAN_MONTHS_EN[i].toLowerCase() === low || ETHIOPIAN_MONTHS_AM[i] === raw) {
           return i + 1;
         }
       }
       return -1;
     }
 
-    function parseFlexibleDate(raw, fallbackIso, col) {
-      var s = String(raw === undefined || raw === null ? '' : raw).trim();
-      if (s) {
-        var isEc = isEthiopianCol(col);
-        var curEcYrThreshold = gregorianToEthiopian(new Date()).year + 3;
+    function applyAmPmHours(hh, ap) {
+      var h = hh;
+      if (!ap) return h;
+      var up = String(ap).toUpperCase();
+      if (up === 'PM' && h < 12) h += 12;
+      else if (up === 'AM' && h === 12) h = 0;
+      return h;
+    }
 
-        // Match named Ethiopian dates e.g. "07 Hidar 2019" or "07 ኅዳር 2019" or "Hidar 07, 2019"
-        var namedM = s.match(/^(\d{1,2})\s+([^\d\s\/\-]+)\s+(\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+    function parseFlexibleDateMeta(raw, fallbackIso, col, preferEthiopian) {
+      var sRaw = String(raw === undefined || raw === null ? '' : raw).trim();
+      var hasEthTag = /\b(?:EC|E\.C\.)\b/i.test(sRaw) || /ዓ\.?ም|ዓ\/ም/.test(sRaw);
+      var s = sRaw.replace(/\b(?:EC|E\.C\.)\b/ig, '').replace(/ዓ\.?ም|ዓ\/ም/g, '').replace(/\s+/g, ' ').trim();
+      var isEcCol = isEthiopianCol(col);
+      var explicitGcCol = Boolean(col && col.calendarType === 'gregorian');
+      var curEcYr = gregorianPartsToEthiopian(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate()).year;
+
+      var buildFromGcParts = function (gy, gm, gd, hh, mm, ss, hasTime, isEthSrc, fromString) {
+        var ec = gregorianPartsToEthiopian(gy, gm, gd);
+        var dObj = new Date(gy, gm - 1, gd, hh, mm, ss);
+        if (isNaN(dObj.getTime())) return null;
+        return {
+          date: dObj,
+          gy: gy, gm: gm, gd: gd,
+          hh: hh, mm: mm, ss: ss,
+          hasExplicitTime: Boolean(hasTime),
+          isExplicitEth: Boolean(isEthSrc),
+          parsedFromString: Boolean(fromString),
+          ec: ec,
+          ymd: gy + '-' + String(gm).padStart(2, '0') + '-' + String(gd).padStart(2, '0')
+        };
+      };
+
+      if (s) {
+        // 1. Named Ethiopian dates: "12 Hidar 2019", "12 ህዳር 2019", "12 Hidar 2019 02:30 PM"
+        var namedM = s.match(/^(\d{1,2})\s+([^\d\s\/\-]+)\s+(\d{4})(?:[ T·,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?$/i);
         if (namedM) {
           var emIdx = parseEthiopianMonthName(namedM[2]);
           if (emIdx >= 1) {
-            return ethiopianToGregorian(
-              parseInt(namedM[3], 10), emIdx, parseInt(namedM[1], 10),
-              namedM[4] ? parseInt(namedM[4], 10) : 12,
-              namedM[5] ? parseInt(namedM[5], 10) : 0,
-              namedM[6] ? parseInt(namedM[6], 10) : 0
-            );
+            var gp1 = ethiopianToGregorianParts(parseInt(namedM[3], 10), emIdx, parseInt(namedM[1], 10));
+            var h1 = namedM[4] ? applyAmPmHours(parseInt(namedM[4], 10), namedM[7]) : 12;
+            var res1 = buildFromGcParts(gp1.year, gp1.month, gp1.day, h1, namedM[5] ? parseInt(namedM[5], 10) : 0, namedM[6] ? parseInt(namedM[6], 10) : 0, Boolean(namedM[4]), true, true);
+            if (res1) return res1;
           }
         }
-        var namedM2 = s.match(/^([^\d\s\/\-]+)\s+(\d{1,2}),?\s+(\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        // 2. Named Ethiopian dates: "Hidar 12, 2019" or "ኅዳር 12 2019"
+        var namedM2 = s.match(/^([^\d\s\/\-]+)\s+(\d{1,2}),?\s+(\d{4})(?:[ T·,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?$/i);
         if (namedM2) {
           var emIdx2 = parseEthiopianMonthName(namedM2[1]);
           if (emIdx2 >= 1) {
-            return ethiopianToGregorian(
-              parseInt(namedM2[3], 10), emIdx2, parseInt(namedM2[2], 10),
-              namedM2[4] ? parseInt(namedM2[4], 10) : 12,
-              namedM2[5] ? parseInt(namedM2[5], 10) : 0,
-              namedM2[6] ? parseInt(namedM2[6], 10) : 0
-            );
+            var gp2 = ethiopianToGregorianParts(parseInt(namedM2[3], 10), emIdx2, parseInt(namedM2[2], 10));
+            var h2 = namedM2[4] ? applyAmPmHours(parseInt(namedM2[4], 10), namedM2[7]) : 12;
+            var res2 = buildFromGcParts(gp2.year, gp2.month, gp2.day, h2, namedM2[5] ? parseInt(namedM2[5], 10) : 0, namedM2[6] ? parseInt(namedM2[6], 10) : 0, Boolean(namedM2[4]), true, true);
+            if (res2) return res2;
           }
         }
-
-        var dmyM = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        // 3. Numeric DD/MM/YYYY or MM/DD/YYYY (supports optional time + AM/PM)
+        var dmyM = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[ T·,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?$/i);
         if (dmyM) {
           var p1 = parseInt(dmyM[1], 10);
           var p2 = parseInt(dmyM[2], 10);
           var yr = parseInt(dmyM[3], 10);
           if (yr < 100) yr += 2000;
-          var hh = dmyM[4] ? parseInt(dmyM[4], 10) : 12;
-          var mm = dmyM[5] ? parseInt(dmyM[5], 10) : 0;
-          var ss = dmyM[6] ? parseInt(dmyM[6], 10) : 0;
-          if ((isEc && yr <= curEcYrThreshold) || p2 === 13) {
-            return ethiopianToGregorian(yr, p2, p1, hh, mm, ss);
+          var hh3 = dmyM[4] ? applyAmPmHours(parseInt(dmyM[4], 10), dmyM[7]) : 12;
+          var mm3 = dmyM[5] ? parseInt(dmyM[5], 10) : 0;
+          var ss3 = dmyM[6] ? parseInt(dmyM[6], 10) : 0;
+          var treatAsEth3 = hasEthTag || p2 === 13 || (isEcCol && yr <= curEcYr + 3) || ((preferEthiopian || !explicitGcCol) && yr >= 1990 && yr <= curEcYr + 2);
+          if (treatAsEth3) {
+            var eDay = p1, eMon = p2;
+            if (eMon > 13 && eDay <= 13 && eMon <= 30) { eMon = p1; eDay = p2; }
+            var gp3 = ethiopianToGregorianParts(yr, eMon, eDay);
+            var res3 = buildFromGcParts(gp3.year, gp3.month, gp3.day, hh3, mm3, ss3, Boolean(dmyM[4]), true, true);
+            if (res3) return res3;
           }
-          var day = p1, mon = p2;
-          if (p2 > 12 && p1 <= 12) { mon = p1; day = p2; }
-          var dObj = new Date(yr, mon - 1, day, hh, mm, ss);
-          if (!isNaN(dObj.getTime())) return dObj;
+          var gDay = p1, gMon = p2;
+          if (p2 > 12 && p1 <= 12) { gMon = p1; gDay = p2; }
+          var res3g = buildFromGcParts(yr, gMon, gDay, hh3, mm3, ss3, Boolean(dmyM[4]), false, true);
+          if (res3g) return res3g;
         }
-        var ymdM = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+        // 4. Numeric YYYY-MM-DD or YYYY/MM/DD without timezone suffix
+        var ymdM = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[ T·,]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?(?:\s*(AM|PM))?)?$/i);
         if (ymdM) {
           var yVal = parseInt(ymdM[1], 10);
           var mVal = parseInt(ymdM[2], 10);
           var dVal = parseInt(ymdM[3], 10);
-          var yHh = ymdM[4] ? parseInt(ymdM[4], 10) : 12;
+          var yHh = ymdM[4] ? applyAmPmHours(parseInt(ymdM[4], 10), ymdM[7]) : 12;
           var yMm = ymdM[5] ? parseInt(ymdM[5], 10) : 0;
           var ySs = ymdM[6] ? parseInt(ymdM[6], 10) : 0;
-          if ((isEc && yVal <= curEcYrThreshold) || mVal === 13) {
-            return ethiopianToGregorian(yVal, mVal, dVal, yHh, yMm, ySs);
+          var treatAsEth4 = hasEthTag || mVal === 13 || (isEcCol && yVal <= curEcYr + 3) || ((preferEthiopian || !explicitGcCol) && yVal >= 1990 && yVal <= curEcYr + 2);
+          if (treatAsEth4) {
+            if (mVal > 13 && dVal <= 13 && mVal <= 30) { var tmpM = mVal; mVal = dVal; dVal = tmpM; }
+            var gp4 = ethiopianToGregorianParts(yVal, mVal, dVal);
+            var res4 = buildFromGcParts(gp4.year, gp4.month, gp4.day, yHh, yMm, ySs, Boolean(ymdM[4]), true, true);
+            if (res4) return res4;
           }
-          var dIso = new Date(yVal, mVal - 1, dVal, yHh, yMm, ySs);
-          if (!isNaN(dIso.getTime())) return dIso;
+          var res4g = buildFromGcParts(yVal, mVal, dVal, yHh, yMm, ySs, Boolean(ymdM[4]), false, true);
+          if (res4g) return res4g;
         }
+        // 5. Full ISO timestamp or natural date string
         var norm = s.indexOf(' ') !== -1 && s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
         var parsed = new Date(norm);
-        if (!isNaN(parsed.getTime())) return parsed;
+        if (!isNaN(parsed.getTime())) {
+          if (preferEthiopian || isEcCol || hasEthTag) {
+            var ep = getEthiopiaInstantParts(parsed);
+            return buildFromGcParts(ep.gy, ep.gm, ep.gd, ep.hh, ep.mm, ep.ss, true, Boolean(isEcCol || hasEthTag), true);
+          }
+          return buildFromGcParts(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate(), parsed.getHours(), parsed.getMinutes(), parsed.getSeconds(), true, false, true);
+        }
       }
+
       var fb = new Date(fallbackIso || Date.now());
-      return isNaN(fb.getTime()) ? new Date() : fb;
+      if (isNaN(fb.getTime())) fb = new Date();
+      if (preferEthiopian || isEcCol) {
+        var fbp = getEthiopiaInstantParts(fb);
+        return buildFromGcParts(fbp.gy, fbp.gm, fbp.gd, fbp.hh, fbp.mm, fbp.ss, true, Boolean(isEcCol), false);
+      }
+      return buildFromGcParts(fb.getFullYear(), fb.getMonth() + 1, fb.getDate(), fb.getHours(), fb.getMinutes(), fb.getSeconds(), true, false, false);
+    }
+
+    function parseFlexibleDate(raw, fallbackIso, col, preferEthiopian) {
+      return parseFlexibleDateMeta(raw, fallbackIso, col, preferEthiopian).date;
     }
 
     function formatDmyDate(input) {
@@ -15399,13 +15565,15 @@
     }
 
     function formatEthiopianDate(input, fmt, lang) {
-      var d = input instanceof Date ? input : parseFlexibleDate(input, undefined, { calendarType: 'ethiopian' });
-      var ec = gregorianToEthiopian(d);
+      var meta = (input instanceof Date)
+        ? parseFlexibleDateMeta(input.toISOString(), undefined, { calendarType: 'ethiopian' }, true)
+        : parseFlexibleDateMeta(input, undefined, { calendarType: 'ethiopian' }, true);
+      var ec = meta.ec;
       var dd = String(ec.day).padStart(2, '0');
       var mm = String(ec.month).padStart(2, '0');
       var yyyy = String(ec.year);
-      var hh = String(d.getHours()).padStart(2, '0');
-      var min = String(d.getMinutes()).padStart(2, '0');
+      var hh = String(meta.hh).padStart(2, '0');
+      var min = String(meta.mm).padStart(2, '0');
       if (fmt === 'iso') return yyyy + '-' + mm + '-' + dd + ' ' + hh + ':' + min;
       if (fmt === 'dmy_time') return dd + '/' + mm + '/' + yyyy + ' ' + hh + ':' + min;
       if (fmt === 'eth_named') {
@@ -15417,28 +15585,30 @@
     }
 
     function formatAutoDateStr(col, input) {
-      var d = input instanceof Date ? input : parseFlexibleDate(input, input || new Date().toISOString(), col);
-      var fmt = (col && col.dateFormat) ? col.dateFormat : 'dmy';
-      if (isEthiopianCol(col)) {
-        return formatEthiopianDate(d, fmt, state && state.lang);
+      var useEc = isEthiopianCol(col);
+      if (useEc) {
+        var fmt = (col && col.dateFormat) ? col.dateFormat : 'dmy';
+        return formatEthiopianDate(input || new Date(), fmt, state && state.lang);
       }
-      if (fmt === 'iso') return toLocalDateTimeStr(d);
+      var d = input instanceof Date ? input : parseFlexibleDate(input, input || new Date().toISOString(), col);
+      var fmtG = (col && col.dateFormat) ? col.dateFormat : 'dmy';
+      if (fmtG === 'iso') return toLocalDateTimeStr(d);
       var hh = String(d.getHours()).padStart(2, '0');
       var mm = String(d.getMinutes()).padStart(2, '0');
-      if (fmt === 'dmy_time') return formatDmyDate(d) + ' ' + hh + ':' + mm;
+      if (fmtG === 'dmy_time') return formatDmyDate(d) + ' ' + hh + ':' + mm;
       return formatDmyDate(d);
     }
 
     function toPickerInputValue(rawVal, col) {
       if (rawVal === undefined || rawVal === null || String(rawVal).trim() === '') return '';
-      var d = parseFlexibleDate(rawVal, undefined, col);
+      var meta = parseFlexibleDateMeta(rawVal, undefined, col, isEthiopianCol(col));
       var fmt = (col && col.dateFormat) ? col.dateFormat : 'dmy';
       if (fmt === 'dmy_time' || fmt === 'iso') {
-        var hh = String(d.getHours()).padStart(2, '0');
-        var mm = String(d.getMinutes()).padStart(2, '0');
-        return getLocalYmd(d) + 'T' + hh + ':' + mm;
+        var hh = String(meta.hh).padStart(2, '0');
+        var mm = String(meta.mm).padStart(2, '0');
+        return meta.ymd + 'T' + hh + ':' + mm;
       }
-      return getLocalYmd(d);
+      return meta.ymd;
     }
 
     function autoFillRowDates(bot, row, dateInput, skipColId) {
@@ -15463,6 +15633,8 @@
     }
 
     function isFolderEthiopianCalendar(folderName, botFilterId) {
+      if (state && state.reportCalendarMode === 'gregorian') return false;
+      if (state && state.reportCalendarMode === 'ethiopian') return true;
       var list = state.bots.filter(function (b) {
         if (isBotTombstoned(b)) return false;
         if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return false;
@@ -15474,28 +15646,62 @@
       });
     }
 
-    function formatReportDateChip(dateInput, useEth) {
-      if (useEth) return formatEthiopianDate(dateInput, 'dmy', state && state.lang) + ' EC';
-      return formatDmyDate(dateInput);
+    function formatReportDateChip(nowCtx, useEth, lang) {
+      var ctx = (nowCtx && nowCtx.ymd) ? nowCtx : getReportNowContext(useEth);
+      if (useEth) {
+        var ec = ctx.ec;
+        var list = lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+        var mName = list[ec.month - 1] || String(ec.month);
+        return String(ec.day).padStart(2, '0') + ' ' + mName + ' ' + ec.year + ' EC';
+      }
+      return String(ctx.gd).padStart(2, '0') + '/' + String(ctx.gm).padStart(2, '0') + '/' + ctx.gy;
     }
 
-    function formatReportMonthLabel(dateInput, useEth, lang) {
-      var d = dateInput instanceof Date ? dateInput : new Date(dateInput || Date.now());
+    function formatReportWeekLabel(nowCtx, useEth, lang) {
+      var ctx = (nowCtx && nowCtx.ymd) ? nowCtx : getReportNowContext(useEth);
+      var endMs = ctx.utcDayMs;
+      var startMs = endMs - 6 * 86400000;
+      var sDate = new Date(startMs);
+      var eDate = new Date(endMs);
       if (useEth) {
-        var ec = gregorianToEthiopian(d);
+        var sEc = gregorianPartsToEthiopian(sDate.getUTCFullYear(), sDate.getUTCMonth() + 1, sDate.getUTCDate());
+        var eEc = ctx.ec;
+        var list = lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+        var sM = list[sEc.month - 1] || String(sEc.month);
+        var eM = list[eEc.month - 1] || String(eEc.month);
+        if (sEc.year === eEc.year && sEc.month === eEc.month) {
+          return String(sEc.day).padStart(2, '0') + '–' + String(eEc.day).padStart(2, '0') + ' ' + eM + ' ' + eEc.year + ' EC';
+        }
+        return String(sEc.day).padStart(2, '0') + ' ' + sM + '–' + String(eEc.day).padStart(2, '0') + ' ' + eM + ' ' + eEc.year + ' EC';
+      }
+      var gcShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      if (sDate.getUTCFullYear() === eDate.getUTCFullYear() && sDate.getUTCMonth() === eDate.getUTCMonth()) {
+        return String(sDate.getUTCDate()).padStart(2, '0') + '–' + String(eDate.getUTCDate()).padStart(2, '0') + ' ' + (gcShort[eDate.getUTCMonth()] || '') + ' ' + eDate.getUTCFullYear();
+      }
+      return String(sDate.getUTCDate()).padStart(2, '0') + ' ' + (gcShort[sDate.getUTCMonth()] || '') + '–' + String(eDate.getUTCDate()).padStart(2, '0') + ' ' + (gcShort[eDate.getUTCMonth()] || '');
+    }
+
+    function formatReportMonthLabel(nowCtx, useEth, lang) {
+      var ctx = (nowCtx && nowCtx.ymd) ? nowCtx : getReportNowContext(useEth);
+      if (useEth) {
+        var ec = ctx.ec;
         var list = lang === 'am' ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
         return (list[ec.month - 1] || String(ec.month)) + ' ' + ec.year + ' EC';
       }
       var gcShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return (gcShort[d.getMonth()] || '') + ' ' + d.getFullYear();
+      return (gcShort[ctx.gm - 1] || '') + ' ' + ctx.gy;
     }
 
-    function buildReportItems(botFilterId) {
+    function buildReportItems(botFilterId, useEthReportCal) {
       var items = [];
+      var daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      var preferEth = useEthReportCal !== undefined ? Boolean(useEthReportCal) : (state ? state.reportCalendarMode !== 'gregorian' : true);
       state.bots.forEach(function (bot) {
         if (isBotTombstoned(bot)) return;
         if (botFilterId && botFilterId !== 'all' && bot.id !== botFilterId) return;
         var folderName = bot.folder || 'General';
+        if (isFolderLocked(folderName) && !isFolderUnlocked(folderName)) return;
+
         var findCol = function (preds, excludeMap) {
           for (var pi = 0; pi < preds.length; pi++) {
             var p = preds[pi];
@@ -15522,18 +15728,21 @@
         var paidCol = findCol(['paid', 'payment', 'received', 'deposit', 'pay', 'የተከፈለ', 'col_paid', 'price', 'target', 'amount', 'col_amount'], exclPaid) ||
           findCol(['paid', 'col_paid', 'amount', 'price', 'target', 'col_amount'], balCol ? (function () { var m = {}; m[balCol.id] = true; return m; }()) : null);
         var allDateCols = bot.columns.filter(function (c) { return c.type === 'date'; });
+        var textDateCols = bot.columns.filter(function (c) { return c.type !== 'date' && /date|time|ቀን|eth|day/i.test(String(c.name || '')); });
         var defaultEthDateCol = allDateCols.find(function (c) { return isEthiopianCol(c); }) || null;
-        var fallbackDateCol = allDateCols[0] || findCol(['date', 'time']);
+        var fallbackDateCol = allDateCols[0] || textDateCols[0] || findCol(['date', 'time', 'ቀን']);
 
         bot.rows.forEach(function (row, idx) {
-          // Ignore completely blank untouched rows just created by + Add Row so adding a row never impacts reports until edited
           var hasUserData = bot.columns.some(function (c) {
             var v = row[c.id];
             if (c.type === 'date') {
               return (c.autoInsertDate !== true || row._dateEdited === true) && v !== undefined && v !== null && String(v).trim() !== '';
             }
             if (c.type === 'checkbox') return v === true;
-            if (c.type === 'number' || c.type === 'amount') return Number(v) !== 0 && !isNaN(Number(v)) && v !== '' && v !== undefined && v !== null;
+            if (c.type === 'number' || c.type === 'amount') {
+              if (v === '' || v === undefined || v === null) return false;
+              return !isNaN(Number(String(v).replace(/,/g, '')));
+            }
             if (c.type === 'formula') {
               var fv = getRowColNumeric(row, c, bot, 0);
               return (v !== undefined && v !== null && String(v).trim() !== '') || (!isNaN(fv) && fv !== 0);
@@ -15545,6 +15754,11 @@
           var rowDateCol =
             allDateCols.find(function (c) { return isEthiopianCol(c) && row[c.id] !== undefined && row[c.id] !== null && String(row[c.id]).trim() !== ''; }) ||
             allDateCols.find(function (c) { return row[c.id] !== undefined && row[c.id] !== null && String(row[c.id]).trim() !== ''; }) ||
+            textDateCols.find(function (c) {
+              var rv = row[c.id];
+              if (rv === undefined || rv === null || String(rv).trim() === '') return false;
+              return parseFlexibleDateMeta(rv, undefined, c, preferEth).parsedFromString;
+            }) ||
             defaultEthDateCol ||
             fallbackDateCol;
 
@@ -15626,15 +15840,38 @@
           if (totVal <= 0 && balCol) totVal = paidVal + balVal;
           if (paidVal <= 0 && totVal > 0 && !balCol) paidVal = totVal;
           var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
+
           var rawDate = rowDateCol && row[rowDateCol.id] ? String(row[rowDateCol.id]).trim() : '';
           var fallbackIso = row._updatedAt || row._createdAt || bot.updatedAt || new Date().toISOString();
-          var parsedDate = parseFlexibleDate(rawDate, fallbackIso, rowDateCol);
-          var ecParts = gregorianToEthiopian(parsedDate);
-          var ethDmy = formatEthiopianDate(parsedDate, 'dmy', state && state.lang);
-          var ethNamed = formatEthiopianDate(parsedDate, 'eth_named', state && state.lang);
+          var meta = parseFlexibleDateMeta(rawDate, fallbackIso, rowDateCol, preferEth);
+          var ecParts = meta.ec;
+          var ethDmy = String(ecParts.day).padStart(2, '0') + '/' + String(ecParts.month).padStart(2, '0') + '/' + ecParts.year;
+          var ethMList = (state && state.lang === 'am') ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+          var ethNamed = String(ecParts.day).padStart(2, '0') + ' ' + (ethMList[ecParts.month - 1] || ecParts.month) + ' ' + ecParts.year;
           var ethYmd = String(ecParts.year) + '-' + String(ecParts.month).padStart(2, '0') + '-' + String(ecParts.day).padStart(2, '0');
-          var isEth = isEthiopianCol(rowDateCol);
-          var dt = rowDateCol ? formatAutoDateStr(rowDateCol, parsedDate) : (rawDate || formatDmyDate(parsedDate));
+          var dmy = String(meta.gd).padStart(2, '0') + '/' + String(meta.gm).padStart(2, '0') + '/' + meta.gy;
+          var utcDayMs = Date.UTC(meta.gy, meta.gm - 1, meta.gd);
+          var weekday = daysShort[new Date(utcDayMs).getUTCDay()];
+
+          var fbInstant = new Date(fallbackIso);
+          var hrForBucket = meta.hh;
+          var minForDisplay = meta.mm;
+          if (!meta.hasExplicitTime && !isNaN(fbInstant.getTime())) {
+            if (preferEth) {
+              var fbEat = getEthiopiaInstantParts(fbInstant);
+              hrForBucket = fbEat.hh;
+              minForDisplay = fbEat.mm;
+            } else {
+              hrForBucket = fbInstant.getHours();
+              minForDisplay = fbInstant.getMinutes();
+            }
+          }
+          var ethTimeStr = formatClock12(hrForBucket, minForDisplay, null, preferEth ? 'EAT' : '');
+          var isEth = Boolean(preferEth || isEthiopianCol(rowDateCol) || meta.isExplicitEth);
+          var dt = preferEth
+            ? (ethDmy + ' EC · ' + formatClock12(hrForBucket, minForDisplay, null, 'EAT'))
+            : (dmy + ' · ' + formatClock12(hrForBucket, minForDisplay, null, ''));
+
           items.push({
             id: row.id,
             botId: bot.id,
@@ -15653,12 +15890,19 @@
             dateCol: rowDateCol || null,
             isEthiopian: isEth,
             ec: ecParts,
+            gy: meta.gy,
+            gm: meta.gm,
+            gd: meta.gd,
+            hours: hrForBucket,
+            weekday: weekday,
+            utcDayMs: utcDayMs,
             ethDmy: ethDmy,
             ethNamed: ethNamed,
             ethYmd: ethYmd,
-            ymd: getLocalYmd(parsedDate),
-            dmy: formatDmyDate(parsedDate),
-            parsedMs: parsedDate.getTime(),
+            ethTimeStr: ethTimeStr,
+            ymd: meta.ymd,
+            dmy: dmy,
+            parsedMs: meta.date.getTime(),
             rawUpdatedAt: fallbackIso
           });
         });
@@ -15667,17 +15911,18 @@
     }
 
     function exportReportCsv(period, folder, items, met, repData) {
-      var dStr = getLocalYmd(new Date());
-      var targetFolder = (folder && folder !== 'all') ? folder : (getAllFolders()[0] || 'General');
       var isEth = Boolean(repData && repData.isEthiopianCal);
-      var todayDisplay = formatReportDateChip(new Date(), isEth);
+      var ctx = (repData && repData.nowCtx) ? repData.nowCtx : getReportNowContext(isEth);
+      var dStr = ctx.ymd;
+      var targetFolder = (!folder || folder === 'all') ? 'All Folders' : folder;
+      var todayDisplay = formatReportDateChip(ctx, isEth, state && state.lang);
       var cols = (repData && repData.columnSummaries) ? repData.columnSummaries : [];
       var lines = [
         '"TableBot - Folder Column Header Report"',
         '"Period:","' + period.toUpperCase() + ' REPORT"',
-        '"Calendar:","' + (isEth ? 'Ethiopian Calendar (EC)' : 'Gregorian Calendar') + '"',
+        '"Calendar:","' + (isEth ? 'Ethiopian Calendar (EC · EAT UTC+3)' : 'Gregorian Calendar') + '"',
         '"Date:","' + todayDisplay + '"',
-        '"Generated (Real-Time):","' + toLocalDateTimeStr(new Date()) + '"',
+        '"Generated (Real-Time):","' + ctx.liveClockLabel + '"',
         '"Folder:","' + targetFolder.replace(/"/g, '""') + '"',
         '"Total Rows:","' + items.length + '"'
       ];
@@ -15708,17 +15953,18 @@
     }
 
     function exportReportPdfHtml(period, folder, items, met, repData) {
-      var dStr = getLocalYmd(new Date());
-      var targetFolder = (folder && folder !== 'all') ? folder : (getAllFolders()[0] || 'General');
       var isEth = Boolean(repData && repData.isEthiopianCal);
-      var todayDisplay = formatReportDateChip(new Date(), isEth);
+      var ctx = (repData && repData.nowCtx) ? repData.nowCtx : getReportNowContext(isEth);
+      var dStr = ctx.ymd;
+      var targetFolder = (!folder || folder === 'all') ? 'All Folders' : folder;
+      var todayDisplay = formatReportDateChip(ctx, isEth, state && state.lang);
       var cols = (repData && repData.columnSummaries) ? repData.columnSummaries : [];
       var colSummaryHtml = cols.map(function (c) {
         return '<span style="display:inline-block;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:4px 10px;margin:3px 6px 3px 0;font-size:12px;"><strong>' + esc(c.name) + ':</strong> ' + esc(c.summaryValue) + '</span>';
       }).join('');
       var thHtml = '<th>#</th><th>Table</th>' + cols.map(function (c) { return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.name) + '</th>'; }).join('') + '<th>Date</th>';
       var rowsHtml = items.length === 0
-        ? '<tr><td colspan="' + (cols.length + 3) + '" style="text-align:center;color:#64748B;">No rows in folder "' + esc(targetFolder) + '" yet.</td></tr>'
+        ? '<tr><td colspan="' + (cols.length + 3) + '" style="text-align:center;color:#64748B;">No rows in "' + esc(targetFolder) + '" yet.</td></tr>'
         : items.map(function (it, i) {
             var colByKey = {};
             (it.allCols || []).forEach(function (ac) { colByKey[String(ac.name || '').trim().toLowerCase()] = ac; });
@@ -15734,7 +15980,7 @@
         '<td></td></tr>';
       var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + esc(targetFolder) + ' Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}h2{font-size:14px;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;}th,td{border:1px solid #CBD5E1;padding:7px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
         '<body onload="window.print()"><div class="np" style="background:#0D47A1;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;"><span>Print / Save as PDF</span><button onclick="window.print()" style="background:#fff;color:#0D47A1;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button></div>' +
-        '<h1>' + esc(targetFolder) + ' &mdash; ' + period.toUpperCase() + ' COLUMN REPORT</h1><p>Folder: <strong>' + esc(targetFolder) + '</strong> &middot; Date: <strong>' + esc(todayDisplay) + '</strong> &middot; Real-Time: ' + toLocalDateTimeStr(new Date()) + '</p>' +
+        '<h1>' + esc(targetFolder) + ' &mdash; ' + period.toUpperCase() + ' COLUMN REPORT</h1><p>Scope: <strong>' + esc(targetFolder) + '</strong> &middot; Date: <strong>' + esc(todayDisplay) + '</strong> &middot; Time: ' + esc(ctx.liveClockLabel) + '</p>' +
         '<div style="margin:10px 0;">' + colSummaryHtml + '</div>' +
         '<table><thead><tr>' + thHtml + '</tr></thead><tbody>' + rowsHtml + '</tbody><tfoot>' + tfootHtml + '</tfoot></table></body></html>';
       downloadBlob(doc, 'TableBot_' + targetFolder.replace(/\s+/g, '_') + '_' + period + '_Report_' + dStr + '.html', 'text/html');
@@ -15761,16 +16007,16 @@
       var daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       var map = {};
       items.forEach(function (it) {
-        var key = it.ymd || getLocalYmd(parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol));
+        var key = it.ymd || getLocalYmd(parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol, forceEth));
         var useEth = Boolean(forceEth || it.isEthiopian || isEthiopianCol(it.dateCol));
         if (!map[key]) {
-          var dObj = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
+          var wd = it.weekday || daysShort[new Date(it.utcDayMs || (it.parsedMs || Date.now())).getUTCDay()];
           map[key] = {
             ymd: key,
-            dmy: it.dmy || formatDmyDate(dObj),
-            ethDmy: useEth ? (it.ethDmy || formatEthiopianDate(dObj, 'dmy', state && state.lang)) : '',
-            ethNamed: useEth ? (it.ethNamed || formatEthiopianDate(dObj, 'eth_named', state && state.lang)) : '',
-            weekday: daysShort[dObj.getDay()],
+            dmy: it.dmy || formatDmyDate(it.parsedMs ? new Date(it.parsedMs) : new Date()),
+            ethDmy: useEth ? (it.ethDmy || '') : '',
+            ethNamed: useEth ? (it.ethNamed || '') : '',
+            weekday: wd,
             rowCount: 0,
             quantitySum: 0,
             totalInvoiced: 0,
@@ -15781,10 +16027,9 @@
             colChecked: {},
             colLatest: {}
           };
-        } else if (useEth && !map[key].ethDmy) {
-          var dObj2 = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
-          map[key].ethDmy = it.ethDmy || formatEthiopianDate(dObj2, 'dmy', state && state.lang);
-          map[key].ethNamed = it.ethNamed || formatEthiopianDate(dObj2, 'eth_named', state && state.lang);
+        } else if (useEth && !map[key].ethDmy && it.ethDmy) {
+          map[key].ethDmy = it.ethDmy;
+          map[key].ethNamed = it.ethNamed || '';
         }
         var g = map[key];
         g.rowCount++;
@@ -15812,18 +16057,20 @@
     function calculateLiveReportSummary(period, folderFilter, statusFilter, search, botFilterId) {
       var per = period || 'all';
       var folders = getAllFolders();
-      var fld = (folderFilter && folderFilter !== 'all') ? folderFilter : (folders[0] || 'General');
+      var isAllFolders = (!folderFilter || folderFilter === 'all');
+      var fld = isAllFolders ? 'all' : folderFilter;
       var stF = statusFilter || 'all';
       var q = (search || '').trim().toLowerCase();
-      var allItems = buildReportItems(botFilterId);
-      var refNow = new Date();
-      var todayYmd = getLocalYmd(refNow);
-      var nowEc = gregorianToEthiopian(refNow);
-      var todayMidnight = new Date(refNow.getFullYear(), refNow.getMonth(), refNow.getDate()).getTime();
-      var folderIsEth = isFolderEthiopianCalendar(fld, botFilterId);
+      var useEthCal = isFolderEthiopianCalendar(fld, botFilterId);
+      var allItems = buildReportItems(botFilterId, useEthCal);
+      var nowCtx = getReportNowContext(useEthCal);
+      var refNow = nowCtx.now;
+      var todayYmd = nowCtx.ymd;
+      var nowEc = nowCtx.ec;
+      var todayUtcMs = nowCtx.utcDayMs;
 
       var filtered = allItems.filter(function (it) {
-        if (fld && it.folder !== fld) return false;
+        if (!isAllFolders && it.folder !== fld) return false;
         if (q) {
           var hitBase = it.customerName.toLowerCase().indexOf(q) !== -1 ||
             it.qualityOrQuantity.toLowerCase().indexOf(q) !== -1 ||
@@ -15841,24 +16088,21 @@
         if (stF === 'paid' && it.remainingBalance > 0.01) return false;
         if (stF === 'remaining' && it.remainingBalance <= 0.01) return false;
         if (per === 'all') return true;
-        var dt = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
-        var itemEc = it.ec || gregorianToEthiopian(dt);
+        var itemEc = it.ec || gregorianPartsToEthiopian(it.gy, it.gm, it.gd);
         if (per === 'daily') {
-          if (it.ymd === todayYmd || getLocalYmd(dt) === todayYmd) return true;
-          if (it.isEthiopian || folderIsEth) {
+          if (useEthCal) {
             return itemEc.year === nowEc.year && itemEc.month === nowEc.month && itemEc.day === nowEc.day;
           }
-          return false;
+          return it.ymd === todayYmd;
         }
         if (per === 'weekly') {
-          var dtMid = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-          var dayDiff = (todayMidnight - dtMid) / 86400000;
+          var dayDiff = Math.round((todayUtcMs - it.utcDayMs) / 86400000);
           return dayDiff >= -1 && dayDiff <= 6;
         }
-        if (it.isEthiopian || folderIsEth) {
+        if (useEthCal) {
           return itemEc.month === nowEc.month && itemEc.year === nowEc.year;
         }
-        return dt.getMonth() === refNow.getMonth() && dt.getFullYear() === refNow.getFullYear();
+        return it.gm === nowCtx.gm && it.gy === nowCtx.gy;
       });
 
       var met = { totalInvoiced: 0, totalPaid: 0, totalRemaining: 0, totalQuantity: 0, numFormulaSum: 0, rowCount: filtered.length, paidCount: 0, balCount: 0 };
@@ -15901,8 +16145,10 @@
 
       state.bots.forEach(function (b) {
         if (isBotTombstoned(b)) return;
+        var bf = b.folder || 'General';
+        if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return;
         if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return;
-        if (fld && (b.folder || 'General') !== fld) return;
+        if (!isAllFolders && bf !== fld) return;
         (b.columns || []).forEach(function (c) { ensureColMeta(c); });
       });
 
@@ -15930,7 +16176,13 @@
         return cm;
       });
 
-      var folderBots = state.bots.filter(function (b) { return !isBotTombstoned(b) && (b.folder || 'General') === fld; });
+      var folderBots = state.bots.filter(function (b) {
+        if (isBotTombstoned(b)) return false;
+        var bf = b.folder || 'General';
+        if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return false;
+        if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return false;
+        return isAllFolders || bf === fld;
+      });
       var tableSummaries = folderBots.map(function (fb) {
         var tItems = filtered.filter(function (it) { return it.botId === fb.id; });
         var tCols = {};
@@ -15967,6 +16219,7 @@
         return {
           botId: fb.id,
           botName: fb.name,
+          folder: fb.folder || 'General',
           rowCount: tItems.length,
           colCount: (fb.columns || []).length,
           colMap: tCols
@@ -15977,11 +16230,14 @@
         period: per,
         folder: fld,
         refNow: refNow,
+        nowCtx: nowCtx,
         todayYmd: todayYmd,
         nowEc: nowEc,
-        isEthiopianCal: folderIsEth,
-        todayDisplayLabel: formatReportDateChip(refNow, folderIsEth),
-        monthDisplayLabel: formatReportMonthLabel(refNow, folderIsEth, state && state.lang),
+        isEthiopianCal: useEthCal,
+        todayDisplayLabel: formatReportDateChip(nowCtx, useEthCal, state && state.lang),
+        weekDisplayLabel: formatReportWeekLabel(nowCtx, useEthCal, state && state.lang),
+        monthDisplayLabel: formatReportMonthLabel(nowCtx, useEthCal, state && state.lang),
+        liveClockLabel: nowCtx.liveClockLabel,
         folders: folders,
         filtered: filtered,
         met: met,
@@ -16115,18 +16371,27 @@
     function renderReportsModal(m) {
       var allFolders = getAllFolders();
       if (!m.period) m.period = 'all';
-      if (!m.folder || m.folder === 'all' || allFolders.indexOf(m.folder) === -1) {
+      if (!m.folder) {
         var actB = getActiveBot();
-        m.folder = (state.selectedFolder && state.selectedFolder !== 'all' && allFolders.indexOf(state.selectedFolder) !== -1)
+        m.folder = (state.selectedFolder && (state.selectedFolder === 'all' || allFolders.indexOf(state.selectedFolder) !== -1))
           ? state.selectedFolder
-          : (actB && allFolders.indexOf(actB.folder || 'General') !== -1 ? (actB.folder || 'General') : (allFolders[0] || 'General'));
+          : (actB && allFolders.indexOf(actB.folder || 'General') !== -1 ? (actB.folder || 'General') : 'all');
+      } else if (m.folder !== 'all' && allFolders.indexOf(m.folder) === -1) {
+        m.folder = 'all';
       }
       if (!m.botId) m.botId = 'all';
       if (!m.status) m.status = 'all';
       if (m.search === undefined) m.search = '';
       if (m.menuOpen === undefined) m.menuOpen = false;
 
-      var folderBotsAll = state.bots.filter(function (b) { return !isBotTombstoned(b) && (b.folder || 'General') === m.folder; });
+      var isAllFoldersScope = (m.folder === 'all');
+      var folderScopeLabel = isAllFoldersScope ? 'All Folders' : m.folder;
+      var folderBotsAll = state.bots.filter(function (b) {
+        if (isBotTombstoned(b)) return false;
+        var bf = b.folder || 'General';
+        if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return false;
+        return isAllFoldersScope || bf === m.folder;
+      });
       if (m.botId !== 'all' && !folderBotsAll.some(function (b) { return b.id === m.botId; })) {
         m.botId = 'all';
       }
@@ -16137,7 +16402,9 @@
       var todayYmd = repData.todayYmd;
       var isEthCal = Boolean(repData.isEthiopianCal);
       var todayDisplayChip = repData.todayDisplayLabel || formatDmyDate(refNow);
-      var monthDisplayChip = isEthCal ? repData.monthDisplayLabel : 'This Month';
+      var weekDisplayChip = repData.weekDisplayLabel || 'Last 7 Days';
+      var monthDisplayChip = repData.monthDisplayLabel || 'This Month';
+      var liveTimeStr = repData.liveClockLabel || formatClock12(refNow.getHours(), refNow.getMinutes(), refNow.getSeconds(), isEthCal ? 'EAT' : '');
       var filtered = repData.filtered;
       var met = repData.met;
       var colSummaries = repData.columnSummaries || [];
@@ -16152,7 +16419,7 @@
       if (m.period === 'daily') {
         var hBuckets = [{ l: 'Morning', v: 0, c: 0 }, { l: 'Afternoon', v: 0, c: 0 }, { l: 'Evening', v: 0, c: 0 }];
         filtered.forEach(function (it) {
-          var hr = (it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol)).getHours();
+          var hr = (it.hours !== undefined && !isNaN(it.hours)) ? it.hours : (it.parsedMs ? new Date(it.parsedMs).getHours() : 12);
           var idx = isNaN(hr) ? 1 : (hr < 12 ? 0 : hr < 17 ? 1 : 2);
           var nv = primaryNumCol
             ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
@@ -16165,11 +16432,11 @@
         var wDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         var wMap = {}; wDays.forEach(function (d) { wMap[d] = { l: d, v: 0, c: 0 }; });
         filtered.forEach(function (it) {
-          var d = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
-          var key = wDays[d.getDay()];
+          var key = it.weekday || wDays[(it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol, isEthCal)).getDay()];
           var nv = primaryNumCol
             ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
             : 1;
+          if (!wMap[key]) wMap[key] = { l: key, v: 0, c: 0 };
           wMap[key].v += Math.max(0, Number(nv) || 0);
           wMap[key].c += 1;
         });
@@ -16177,10 +16444,9 @@
       } else if (m.period === 'monthly') {
         var wkB = [{ l: 'Wk 1', v: 0, c: 0 }, { l: 'Wk 2', v: 0, c: 0 }, { l: 'Wk 3', v: 0, c: 0 }, { l: 'Wk 4+', v: 0, c: 0 }];
         filtered.forEach(function (it) {
-          var d = it.parsedMs ? new Date(it.parsedMs) : parseFlexibleDate(it.date, it.rawUpdatedAt, it.dateCol);
-          var dom = (it.isEthiopian || isEthCal)
-            ? (it.ec ? it.ec.day : gregorianToEthiopian(d).day)
-            : d.getDate();
+          var dom = isEthCal
+            ? (it.ec ? it.ec.day : gregorianPartsToEthiopian(it.gy, it.gm, it.gd).day)
+            : (it.gd || new Date(it.parsedMs || Date.now()).getDate());
           var idx = dom <= 7 ? 0 : dom <= 14 ? 1 : dom <= 21 ? 2 : 3;
           var nv = primaryNumCol
             ? ((it.allCols || []).find(function (ac) { return String(ac.name || '').trim().toLowerCase() === primaryNumCol.key; }) || {}).numeric || 0
@@ -16197,7 +16463,6 @@
       }
       if (trends.length === 0) trends = [{ l: 'No Data', v: 0, c: 0 }];
       var maxBar = Math.max.apply(null, trends.map(function (t) { return primaryNumCol ? t.v : t.c; }).concat([1]));
-      var liveTimeStr = refNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       var kpiPalettes = [
         { border: '#7C3AED', bg: 'linear-gradient(180deg,#F5F3FF 0%,#FFFFFF 100%)', lbl: '#5B21B6', val: '#6D28D9' },
         { border: '#1D4ED8', bg: 'linear-gradient(180deg,#EFF6FF 0%,#FFFFFF 100%)', lbl: '#1E40AF', val: '#0D47A1' },
@@ -16209,9 +16474,10 @@
 
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" id="m-card">' +
         '<header class="modal-header no-print">' +
-          '<div style="display:flex;align-items:center;gap:10px;">' + icon('chart', 22) + '<div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h2 style="font-size:16px;font-weight:700;">Column Header Reports &amp; Summary Cards</h2><span class="pill-badge" style="text-transform:uppercase;">' + (m.period === 'all' ? 'ALL DATES' : esc(m.period)) + '</span><span class="pill-badge" style="background:#10B981;color:#fff;">Live ' + esc(liveTimeStr) + '</span>' + (isEthCal ? '<span class="pill-badge" style="background:#F59E0B;color:#fff;">Ethiopian Calendar</span>' : '') + '</div>' +
-          '<div style="font-size:11px;color:#BFDBFE;">Folder: <strong>' + esc(m.folder) + '</strong> &middot; Summary Cards &amp; Data Displayed by Column Header Name</div></div></div>' +
-          '<div style="display:flex;align-items:center;gap:8px;position:relative;">' +
+          '<div style="display:flex;align-items:center;gap:10px;">' + icon('chart', 22) + '<div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><h2 style="font-size:16px;font-weight:700;">Column Header Reports &amp; Summary Cards</h2><span class="pill-badge" style="text-transform:uppercase;">' + (m.period === 'all' ? 'ALL DATES' : esc(m.period)) + '</span><span id="rep-live-clock" class="pill-badge mono" style="background:#10B981;color:#fff;">Live ' + esc(liveTimeStr) + '</span><span class="pill-badge" style="background:' + (isEthCal ? '#F59E0B' : '#475569') + ';color:#fff;">' + (isEthCal ? 'Ethiopian Calendar' : 'Gregorian Calendar') + '</span></div>' +
+          '<div style="font-size:11px;color:#BFDBFE;">Scope: <strong>' + esc(folderScopeLabel) + '</strong> &middot; Summary Cards &amp; Data Displayed by Column Header Name</div></div></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;position:relative;flex-wrap:wrap;">' +
+            '<button id="rep-cal-toggle" class="btn" style="background:' + (isEthCal ? '#10B981' : 'rgba(255,255,255,0.16)') + ';color:#fff;border:1px solid rgba(255,255,255,0.35);padding:6px 10px;font-size:11.5px;" title="Switch Report Calendar (Ethiopian / Gregorian)">' + (isEthCal ? 'EC (Ethiopia)' : 'GC (Gregorian)') + '</button>' +
             '<button id="rep-refresh-live" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;padding:6px 10px;font-size:11.5px;" title="Refresh real-time column totals">' + icon('refresh', 14) + '<span>Live Sync</span></button>' +
             '<button id="rep-dl-toggle" class="btn btn-green" style="font-size:12px;">' + icon('download', 15) + '<span>Download PDF/CSV Report</span>' + icon('chevronDown', 13) + '</button>' +
             (m.menuOpen ? '<div class="dropdown-menu" style="top:42px;width:240px;">' +
@@ -16226,16 +16492,17 @@
           '<div style="display:flex;background:rgba(13,71,161,0.7);padding:3px;border-radius:10px;gap:3px;flex-wrap:wrap;">' +
             '<button class="btn" data-rper="all" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'all' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">All Dates</button>' +
             '<button class="btn" data-rper="daily" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'daily' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Daily (' + esc(todayDisplayChip) + ')</button>' +
-            '<button class="btn" data-rper="weekly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'weekly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Weekly Report</button>' +
-            '<button class="btn" data-rper="monthly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'monthly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Monthly (' + esc(isEthCal ? repMonthly.monthDisplayLabel : 'Month') + ')</button>' +
+            '<button class="btn" data-rper="weekly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'weekly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Weekly (' + esc(weekDisplayChip) + ')</button>' +
+            '<button class="btn" data-rper="monthly" style="padding:6px 12px;font-size:11.5px;' + (m.period === 'monthly' ? 'background:#fff;color:#0D47A1;' : 'color:#DBEAFE;') + '">Monthly (' + esc(monthDisplayChip) + ')</button>' +
           '</div>' +
           '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
             '<select id="rep-folder" class="header-select" title="Choose Folder">' +
+              '<option value="all"' + (isAllFoldersScope ? ' selected' : '') + '>All Folders</option>' +
               folders.map(function (f) { return '<option value="' + esc(f) + '"' + (m.folder === f ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join('') +
             '</select>' +
-            '<select id="rep-bot" class="header-select" title="Filter Table in Folder">' +
-              '<option value="all"' + (m.botId === 'all' ? ' selected' : '') + '>All Tables in ' + esc(m.folder) + ' (' + folderBotsAll.length + ')</option>' +
-              folderBotsAll.map(function (b) { return '<option value="' + esc(b.id) + '"' + (m.botId === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') +
+            '<select id="rep-bot" class="header-select" title="Filter Table">' +
+              '<option value="all"' + (m.botId === 'all' ? ' selected' : '') + '>All Tables in ' + esc(folderScopeLabel) + ' (' + folderBotsAll.length + ')</option>' +
+              folderBotsAll.map(function (b) { return '<option value="' + esc(b.id) + '"' + (m.botId === b.id ? ' selected' : '') + '>' + esc(b.name + (isAllFoldersScope ? ' [' + (b.folder || 'General') + ']' : '')) + '</option>'; }).join('') +
             '</select>' +
             '<select id="rep-status" class="header-select">' +
               '<option value="all"' + (m.status === 'all' ? ' selected' : '') + '>All Rows</option>' +
@@ -16245,7 +16512,7 @@
           '</div></div>' +
         '<div class="modal-body tinted" style="display:flex;flex-direction:column;gap:16px;">' +
           '<div class="no-print" style="background:#fff;border:1px solid #A7F3D0;border-radius:14px;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;">' +
-            '<div><div style="font-weight:700;font-size:13.5px;">Real-Time Folder Report: ' + esc(m.folder) + ' (' + esc(isEthCal ? todayDisplayChip : todayYmd) + ' · ' + esc(liveTimeStr) + ')</div><div style="font-size:11.5px;color:#64748B;">Showing ' + colSummaries.length + ' Column Header(s) &middot; ' + filtered.length + ' live record(s) across ' + (m.botId === 'all' ? folderBotsAll.length : 1) + ' table(s)' + (isEthCal ? ' · Ethiopian Calendar Active' : '') + '.</div></div>' +
+            '<div><div style="font-weight:700;font-size:13.5px;">Real-Time Report: ' + esc(folderScopeLabel) + ' (' + esc(todayDisplayChip) + ' · ' + esc(liveTimeStr) + ')</div><div style="font-size:11.5px;color:#64748B;">Showing ' + colSummaries.length + ' Column Header(s) &middot; ' + filtered.length + ' live record(s) across ' + (m.botId === 'all' ? folderBotsAll.length : 1) + ' table(s)' + (isEthCal ? ' · Ethiopian Calendar (EAT UTC+3)' : ' · Gregorian Calendar') + '.</div></div>' +
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               '<input id="rep-search" class="form-input" style="width:200px;padding:6px 10px;font-size:12px;" placeholder="Search column data, record..." value="' + esc(m.search) + '" />' +
               '<button id="ban-pdf" class="btn btn-red" style="font-size:11.5px;">' + icon('pdf', 14) + '<span>PDF</span></button>' +
@@ -16255,12 +16522,12 @@
           '</div>' +
           '<div class="dash-sum-cards" style="padding:0;background:transparent;">' +
             renderColorfulSummaryCard('Daily Summary', todayDisplayChip, repDaily, 'daily', 'sum-card-daily' + (m.period === 'daily' ? ' active' : ''), 'data-rper="daily"') +
-            renderColorfulSummaryCard('Weekly Summary', 'Last 7 Days', repWeekly, 'weekly', 'sum-card-weekly' + (m.period === 'weekly' ? ' active' : ''), 'data-rper="weekly"') +
+            renderColorfulSummaryCard('Weekly Summary', weekDisplayChip, repWeekly, 'weekly', 'sum-card-weekly' + (m.period === 'weekly' ? ' active' : ''), 'data-rper="weekly"') +
             renderColorfulSummaryCard('Monthly Summary', monthDisplayChip, repMonthly, 'monthly', 'sum-card-monthly' + (m.period === 'monthly' ? ' active' : ''), 'data-rper="monthly"') +
           '</div>' +
           '<div class="kpi-grid" style="margin-bottom:0;">' +
             (colSummaries.length === 0
-              ? '<div class="kpi-card" style="border-top:4px solid #1D4ED8;"><div class="field-label" style="margin:0;">Records (' + esc(m.folder) + ')</div><div class="kpi-val">' + filtered.length + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">No columns defined yet</div></div>'
+              ? '<div class="kpi-card" style="border-top:4px solid #1D4ED8;"><div class="field-label" style="margin:0;">Records (' + esc(folderScopeLabel) + ')</div><div class="kpi-val">' + filtered.length + '</div><div style="font-size:11px;color:#64748B;margin-top:4px;">No columns defined yet</div></div>'
               : colSummaries.map(function (cs, idx) {
                   var pal = kpiPalettes[idx % kpiPalettes.length];
                   return '<div class="kpi-card" style="border-top:4px solid ' + pal.border + ';background:' + pal.bg + ';">' +
@@ -16269,12 +16536,12 @@
                       '<span style="font-size:9.5px;font-weight:800;color:' + pal.lbl + ';background:rgba(15,23,42,0.06);padding:1px 6px;border-radius:999px;text-transform:uppercase;">' + esc(cs.type) + '</span>' +
                     '</div>' +
                     '<div class="kpi-val" style="color:' + pal.val + ';font-size:19px;">' + esc(cs.summaryValue) + '</div>' +
-                    '<div style="font-size:11px;color:#64748B;margin-top:4px;">' + cs.count + ' filled row(s) &middot; ' + esc(m.folder) + '</div>' +
+                    '<div style="font-size:11px;color:#64748B;margin-top:4px;">' + cs.count + ' filled row(s) &middot; ' + esc(folderScopeLabel) + '</div>' +
                   '</div>';
                 }).join('')) +
           '</div>' +
           '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
-            renderAllColumnsBar(repData, 'Folder: ' + m.folder + ' — Column Header Data Summary (' + (m.period === 'all' ? 'ALL DATES' : m.period.toUpperCase()) + ')') +
+            renderAllColumnsBar(repData, folderScopeLabel + ' — Column Header Data Summary (' + (m.period === 'all' ? 'ALL DATES' : m.period.toUpperCase()) + ')') +
           '</div>' +
           '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
             '<div style="padding:10px 16px;background:linear-gradient(90deg,#F5F3FF 0%,#F8FAFC 100%);border-bottom:1px solid #CBD5E1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
@@ -16287,7 +16554,7 @@
             '</div></div>' +
           '<div style="background:#fff;border:1px solid #CBD5E1;border-radius:14px;overflow:hidden;">' +
             '<div style="padding:10px 16px;background:linear-gradient(90deg,#EFF6FF 0%,#F8FAFC 100%);border-bottom:1px solid #CBD5E1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
-              '<div><div style="font-weight:800;font-size:13px;color:#0D47A1;">Tables in "' + esc(m.folder) + '" — Column Header Totals</div>' +
+              '<div><div style="font-weight:800;font-size:13px;color:#0D47A1;">Tables in "' + esc(folderScopeLabel) + '" — Column Header Totals</div>' +
               '<div style="font-size:11px;color:#64748B;">Summary per table grouped by actual column header name</div></div>' +
               '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;">' + tableSummaries.length + ' Table(s)</span>' +
             '</div>' +
@@ -16296,10 +16563,10 @@
                 colSummaries.map(function (c) { return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.name) + '</th>'; }).join('') +
               '<th class="no-print" style="text-align:right;">Open</th></tr></thead><tbody>' +
               (tableSummaries.length === 0
-                ? '<tr><td colspan="' + (colSummaries.length + 3) + '" style="text-align:center;color:#64748B;padding:12px;">No tables in folder "' + esc(m.folder) + '" yet.</td></tr>'
+                ? '<tr><td colspan="' + (colSummaries.length + 3) + '" style="text-align:center;color:#64748B;padding:12px;">No tables in "' + esc(folderScopeLabel) + '" yet.</td></tr>'
                 : tableSummaries.map(function (ts) {
                     return '<tr>' +
-                      '<td style="font-weight:800;color:#0D47A1;">' + esc(ts.botName) + '</td>' +
+                      '<td style="font-weight:800;color:#0D47A1;">' + esc(ts.botName) + (isAllFoldersScope && ts.folder ? ' <span style="font-size:10px;color:#64748B;font-weight:600;">[' + esc(ts.folder) + ']</span>' : '') + '</td>' +
                       '<td style="text-align:center;font-weight:700;">' + ts.rowCount + '</td>' +
                       colSummaries.map(function (c) {
                         var cellSum = ts.colMap[c.key];
@@ -16309,7 +16576,7 @@
                     '</tr>';
                   }).join('')) +
               '</tbody><tfoot><tr>' +
-                '<td>Σ ' + esc(m.folder) + ' Folder Total</td>' +
+                '<td>Σ ' + esc(folderScopeLabel) + ' Total</td>' +
                 '<td style="text-align:center;">' + filtered.length + '</td>' +
                 colSummaries.map(function (c) {
                   return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.summaryValue) + '</td>';
@@ -16318,7 +16585,7 @@
               '</tr></tfoot></table></div></div>' +
           '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:16px;">' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
-              '<div><div style="font-weight:700;font-size:13.5px;">Live Column Trend (' + esc(primaryNumCol ? primaryNumCol.name : 'Row Count') + ')</div><div style="font-size:11px;color:#64748B;">Computed in real time from folder "' + esc(m.folder) + '"' + (isEthCal ? ' (Ethiopian Calendar)' : '') + '</div></div>' +
+              '<div><div style="font-weight:700;font-size:13.5px;">Live Column Trend (' + esc(primaryNumCol ? primaryNumCol.name : 'Row Count') + ')</div><div style="font-size:11px;color:#64748B;">Computed in real time from "' + esc(folderScopeLabel) + '"' + (isEthCal ? ' (Ethiopian Calendar · EAT)' : '') + '</div></div>' +
               '<div style="font-size:11.5px;font-weight:600;color:#1D4ED8;"><span style="display:inline-block;width:10px;height:10px;background:#2563EB;border-radius:2px;margin-right:4px;"></span>' + esc(primaryNumCol ? primaryNumCol.name : 'Rows') + '</div>' +
             '</div>' +
             '<div style="display:flex;align-items:flex-end;gap:10px;height:125px;padding-top:10px;border-bottom:1px solid #F1F5F9;">';
@@ -16337,7 +16604,7 @@
         '<div class="report-folder-head">' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
             '<span style="color:#D97706;display:inline-flex;">' + icon('folder', 18) + '</span>' +
-            '<span style="font-weight:800;font-size:14px;color:#0D47A1;">' + esc(m.folder) + '</span>' +
+            '<span style="font-weight:800;font-size:14px;color:#0D47A1;">' + esc(folderScopeLabel) + '</span>' +
             '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;">' + folderBotsAll.length + ' table(s) &middot; ' + filtered.length + ' row(s)</span>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;">' +
@@ -16351,10 +16618,10 @@
           '<th>Real-Time Date</th><th class="no-print" style="text-align:center;">Action</th></tr></thead><tbody>';
 
       if (filtered.length === 0) {
-        html += '<tr><td colspan="' + (colSummaries.length + 4) + '" style="text-align:center;padding:18px;color:#64748B;">No matching rows in folder <strong>' + esc(m.folder) + '</strong> for this period. ' +
+        html += '<tr><td colspan="' + (colSummaries.length + 4) + '" style="text-align:center;padding:18px;color:#64748B;">No matching rows in <strong>' + esc(folderScopeLabel) + '</strong> for this period. ' +
           (folderBotsAll[0]
             ? '<button type="button" class="btn btn-primary rep-open-bot" data-bid="' + esc(folderBotsAll[0].id) + '" style="padding:4px 10px;font-size:11px;margin-left:8px;">Open "' + esc(folderBotsAll[0].name) + '"</button>'
-            : '<button type="button" class="btn btn-primary rep-new-in-folder" data-rfolder="' + esc(m.folder) + '" style="padding:4px 10px;font-size:11px;margin-left:8px;">+ Add Table in ' + esc(m.folder) + '</button>'
+            : (!isAllFoldersScope ? '<button type="button" class="btn btn-primary rep-new-in-folder" data-rfolder="' + esc(m.folder) + '" style="padding:4px 10px;font-size:11px;margin-left:8px;">+ Add Table in ' + esc(m.folder) + '</button>' : '')
           ) + '</td></tr>';
       } else {
         filtered.forEach(function (it, idx) {
@@ -16371,7 +16638,7 @@
             '<td class="mono" style="font-size:11px;color:#64748B;white-space:nowrap;">' + esc(it.date) + '</td>' +
             '<td class="no-print" style="text-align:center;">' + (hasBal ? '<button class="btn btn-primary rep-remind" data-cust="' + esc(it.customerName) + '" data-bal="' + it.remainingBalance.toFixed(2) + '" style="padding:4px 9px;font-size:11px;">' + icon('send', 11) + '<span>Remind</span></button>' : '<button type="button" class="btn btn-outline rep-open-bot" data-bid="' + esc(it.botId) + '" style="padding:3px 8px;font-size:10.5px;">Open</button>') + '</td></tr>';
         });
-        html += '<tr style="background:#EFF6FF;font-weight:800;color:#0D47A1;"><td colspan="2">Σ ' + esc(m.folder) + ' Column Totals (' + filtered.length + ' rows)</td>' +
+        html += '<tr style="background:#EFF6FF;font-weight:800;color:#0D47A1;"><td colspan="2">Σ ' + esc(folderScopeLabel) + ' Column Totals (' + filtered.length + ' rows)</td>' +
           colSummaries.map(function (c) {
             return '<td class="' + (c.isNumeric ? 'mono' : '') + '" style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.summaryValue) + '</td>';
           }).join('') +
@@ -16380,7 +16647,7 @@
       html += '</tbody></table></div></div>';
 
       html += '<div style="background:#0D47A1;color:#fff;border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12.5px;">' +
-          '<span style="color:#FCD34D;font-weight:800;">Σ ' + esc(m.folder) + ' Column Totals (' + filtered.length + ' records)</span>' +
+          '<span style="color:#FCD34D;font-weight:800;">Σ ' + esc(folderScopeLabel) + ' Column Totals (' + filtered.length + ' records)</span>' +
           '<div class="mono" style="display:flex;gap:16px;flex-wrap:wrap;font-weight:700;">' +
             (colSummaries.length === 0
               ? '<span>0 Columns</span>'
@@ -16394,7 +16661,14 @@
       document.getElementById('m-bg').onclick = closeModal;
       document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
       document.getElementById('rep-close').onclick = closeModal;
-      document.getElementById('rep-refresh-live').onclick = function () { showToast('Real-time folder report refreshed'); renderReportsModal(m); };
+      var repCalBtn = document.getElementById('rep-cal-toggle');
+      if (repCalBtn) repCalBtn.onclick = function () {
+        state.reportCalendarMode = state.reportCalendarMode === 'gregorian' ? 'ethiopian' : 'gregorian';
+        try { localStorage.setItem(STORAGE_REPORT_CAL_MODE, state.reportCalendarMode); } catch (e) {}
+        renderReportsModal(m);
+        if (!state.activeBotId) renderDashboard();
+      };
+      document.getElementById('rep-refresh-live').onclick = function () { showToast('Real-time report refreshed'); renderReportsModal(m); };
       document.getElementById('rep-dl-toggle').onclick = function (e) { e.stopPropagation(); m.menuOpen = !m.menuOpen; renderReportsModal(m); };
       if (m.menuOpen) {
         document.getElementById('rep-dl-pdf').onclick = function () { m.menuOpen = false; exportReportPdfHtml(m.period, m.folder, filtered, met, repData); renderReportsModal(m); };
@@ -16402,7 +16676,7 @@
         document.getElementById('rep-print').onclick = function () { m.menuOpen = false; window.print(); };
         document.getElementById('rep-copy').onclick = function () {
           m.menuOpen = false;
-          var txtLines = ['TableBot ' + m.folder.toUpperCase() + ' ' + m.period.toUpperCase() + ' REPORT (' + todayDisplayChip + ' · ' + toLocalDateTimeStr(new Date()) + ')'];
+          var txtLines = ['TableBot ' + folderScopeLabel.toUpperCase() + ' ' + m.period.toUpperCase() + ' REPORT (' + todayDisplayChip + ' · ' + liveTimeStr + ')'];
           colSummaries.forEach(function (c) { txtLines.push(c.name + ': ' + c.summaryValue); });
           if (navigator.clipboard) navigator.clipboard.writeText(txtLines.join('\n')).catch(function () {});
           showToast('Report summary copied for Telegram'); renderReportsModal(m);
@@ -18688,11 +18962,26 @@
         if (state.modal && state.modal.type === 'cyber_control') renderCyberControlModal(state.modal);
         else if (state.modal && state.modal.type === 'admin') renderAdminModal(state.modal);
       }
-      var curYmd = getLocalYmd(new Date());
+      var repUseEth = state.reportCalendarMode !== 'gregorian';
+      var repCtx = getReportNowContext(repUseEth);
+      var dashClk = document.getElementById('dash-rep-live-clock');
+      if (dashClk && dashClk.textContent !== repCtx.liveClockLabel) dashClk.textContent = repCtx.liveClockLabel;
+      var tblClk = document.getElementById('tbl-rep-live-clock');
+      if (tblClk && tblClk.textContent !== repCtx.liveClockLabel) tblClk.textContent = repCtx.liveClockLabel;
+      var repClk = document.getElementById('rep-live-clock');
+      if (repClk) {
+        var rClkTxt = 'Live ' + repCtx.liveClockLabel;
+        if (repClk.textContent !== rClkTxt) repClk.textContent = rClkTxt;
+      }
+      var curYmd = repUseEth ? repCtx.ymd : getLocalYmd(new Date());
       if (state.lastRenderedYmd && state.lastRenderedYmd !== curYmd) {
         state.previewDayOffset = 0;
         state.lastRenderedYmd = curYmd;
         if (!state.activeBotId) renderDashboard();
+        else {
+          var curActBot = getActiveBot();
+          if (curActBot) renderTableView(curActBot);
+        }
         if (state.modal && state.modal.type === 'reports') renderReportsModal(state.modal);
         return;
       }
