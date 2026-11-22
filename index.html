@@ -1789,18 +1789,22 @@
       }
     }
     .ledger-stmt-wrap {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       border: 1px solid #CBD5E1;
       border-radius: 12px;
       overflow-x: auto;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       background: #fff;
       max-height: 430px;
-      overflow-y: auto;
     }
     .ledger-stmt-table {
-      width: 100%;
+      width: max-content;
+      min-width: 100%;
       border-collapse: collapse;
       font-size: 12.5px;
-      min-width: 780px;
     }
     .ledger-stmt-table thead th {
       position: sticky;
@@ -9226,16 +9230,17 @@
           var cellFontSize = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
           var dispCellTxt = formatCell(val, col, row, bot);
           var custColMatch = (typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null;
-          var isCustNameCell = Boolean(custColMatch && custColMatch.id === col.id && dispCellTxt !== undefined && dispCellTxt !== null && String(dispCellTxt).trim() !== '');
+          var cleanCustCell = (typeof normalizeCustomerLabel === 'function') ? normalizeCustomerLabel(dispCellTxt) : String(dispCellTxt || '').trim();
+          var isCustNameCell = Boolean(custColMatch && custColMatch.id === col.id && cleanCustCell !== '');
           var commentTip = commentObj && commentObj.text ? ' | Comment: ' + commentObj.text : '';
           var titleTip = isFrm && col.formulaExpr
             ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to edit; drag or right-click for toolbar)' + esc(commentTip) + '"'
             : (isCustNameCell
-              ? ' title="Click cell or Statement button to view ' + esc(String(dispCellTxt).trim()) + ' account transactions, all columns & balance' + esc(commentTip) + '"'
+              ? ' title="Click cell or Statement button to view ' + esc(cleanCustCell) + ' account transactions, all columns & balance' + esc(commentTip) + '"'
               : ' title="Click to write/edit · Drag, long-press, or right-click for toolbar' + esc(commentTip) + '"');
           var innerSpanHtml = '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(isCustNameCell ? '#065F46' : color) + ';font-weight:' + (isCustNameCell ? '700' : fw) + ';font-style:' + fs + ';font-size:' + cellFontSize + 'px;line-height:1.35;">' + esc(dispCellTxt) + '</span>';
           var cellContentHtml = isCustNameCell
-            ? ('<div class="cell-cust-wrap">' + innerSpanHtml + '<button type="button" class="cell-cust-stmt-btn" data-cust-stmt-name="' + esc(String(dispCellTxt).trim()) + '" title="Open ' + esc(String(dispCellTxt).trim()) + ' Statement">' + icon('ledger', 11) + '<span>Statement</span></button></div>')
+            ? ('<div class="cell-cust-wrap">' + innerSpanHtml + '<button type="button" class="cell-cust-stmt-btn" data-cust-stmt-name="' + esc(cleanCustCell) + '" title="Open ' + esc(cleanCustCell) + ' Statement">' + icon('ledger', 11) + '<span>Statement</span></button></div>')
             : innerSpanHtml;
           rowHtml += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:' + (isCustNameCell ? 'pointer' : 'text') + ';' + align + bg + '">' +
             commentMarkHtml +
@@ -10383,7 +10388,7 @@
         sheetCard.className = 'tb-sheet-card';
 
         var custColSheet = (typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null;
-        var rowCustName = custColSheet ? String(rowObj[custColSheet.id] || '').trim() : '';
+        var rowCustName = custColSheet ? ((typeof normalizeCustomerLabel === 'function') ? normalizeCustomerLabel(rowObj[custColSheet.id]) : String(rowObj[custColSheet.id] || '').trim()) : '';
         var custStmtCardHtml = '';
         if (rowCustName && typeof buildCustomerLedgerData === 'function') {
           var custSheetData = buildCustomerLedgerData({
@@ -19686,6 +19691,22 @@
       return Math.round(v * 100) / 100;
     }
 
+    function normalizeCustomerLabel(str) {
+      return String(str === undefined || str === null ? '' : str)
+        .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function formatStmtNumber(num) {
+      var val = roundEtb2(num);
+      var hasDec = Math.abs(val - Math.round(val)) > 0.004;
+      return val.toLocaleString('en-US', {
+        minimumFractionDigits: hasDec ? 2 : 0,
+        maximumFractionDigits: 2
+      });
+    }
+
     function formatEtbAmount(num, blankIfEmpty) {
       if (blankIfEmpty && (num === '' || num === null || num === undefined)) return '—';
       var val = roundEtb2(num);
@@ -19767,7 +19788,7 @@
 
       var payDateCol = findCol(
         ['payment date', 'paid date', 'pay date', 'date paid', 'deposit date'],
-        [/pay(?:ment)?\s*date|paid\s*date|date\s*(?:of\s*)?paid|date\s*of\s*payment|deposit\s*date/i],
+        [/pay(?:ment)?\s*date|paid\s*date|date\s*(?:of\s*)?paid|date\s*of\s*payment|deposit\s*date|paid\s*(?:ec|gc|day)|ክፍያ\s*ቀን/i],
         exclBal
       );
       var exclForPayAmt = Object.assign({}, exclBal);
@@ -19775,7 +19796,7 @@
 
       var payAmtCol = findCol(
         ['paid amount', 'payment amount', 'amount paid', 'paid', 'payment', 'received', 'deposit'],
-        [/paid\s*(?:amt|amount|birr)?|payment\s*(?:amt|amount|birr)?|\bpaid\b|\bpayment\b|\breceived\b|\bdeposit\b/i],
+        [/paid\s*(?:amt|amount|birr|etb)?|payment\s*(?:amt|amount|birr|etb)?|\bpay\s*(?:amt|amount|birr|etb)\b|\bpaid\b|\bpayment\b|\bpay\b|\breceived\b|\bdeposit\b|ክፍያ|ከፈለ/i],
         exclForPayAmt,
         true
       );
@@ -20111,7 +20132,7 @@
     function extractLedgerEntriesFromRow(row, det, bot, origIdx) {
       var out = [];
       if (!row || !det) return out;
-      var custRaw = det.custCol ? String(row[det.custCol.id] || '').replace(/\s+/g, ' ').trim() : '';
+      var custRaw = det.custCol ? normalizeCustomerLabel(row[det.custCol.id]) : '';
       var typeRaw = det.typeCol ? String(row[det.typeCol.id] || '').trim() : '';
       var noteRaw = det.noteCol ? String(row[det.noteCol.id] || '').trim() : '';
 
@@ -20121,6 +20142,10 @@
       var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
       var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
       var pAmt = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
+      if (pAmt === 0 && pDateRaw && (!det.payDateCol || det.payDateCol.type !== 'date') && typeof extractAmountFromMixedCell === 'function') {
+        var pInlineAmt = extractAmountFromMixedCell(pDateRaw, det.payDateCol, row, bot);
+        if (!isNaN(pInlineAmt) && pInlineAmt > 0) pAmt = pInlineAmt;
+      }
 
       // Only when a regular table lacks ANY Sale/Total column (Paid + Balance only), infer Total = Paid + Balance
       if (!det.isDedicatedLedger && !activeSaleCol && sAmt === 0 && det.balCol) {
@@ -20184,7 +20209,7 @@
       var allColsSummary = summaryParts.join(' · ');
       var custName = custRaw || 'Walk-in Customer';
       var fileRowNum = origIdx + 1;
-      var createdMs = Date.parse(row._createdAt || row._updatedAt || '') || 0;
+      var createdMs = Date.parse(row._createdAt || '') || 0;
       var baseSeq = typeof row._txSeq === 'number' ? row._txSeq : origIdx;
       var preferEth = bot.ledgerCalendarMode ? (bot.ledgerCalendarMode !== 'gregorian') : true;
 
@@ -20264,7 +20289,7 @@
         return out;
       }
 
-      var isPaySingle = explicitKind === 'payment' || (!explicitKind && ((pAmt > 0 && sAmt === 0) || (Boolean(pDateRaw) && !sDateRaw && sAmt === 0)));
+      var isPaySingle = explicitKind === 'payment' || (!explicitKind && ((pAmt > 0 && sAmt === 0) || (Boolean(pDateRaw) && sAmt === 0)));
       var activeDateStr = isPaySingle ? (pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
       var activeCol = isPaySingle ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
       var dMetaSingle = parseFlexibleDateMeta(activeDateStr, row._createdAt || bot.updatedAt, activeCol, preferEth);
@@ -20375,7 +20400,8 @@
         allTimeCredit = roundEtb2(allTimeCredit + e.saleAmount);
         allTimePaid = roundEtb2(allTimePaid + e.paidAmount);
 
-        var matchesCust = (customerFilter === 'all' || !customerFilter) ? true : (cKey === String(customerFilter).trim().toLowerCase());
+        var normCustFilter = (customerFilter === 'all' || !customerFilter) ? 'all' : normalizeCustomerLabel(customerFilter).toLowerCase();
+        var matchesCust = (normCustFilter === 'all' || !normCustFilter) ? true : (cKey === normCustFilter);
         var matchesSearch = !searchText || (
           cKey.indexOf(searchText) !== -1 ||
           String(e.note || '').toLowerCase().indexOf(searchText) !== -1 ||
@@ -20530,15 +20556,16 @@
         ['Date Range:', rangeTitle, 'Calendar:', calTag],
         ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Outstanding Balance (ETB):', data.outstandingBalance],
         [],
-        ['Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
+        ['Row', 'Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
       ];
 
-      data.rows.forEach(function (r) {
+      data.rows.forEach(function (r, idx) {
         var noteCell = r.note || '';
         if (r.allColsSummary) {
           noteCell = noteCell ? (noteCell + ' | ' + r.allColsSummary) : r.allColsSummary;
         }
         aoa.push([
+          '#' + (r.fileRowNum || (idx + 1)),
           r.customerName,
           r.typeLabel,
           r.kind === 'sale' ? r.saleDateDisplay : '',
@@ -20551,7 +20578,8 @@
       });
 
       aoa.push([
-        'TOTALS — ' + custTitle,
+        'TOTALS',
+        custTitle,
         data.rows.length + ' tx',
         data.hasFromFilter ? ('Opening: ' + formatEtbAmount(data.openingBalance)) : '',
         data.totalCredit,
@@ -20566,7 +20594,7 @@
           var wb = window.XLSX.utils.book_new();
           var wsStmt = window.XLSX.utils.aoa_to_sheet(aoa);
           wsStmt['!cols'] = [
-            { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }
+            { wch: 8 }, { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }
           ];
           window.XLSX.utils.book_append_sheet(wb, wsStmt, 'Account Statement');
 
@@ -20583,19 +20611,19 @@
           window.XLSX.utils.book_append_sheet(wb, wsCust, 'Customer Balances');
 
           if (data.sourceColumns && data.sourceColumns.length > 0) {
-            var fullHdr = (data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
+            var fullHdr = ['Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
             var fullAoa = [
               ['All Column Row Data & Running Balance — ' + custTitle],
               fullHdr
             ];
-            data.rows.forEach(function (r) {
+            data.rows.forEach(function (r, idx) {
               var rcMap = {};
               var rcKeyMap = {};
               (r.allRowCols || []).forEach(function (rc) {
                 rcMap[rc.colId] = rc;
                 if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
               });
-              var rowArr = [];
+              var rowArr = ['#' + (r.fileRowNum || (idx + 1))];
               if (data.isMultiBotScope) rowArr.push(r.botName || '');
               data.sourceColumns.forEach(function (col) {
                 var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
@@ -20605,25 +20633,16 @@
               rowArr.push(r.typeLabel, r.kind === 'sale' ? r.saleAmount : '', r.kind === 'payment' ? r.paidAmount : '', r.runningBalance);
               fullAoa.push(rowArr);
             });
-            var fullTot = [];
-            var placedTotLabelX = false;
-            if (data.isMultiBotScope) {
-              fullTot.push('TOTALS');
-              placedTotLabelX = true;
-            }
-            data.sourceColumns.forEach(function (col, cIdx) {
+            var fullTot = ['TOTALS'];
+            if (data.isMultiBotScope) fullTot.push('');
+            data.sourceColumns.forEach(function (col) {
               var isNumC = (col.type === 'amount' || col.type === 'number' || col.type === 'formula');
               var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
               var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
               var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) ? data.allColsTotals[col.id] : ((data.allColsKeyTotals || {})[cKey]);
-              if (!placedTotLabelX && cIdx === 0 && !isNumC) {
-                fullTot.push('TOTALS');
-                placedTotLabelX = true;
-              } else {
-                fullTot.push(hasTot ? totV : '');
-              }
+              fullTot.push(hasTot ? totV : '');
             });
-            fullTot.push((!placedTotLabelX ? 'TOTALS · ' : '') + data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
+            fullTot.push(data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
             fullAoa.push(fullTot);
             var wsFull = window.XLSX.utils.aoa_to_sheet(fullAoa);
             window.XLSX.utils.book_append_sheet(wb, wsFull, 'All Column Row Data');
@@ -20668,8 +20687,8 @@
           return '<th' + (isNumC ? ' style="text-align:right;"' : '') + '>' + esc(c.name || 'Column') + '</th>';
         }).join('');
         var fullRowsHtml = data.rows.length === 0
-          ? '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 5 : 4)) + '" style="text-align:center;color:#64748B;padding:24px;">No rows match the selected customer and date range.</td></tr>'
-          : data.rows.map(function (r) {
+          ? '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 6 : 5)) + '" style="text-align:center;color:#64748B;padding:24px;">No rows match the selected customer and date range.</td></tr>'
+          : data.rows.map(function (r, idx) {
               var rcMap = {};
               var rcKeyMap = {};
               (r.allRowCols || []).forEach(function (rc) {
@@ -20683,56 +20702,53 @@
                 return '<td style="' + (isNumC ? 'text-align:right;font-family:monospace;' : '') + '">' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
               }).join('');
               return '<tr>' +
+                '<td style="text-align:center;font-family:monospace;color:#475569;">#' + (r.fileRowNum || (idx + 1)) + '</td>' +
                 (data.isMultiBotScope ? ('<td>' + esc(r.botName || '') + '</td>') : '') +
                 colTds +
                 '<td>' + esc(r.typeLabel) + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
               '</tr>';
             }).join('');
-        var placedTotPdf = Boolean(data.isMultiBotScope);
-        var fullFootTds = data.sourceColumns.map(function (c, cIdx) {
+        var fullFootTds = data.sourceColumns.map(function (c) {
           var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
           var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
           var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
           var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
-          if (!placedTotPdf && cIdx === 0 && !isNumC) {
-            placedTotPdf = true;
-            return '<td>TOTALS (' + data.rows.length + ' tx)</td>';
-          }
           if (!hasTot) return '<td></td>';
           return '<td style="text-align:right;font-family:monospace;">' + esc(formatNumericValue(totV, c)) + '</td>';
         }).join('');
-        tableHtml = '<table><thead><tr>' + (data.isMultiBotScope ? '<th>File</th>' : '') + colThs + '<th>Type</th><th style="text-align:right;">Credit (ETB)</th><th style="text-align:right;">Paid (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th></tr></thead>' +
+        tableHtml = '<table><thead><tr><th style="text-align:center;">Row</th>' + (data.isMultiBotScope ? '<th>File</th>' : '') + colThs + '<th>Type</th><th style="text-align:right;">Credit (ETB)</th><th style="text-align:right;">Paid (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th></tr></thead>' +
           '<tbody>' + fullRowsHtml + '</tbody>' +
-          '<tfoot><tr>' + (data.isMultiBotScope ? '<td>TOTALS</td>' : '') + fullFootTds + '<td>' + (!placedTotPdf ? 'TOTALS · ' : '') + data.rows.length + ' tx</td>' +
-          '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
-          '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
-          '<td style="text-align:right;font-family:monospace;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td></tr></tfoot></table>';
+          '<tfoot><tr><td style="text-align:center;">Σ</td>' + (data.isMultiBotScope ? '<td></td>' : '') + fullFootTds + '<td>' + data.rows.length + ' tx</td>' +
+          '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatStmtNumber(data.totalCredit)) + '</td>' +
+          '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatStmtNumber(data.totalPaid)) + '</td>' +
+          '<td style="text-align:right;font-family:monospace;">' + esc(formatStmtNumber(data.outstandingBalance)) + '</td></tr></tfoot></table>';
       } else {
         var rowsHtml = data.rows.length === 0
-          ? '<tr><td colspan="8" style="text-align:center;color:#64748B;padding:24px;">No ledger transactions match the selected customer and date range.</td></tr>'
-          : data.rows.map(function (r) {
+          ? '<tr><td colspan="9" style="text-align:center;color:#64748B;padding:24px;">No ledger transactions match the selected customer and date range.</td></tr>'
+          : data.rows.map(function (r, idx) {
               var detNote = r.note || '';
               if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
               return '<tr>' +
+                '<td style="text-align:center;font-family:monospace;color:#475569;">#' + (r.fileRowNum || (idx + 1)) + '</td>' +
                 '<td style="font-weight:700;">' + esc(r.customerName) + '</td>' +
                 '<td>' + esc(r.typeLabel) + '</td>' +
                 '<td>' + esc(r.kind === 'sale' ? r.saleDateDisplay : '') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
                 '<td>' + esc(r.kind === 'payment' ? r.paymentDateDisplay : '') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
                 '<td>' + esc(detNote) + '</td>' +
               '</tr>';
             }).join('');
-        tableHtml = '<table><thead><tr><th>Customer Name</th><th>Type</th><th>Sale Date</th><th style="text-align:right;">Sale Amount (ETB)</th><th>Payment Date</th><th style="text-align:right;">Paid Amount (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th><th>Reference / Row Data</th></tr></thead>' +
+        tableHtml = '<table><thead><tr><th style="text-align:center;">Row</th><th>Customer Name</th><th>Type</th><th>Sale Date</th><th style="text-align:right;">Sale Amount (ETB)</th><th>Payment Date</th><th style="text-align:right;">Paid Amount (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th><th>Reference / Row Data</th></tr></thead>' +
           '<tbody>' + rowsHtml + '</tbody>' +
-          '<tfoot><tr><td colspan="3">Statement Totals (' + data.rows.length + ' transactions' + (data.hasFromFilter ? ' · Opening ' + esc(formatEtbAmount(data.openingBalance)) : '') + ')</td>' +
-          '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td><td></td>' +
-          '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
-          '<td style="text-align:right;font-family:monospace;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td><td></td></tr></tfoot></table>';
+          '<tfoot><tr><td colspan="4">Statement Totals (' + data.rows.length + ' transactions' + (data.hasFromFilter ? ' · Opening ' + esc(formatEtbAmount(data.openingBalance)) : '') + ')</td>' +
+          '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatStmtNumber(data.totalCredit)) + '</td><td></td>' +
+          '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatStmtNumber(data.totalPaid)) + '</td>' +
+          '<td style="text-align:right;font-family:monospace;">' + esc(formatStmtNumber(data.outstandingBalance)) + '</td><td></td></tr></tfoot></table>';
       }
 
       return '<!doctype html><html><head><meta charset="UTF-8"><title>Customer Account Ledger - ' + esc(custTitle) + '</title>' +
@@ -20976,7 +20992,7 @@
             '<button class="icon-btn" id="clg-close">' + icon('close', 19) + '</button>' +
           '</div>' +
         '</header>' +
-        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">';
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;min-width:0;">';
 
       if (m.statusMsg) {
         html += '<div style="padding:9px 12px;border-radius:10px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>';
@@ -21109,26 +21125,27 @@
         '</div>' +
       '</div>';
 
-      // Per-Customer Outstanding Balance Summary Table (click row to filter statement)
+      // Customer directory helper (shown above statement only when browsing All Customers; moved below when a specific customer is active)
+      var customerBalancesHtml = '';
       if (data.customerSummaries.length > 0) {
-        html += '<div style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">' +
+        customerBalancesHtml = '<div style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">' +
           '<div style="background:#F8FAFC;padding:8px 12px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
             '<span style="font-size:12px;font-weight:800;color:#0F172A;">Customer Balances (' + data.customerSummaries.length + ')</span>' +
             '<span style="font-size:11px;color:#64748B;">Tap any customer to show/toggle their statement</span>' +
           '</div>' +
-          '<div style="overflow-x:auto;max-height:175px;overflow-y:auto;">' +
+          '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:175px;overflow-y:auto;">' +
             '<table class="ledger-stmt-table" style="min-width:600px;">' +
               '<thead><tr><th>Customer Name</th><th class="num">Tx</th><th class="num">Total Credit (ETB)</th><th class="num">Total Paid (ETB)</th><th class="num">Outstanding Balance (ETB)</th><th>Last Date</th></tr></thead>' +
               '<tbody>' +
                 data.customerSummaries.map(function (c) {
-                  var isAct = String(m.customerFilter || '').toLowerCase() === c.customerName.toLowerCase();
+                  var isAct = normalizeCustomerLabel(m.customerFilter || '').toLowerCase() === c.customerName.toLowerCase();
                   return '<tr class="ledger-cust-row' + (isAct ? ' is-active' : '') + '" data-clg-pick-cust="' + esc(c.customerName) + '">' +
                     '<td style="font-weight:700;">' + esc(c.customerName) + '</td>' +
                     '<td class="num mono">' + c.txCount + '</td>' +
-                    '<td class="num mono col-sale-amt">' + esc(formatEtbAmount(c.totalCredit)) + '</td>' +
-                    '<td class="num mono col-paid-amt">' + esc(formatEtbAmount(c.totalPaid)) + '</td>' +
-                    '<td class="num mono col-run-bal" style="color:' + (c.outstandingBalance > 0 ? '#B45309' : '#047857') + ';">' + esc(formatEtbAmount(c.outstandingBalance)) + '</td>' +
-                    '<td class="mono" style="font-size:11.5px;color:#475569;">' + esc(c.lastDateDisplay) + '</td>' +
+                    '<td class="num mono col-sale-amt">' + esc(formatStmtNumber(c.totalCredit)) + '</td>' +
+                    '<td class="num mono col-paid-amt">' + esc(formatStmtNumber(c.totalPaid)) + '</td>' +
+                    '<td class="num mono col-run-bal" style="color:' + (c.outstandingBalance > 0 ? '#B45309' : '#047857') + ';">' + esc(formatStmtNumber(c.outstandingBalance)) + '</td>' +
+                    '<td class="mono" style="font-size:11.5px;color:#475569;white-space:nowrap;">' + esc(c.lastDateDisplay) + '</td>' +
                   '</tr>';
                 }).join('') +
               '</tbody>' +
@@ -21137,24 +21154,26 @@
         '</div>';
       }
 
-      // Clean summary line without row numbers — shows active customer, table, and column count
+      if (!activeCustLabel) html += customerBalancesHtml;
+
+      // Clean statement header line showing selected customer, table, and matching row count
       html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:#475569;padding:2px 2px;">' +
         '<div>' +
           '<strong style="color:#0F172A;">' + esc(activeCustLabel || 'All Customers') + '</strong>' +
           ' &middot; ' + (activeTargetBot ? esc(activeTargetBot.name) : 'All Tables') +
           (hasSourceCols ? (' &middot; ' + data.sourceColumns.length + ' Columns') : '') +
         '</div>' +
-        '<div style="font-size:11.5px;color:#64748B;">' + data.rows.length + ' Transactions</div>' +
+        '<div style="font-size:11.5px;color:#64748B;">' + data.rows.length + ' Matching Row' + (data.rows.length === 1 ? '' : 's') + '</div>' +
       '</div>';
 
       // Main Chronological Customer Account Statement Table:
-      // Shows exact column headers and row data cleanly without row numbers
+      // Renders original row number (#1, #40), all table column headers, dates/paid dates, and comma-formatted Running Balance
       if (showAllCols) {
         var extraMultiTh = data.isMultiBotScope ? '<th>File</th>' : '';
-        var placedTotUi = Boolean(data.isMultiBotScope);
         html += '<div class="ledger-stmt-wrap">' +
           '<table class="ledger-stmt-table">' +
             '<thead><tr>' +
+              '<th style="width:52px;text-align:center;">Row</th>' +
               extraMultiTh +
               data.sourceColumns.map(function (c) {
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
@@ -21168,9 +21187,9 @@
             '<tbody>';
 
         if (data.rows.length === 0) {
-          html += '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 5 : 4)) + '" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions match the selected customer or filter.</td></tr>';
+          html += '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 6 : 5)) + '" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions match the selected customer or filter.</td></tr>';
         } else {
-          html += data.rows.map(function (r) {
+          html += data.rows.map(function (r, idx) {
             var isSale = r.kind === 'sale';
             var rcMap = {};
             var rcKeyMap = {};
@@ -21182,47 +21201,53 @@
               var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
               var cell = rcMap[c.id] || rcKeyMap[cKey];
               var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
+              var isDateC = (c.type === 'date' || /date|ቀን/i.test(c.name || ''));
               if (cell && cell.isCustomerCol && cell.hasValue) {
-                return '<td><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(cell.display) + '</button></td>';
+                return '<td style="white-space:nowrap;"><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(cell.display) + '</button></td>';
               }
-              return '<td class="' + (isNumC ? 'num mono' : '') + '">' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
+              var cellCls = isNumC ? 'num mono' : (isDateC ? 'mono' : '');
+              var cellStyle = isDateC ? ' style="white-space:nowrap;"' : '';
+              return '<td class="' + cellCls + '"' + cellStyle + '>' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
             }).join('');
+            var rowLabel = '#' + (r.fileRowNum || (idx + 1));
             return '<tr>' +
+              '<td style="text-align:center;white-space:nowrap;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to ' + rowLabel + ' in spreadsheet">' + rowLabel + '</button></td>' +
               (data.isMultiBotScope ? ('<td style="font-size:11.5px;color:#475569;white-space:nowrap;">' + esc(r.botName || '') + '</td>') : '') +
               colCellsHtml +
               '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';white-space:nowrap;">' + esc(r.typeLabel) + '</td>' +
-              '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
-              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
-              '<td class="num mono col-run-bal">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
+              '<td class="num mono col-sale-amt">' + esc(isSale ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
+              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
+              '<td class="num mono col-run-bal">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
             '</tr>';
           }).join('');
         }
 
         html += '</tbody>' +
           '<tfoot><tr>' +
+            '<td style="text-align:center;">Σ</td>' +
             (data.isMultiBotScope ? '<td>Totals</td>' : '') +
             data.sourceColumns.map(function (c, cIdx) {
               var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
               var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
               var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
               var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
-              if (!placedTotUi && cIdx === 0 && !isNumC) {
-                placedTotUi = true;
-                return '<td>Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Open: ' + esc(formatEtbAmount(data.openingBalance))) : '') + ')</td>';
+              if (cIdx === 0 && !isNumC && !data.isMultiBotScope) {
+                return '<td>Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Open: ' + esc(formatStmtNumber(data.openingBalance))) : '') + ')</td>';
               }
               if (!hasTot) return '<td></td>';
               return '<td class="num mono">' + esc(formatNumericValue(totV, c)) + '</td>';
             }).join('') +
-            '<td>' + (!placedTotUi ? 'Totals · ' : '') + data.rows.length + ' tx</td>' +
-            '<td class="num mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
-            '<td class="num mono" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
-            '<td class="num mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td>' +
+            '<td>' + data.rows.length + ' tx</td>' +
+            '<td class="num mono" style="color:#1E40AF;">' + esc(formatStmtNumber(data.totalCredit)) + '</td>' +
+            '<td class="num mono" style="color:#047857;">' + esc(formatStmtNumber(data.totalPaid)) + '</td>' +
+            '<td class="num mono" style="color:#B45309;">' + esc(formatStmtNumber(data.outstandingBalance)) + '</td>' +
           '</tr></tfoot>' +
         '</table></div>';
       } else {
         html += '<div class="ledger-stmt-wrap">' +
           '<table class="ledger-stmt-table">' +
             '<thead><tr>' +
+              '<th style="width:52px;text-align:center;">Row</th>' +
               '<th>Customer Name</th>' +
               '<th>Type</th>' +
               '<th>Sale Date</th>' +
@@ -21235,20 +21260,22 @@
             '<tbody>';
 
         if (data.rows.length === 0) {
-          html += '<tr><td colspan="8" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions recorded yet for the selected filter. Use "+ Record Sale / Credit" or "+ Record Payment" above.</td></tr>';
+          html += '<tr><td colspan="9" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions recorded yet for the selected filter. Use "+ Record Sale / Credit" or "+ Record Payment" above.</td></tr>';
         } else {
-          html += data.rows.map(function (r) {
+          html += data.rows.map(function (r, idx) {
             var isSale = r.kind === 'sale';
             var detNote = r.note || '';
             if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
+            var rowLabel = '#' + (r.fileRowNum || (idx + 1));
             return '<tr>' +
-              '<td><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(r.customerName) + '</button></td>' +
-              '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';">' + esc(r.typeLabel) + '</td>' +
-              '<td class="mono" style="font-size:12px;">' + esc(isSale ? r.saleDateDisplay : '') + '</td>' +
-              '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
-              '<td class="mono" style="font-size:12px;">' + esc(!isSale ? r.paymentDateDisplay : '') + '</td>' +
-              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
-              '<td class="num mono col-run-bal">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
+              '<td style="text-align:center;white-space:nowrap;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to ' + rowLabel + ' in spreadsheet">' + rowLabel + '</button></td>' +
+              '<td style="white-space:nowrap;"><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(r.customerName) + '</button></td>' +
+              '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';white-space:nowrap;">' + esc(r.typeLabel) + '</td>' +
+              '<td class="mono" style="font-size:12px;white-space:nowrap;">' + esc(isSale ? r.saleDateDisplay : '') + '</td>' +
+              '<td class="num mono col-sale-amt">' + esc(isSale ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
+              '<td class="mono" style="font-size:12px;white-space:nowrap;">' + esc(!isSale ? r.paymentDateDisplay : '') + '</td>' +
+              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
+              '<td class="num mono col-run-bal">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
               '<td style="color:#475569;font-size:11.5px;">' + esc(detNote) + '</td>' +
             '</tr>';
           }).join('');
@@ -21256,15 +21283,17 @@
 
         html += '</tbody>' +
           '<tfoot><tr>' +
-            '<td colspan="3">Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Opening: ' + esc(formatEtbAmount(data.openingBalance))) : '') + ')</td>' +
-            '<td class="num mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
+            '<td colspan="4">Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Opening: ' + esc(formatStmtNumber(data.openingBalance))) : '') + ')</td>' +
+            '<td class="num mono" style="color:#1E40AF;">' + esc(formatStmtNumber(data.totalCredit)) + '</td>' +
             '<td></td>' +
-            '<td class="num mono" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
-            '<td class="num mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td>' +
+            '<td class="num mono" style="color:#047857;">' + esc(formatStmtNumber(data.totalPaid)) + '</td>' +
+            '<td class="num mono" style="color:#B45309;">' + esc(formatStmtNumber(data.outstandingBalance)) + '</td>' +
             '<td></td>' +
           '</tr></tfoot>' +
         '</table></div>';
       }
+
+      if (activeCustLabel) html += customerBalancesHtml;
 
       html += '</div></div></div>';
 
@@ -21435,8 +21464,22 @@
       document.querySelectorAll('[data-clg-pick-cust]').forEach(function (tr) {
         tr.onclick = function () {
           var cname = tr.getAttribute('data-clg-pick-cust');
-          m.customerFilter = (String(m.customerFilter || '').toLowerCase() === String(cname || '').toLowerCase()) ? 'all' : cname;
+          m.customerFilter = (normalizeCustomerLabel(m.customerFilter || '').toLowerCase() === normalizeCustomerLabel(cname || '').toLowerCase()) ? 'all' : cname;
           renderCustomerLedgerModal(m);
+        };
+      });
+      document.querySelectorAll('[data-clg-jump-bot][data-clg-jump-row]').forEach(function (btn) {
+        btn.onclick = function () {
+          var jBotId = btn.getAttribute('data-clg-jump-bot');
+          var jRowId = btn.getAttribute('data-clg-jump-row');
+          if (!jBotId || !jRowId) return;
+          closeModal();
+          state.activeBotId = jBotId;
+          state.tableSearchQuery = '';
+          state.editingCell = null;
+          state._resetTableScroll = false;
+          state._pendingScrollToRowId = jRowId;
+          renderApp();
         };
       });
     }
