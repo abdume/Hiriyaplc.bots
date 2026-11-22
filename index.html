@@ -1698,6 +1698,153 @@
       border: 1px solid rgba(167, 243, 208, 0.55);
       cursor: pointer;
     }
+
+    /* Customer Account Ledger & Folder Ledger Dashboard */
+    .ledger-folder-panel {
+      background: #fff;
+      border: 1px solid #CBD5E1;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    }
+    .ledger-folder-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .ledger-kpi-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    @media (min-width: 720px) {
+      .ledger-kpi-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+      .ledger-kpi-row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    }
+    .ledger-kpi-box {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 11px 13px;
+    }
+    .ledger-kpi-box.credit { border-left: 3px solid #1D4ED8; background: #F8FAFF; }
+    .ledger-kpi-box.paid { border-left: 3px solid #059669; background: #F4FBF7; }
+    .ledger-kpi-box.balance { border-left: 3px solid #D97706; background: #FFFBF2; }
+    .ledger-kpi-box.opening { border-left: 3px solid #475569; background: #F8FAFC; }
+    .ledger-kpi-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748B;
+    }
+    .ledger-kpi-val {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0F172A;
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+    .ledger-entry-card {
+      background: #F8FAFC;
+      border: 1px solid #CBD5E1;
+      border-radius: 12px;
+      padding: 13px 14px;
+    }
+    .ledger-tab-bar {
+      display: inline-flex;
+      border: 1px solid #CBD5E1;
+      border-radius: 9px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .ledger-tab-btn {
+      padding: 6px 13px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      background: transparent;
+      cursor: pointer;
+    }
+    .ledger-tab-btn.active-sale { background: #1D4ED8; color: #fff; }
+    .ledger-tab-btn.active-pay { background: #059669; color: #fff; }
+    .ledger-filter-bar {
+      display: grid;
+      grid-template-columns: repeat(1, 1fr);
+      gap: 8px;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 11px 13px;
+    }
+    @media (min-width: 720px) {
+      .ledger-filter-bar {
+        grid-template-columns: 1.2fr 1.2fr 1fr 1fr auto;
+        align-items: end;
+      }
+    }
+    .ledger-stmt-wrap {
+      border: 1px solid #CBD5E1;
+      border-radius: 12px;
+      overflow-x: auto;
+      background: #fff;
+      max-height: 430px;
+      overflow-y: auto;
+    }
+    .ledger-stmt-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+      min-width: 780px;
+    }
+    .ledger-stmt-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #F1F5F9;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 9px 10px;
+      border-bottom: 1px solid #CBD5E1;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .ledger-stmt-table thead th.num,
+    .ledger-stmt-table tbody td.num,
+    .ledger-stmt-table tfoot td.num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .ledger-stmt-table tbody td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #F1F5F9;
+      color: #0F172A;
+      vertical-align: middle;
+    }
+    .ledger-stmt-table tbody tr:hover td { background: #F8FAFC; }
+    .ledger-stmt-table tbody td.col-sale-amt { color: #1E40AF; font-weight: 700; }
+    .ledger-stmt-table tbody td.col-paid-amt { color: #047857; font-weight: 700; }
+    .ledger-stmt-table tbody td.col-run-bal { color: #0F172A; font-weight: 800; }
+    .ledger-stmt-table tfoot td {
+      position: sticky;
+      bottom: 0;
+      background: #EFF6FF;
+      border-top: 2px solid #BFDBFE;
+      padding: 9px 10px;
+      font-weight: 800;
+      color: #0F172A;
+    }
+    .ledger-cust-row { cursor: pointer; }
+    .ledger-cust-row.is-active td { background: #EFF6FF !important; }
   </style>
 </head>
 <body>
@@ -1845,7 +1992,8 @@
       sheetNote: '<path d="M14 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7"/><path d="M3 9h12"/><path d="M3 13h7"/><path d="M3 17h5"/><path d="M8 4v16"/><path d="m18.2 13.8 2 2L14 22l-2.8.8.8-2.8 6.2-6.2Z"/>',
       chevronLeft: '<path d="m15 18-6-6 6-6"/>',
       chevronRight: '<path d="m9 18 6-6-6-6"/>',
-      clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'
+      clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+      ledger: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M9 7h6"/><path d="M9 11h6"/>'
     };
 
     function icon(name, size) {
@@ -6314,7 +6462,7 @@
       return Object.keys(map);
     }
 
-    function createCustomFolder(folderName, withStarterTable) {
+    function createCustomFolder(folderName, withStarterTable, withLedgerTable) {
       if (!guardWriteAction('Add Folder')) return false;
       var clean = sanitizeUserText(folderName, 80);
       if (!clean || clean.toLowerCase() === 'all') { showToast('Please enter a valid folder name'); return false; }
@@ -6328,6 +6476,9 @@
       if (cleared) pushSharedSecurityState('create_folder');
       if (state.collapsedFolders) state.collapsedFolders[clean] = false;
       state.selectedFolder = clean;
+      if (withLedgerTable && typeof createLedgerBotInFolder === 'function') {
+        createLedgerBotInFolder(clean, clean + ' Customer Ledger', 'ethiopian', true);
+      }
       if (withStarterTable) {
         var id = Date.now();
         var actor = getCurrentActor();
@@ -6360,7 +6511,7 @@
         recordFolderSnapshot(starterBot, 'CREATED', 'Created folder "' + clean + '" with starter table "' + starterBot.name + '"', true);
         pushBotToSupabase(starterBot);
       }
-      recordAudit('ADD', null, 'Added folder "' + clean + '"' + (withStarterTable ? ' with starter table' : ''));
+      recordAudit('ADD', null, 'Added folder "' + clean + '"' + (withLedgerTable ? ' with Customer Ledger' : '') + (withStarterTable ? ' with starter table' : ''));
       showToast('Folder "' + clean + '" ready!');
       return true;
     }
@@ -7325,6 +7476,9 @@
     function updateBot(updated, auditAction, auditSummary, opts) {
       opts = opts || {};
       if (!guardWriteAction(auditSummary || 'Edit Bot')) return false;
+      if (updated && typeof isLedgerBot === 'function' && isLedgerBot(updated) && typeof recalculateLedgerBotBalances === 'function' && !opts.skipLedgerRecalc && !window._tbIsUndoRedo) {
+        recalculateLedgerBotBalances(updated);
+      }
       if (updated && updated.id) {
         if (!state.folderLastBotId) state.folderLastBotId = {};
         state.folderLastBotId[updated.folder || 'General'] = updated.id;
@@ -7577,6 +7731,7 @@
         '<div class="dash-subbar"><div class="dash-subbar-inner">' +
           '<div class="dash-subbar-group">' +
             '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FDE68A">' + icon('chart', 14) + '</span><span>' + esc(t('reports')) + '</span></button>' +
+            '<button class="header-action-btn" id="btn-dash-ledger" title="Customer Account Ledger &amp; Running Balance"><span style="color:#6EE7B7">' + icon('ledger', 14) + '</span><span>Ledger</span></button>' +
           '</div>' +
           '<div class="dash-subbar-group">' +
             '<button class="icon-btn" id="btn-dash-search" title="Search tables" style="width:32px;height:32px;">' + icon('search', 18) + '</button>' +
@@ -7672,6 +7827,7 @@
             (fUndoTarget ? '<button type="button" class="dropdown-item" data-folder-menu-act="undo" data-folder-name="' + esc(f) + '">' + icon('undo', 14) + '<span>Undo Last Change</span></button>' : '') +
             (fRedoTarget ? '<button type="button" class="dropdown-item" data-folder-menu-act="redo" data-folder-name="' + esc(f) + '">' + icon('redo', 14) + '<span>Redo Change</span></button>' : '') +
             '<button type="button" class="dropdown-item" data-folder-menu-act="lock" data-folder-name="' + esc(f) + '">' + icon('lock', 14) + '<span>Folder Lock</span></button>' +
+            '<button type="button" class="dropdown-item" data-folder-menu-act="ledger" data-folder-name="' + esc(f) + '">' + icon('ledger', 14) + '<span>Customer Ledger</span></button>' +
             '<button type="button" class="dropdown-item" data-folder-menu-act="reports" data-folder-name="' + esc(f) + '">' + icon('chart', 14) + '<span>Folder Reports</span></button>' +
             '<div style="border-top:1px solid #F1F5F9;margin:4px 0;"></div>' +
             '<button type="button" class="dropdown-item danger" data-folder-menu-act="delete" data-folder-name="' + esc(f) + '">' + icon('trash', 14) + '<span>Delete Folder</span></button>' +
@@ -7701,6 +7857,7 @@
           '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
             (state.selectedFolder !== 'all' ? '<button type="button" class="folder-mini-btn" data-folder="all">' + icon('grid', 12) + '<span>All Tables (' + totalTablesCount + ')</span></button>' : '') +
             '<button type="button" class="folder-mini-btn primary" id="btn-dash-new-table" title="Create New Table">' + icon('plus', 13) + '<span>' + esc(t('add_table_folder')) + '</span></button>' +
+            '<button type="button" class="folder-mini-btn" id="btn-dash-new-ledger" style="background:#ECFDF5;border-color:#6EE7B7;color:#065F46;" title="Create Customer Account Ledger inside a Folder">' + icon('ledger', 13) + '<span>+ Ledger</span></button>' +
             '<button type="button" class="add-folder-pill" id="btn-add-folder" title="Add, manage or delete folders">' + icon('plus', 13) + '<span>' + esc(t('add_folder')) + '</span></button>' +
           '</div>' +
         '</div>';
@@ -7797,6 +7954,7 @@
 
         if (state.activeCardMenuId === b.id) {
           cHtml += '<div class="dropdown-menu" data-stop-card="1">' +
+            (typeof isLedgerBot === 'function' && isLedgerBot(b) ? '<button type="button" class="dropdown-item" data-menu-action="ledger" data-bot-id="' + esc(b.id) + '">' + icon('ledger', 14) + '<span>Open Ledger Statement</span></button>' : '') +
             '<button type="button" class="dropdown-item" data-menu-action="rename_quick" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename</span></button>' +
             '<button type="button" class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('settings', 14) + '<span>Table Settings</span></button>' +
             '<button type="button" class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
@@ -7903,6 +8061,7 @@
             '<button type="button" class="folder-icon-btn on-dark" data-folder-redo="' + esc(selFolder) + '" title="' + (selRedoTarget ? ('Redo change in ' + esc(selRedoTarget.name)) : 'Redo in ' + esc(selFolder)) + '"' + (!selRedoTarget ? ' disabled' : '') + '>' + icon('redo', 16) + '</button>' +
             '<button type="button" class="folder-mini-btn" id="btn-folder-versions" style="background:rgba(16,185,129,0.28);border-color:rgba(167,243,208,0.5);color:#fff;" title="File Versions &amp; History">' + icon('history', 12) + '<span>Versions</span></button>' +
             '<button type="button" class="folder-mini-btn" id="btn-folder-add-col" style="background:rgba(59,130,246,0.34);border-color:rgba(191,219,254,0.55);color:#fff;" title="Add Column to table(s) in this folder">' + icon('plus', 12) + '<span>Add Column</span></button>' +
+            '<button type="button" class="folder-mini-btn" data-ledger-folder="' + esc(selFolder) + '" style="background:rgba(16,185,129,0.34);border-color:rgba(167,243,208,0.6);color:#fff;" title="Customer Account Ledger &amp; Running Balance in this folder">' + icon('ledger', 12) + '<span>Ledger</span></button>' +
             '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;" title="Folder Reports">' + icon('chart', 12) + '<span>Report</span></button>' +
             '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-search" title="Search tables in ' + esc(selFolder) + '" style="' + (state.folderSearchOpen ? 'background:rgba(255,255,255,0.32);border-color:#fff;' : '') + '">' + icon('search', 16) + '</button>' +
             '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-settings" title="Folder Settings">' + icon('settings', 16) + '</button>' +
@@ -7963,6 +8122,9 @@
             '<button type="button" id="dash-folder-lock-settings" class="btn btn-outline" style="width:100%;margin-top:10px;font-size:12px;">Change / Manage Folder Lock Code (Abdulfeta)</button>' +
           '</div>';
         } else {
+          if (typeof renderFolderLedgerDashboardCard === 'function') {
+            html += renderFolderLedgerDashboardCard(selFolder);
+          }
           var showingRangeLabel = folderFiltered.length > 0
             ? ('Showing ' + (pageStartIdx + 1) + '–' + (pageStartIdx + pagedFolderBots.length) + ' of ' + folderFiltered.length + ' · Page ' + curFolderPage + '/' + totalFolderPages)
             : esc(t('tap_card'));
@@ -8106,6 +8268,10 @@
       if (syncPillBtn) syncPillBtn.onclick = function () { openModal('supabase', { authTab: 'login' }); };
       var repBtn = document.getElementById('btn-dash-reports');
       if (repBtn) repBtn.onclick = function () { openModal('reports'); };
+      var dashLedgerBtn = document.getElementById('btn-dash-ledger');
+      if (dashLedgerBtn) dashLedgerBtn.onclick = function () { openModal('customer_ledger', { folder: state.selectedFolder || 'all' }); };
+      var dashNewLedgerBtn = document.getElementById('btn-dash-new-ledger');
+      if (dashNewLedgerBtn) dashNewLedgerBtn.onclick = function () { openModal('create_ledger_in_folder', { folder: (state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : (state.adminConfig.telegramDefaultFolder || 'General') }); };
 
       var curDashRepFolder = (state.selectedFolder && state.selectedFolder !== 'all')
         ? state.selectedFolder
@@ -8303,6 +8469,29 @@
           openModal('reports', { folder: fn || 'General' });
         };
       });
+      document.querySelectorAll('[data-ledger-folder]').forEach(function (btn) {
+        btn.onclick = function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          var fn = btn.getAttribute('data-ledger-folder');
+          openModal('customer_ledger', { folder: fn || 'all' });
+        };
+      });
+      var fldCreateLedgerBtn = document.getElementById('btn-fld-create-ledger');
+      if (fldCreateLedgerBtn) fldCreateLedgerBtn.onclick = function () {
+        openModal('create_ledger_in_folder', { folder: state.selectedFolder || 'General' });
+      };
+      var fldOpenLedgerBtn = document.getElementById('btn-fld-open-ledger');
+      if (fldOpenLedgerBtn) fldOpenLedgerBtn.onclick = function () {
+        openModal('customer_ledger', { folder: state.selectedFolder || 'all', botId: fldOpenLedgerBtn.getAttribute('data-bot-id') || '' });
+      };
+      var fldAddSaleBtn = document.getElementById('btn-fld-add-sale');
+      if (fldAddSaleBtn) fldAddSaleBtn.onclick = function () {
+        openModal('customer_ledger', { folder: state.selectedFolder || 'all', botId: fldAddSaleBtn.getAttribute('data-bot-id') || '', entryMode: 'sale' });
+      };
+      var fldAddPayBtn = document.getElementById('btn-fld-add-pay');
+      if (fldAddPayBtn) fldAddPayBtn.onclick = function () {
+        openModal('customer_ledger', { folder: state.selectedFolder || 'all', botId: fldAddPayBtn.getAttribute('data-bot-id') || '', entryMode: 'payment' });
+      };
       document.querySelectorAll('[data-lock-folder]').forEach(function (btn) {
         btn.onclick = function (e) {
           if (e && e.stopPropagation) e.stopPropagation();
@@ -8426,6 +8615,8 @@
             if (rTarget) redoTableAction(rTarget);
           } else if (act === 'lock') {
             openModal('folder_lock', { focusFolder: fn });
+          } else if (act === 'ledger') {
+            openModal('customer_ledger', { folder: fn });
           } else if (act === 'reports') {
             openModal('reports', { folder: fn });
           } else if (act === 'delete') {
@@ -8480,6 +8671,7 @@
           var bid = item.getAttribute('data-bot-id');
           state.activeCardMenuId = null;
           if (act === 'rename_quick') openModal('rename_item', { kind: 'bot', botId: bid });
+          else if (act === 'ledger') { var bL = state.bots.find(function (x) { return x.id === bid; }); openModal('customer_ledger', { folder: bL ? (bL.folder || 'General') : 'all', botId: bid }); }
           else if (act === 'history') openModal('file_history', { botId: bid });
           else if (act === 'rename') { var b = state.bots.find(function (x) { return x.id === bid; }); if (b) openModal('settings', { bot: b }); }
           else if (act === 'dup') duplicateBot(bid);
@@ -9211,6 +9403,7 @@
               '<button type="button" class="header-action-btn" id="btn-table-history" title="Open File Version History (3m+ &amp; Restore)"><span style="color:#6EE7B7">' + icon('history', 14) + '</span><span>' + esc(t('versions')) + '</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-search" title="Search rows" style="' + (state.tableSearchOpen ? 'background:rgba(59,130,246,0.38);border-color:#93C5FD;' : '') + '">' + icon('search', 14) + '<span>Search</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 14) + '</span><span>' + esc(t('reports')) + '</span></button>' +
+              ((typeof isLedgerBot === 'function' && isLedgerBot(bot)) ? '<button type="button" class="header-action-btn" id="btn-table-ledger" style="background:rgba(16,185,129,0.34);border-color:rgba(167,243,208,0.6);" title="Open Customer Account Ledger Statement &amp; Running Balance"><span style="color:#A7F3D0">' + icon('ledger', 14) + '</span><span>Ledger Statement</span></button>' : '') +
               '<button type="button" class="header-action-btn" id="btn-table-settings" title="Table Settings">' + icon('settings', 14) + '<span>Settings</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-add-col" title="Add New Column" style="background:rgba(37,99,235,0.36);border-color:rgba(147,197,253,0.55);"><span style="color:#BFDBFE">' + icon('plus', 14) + '</span><span>' + esc(t('add_column')) + '</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>' + esc(t('sync')) + '</span></button>' +
@@ -9738,6 +9931,8 @@
       document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
       document.getElementById('btn-table-history').onclick = function () { openModal('file_history', { botId: bot.id }); };
       document.getElementById('btn-table-reports').onclick = function () { openModal('reports', { folder: bot.folder || 'General' }); };
+      var tblLedgerBtn = document.getElementById('btn-table-ledger');
+      if (tblLedgerBtn) tblLedgerBtn.onclick = function () { openModal('customer_ledger', { folder: bot.folder || 'General', botId: bot.id }); };
       document.getElementById('btn-table-settings').onclick = function () { openModal('settings', { bot: bot }); };
       var tblPrevPageBtn = document.getElementById('btn-table-prev-page');
       var tblNextPageBtn = document.getElementById('btn-table-next-page');
@@ -9877,7 +10072,7 @@
         var tableElNow = document.querySelector('.sheet-table');
         var tbodyElNow = tableElNow && tableElNow.tBodies && tableElNow.tBodies[0] ? tableElNow.tBodies[0] : null;
         var wrapElNow = document.querySelector('.table-wrap');
-        if (!state.tableSearchQuery && tbodyElNow && wrapElNow) {
+        if (!state.tableSearchQuery && tbodyElNow && wrapElNow && !(hasPresetValues && typeof isLedgerBot === 'function' && isLedgerBot(bot))) {
           visibleRows.push(nr);
           var newIdx = visibleRows.length - 1;
           var rowHtml = renderTableRowHtml(bot, nr, newIdx, null);
@@ -12261,6 +12456,7 @@
             '<button class="drawer-item" data-nav="new_table"><span class="drawer-item-left"><span style="color:#0F766E">' + icon('plus', 19) + '</span><span>New Table</span></span></button>' +
             '<button class="drawer-item" data-nav="add_folder"><span class="drawer-item-left"><span style="color:#D97706">' + icon('folder', 19) + '</span><span>Add Folder</span></span></button>' +
             '<button class="drawer-item" data-nav="all_bots"><span class="drawer-item-left"><span style="color:#0D47A1">' + icon('bot', 19) + '</span><span>All Tables &amp; Folders</span></span></button>' +
+            '<button class="drawer-item" data-nav="ledger"><span class="drawer-item-left"><span style="color:#059669">' + icon('ledger', 19) + '</span><span>Customer Account Ledger</span></span></button>' +
             '<button class="drawer-item" data-nav="reports"><span class="drawer-item-left"><span style="color:#E65100">' + icon('chart', 19) + '</span><span>Reports</span></span></button>' +
             '<div style="border-top:1px solid #F1F5F9;margin:8px 0;"></div>' +
             '<button class="drawer-item" id="drawer-lang-toggle"><span class="drawer-item-left"><span style="color:#0F766E;font-weight:800;font-size:13px;">አማ/EN</span><span>Language / ቋንቋ</span></span><span class="pill-badge" style="background:#ECFDF5;color:#047857;font-size:10px;">' + (state.lang === 'am' ? 'አማ' : 'EN') + '</span></button>' +
@@ -12346,6 +12542,7 @@
           else if (v === 'admin') openModal('admin', { tab: 'settings' });
           else if (v === 'access_code') openModal('access_code');
           else if (v === 'folder_lock') openModal('folder_lock');
+          else if (v === 'ledger') openModal('customer_ledger', { folder: state.selectedFolder || 'all' });
           else if (v === 'reports') openModal('reports');
           else if (v === 'account' || v === 'login' || v === 'supabase') openModal('supabase', { authTab: 'login' });
           else if (v === 'forgot') openModal('supabase', { authTab: 'forgot' });
@@ -12793,6 +12990,8 @@
       else if (m.type === 'cyber_control') renderCyberControlModal(m);
       else if (m.type === 'folder_lock') renderFolderLockModal(m);
       else if (m.type === 'folder_unlock_prompt') renderFolderUnlockPromptModal(m);
+      else if (m.type === 'customer_ledger') renderCustomerLedgerModal(m);
+      else if (m.type === 'create_ledger_in_folder') renderCreateLedgerModal(m);
     }
 
     function renderTelegramFolderModal(m) {
@@ -13730,6 +13929,9 @@
           '<label style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;color:#0D47A1;">' +
             '<input type="checkbox" id="af-starter" checked /> Create a starter table inside this folder (with Number, Formula &amp; Amount columns)' +
           '</label>' +
+          '<label style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;color:#065F46;">' +
+            '<input type="checkbox" id="af-ledger" /> Create a Customer Account Ledger inside this folder (Credit Sales, Payments &amp; Running Balance ETB)' +
+          '</label>' +
           '<div style="display:flex;gap:8px;">' +
             '<button type="button" id="af-cancel" class="btn btn-outline" style="flex:1;">Close</button>' +
             '<button type="submit" class="btn btn-primary" style="flex:1.4;">' + icon('plus', 15) + '<span>Create Folder</span></button>' +
@@ -13804,7 +14006,8 @@
         e.preventDefault();
         var fname = document.getElementById('af-name').value;
         var withStarter = document.getElementById('af-starter').checked;
-        if (createCustomFolder(fname, withStarter)) {
+        var withLedger = Boolean(document.getElementById('af-ledger') && document.getElementById('af-ledger').checked);
+        if (createCustomFolder(fname, withStarter, withLedger)) {
           closeModal();
           renderApp();
         }
@@ -19329,6 +19532,1319 @@
           pushActivityHeartbeat(12);
         }
       }, 12000);
+    }
+
+    // =========================================================================
+    // Customer Account Ledger with Running Balance (ETB & Ethiopian Calendar)
+    // =========================================================================
+
+    function roundEtb2(n) {
+      var v = Number(n);
+      if (isNaN(v) || !isFinite(v)) return 0;
+      return Math.round(v * 100) / 100;
+    }
+
+    function formatEtbAmount(num, blankIfEmpty) {
+      if (blankIfEmpty && (num === '' || num === null || num === undefined)) return '—';
+      var val = roundEtb2(num);
+      var absStr = Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return (val < 0 ? '-ETB ' : 'ETB ') + absStr;
+    }
+
+    function formatLedgerDateDisplay(dateMeta, calendarMode, style) {
+      if (!dateMeta || isNaN(dateMeta.gy)) return '—';
+      var mode = calendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      if (mode === 'gregorian') {
+        return String(dateMeta.gd).padStart(2, '0') + '/' + String(dateMeta.gm).padStart(2, '0') + '/' + String(dateMeta.gy);
+      }
+      var ec = dateMeta.ec || gregorianPartsToEthiopian(dateMeta.gy, dateMeta.gm, dateMeta.gd);
+      var dd = String(ec.day).padStart(2, '0');
+      var mm = String(ec.month).padStart(2, '0');
+      if (style === 'named') {
+        var mList = (state && state.lang === 'am') ? ETHIOPIAN_MONTHS_AM : ETHIOPIAN_MONTHS_EN;
+        var mName = mList[(ec.month - 1)] || mm;
+        return dd + ' ' + mName + ' ' + ec.year + ' EC';
+      }
+      return dd + '/' + mm + '/' + ec.year + ' EC';
+    }
+
+    function parseLedgerInputDate(rawStr, calendarMode) {
+      var s = String(rawStr === undefined || rawStr === null ? '' : rawStr).trim();
+      if (!s || !hasExplicitDatePattern(s)) return null;
+      var isoOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (isoOnly) {
+        var gy = parseInt(isoOnly[1], 10);
+        var gm = parseInt(isoOnly[2], 10);
+        var gd = parseInt(isoOnly[3], 10);
+        // Years >= 2022 in YYYY-MM-DD from native date pickers are Gregorian unless tagged EC
+        if (gy >= 2022) {
+          return parseFlexibleDateMeta(s, null, { calendarType: 'gregorian' }, false);
+        }
+      }
+      var preferEth = calendarMode !== 'gregorian';
+      return parseFlexibleDateMeta(s, null, { calendarType: preferEth ? 'ethiopian' : 'gregorian' }, preferEth);
+    }
+
+    function detectLedgerColumns(bot) {
+      var cols = Array.isArray(bot && bot.columns) ? bot.columns : [];
+      var findCol = function (exactNames, fuzzyPatterns) {
+        for (var i = 0; i < exactNames.length; i++) {
+          var target = exactNames[i].toLowerCase();
+          var hit = cols.find(function (c) { return String(c.name || '').trim().toLowerCase() === target; });
+          if (hit) return hit;
+        }
+        for (var j = 0; j < fuzzyPatterns.length; j++) {
+          var re = fuzzyPatterns[j];
+          var hitF = cols.find(function (c) { return re.test(String(c.name || '').trim()); });
+          if (hitF) return hitF;
+        }
+        return null;
+      };
+      var custCol = findCol(['customer name', 'customer', 'client name', 'buyer'], [/^customer/i, /^client/i, /^buyer/i]);
+      var typeCol = findCol(['type', 'tx type', 'transaction type', 'entry type'], [/\btype\b/i]);
+      var saleDateCol = findCol(['sale date', 'credit date', 'invoice date'], [/sale\s*date|credit\s*date/i]);
+      var saleAmtCol = findCol(['sale amount', 'credit amount', 'sale / credit', 'credit'], [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount)?/i]);
+      var payDateCol = findCol(['payment date', 'paid date', 'pay date'], [/pay(?:ment)?\s*date|paid\s*date/i]);
+      var payAmtCol = findCol(['paid amount', 'payment amount', 'amount paid'], [/paid\s*(?:amt|amount)?|payment\s*(?:amt|amount)/i]);
+      var balCol = findCol(['running balance', 'outstanding balance', 'remaining balance', 'balance'], [/running\s*bal|remaining\s*bal|outstanding|\bbalance\b/i]);
+      var noteCol = findCol(['reference / note', 'note', 'notes', 'description', 'remark', 'quality / quantity'], [/note|remark|ref|desc|item|detail/i]);
+
+      // Fallback general date / total amount for legacy customer-balance sheets
+      var genericDateCol = saleDateCol || findCol(['transaction date', 'date', 'tx date'], [/\bdate\b/i]);
+      var genericTotalCol = saleAmtCol || findCol(['total amount', 'total', 'amount'], [/\btotal\b/i]);
+
+      var hasDedicatedCols = Boolean(custCol && saleDateCol && saleAmtCol && payDateCol && payAmtCol && balCol);
+      var hasBalanceSignal = Boolean(custCol && (balCol || (saleAmtCol && payAmtCol) || (genericTotalCol && payAmtCol)));
+      return {
+        custCol: custCol,
+        typeCol: typeCol,
+        saleDateCol: saleDateCol,
+        saleAmtCol: saleAmtCol,
+        payDateCol: payDateCol,
+        payAmtCol: payAmtCol,
+        balCol: balCol,
+        noteCol: noteCol,
+        genericDateCol: genericDateCol,
+        genericTotalCol: genericTotalCol,
+        isDedicatedLedger: hasDedicatedCols,
+        hasBalanceSignal: hasBalanceSignal
+      };
+    }
+
+    function isLedgerBot(bot) {
+      if (!bot || isBotTombstoned(bot)) return false;
+      if (bot.isLedgerTable === true) return true;
+      var det = detectLedgerColumns(bot);
+      return Boolean(det.isDedicatedLedger || (det.hasBalanceSignal && /ledger/i.test(String(bot.name || '') + ' ' + String(bot.folder || ''))));
+    }
+
+    function getFolderLedgerBots(folder) {
+      var list = (state.bots || []).filter(function (b) {
+        if (!isLedgerBot(b)) return false;
+        if (!folder || folder === 'all') return true;
+        return normalizeFolderName(b.folder).toLowerCase() === String(folder).trim().toLowerCase();
+      });
+      return list;
+    }
+
+    function createLedgerBotInFolder(folderName, tableName, calendarMode, skipOpenModal) {
+      if (!guardWriteAction('Create Customer Account Ledger')) return null;
+      var cleanFolder = sanitizeUserText(normalizeFolderName(folderName || ((state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : (state.adminConfig.telegramDefaultFolder || 'General'))), 80) || 'General';
+      if (cleanFolder.toLowerCase() === 'all') cleanFolder = 'General';
+      var existingFld = getAllFolders().find(function (f) { return f.toLowerCase() === cleanFolder.toLowerCase(); });
+      if (existingFld) cleanFolder = existingFld;
+      var cleared = clearFolderTombstone(cleanFolder, null);
+      if (!state.customFolders.some(function (f) { return String(f || '').trim().toLowerCase() === cleanFolder.toLowerCase(); })) {
+        state.customFolders.push(cleanFolder);
+        saveCustomFolders();
+      }
+      if (cleared) pushSharedSecurityState('create_ledger_folder');
+
+      var existingNames = {};
+      (state.bots || []).forEach(function (b) { if (b && !isBotTombstoned(b)) existingNames[String(b.name || '').toLowerCase()] = true; });
+      var baseName = sanitizeUserText(tableName || '', 120) || (cleanFolder + ' Customer Ledger');
+      var finalName = baseName;
+      if (existingNames[finalName.toLowerCase()]) {
+        var idxN = 2;
+        while (existingNames[(baseName + ' ' + idxN).toLowerCase()]) idxN++;
+        finalName = baseName + ' ' + idxN;
+      }
+
+      var calMode = calendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      var id = Date.now() + Math.floor(Math.random() * 100);
+      var actor = getCurrentActor();
+      var nowIso = new Date().toISOString();
+      var ledgerBot = {
+        id: 'bot_ledger_' + id,
+        name: finalName,
+        description: 'Customer Account Ledger with separate Sale/Payment columns & automatic ETB Running Balance',
+        folder: cleanFolder,
+        isLedgerTable: true,
+        ledgerCalendarMode: calMode,
+        telegramToken: '',
+        webhookUrl: '',
+        webhookSecret: '',
+        webhookActive: false,
+        botStatus: 'simulator',
+        isFavorite: false,
+        createdBy: actor,
+        lastEditedBy: actor,
+        updatedAt: nowIso,
+        columns: [
+          { id: 'col_l_cust_' + id, name: 'Customer Name', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0F172A', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_type_' + id, name: 'Type', type: 'text', widthMultiplier: 0.9, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'center', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_sdate_' + id, name: 'Sale Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E40AF', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_samt_' + id, name: 'Sale Amount', type: 'amount', widthMultiplier: 1.15, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#1E40AF', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_pdate_' + id, name: 'Payment Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_pamt_' + id, name: 'Paid Amount', type: 'amount', widthMultiplier: 1.15, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_rbal_' + id, name: 'Running Balance', type: 'amount', widthMultiplier: 1.25, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#0F172A', bgColor: '#F8FAFC' }, includeInGraph: true },
+          { id: 'col_l_note_' + id, name: 'Reference / Note', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#475569', bgColor: '#FFFFFF' }, includeInGraph: false }
+        ],
+        rows: []
+      };
+
+      state.bots.unshift(ledgerBot);
+      saveBotsLocal();
+      recordFolderSnapshot(ledgerBot, 'CREATED', 'Created Customer Account Ledger "' + finalName + '" in folder "' + cleanFolder + '"', true);
+      recordAudit('ADD', ledgerBot, 'Created Customer Account Ledger "' + finalName + '" in "' + cleanFolder + '"');
+      pushBotToSupabase(ledgerBot);
+      showToast('Created Customer Ledger "' + finalName + '" in "' + cleanFolder + '"');
+      if (!skipOpenModal) {
+        state.selectedFolder = cleanFolder;
+        openModal('customer_ledger', { folder: cleanFolder, botId: ledgerBot.id, calendarMode: calMode });
+      }
+      return ledgerBot;
+    }
+
+    function resolveLedgerRowMeta(row, det, bot, origIdx) {
+      if (!row || !det) return null;
+      var custRaw = det.custCol ? String(row[det.custCol.id] || '').trim() : '';
+      var typeRaw = det.typeCol ? String(row[det.typeCol.id] || '').trim() : '';
+      var sDateRaw = det.saleDateCol ? String(row[det.saleDateCol.id] || '').trim() : (det.genericDateCol ? String(row[det.genericDateCol.id] || '').trim() : '');
+      var pDateRaw = det.payDateCol ? String(row[det.payDateCol.id] || '').trim() : '';
+      var sAmtRaw = det.saleAmtCol ? row[det.saleAmtCol.id] : (det.genericTotalCol ? row[det.genericTotalCol.id] : '');
+      var pAmtRaw = det.payAmtCol ? row[det.payAmtCol.id] : '';
+      var sAmt = (sAmtRaw !== '' && sAmtRaw !== null && sAmtRaw !== undefined) ? parseNumSafe(sAmtRaw) : 0;
+      var pAmt = (pAmtRaw !== '' && pAmtRaw !== null && pAmtRaw !== undefined) ? parseNumSafe(pAmtRaw) : 0;
+      if (isNaN(sAmt)) sAmt = 0;
+      if (isNaN(pAmt)) pAmt = 0;
+
+      var hasAnyVal = Boolean(custRaw || sDateRaw || pDateRaw || sAmt !== 0 || pAmt !== 0);
+      if (!hasAnyVal) return null;
+
+      var isPayment = row._ledgerKind === 'payment' || /^payment/i.test(typeRaw) || (pAmt !== 0 && sAmt === 0 && !sDateRaw) || (Boolean(pDateRaw) && !sDateRaw && sAmt === 0);
+      var activeDateRaw = isPayment ? (pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
+      var activeDateCol = isPayment ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
+      var preferEth = bot.ledgerCalendarMode ? (bot.ledgerCalendarMode !== 'gregorian') : (activeDateCol ? isEthiopianCol(activeDateCol) : true);
+      var dMeta = parseFlexibleDateMeta(activeDateRaw, row._createdAt || row._updatedAt || bot.updatedAt, activeDateCol, preferEth);
+      var utcDayMs = Date.UTC(dMeta.gy, dMeta.gm - 1, dMeta.gd);
+      var createdMs = Date.parse(row._createdAt || row._updatedAt || '') || 0;
+      var txSeq = typeof row._txSeq === 'number' ? row._txSeq : origIdx;
+
+      return {
+        row: row,
+        custKey: (custRaw || 'Walk-in Customer').toLowerCase(),
+        isPayment: isPayment,
+        saleAmount: isPayment ? 0 : roundEtb2(sAmt),
+        paidAmount: isPayment ? roundEtb2(pAmt) : 0,
+        bothSaleAmt: roundEtb2(sAmt),
+        bothPaidAmt: roundEtb2(pAmt),
+        utcDayMs: utcDayMs,
+        kindOrder: isPayment ? 1 : 0,
+        createdMs: createdMs,
+        txSeq: txSeq,
+        origIdx: origIdx
+      };
+    }
+
+    function recalculateLedgerBotBalances(bot) {
+      if (!bot || !Array.isArray(bot.rows)) return bot;
+      var det = detectLedgerColumns(bot);
+      if (!det || !det.balCol) return bot;
+
+      var populated = [];
+      var emptyRows = [];
+      for (var i = 0; i < bot.rows.length; i++) {
+        var r = bot.rows[i];
+        var meta = resolveLedgerRowMeta(r, det, bot, i);
+        if (!meta) {
+          r[det.balCol.id] = '';
+          emptyRows.push(r);
+          continue;
+        }
+        populated.push(meta);
+      }
+
+      populated.sort(function (a, b) {
+        if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
+        if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
+        if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
+        if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
+        return a.origIdx - b.origIdx;
+      });
+
+      var runningMap = {};
+      for (var j = 0; j < populated.length; j++) {
+        var item = populated[j];
+        var prev = runningMap[item.custKey] || 0;
+        var netDelta = det.isDedicatedLedger
+          ? roundEtb2(item.bothSaleAmt - item.bothPaidAmt)
+          : roundEtb2((item.isPayment ? 0 : item.saleAmount) - (item.isPayment ? item.paidAmount : item.bothPaidAmt));
+        var nextBal = roundEtb2(prev + netDelta);
+        runningMap[item.custKey] = nextBal;
+        item.row[det.balCol.id] = nextBal;
+        if (det.typeCol && !String(item.row[det.typeCol.id] || '').trim()) {
+          item.row[det.typeCol.id] = item.isPayment ? 'Payment' : 'Credit Sale';
+        }
+      }
+
+      if (populated.length > 0 && isLedgerBot(bot)) {
+        bot.rows = populated.map(function (p) { return p.row; }).concat(emptyRows);
+      }
+      return bot;
+    }
+
+    function recordLedgerTransaction(botId, tx) {
+      if (!guardWriteAction('Record Ledger Transaction')) return { ok: false, error: 'Action blocked by access control.' };
+      var bot = (state.bots || []).find(function (b) { return b && b.id === botId && !isBotTombstoned(b); });
+      if (!bot) return { ok: false, error: 'Please create or select a Ledger table first.' };
+
+      var det = detectLedgerColumns(bot);
+      if (!det.custCol || !det.balCol) {
+        return { ok: false, error: 'Selected table is missing Customer Name or Balance columns.' };
+      }
+
+      var kind = tx && tx.kind === 'payment' ? 'payment' : 'sale';
+      var custName = sanitizeUserText((tx && tx.customerName) || '', 120);
+      if (!custName) return { ok: false, error: 'Customer Name is required.' };
+
+      var amtNum = sanitizeNumericInput(tx && tx.amount);
+      if (amtNum === '' || isNaN(Number(amtNum)) || Number(amtNum) <= 0) {
+        return { ok: false, error: 'Please enter a valid positive amount in ETB (> 0).' };
+      }
+      amtNum = roundEtb2(Number(amtNum));
+
+      var calMode = (tx && tx.calendarMode) || bot.ledgerCalendarMode || 'ethiopian';
+      var targetDateCol = kind === 'payment' ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
+      var parsedDateMeta = parseLedgerInputDate(tx && tx.txDateStr, calMode);
+      if (!parsedDateMeta) {
+        return { ok: false, error: 'Please enter a valid ' + (kind === 'payment' ? 'Payment Date' : 'Sale Date') + ' (e.g. DD/MM/YYYY EC or YYYY-MM-DD).' };
+      }
+
+      // Always store the date cleanly formatted according to the ledger column's calendar type
+      var storeCol = targetDateCol || { calendarType: calMode === 'gregorian' ? 'gregorian' : 'ethiopian', dateFormat: 'dmy' };
+      var storedDateStr = formatAutoDateStr(storeCol, parsedDateMeta.date);
+      var noteVal = sanitizeUserText((tx && tx.note) || '', 400);
+
+      var nowIso = new Date().toISOString();
+      var maxSeq = 0;
+      (bot.rows || []).forEach(function (r) {
+        if (r && typeof r._txSeq === 'number' && r._txSeq > maxSeq) maxSeq = r._txSeq;
+      });
+
+      var nr = buildBlankRowForBot(bot);
+      nr.id = 'ltx_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+      nr._createdAt = nowIso;
+      nr._updatedAt = nowIso;
+      nr._actor = getCurrentActor();
+      nr._ledgerKind = kind;
+      nr._txSeq = maxSeq + 1;
+
+      nr[det.custCol.id] = custName;
+      if (det.typeCol) nr[det.typeCol.id] = kind === 'payment' ? 'Payment' : 'Credit Sale';
+      if (det.noteCol) nr[det.noteCol.id] = noteVal;
+
+      if (kind === 'sale') {
+        if (det.saleDateCol) nr[det.saleDateCol.id] = storedDateStr;
+        else if (det.genericDateCol) nr[det.genericDateCol.id] = storedDateStr;
+        if (det.saleAmtCol) nr[det.saleAmtCol.id] = amtNum;
+        else if (det.genericTotalCol) nr[det.genericTotalCol.id] = amtNum;
+        if (det.payDateCol) nr[det.payDateCol.id] = '';
+        if (det.payAmtCol) nr[det.payAmtCol.id] = '';
+      } else {
+        // Record payment strictly on its own separate row — NEVER combine with sale or prior payment dates
+        if (det.saleDateCol) nr[det.saleDateCol.id] = '';
+        if (det.saleAmtCol) nr[det.saleAmtCol.id] = '';
+        if (det.payDateCol) nr[det.payDateCol.id] = storedDateStr;
+        else if (det.genericDateCol) nr[det.genericDateCol.id] = storedDateStr;
+        if (det.payAmtCol) nr[det.payAmtCol.id] = amtNum;
+      }
+
+      bot.rows.push(nr);
+      recalculateLedgerBotBalances(bot);
+      bot.updatedAt = nowIso;
+      updateBot(bot, 'ADD', (kind === 'payment' ? 'Payment' : 'Credit Sale') + ' for "' + custName + '" (' + formatEtbAmount(amtNum) + ' on ' + storedDateStr + ')');
+      return { ok: true, row: nr, bot: bot };
+    }
+
+    function extractLedgerEntriesFromRow(row, det, bot, origIdx) {
+      var out = [];
+      if (!row || !det) return out;
+      var custRaw = det.custCol ? String(row[det.custCol.id] || '').trim() : '';
+      var typeRaw = det.typeCol ? String(row[det.typeCol.id] || '').trim() : '';
+      var noteRaw = det.noteCol ? String(row[det.noteCol.id] || '').trim() : '';
+
+      var sDateRaw = det.saleDateCol ? String(row[det.saleDateCol.id] || '').trim() : (det.genericDateCol ? String(row[det.genericDateCol.id] || '').trim() : '');
+      var pDateRaw = det.payDateCol ? String(row[det.payDateCol.id] || '').trim() : '';
+      var sAmtRaw = det.saleAmtCol ? row[det.saleAmtCol.id] : (det.genericTotalCol ? row[det.genericTotalCol.id] : '');
+      var pAmtRaw = det.payAmtCol ? row[det.payAmtCol.id] : '';
+
+      var sAmt = (sAmtRaw !== '' && sAmtRaw !== null && sAmtRaw !== undefined) ? parseNumSafe(sAmtRaw) : 0;
+      var pAmt = (pAmtRaw !== '' && pAmtRaw !== null && pAmtRaw !== undefined) ? parseNumSafe(pAmtRaw) : 0;
+      if (isNaN(sAmt)) sAmt = 0;
+      if (isNaN(pAmt)) pAmt = 0;
+
+      if (!custRaw && !sDateRaw && !pDateRaw && sAmt === 0 && pAmt === 0) return out;
+      var custName = custRaw || 'Walk-in Customer';
+      var createdMs = Date.parse(row._createdAt || row._updatedAt || '') || 0;
+      var baseSeq = typeof row._txSeq === 'number' ? row._txSeq : origIdx;
+      var preferEth = bot.ledgerCalendarMode ? (bot.ledgerCalendarMode !== 'gregorian') : true;
+
+      // Split any multi-date payment strings so payment dates are NEVER combined into one row
+      var splitPaymentDateTokens = function (str) {
+        if (!str) return [];
+        var parts = String(str).split(/[\n;|,]+/).map(function (p) { return p.trim(); }).filter(function (p) { return p && hasExplicitDatePattern(p); });
+        return parts.length > 0 ? parts : [String(str).trim()];
+      };
+
+      var explicitKind = row._ledgerKind === 'payment' || /^payment/i.test(typeRaw) ? 'payment'
+        : (row._ledgerKind === 'sale' || /^credit|^sale/i.test(typeRaw) ? 'sale' : '');
+
+      var hasBothSaleAndPay = (sAmt > 0 && pAmt > 0);
+      var pDateTokens = pDateRaw ? splitPaymentDateTokens(pDateRaw) : [];
+
+      if (hasBothSaleAndPay || pDateTokens.length > 1) {
+        if (sAmt > 0 || sDateRaw) {
+          var sMetaBoth = parseFlexibleDateMeta(sDateRaw, row._createdAt || bot.updatedAt, det.saleDateCol || det.genericDateCol, preferEth);
+          out.push({
+            entryId: row.id + '_sale',
+            rowId: row.id,
+            botId: bot.id,
+            botName: bot.name,
+            folder: bot.folder || 'General',
+            customerName: custName,
+            kind: 'sale',
+            typeLabel: 'Credit Sale',
+            dateMeta: sMetaBoth,
+            utcDayMs: Date.UTC(sMetaBoth.gy, sMetaBoth.gm - 1, sMetaBoth.gd),
+            saleAmount: roundEtb2(sAmt),
+            paidAmount: 0,
+            note: noteRaw,
+            kindOrder: 0,
+            createdMs: createdMs,
+            txSeq: baseSeq,
+            origIdx: origIdx,
+            rawRow: row
+          });
+        }
+        if (pAmt > 0 || pDateTokens.length > 0) {
+          var tokens = pDateTokens.length > 0 ? pDateTokens : [sDateRaw || ''];
+          var splitAmt = tokens.length > 1 ? roundEtb2(pAmt / tokens.length) : roundEtb2(pAmt);
+          var remAmt = roundEtb2(pAmt);
+          for (var ti = 0; ti < tokens.length; ti++) {
+            var partAmt = (ti === tokens.length - 1) ? remAmt : splitAmt;
+            remAmt = roundEtb2(remAmt - partAmt);
+            var pMetaPart = parseFlexibleDateMeta(tokens[ti], row._createdAt || bot.updatedAt, det.payDateCol || det.genericDateCol, preferEth);
+            out.push({
+              entryId: row.id + '_pay_' + ti,
+              rowId: row.id,
+              botId: bot.id,
+              botName: bot.name,
+              folder: bot.folder || 'General',
+              customerName: custName,
+              kind: 'payment',
+              typeLabel: 'Payment',
+              dateMeta: pMetaPart,
+              utcDayMs: Date.UTC(pMetaPart.gy, pMetaPart.gm - 1, pMetaPart.gd),
+              saleAmount: 0,
+              paidAmount: roundEtb2(partAmt),
+              note: noteRaw,
+              kindOrder: 1,
+              createdMs: createdMs,
+              txSeq: baseSeq + ((ti + 1) * 0.001),
+              origIdx: origIdx,
+              rawRow: row
+            });
+          }
+        }
+        return out;
+      }
+
+      var isPaySingle = explicitKind === 'payment' || (!explicitKind && ((pAmt > 0 && sAmt === 0) || (Boolean(pDateRaw) && !sDateRaw && sAmt === 0)));
+      var activeDateStr = isPaySingle ? (pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
+      var activeCol = isPaySingle ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
+      var dMetaSingle = parseFlexibleDateMeta(activeDateStr, row._createdAt || bot.updatedAt, activeCol, preferEth);
+
+      out.push({
+        entryId: row.id,
+        rowId: row.id,
+        botId: bot.id,
+        botName: bot.name,
+        folder: bot.folder || 'General',
+        customerName: custName,
+        kind: isPaySingle ? 'payment' : 'sale',
+        typeLabel: isPaySingle ? 'Payment' : 'Credit Sale',
+        dateMeta: dMetaSingle,
+        utcDayMs: Date.UTC(dMetaSingle.gy, dMetaSingle.gm - 1, dMetaSingle.gd),
+        saleAmount: isPaySingle ? 0 : roundEtb2(sAmt),
+        paidAmount: isPaySingle ? roundEtb2(pAmt) : 0,
+        note: noteRaw,
+        kindOrder: isPaySingle ? 1 : 0,
+        createdMs: createdMs,
+        txSeq: baseSeq,
+        origIdx: origIdx,
+        rawRow: row
+      });
+      return out;
+    }
+
+    function buildCustomerLedgerData(opts) {
+      opts = opts || {};
+      var folderFilter = opts.folder || 'all';
+      var botIdFilter = opts.botId || 'all';
+      var customerFilter = opts.customer || 'all';
+      var searchText = String(opts.search || '').trim().toLowerCase();
+      var calendarMode = opts.calendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+
+      var fromMeta = opts.fromDate ? parseLedgerInputDate(opts.fromDate, calendarMode) : null;
+      var toMeta = opts.toDate ? parseLedgerInputDate(opts.toDate, calendarMode) : null;
+      var fromDayMs = fromMeta ? Date.UTC(fromMeta.gy, fromMeta.gm - 1, fromMeta.gd) : null;
+      var toDayMs = toMeta ? Date.UTC(toMeta.gy, toMeta.gm - 1, toMeta.gd) : null;
+
+      var scopeBots = (state.bots || []).filter(function (b) {
+        if (!b || isBotTombstoned(b)) return false;
+        if (botIdFilter && botIdFilter !== 'all') return b.id === botIdFilter;
+        if (!isLedgerBot(b)) return false;
+        if (folderFilter && folderFilter !== 'all') {
+          return normalizeFolderName(b.folder).toLowerCase() === String(folderFilter).trim().toLowerCase();
+        }
+        return true;
+      });
+
+      var rawEntries = [];
+      scopeBots.forEach(function (b) {
+        var det = detectLedgerColumns(b);
+        var rows = Array.isArray(b.rows) ? b.rows : [];
+        for (var i = 0; i < rows.length; i++) {
+          var extracted = extractLedgerEntriesFromRow(rows[i], det, b, i);
+          for (var j = 0; j < extracted.length; j++) rawEntries.push(extracted[j]);
+        }
+      });
+
+      // Strictly sort chronologically (oldest -> newest; Credit Sale before Payment on identical dates)
+      rawEntries.sort(function (a, b) {
+        if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
+        if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
+        if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
+        if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
+        return a.origIdx - b.origIdx;
+      });
+
+      var customerAllMap = {};
+      var openingMap = {};
+      var runningMap = {};
+      var statementRows = [];
+      var allTimeCredit = 0;
+      var allTimePaid = 0;
+
+      for (var k = 0; k < rawEntries.length; k++) {
+        var e = rawEntries[k];
+        var cKey = e.customerName.toLowerCase();
+        if (!customerAllMap[cKey]) {
+          customerAllMap[cKey] = {
+            customerName: e.customerName,
+            totalCredit: 0,
+            totalPaid: 0,
+            outstandingBalance: 0,
+            txCount: 0,
+            saleCount: 0,
+            paymentCount: 0,
+            lastDateDisplay: '—'
+          };
+        }
+        var cs = customerAllMap[cKey];
+        cs.totalCredit = roundEtb2(cs.totalCredit + e.saleAmount);
+        cs.totalPaid = roundEtb2(cs.totalPaid + e.paidAmount);
+        cs.outstandingBalance = roundEtb2(cs.totalCredit - cs.totalPaid);
+        cs.txCount++;
+        if (e.kind === 'sale') cs.saleCount++;
+        else cs.paymentCount++;
+        cs.lastDateDisplay = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'short');
+
+        allTimeCredit = roundEtb2(allTimeCredit + e.saleAmount);
+        allTimePaid = roundEtb2(allTimePaid + e.paidAmount);
+
+        var matchesCust = (customerFilter === 'all' || !customerFilter) ? true : (cKey === String(customerFilter).trim().toLowerCase());
+        var matchesSearch = !searchText || (
+          cKey.indexOf(searchText) !== -1 ||
+          String(e.note || '').toLowerCase().indexOf(searchText) !== -1 ||
+          String(e.botName || '').toLowerCase().indexOf(searchText) !== -1
+        );
+        if (!matchesCust || !matchesSearch) continue;
+
+        if (fromDayMs !== null && e.utcDayMs < fromDayMs) {
+          openingMap[cKey] = roundEtb2((openingMap[cKey] || 0) + e.saleAmount - e.paidAmount);
+          runningMap[cKey] = openingMap[cKey];
+          continue;
+        }
+        if (toDayMs !== null && e.utcDayMs > toDayMs) continue;
+
+        var prevBal = Object.prototype.hasOwnProperty.call(runningMap, cKey) ? runningMap[cKey] : (openingMap[cKey] || 0);
+        var nextBal = roundEtb2(prevBal + e.saleAmount - e.paidAmount);
+        runningMap[cKey] = nextBal;
+
+        var dateShort = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'short');
+        var dateNamed = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'named');
+        statementRows.push({
+          entryId: e.entryId,
+          rowId: e.rowId,
+          botId: e.botId,
+          botName: e.botName,
+          folder: e.folder,
+          customerName: e.customerName,
+          kind: e.kind,
+          typeLabel: e.typeLabel,
+          saleDateDisplay: e.kind === 'sale' ? dateShort : '—',
+          saleDateNamed: e.kind === 'sale' ? dateNamed : '',
+          saleAmount: e.saleAmount,
+          paymentDateDisplay: e.kind === 'payment' ? dateShort : '—',
+          paymentDateNamed: e.kind === 'payment' ? dateNamed : '',
+          paidAmount: e.paidAmount,
+          runningBalance: nextBal,
+          note: e.note,
+          utcDayMs: e.utcDayMs
+        });
+      }
+
+      var openingBalance = 0;
+      Object.keys(openingMap).forEach(function (ck) {
+        openingBalance = roundEtb2(openingBalance + (openingMap[ck] || 0));
+      });
+
+      var totalCredit = 0;
+      var totalPaid = 0;
+      statementRows.forEach(function (sr) {
+        totalCredit = roundEtb2(totalCredit + sr.saleAmount);
+        totalPaid = roundEtb2(totalPaid + sr.paidAmount);
+      });
+      var outstandingBalance = roundEtb2(openingBalance + totalCredit - totalPaid);
+
+      var customerSummaries = Object.keys(customerAllMap).map(function (ck) {
+        return customerAllMap[ck];
+      }).sort(function (a, b) {
+        if (b.outstandingBalance !== a.outstandingBalance) return b.outstandingBalance - a.outstandingBalance;
+        return a.customerName.localeCompare(b.customerName);
+      });
+
+      return {
+        scopeBots: scopeBots,
+        rows: statementRows,
+        customerSummaries: customerSummaries,
+        customerNames: customerSummaries.map(function (c) { return c.customerName; }),
+        calendarMode: calendarMode,
+        hasDateFilter: Boolean(fromDayMs !== null || toDayMs !== null),
+        hasFromFilter: fromDayMs !== null,
+        fromDateDisplay: fromMeta ? formatLedgerDateDisplay(fromMeta, calendarMode, 'short') : '',
+        toDateDisplay: toMeta ? formatLedgerDateDisplay(toMeta, calendarMode, 'short') : '',
+        openingBalance: openingBalance,
+        totalCredit: totalCredit,
+        totalPaid: totalPaid,
+        outstandingBalance: outstandingBalance,
+        allTime: {
+          totalCredit: allTimeCredit,
+          totalPaid: allTimePaid,
+          outstandingBalance: roundEtb2(allTimeCredit - allTimePaid),
+          txCount: rawEntries.length
+        }
+      };
+    }
+
+    function exportCustomerLedgerExcel(data, filterInfo) {
+      filterInfo = filterInfo || {};
+      var calTag = data.calendarMode === 'gregorian' ? 'Gregorian (GC)' : 'Ethiopian Calendar (EC)';
+      var custTitle = (!filterInfo.customer || filterInfo.customer === 'all') ? 'All Customers' : filterInfo.customer;
+      var rangeTitle = (data.fromDateDisplay || data.toDateDisplay)
+        ? ((data.fromDateDisplay || 'Start') + ' to ' + (data.toDateDisplay || 'Today'))
+        : 'All Dates';
+      var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
+      var dateSlug = new Date().toISOString().slice(0, 10);
+
+      var aoa = [
+        ['Hiriya Salt Production PLC · MA’ED Table Salt — Customer Account Ledger Statement'],
+        ['Folder:', folderTitle, 'Customer Filter:', custTitle],
+        ['Date Range:', rangeTitle, 'Calendar:', calTag],
+        ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Outstanding Balance (ETB):', data.outstandingBalance],
+        [],
+        ['#', 'Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
+      ];
+
+      data.rows.forEach(function (r, idx) {
+        aoa.push([
+          idx + 1,
+          r.customerName,
+          r.typeLabel,
+          r.kind === 'sale' ? r.saleDateDisplay : '',
+          r.kind === 'sale' ? r.saleAmount : '',
+          r.kind === 'payment' ? r.paymentDateDisplay : '',
+          r.kind === 'payment' ? r.paidAmount : '',
+          r.runningBalance,
+          r.note || ''
+        ]);
+      });
+
+      aoa.push([
+        'TOTALS',
+        custTitle,
+        data.rows.length + ' tx',
+        data.hasFromFilter ? ('Opening: ' + formatEtbAmount(data.openingBalance)) : '',
+        data.totalCredit,
+        '',
+        data.totalPaid,
+        data.outstandingBalance,
+        'Currency: ETB'
+      ]);
+
+      if (window.XLSX && window.XLSX.utils && typeof window.XLSX.writeFile === 'function') {
+        try {
+          var wb = window.XLSX.utils.book_new();
+          var wsStmt = window.XLSX.utils.aoa_to_sheet(aoa);
+          wsStmt['!cols'] = [
+            { wch: 6 }, { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 28 }
+          ];
+          window.XLSX.utils.book_append_sheet(wb, wsStmt, 'Account Statement');
+
+          var custAoa = [
+            ['Customer Balances Summary (' + calTag + ')'],
+            ['Customer Name', 'Transactions', 'Sales Count', 'Payments Count', 'Total Credit (ETB)', 'Total Paid (ETB)', 'Outstanding Balance (ETB)', 'Last Activity']
+          ];
+          data.customerSummaries.forEach(function (c) {
+            custAoa.push([c.customerName, c.txCount, c.saleCount, c.paymentCount, c.totalCredit, c.totalPaid, c.outstandingBalance, c.lastDateDisplay]);
+          });
+          custAoa.push(['TOTAL', data.allTime.txCount, '', '', data.allTime.totalCredit, data.allTime.totalPaid, data.allTime.outstandingBalance, '']);
+          var wsCust = window.XLSX.utils.aoa_to_sheet(custAoa);
+          wsCust['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 16 }];
+          window.XLSX.utils.book_append_sheet(wb, wsCust, 'Customer Balances');
+
+          var fname = 'Customer_Ledger_' + custTitle.replace(/[^a-z0-9]+/gi, '_') + '_' + dateSlug + '.xlsx';
+          window.XLSX.writeFile(wb, fname);
+          showToast('Exported Excel statement (.xlsx)');
+          return true;
+        } catch (errX) {}
+      }
+
+      var csvLines = aoa.map(function (rowArr) {
+        return rowArr.map(function (cell) {
+          return '"' + String(cell === undefined || cell === null ? '' : cell).replace(/"/g, '""') + '"';
+        }).join(',');
+      }).join('\n');
+      downloadBlob(csvLines, 'Customer_Ledger_' + custTitle.replace(/[^a-z0-9]+/gi, '_') + '_' + dateSlug + '.csv', 'text/csv;charset=utf-8;');
+      showToast('Exported Excel/CSV statement');
+      return true;
+    }
+
+    function buildCustomerLedgerPdfHtml(data, filterInfo) {
+      filterInfo = filterInfo || {};
+      var calTag = data.calendarMode === 'gregorian' ? 'Gregorian Calendar (GC)' : 'Ethiopian Calendar (EC)';
+      var custTitle = (!filterInfo.customer || filterInfo.customer === 'all') ? 'All Customers' : filterInfo.customer;
+      var rangeTitle = (data.fromDateDisplay || data.toDateDisplay)
+        ? ((data.fromDateDisplay || 'Start') + ' – ' + (data.toDateDisplay || 'Present'))
+        : 'Complete History';
+      var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
+      var nowCtx = getReportNowContext(data.calendarMode !== 'gregorian');
+      var genDate = data.calendarMode !== 'gregorian'
+        ? (String(nowCtx.ec.day).padStart(2, '0') + '/' + String(nowCtx.ec.month).padStart(2, '0') + '/' + nowCtx.ec.year + ' EC')
+        : formatDmyDate(new Date());
+
+      var rowsHtml = data.rows.length === 0
+        ? '<tr><td colspan="9" style="text-align:center;color:#64748B;padding:24px;">No ledger transactions match the selected customer and date range.</td></tr>'
+        : data.rows.map(function (r, idx) {
+            return '<tr>' +
+              '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+              '<td style="font-weight:700;">' + esc(r.customerName) + '</td>' +
+              '<td>' + esc(r.typeLabel) + '</td>' +
+              '<td>' + esc(r.kind === 'sale' ? r.saleDateDisplay : '—') + '</td>' +
+              '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
+              '<td>' + esc(r.kind === 'payment' ? r.paymentDateDisplay : '—') + '</td>' +
+              '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatEtbAmount(r.paidAmount) : '—') + '</td>' +
+              '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
+              '<td>' + esc(r.note || '—') + '</td>' +
+            '</tr>';
+          }).join('');
+
+      return '<!doctype html><html><head><meta charset="UTF-8"><title>Customer Account Ledger - ' + esc(custTitle) + '</title>' +
+        '<style>body{font-family:Inter,Arial,sans-serif;padding:28px;color:#0F172A;font-size:12px;}h1{margin:0 0 4px;font-size:18px;color:#0F172A;}' +
+        '.sub{color:#475569;font-size:12px;margin-bottom:14px;}.kpis{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}' +
+        '.kpi{flex:1;min-width:150px;border:1px solid #CBD5E1;border-radius:8px;padding:10px 12px;background:#F8FAFC;}' +
+        '.kpi-l{font-size:10px;text-transform:uppercase;color:#64748B;font-weight:700;}.kpi-v{font-size:16px;font-weight:800;margin-top:4px;font-family:monospace;}' +
+        'table{width:100%;border-collapse:collapse;font-size:11.5px;}th,td{border:1px solid #CBD5E1;padding:7px 8px;}th{background:#F1F5F9;text-align:left;font-weight:800;}' +
+        'tfoot td{background:#EFF6FF;font-weight:800;}@media print{.np{display:none;}}</style></head>' +
+        '<body onload="window.print()">' +
+        '<div class="np" style="background:#0F172A;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">' +
+          '<span>Customer Account Statement · Ready to Print / Save as PDF</span>' +
+          '<button onclick="window.print()" style="background:#10B981;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button>' +
+        '</div>' +
+        '<h1>Hiriya Salt Production PLC &middot; MA’ED Table Salt</h1>' +
+        '<div class="sub"><strong>Customer Account Ledger Statement</strong> &middot; Folder: <strong>' + esc(folderTitle) + '</strong> &middot; Customer: <strong>' + esc(custTitle) + '</strong> &middot; Date Range: <strong>' + esc(rangeTitle) + '</strong> &middot; Calendar: ' + esc(calTag) + ' &middot; Generated: ' + esc(genDate) + '</div>' +
+        '<div class="kpis">' +
+          (data.hasFromFilter ? '<div class="kpi"><div class="kpi-l">Opening Balance</div><div class="kpi-v">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
+          '<div class="kpi"><div class="kpi-l">Total Credit</div><div class="kpi-v" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</div></div>' +
+          '<div class="kpi"><div class="kpi-l">Total Paid</div><div class="kpi-v" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</div></div>' +
+          '<div class="kpi"><div class="kpi-l">Outstanding Balance</div><div class="kpi-v" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
+        '</div>' +
+        '<table><thead><tr><th>#</th><th>Customer Name</th><th>Type</th><th>Sale Date</th><th style="text-align:right;">Sale Amount (ETB)</th><th>Payment Date</th><th style="text-align:right;">Paid Amount (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th><th>Reference / Note</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+        '<tfoot><tr><td colspan="4">Σ Statement Totals (' + data.rows.length + ' transactions' + (data.hasFromFilter ? ' · Opening ' + esc(formatEtbAmount(data.openingBalance)) : '') + ')</td>' +
+        '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td><td></td>' +
+        '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
+        '<td style="text-align:right;font-family:monospace;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td><td></td></tr></tfoot></table>' +
+        '</body></html>';
+    }
+
+    function exportCustomerLedgerPdf(data, filterInfo) {
+      filterInfo = filterInfo || {};
+      var custTitle = (!filterInfo.customer || filterInfo.customer === 'all') ? 'All_Customers' : filterInfo.customer.replace(/[^a-z0-9]+/gi, '_');
+      var dateSlug = new Date().toISOString().slice(0, 10);
+      var htmlDoc = buildCustomerLedgerPdfHtml(data, filterInfo);
+      downloadBlob(htmlDoc, 'Customer_Statement_' + custTitle + '_' + dateSlug + '.html', 'text/html;charset=utf-8;');
+      showToast('Downloaded printable PDF / HTML statement');
+      return htmlDoc;
+    }
+
+    function renderFolderLedgerDashboardCard(folderName) {
+      var folderLedgers = getFolderLedgerBots(folderName);
+      if (folderLedgers.length === 0) {
+        return '<section class="ledger-folder-panel" aria-label="Customer Account Ledger">' +
+          '<div class="ledger-folder-head" style="margin-bottom:0;">' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+              '<span style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">' + icon('ledger', 18) + '</span>' +
+              '<div>' +
+                '<div style="font-size:14px;font-weight:800;color:#0F172A;">Customer Account Ledger &amp; Running Balance</div>' +
+                '<div style="font-size:12px;color:#64748B;">Track separate credit sales, payments, Ethiopian Calendar dates &amp; ETB running balances inside "' + esc(folderName) + '".</div>' +
+              '</div>' +
+            '</div>' +
+            '<button type="button" id="btn-fld-create-ledger" class="btn btn-green" style="padding:8px 14px;font-size:12.5px;">' + icon('plus', 14) + '<span>Create Ledger in "' + esc(folderName) + '"</span></button>' +
+          '</div>' +
+        '</section>';
+      }
+
+      var primaryLedger = folderLedgers[0];
+      var calMode = state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      var ledgerData = buildCustomerLedgerData({ folder: folderName, calendarMode: calMode });
+
+      return '<section class="ledger-folder-panel" aria-label="Folder Customer Account Ledger">' +
+        '<div class="ledger-folder-head">' +
+          '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
+            '<span style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">' + icon('ledger', 18) + '</span>' +
+            '<div style="min-width:0;">' +
+              '<div style="font-size:14px;font-weight:800;color:#0F172A;">Customer Account Ledger &mdash; ' + esc(folderName) + '</div>' +
+              '<div class="num-tab" style="font-size:11.5px;color:#64748B;">' + folderLedgers.length + ' ledger' + (folderLedgers.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.customerSummaries.length + ' customer' + (ledgerData.customerSummaries.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.rows.length + ' transaction' + (ledgerData.rows.length === 1 ? '' : 's') + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<button type="button" id="btn-fld-add-sale" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-primary" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Sale</span></button>' +
+            '<button type="button" id="btn-fld-add-pay" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-green" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Payment</span></button>' +
+            '<button type="button" id="btn-fld-open-ledger" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-dark-blue" style="padding:6px 12px;font-size:11.5px;">' + icon('ledger', 13) + '<span>Open Statement</span></button>' +
+            '<button type="button" id="btn-fld-create-ledger" class="btn btn-outline" style="padding:6px 10px;font-size:11.5px;" title="Create another Ledger table inside this folder">' + icon('plus', 12) + '<span>New Ledger</span></button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
+          '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(ledgerData.totalCredit)) + '</div></div>' +
+          '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(ledgerData.totalPaid)) + '</div></div>' +
+          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Outstanding Balance</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(ledgerData.outstandingBalance)) + '</div></div>' +
+        '</div>' +
+      '</section>';
+    }
+
+    function renderCreateLedgerModal(m) {
+      var folders = getAllFolders();
+      var defaultFld = (m && m.folder && m.folder !== 'all') ? m.folder : ((state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : (state.adminConfig.telegramDefaultFolder || 'General'));
+      var defaultName = m.name || (defaultFld + ' Customer Ledger');
+      var calMode = m.calendarMode || (state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian');
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:460px;" id="m-card">' +
+        '<header class="modal-header" style="background:linear-gradient(135deg,#065F46,#0F766E);">' +
+          '<div style="display:flex;align-items:center;gap:8px;">' + icon('ledger', 20) + '<h2 style="font-size:15.5px;font-weight:700;">Create Customer Account Ledger</h2></div>' +
+          '<button class="icon-btn" id="cl-close">' + icon('close', 18) + '</button>' +
+        '</header>' +
+        '<form id="cl-form" class="modal-body" style="display:flex;flex-direction:column;gap:13px;">' +
+          '<p style="font-size:12px;color:#475569;line-height:1.45;">Creates a dedicated ledger table inside a Dashboard folder with separate Sale Date / Sale Amount, Payment Date / Paid Amount, and automatic ETB Running Balance columns.</p>' +
+          '<div>' +
+            '<label class="field-label" for="cl-folder">Folder (Pick Existing or Type New Folder)</label>' +
+            '<input id="cl-folder" class="form-input" list="cl-folder-list" value="' + esc(defaultFld) + '" placeholder="e.g. Sales, Customer Accounts..." required />' +
+            '<datalist id="cl-folder-list">' + folders.map(function (fn) { return '<option value="' + esc(fn) + '">'; }).join('') + '</datalist>' +
+          '</div>' +
+          '<div>' +
+            '<label class="field-label" for="cl-name">Ledger Table Name</label>' +
+            '<input id="cl-name" class="form-input" value="' + esc(defaultName) + '" placeholder="e.g. Customer Account Ledger" required />' +
+          '</div>' +
+          '<div>' +
+            '<label class="field-label" for="cl-cal">Default Date Display</label>' +
+            '<select id="cl-cal" class="form-select">' +
+              '<option value="ethiopian"' + (calMode !== 'gregorian' ? ' selected' : '') + '>Ethiopian Calendar (EC · ETB)</option>' +
+              '<option value="gregorian"' + (calMode === 'gregorian' ? ' selected' : '') + '>Gregorian Calendar (GC · ETB)</option>' +
+            '</select>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;padding-top:4px;">' +
+            '<button type="button" id="cl-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+            '<button type="submit" class="btn btn-green" style="flex:1.5;">' + icon('plus', 15) + '<span>Create Ledger in Folder</span></button>' +
+          '</div>' +
+        '</form>' +
+      '</div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('cl-close').onclick = closeModal;
+      document.getElementById('cl-cancel').onclick = closeModal;
+
+      var fInp = document.getElementById('cl-folder');
+      var nInp = document.getElementById('cl-name');
+      if (fInp && nInp) {
+        var lastAuto = defaultName;
+        fInp.oninput = function () {
+          if (nInp.value === lastAuto) {
+            var nextAuto = (fInp.value.trim() || 'General') + ' Customer Ledger';
+            nInp.value = nextAuto;
+            lastAuto = nextAuto;
+          }
+        };
+      }
+
+      document.getElementById('cl-form').onsubmit = function (e) {
+        e.preventDefault();
+        var fld = document.getElementById('cl-folder').value;
+        var nm = document.getElementById('cl-name').value;
+        var cal = document.getElementById('cl-cal').value;
+        createLedgerBotInFolder(fld, nm, cal, false);
+      };
+    }
+
+    function renderCustomerLedgerModal(m) {
+      if (!m) m = {};
+      var folders = getAllFolders();
+      if (!m.folder) m.folder = (state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : 'all';
+      if (!m.calendarMode) m.calendarMode = state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      if (!m.entryMode) m.entryMode = 'sale';
+      if (!m.customerFilter) m.customerFilter = 'all';
+
+      var folderLedgers = getFolderLedgerBots(m.folder);
+      var allWorkspaceLedgers = getFolderLedgerBots('all');
+      var availableLedgers = folderLedgers.length > 0 ? folderLedgers : (m.folder === 'all' ? allWorkspaceLedgers : []);
+
+      // If user clicked a specific table card/botId, honor it
+      if (m.botId && m.botId !== 'all') {
+        var explicitBot = (state.bots || []).find(function (b) { return b && b.id === m.botId && !isBotTombstoned(b); });
+        if (explicitBot && availableLedgers.indexOf(explicitBot) === -1) {
+          availableLedgers = [explicitBot].concat(availableLedgers);
+        }
+      }
+
+      var activeBotId = m.botId || (availableLedgers.length === 1 ? availableLedgers[0].id : (availableLedgers[0] ? availableLedgers[0].id : 'all'));
+      if (activeBotId !== 'all' && !availableLedgers.some(function (b) { return b.id === activeBotId; })) {
+        activeBotId = availableLedgers[0] ? availableLedgers[0].id : 'all';
+      }
+      m.botId = activeBotId;
+
+      var nowCtx = getReportNowContext(m.calendarMode !== 'gregorian');
+      var todayDefaultStr = m.calendarMode !== 'gregorian'
+        ? (String(nowCtx.ec.day).padStart(2, '0') + '/' + String(nowCtx.ec.month).padStart(2, '0') + '/' + nowCtx.ec.year)
+        : formatDmyDate(new Date());
+      if (m.txDate === undefined) m.txDate = todayDefaultStr;
+
+      var data = buildCustomerLedgerData({
+        folder: m.folder,
+        botId: activeBotId,
+        customer: m.customerFilter,
+        search: m.searchQuery || '',
+        fromDate: m.fromDate || '',
+        toDate: m.toDate || '',
+        calendarMode: m.calendarMode
+      });
+
+      var calMode = data.calendarMode;
+      var kpiColsCls = data.hasFromFilter ? 'cols-4' : 'cols-3';
+      var activeTargetBot = availableLedgers.find(function (b) { return b.id === activeBotId; }) || availableLedgers[0] || null;
+      var targetFolderForCreate = m.folder !== 'all' ? m.folder : (state.adminConfig.telegramDefaultFolder || 'General');
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:1120px;" id="m-card">' +
+        '<header class="modal-header" style="background:linear-gradient(135deg,#0F172A 0%,#065F46 100%);">' +
+          '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
+            icon('ledger', 22) +
+            '<div style="min-width:0;">' +
+              '<h2 style="font-size:16px;font-weight:800;">Customer Account Ledger &amp; Running Balance</h2>' +
+              '<div style="font-size:11px;color:#A7F3D0;" class="truncate">' +
+                (m.folder === 'all' ? 'All Folders' : ('Folder: ' + esc(m.folder))) +
+                (activeTargetBot ? (' · ' + esc(activeTargetBot.name)) : '') +
+                ' · ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + ' · ETB' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<button type="button" id="clg-cal-toggle" class="btn" style="padding:5px 10px;font-size:11.5px;background:' + (calMode === 'ethiopian' ? '#10B981' : 'rgba(255,255,255,0.18)') + ';color:#fff;border:1px solid rgba(255,255,255,0.35);">' + (calMode === 'ethiopian' ? 'EC (Ethiopia)' : 'GC (Gregorian)') + '</button>' +
+            '<button type="button" id="clg-new-ledger" class="btn" style="padding:5px 10px;font-size:11.5px;background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.35);">' + icon('plus', 13) + '<span>New Ledger in Folder</span></button>' +
+            '<button type="button" id="clg-exp-xlsx" class="btn btn-green" style="padding:5px 10px;font-size:11.5px;">' + icon('excel', 13) + '<span>Excel (.xlsx)</span></button>' +
+            '<button type="button" id="clg-exp-pdf" class="btn" style="padding:5px 10px;font-size:11.5px;background:#DC2626;color:#fff;">' + icon('pdf', 13) + '<span>Export PDF</span></button>' +
+            '<button class="icon-btn" id="clg-close">' + icon('close', 19) + '</button>' +
+          '</div>' +
+        '</header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">';
+
+      if (m.statusMsg) {
+        html += '<div style="padding:9px 12px;border-radius:10px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>';
+      }
+
+      // Scope Selectors (Folder & Ledger Table)
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:11px;padding:9px 12px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<label style="font-size:11px;font-weight:800;color:#475569;text-transform:uppercase;">Folder:</label>' +
+          '<select id="clg-folder-sel" class="form-select" style="width:auto;min-width:150px;padding:6px 10px;font-size:12px;">' +
+            '<option value="all"' + (m.folder === 'all' ? ' selected' : '') + '>All Folders</option>' +
+            folders.map(function (fn) { return '<option value="' + esc(fn) + '"' + (m.folder === fn ? ' selected' : '') + '>' + esc(fn) + '</option>'; }).join('') +
+          '</select>' +
+          '<label style="font-size:11px;font-weight:800;color:#475569;text-transform:uppercase;margin-left:4px;">Ledger:</label>' +
+          '<select id="clg-bot-sel" class="form-select" style="width:auto;min-width:190px;padding:6px 10px;font-size:12px;">' +
+            (availableLedgers.length > 1 ? '<option value="all"' + (activeBotId === 'all' ? ' selected' : '') + '>All Ledgers (' + availableLedgers.length + ')</option>' : '') +
+            availableLedgers.map(function (b) { return '<option value="' + esc(b.id) + '"' + (activeBotId === b.id ? ' selected' : '') + '>' + esc(b.name) + ' (' + esc(b.folder || 'General') + ')</option>'; }).join('') +
+            (availableLedgers.length === 0 ? '<option value="">No ledger in folder yet</option>' : '') +
+          '</select>' +
+        '</div>' +
+        (activeTargetBot ? '<button type="button" id="clg-open-grid" class="btn btn-outline" style="padding:6px 11px;font-size:11.5px;">' + icon('table', 13) + '<span>Open Spreadsheet View</span></button>' : '') +
+      '</div>';
+
+      // If no ledger exists in this folder/workspace yet, prompt cleanly to create one in 1 click
+      if (!activeTargetBot) {
+        html += '<div style="padding:28px 20px;border:1px dashed #94A3B8;border-radius:14px;text-align:center;background:#F8FAFC;">' +
+          '<div style="width:52px;height:52px;border-radius:14px;background:#ECFDF5;color:#059669;display:inline-flex;align-items:center;justify-content:center;margin-bottom:10px;">' + icon('ledger', 26) + '</div>' +
+          '<h3 style="font-size:16px;font-weight:800;color:#0F172A;margin-bottom:6px;">No Customer Account Ledger in "' + esc(targetFolderForCreate) + '" yet</h3>' +
+          '<p style="font-size:12.5px;color:#64748B;max-width:480px;margin:0 auto 14px;">Create a Customer Account Ledger inside "' + esc(targetFolderForCreate) + '" to record credit sales and payments on separate rows with automatic ETB running balances.</p>' +
+          '<button type="button" id="clg-quick-create" class="btn btn-green" style="padding:10px 18px;">' + icon('plus', 15) + '<span>Create Ledger in "' + esc(targetFolderForCreate) + '"</span></button>' +
+        '</div></div></div></div>';
+        document.getElementById('modal-root').innerHTML = html;
+        document.getElementById('m-bg').onclick = closeModal;
+        document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+        document.getElementById('clg-close').onclick = closeModal;
+        document.getElementById('clg-cal-toggle').onclick = function () { m.calendarMode = calMode === 'ethiopian' ? 'gregorian' : 'ethiopian'; renderCustomerLedgerModal(m); };
+        document.getElementById('clg-new-ledger').onclick = function () { openModal('create_ledger_in_folder', { folder: targetFolderForCreate }); };
+        document.getElementById('clg-folder-sel').onchange = function (e) { m.folder = e.target.value || 'all'; m.botId = ''; renderCustomerLedgerModal(m); };
+        document.getElementById('clg-quick-create').onclick = function () { createLedgerBotInFolder(targetFolderForCreate, targetFolderForCreate + ' Customer Ledger', calMode, false); };
+        return;
+      }
+
+      // KPI Summary Row (Opening Balance if From Date set, Total Credit, Total Paid, Outstanding Balance)
+      html += '<div class="ledger-kpi-row ' + kpiColsCls + '" style="margin-bottom:0;">' +
+        (data.hasFromFilter ? '<div class="ledger-kpi-box opening"><div class="ledger-kpi-lbl">Opening Balance (Before ' + esc(data.fromDateDisplay) + ')</div><div class="ledger-kpi-val">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
+        '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit (Sales)</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</div></div>' +
+        '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid (Payments)</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</div></div>' +
+        '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Outstanding Balance</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
+      '</div>';
+
+      // Transaction Recording Card (+ Record Sale / Credit OR + Record Payment on separate row)
+      var isPayMode = m.entryMode === 'payment';
+      var custPresetVal = m.txCustomer !== undefined ? m.txCustomer : (m.customerFilter !== 'all' ? m.customerFilter : '');
+      html += '<form id="clg-tx-form" class="ledger-entry-card">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">' +
+          '<div class="ledger-tab-bar">' +
+            '<button type="button" id="clg-mode-sale" class="ledger-tab-btn' + (!isPayMode ? ' active-sale' : '') + '">+ Record Sale / Credit</button>' +
+            '<button type="button" id="clg-mode-pay" class="ledger-tab-btn' + (isPayMode ? ' active-pay' : '') + '">+ Record Payment</button>' +
+          '</div>' +
+          '<span style="font-size:11.5px;color:#475569;font-weight:600;">Target Ledger: <strong>' + esc(activeTargetBot.name) + '</strong> &middot; Each transaction appends a separate row</span>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;align-items:end;">' +
+          '<div>' +
+            '<label class="field-label" for="clg-tx-cust">Customer Name</label>' +
+            '<input id="clg-tx-cust" class="form-input" list="clg-cust-datalist" value="' + esc(custPresetVal) + '" placeholder="e.g. Abebe Kebede" required />' +
+            '<datalist id="clg-cust-datalist">' + data.customerNames.map(function (cn) { return '<option value="' + esc(cn) + '">'; }).join('') + '</datalist>' +
+          '</div>' +
+          '<div>' +
+            '<label class="field-label" for="clg-tx-date">' + (isPayMode ? 'Payment Date' : 'Sale Date') + ' (' + (calMode === 'ethiopian' ? 'EC DD/MM/YYYY' : 'GC DD/MM/YYYY') + ')</label>' +
+            '<div style="display:flex;gap:5px;">' +
+              '<input id="clg-tx-date" class="form-input mono" value="' + esc(m.txDate || '') + '" placeholder="' + esc(todayDefaultStr) + '" required />' +
+              '<button type="button" id="clg-tx-today" class="btn btn-outline" style="padding:7px 9px;font-size:11px;white-space:nowrap;">Today</button>' +
+            '</div>' +
+          '</div>' +
+          '<div>' +
+            '<label class="field-label" for="clg-tx-amt">' + (isPayMode ? 'Paid Amount (ETB)' : 'Sale Amount (ETB)') + '</label>' +
+            '<input id="clg-tx-amt" type="number" step="0.01" min="0.01" class="form-input mono" value="' + esc(m.txAmount || '') + '" placeholder="0.00" required />' +
+          '</div>' +
+          '<div>' +
+            '<label class="field-label" for="clg-tx-note">Reference / Note (Optional)</label>' +
+            '<input id="clg-tx-note" class="form-input" value="' + esc(m.txNote || '') + '" placeholder="' + (isPayMode ? 'Cash / Bank transfer receipt' : 'Salt order / invoice #') + '" />' +
+          '</div>' +
+          '<div>' +
+            '<button type="submit" class="btn ' + (isPayMode ? 'btn-green' : 'btn-primary') + '" style="width:100%;padding:10px 14px;">' +
+              icon('plus', 14) + '<span>' + (isPayMode ? 'Save Payment' : 'Save Credit Sale') + '</span>' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+      '</form>';
+
+      // Statement Filters Bar (Customer Name + Search + Date Range + Presets)
+      html += '<div class="ledger-filter-bar">' +
+        '<div>' +
+          '<label class="field-label" for="clg-flt-cust">Filter Customer</label>' +
+          '<select id="clg-flt-cust" class="form-select" style="padding:7px 10px;font-size:12.5px;">' +
+            '<option value="all"' + (m.customerFilter === 'all' ? ' selected' : '') + '>All Customers (' + data.customerSummaries.length + ')</option>' +
+            data.customerSummaries.map(function (c) {
+              var sel = String(m.customerFilter || '').toLowerCase() === c.customerName.toLowerCase();
+              return '<option value="' + esc(c.customerName) + '"' + (sel ? ' selected' : '') + '>' + esc(c.customerName) + ' (' + esc(formatEtbAmount(c.outstandingBalance)) + ')</option>';
+            }).join('') +
+          '</select>' +
+        '</div>' +
+        '<div>' +
+          '<label class="field-label" for="clg-flt-search">Search Customer / Note</label>' +
+          '<input id="clg-flt-search" class="form-input" style="padding:7px 10px;font-size:12.5px;" value="' + esc(m.searchQuery || '') + '" placeholder="Type customer name or note..." />' +
+        '</div>' +
+        '<div>' +
+          '<label class="field-label" for="clg-flt-from">From Date (' + (calMode === 'ethiopian' ? 'EC' : 'GC') + ')</label>' +
+          '<input id="clg-flt-from" class="form-input mono" style="padding:7px 10px;font-size:12.5px;" value="' + esc(m.fromDate || '') + '" placeholder="e.g. 01/03/2019" />' +
+        '</div>' +
+        '<div>' +
+          '<label class="field-label" for="clg-flt-to">To Date (' + (calMode === 'ethiopian' ? 'EC' : 'GC') + ')</label>' +
+          '<input id="clg-flt-to" class="form-input mono" style="padding:7px 10px;font-size:12.5px;" value="' + esc(m.toDate || '') + '" placeholder="e.g. 30/03/2019" />' +
+        '</div>' +
+        '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+          '<button type="button" id="clg-rng-today" class="btn btn-outline" style="padding:7px 9px;font-size:11px;">Today</button>' +
+          '<button type="button" id="clg-rng-month" class="btn btn-outline" style="padding:7px 9px;font-size:11px;">This Month</button>' +
+          '<button type="button" id="clg-rng-clear" class="btn btn-outline" style="padding:7px 9px;font-size:11px;">Reset</button>' +
+        '</div>' +
+      '</div>';
+
+      // Per-Customer Outstanding Balance Summary Table (click row to filter statement)
+      if (data.customerSummaries.length > 0) {
+        html += '<div style="border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">' +
+          '<div style="background:#F8FAFC;padding:8px 12px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+            '<span style="font-size:12px;font-weight:800;color:#0F172A;">Customer Balances (' + data.customerSummaries.length + ')</span>' +
+            '<span style="font-size:11px;color:#64748B;">Tap any customer to filter their statement</span>' +
+          '</div>' +
+          '<div style="overflow-x:auto;max-height:175px;overflow-y:auto;">' +
+            '<table class="ledger-stmt-table" style="min-width:600px;">' +
+              '<thead><tr><th>Customer Name</th><th class="num">Tx</th><th class="num">Total Credit (ETB)</th><th class="num">Total Paid (ETB)</th><th class="num">Outstanding Balance (ETB)</th><th>Last Date</th></tr></thead>' +
+              '<tbody>' +
+                data.customerSummaries.map(function (c) {
+                  var isAct = String(m.customerFilter || '').toLowerCase() === c.customerName.toLowerCase();
+                  return '<tr class="ledger-cust-row' + (isAct ? ' is-active' : '') + '" data-clg-pick-cust="' + esc(c.customerName) + '">' +
+                    '<td style="font-weight:700;">' + esc(c.customerName) + '</td>' +
+                    '<td class="num mono">' + c.txCount + '</td>' +
+                    '<td class="num mono col-sale-amt">' + esc(formatEtbAmount(c.totalCredit)) + '</td>' +
+                    '<td class="num mono col-paid-amt">' + esc(formatEtbAmount(c.totalPaid)) + '</td>' +
+                    '<td class="num mono col-run-bal" style="color:' + (c.outstandingBalance > 0 ? '#B45309' : '#047857') + ';">' + esc(formatEtbAmount(c.outstandingBalance)) + '</td>' +
+                    '<td class="mono" style="font-size:11.5px;color:#475569;">' + esc(c.lastDateDisplay) + '</td>' +
+                  '</tr>';
+                }).join('') +
+              '</tbody>' +
+            '</table>' +
+          '</div>' +
+        '</div>';
+      }
+
+      // Main Chronological Customer Account Statement Table (Separate Sale Date, Sale Amount, Payment Date, Paid Amount & Running Balance)
+      html += '<div class="ledger-stmt-wrap">' +
+        '<table class="ledger-stmt-table">' +
+          '<thead><tr>' +
+            '<th style="width:40px;text-align:center;">#</th>' +
+            '<th>Customer Name</th>' +
+            '<th>Type</th>' +
+            '<th>Sale Date</th>' +
+            '<th class="num">Sale Amount (ETB)</th>' +
+            '<th>Payment Date</th>' +
+            '<th class="num">Paid Amount (ETB)</th>' +
+            '<th class="num">Running Balance (ETB)</th>' +
+            '<th>Reference / Note</th>' +
+          '</tr></thead>' +
+          '<tbody>';
+
+      if (data.rows.length === 0) {
+        html += '<tr><td colspan="9" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions recorded yet for the selected filter. Use "+ Record Sale / Credit" or "+ Record Payment" above.</td></tr>';
+      } else {
+        html += data.rows.map(function (r, idx) {
+          var isSale = r.kind === 'sale';
+          return '<tr>' +
+            '<td style="text-align:center;color:#64748B;" class="mono">' + (idx + 1) + '</td>' +
+            '<td style="font-weight:700;">' + esc(r.customerName) + '</td>' +
+            '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';">' + esc(r.typeLabel) + '</td>' +
+            '<td class="mono" style="font-size:12px;">' + esc(isSale ? r.saleDateDisplay : '—') + '</td>' +
+            '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
+            '<td class="mono" style="font-size:12px;">' + esc(!isSale ? r.paymentDateDisplay : '—') + '</td>' +
+            '<td class="num mono col-paid-amt">' + esc(!isSale ? formatEtbAmount(r.paidAmount) : '—') + '</td>' +
+            '<td class="num mono col-run-bal">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
+            '<td style="color:#475569;">' + esc(r.note || '—') + '</td>' +
+          '</tr>';
+        }).join('');
+      }
+
+      html += '</tbody>' +
+        '<tfoot><tr>' +
+          '<td colspan="4">Σ Statement Totals (' + data.rows.length + ' rows' + (data.hasFromFilter ? (' · Opening: ' + esc(formatEtbAmount(data.openingBalance))) : '') + ')</td>' +
+          '<td class="num mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
+          '<td></td>' +
+          '<td class="num mono" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
+          '<td class="num mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td>' +
+          '<td></td>' +
+        '</tr></tfoot>' +
+      '</table></div>';
+
+      html += '</div></div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('clg-close').onclick = closeModal;
+
+      document.getElementById('clg-cal-toggle').onclick = function () {
+        m.calendarMode = calMode === 'ethiopian' ? 'gregorian' : 'ethiopian';
+        var switchedCtx = getReportNowContext(m.calendarMode !== 'gregorian');
+        m.txDate = m.calendarMode !== 'gregorian'
+          ? (String(switchedCtx.ec.day).padStart(2, '0') + '/' + String(switchedCtx.ec.month).padStart(2, '0') + '/' + switchedCtx.ec.year)
+          : formatDmyDate(new Date());
+        m.statusMsg = '';
+        renderCustomerLedgerModal(m);
+      };
+      document.getElementById('clg-new-ledger').onclick = function () {
+        openModal('create_ledger_in_folder', { folder: targetFolderForCreate, calendarMode: calMode });
+      };
+      document.getElementById('clg-exp-xlsx').onclick = function () {
+        exportCustomerLedgerExcel(data, { folder: m.folder, customer: m.customerFilter });
+      };
+      document.getElementById('clg-exp-pdf').onclick = function () {
+        exportCustomerLedgerPdf(data, { folder: m.folder, customer: m.customerFilter });
+      };
+
+      document.getElementById('clg-folder-sel').onchange = function (e) {
+        m.folder = e.target.value || 'all';
+        m.botId = '';
+        m.customerFilter = 'all';
+        m.statusMsg = '';
+        renderCustomerLedgerModal(m);
+      };
+      document.getElementById('clg-bot-sel').onchange = function (e) {
+        m.botId = e.target.value || 'all';
+        m.customerFilter = 'all';
+        m.statusMsg = '';
+        renderCustomerLedgerModal(m);
+      };
+      var openGridBtn = document.getElementById('clg-open-grid');
+      if (openGridBtn && activeTargetBot) {
+        openGridBtn.onclick = function () {
+          closeModal();
+          state.activeBotId = activeTargetBot.id;
+          state._resetTableScroll = true;
+          renderApp();
+        };
+      }
+
+      document.getElementById('clg-mode-sale').onclick = function () {
+        m.entryMode = 'sale';
+        m.txCustomer = (document.getElementById('clg-tx-cust') || {}).value || '';
+        m.txDate = (document.getElementById('clg-tx-date') || {}).value || todayDefaultStr;
+        m.txAmount = (document.getElementById('clg-tx-amt') || {}).value || '';
+        m.txNote = (document.getElementById('clg-tx-note') || {}).value || '';
+        m.statusMsg = '';
+        renderCustomerLedgerModal(m);
+      };
+      document.getElementById('clg-mode-pay').onclick = function () {
+        m.entryMode = 'payment';
+        m.txCustomer = (document.getElementById('clg-tx-cust') || {}).value || '';
+        m.txDate = (document.getElementById('clg-tx-date') || {}).value || todayDefaultStr;
+        m.txAmount = (document.getElementById('clg-tx-amt') || {}).value || '';
+        m.txNote = (document.getElementById('clg-tx-note') || {}).value || '';
+        m.statusMsg = '';
+        renderCustomerLedgerModal(m);
+      };
+      document.getElementById('clg-tx-today').onclick = function () {
+        var dtInp = document.getElementById('clg-tx-date');
+        if (dtInp) dtInp.value = todayDefaultStr;
+        m.txDate = todayDefaultStr;
+      };
+
+      document.getElementById('clg-tx-form').onsubmit = function (e) {
+        e.preventDefault();
+        var custVal = document.getElementById('clg-tx-cust').value;
+        var dtVal = document.getElementById('clg-tx-date').value;
+        var amtVal = document.getElementById('clg-tx-amt').value;
+        var noteVal = document.getElementById('clg-tx-note').value;
+        var res = recordLedgerTransaction(activeTargetBot.id, {
+          kind: m.entryMode,
+          customerName: custVal,
+          txDateStr: dtVal,
+          amount: amtVal,
+          note: noteVal,
+          calendarMode: calMode
+        });
+        if (!res.ok) {
+          m.statusType = 'error';
+          m.statusMsg = res.error;
+          m.txCustomer = custVal;
+          m.txDate = dtVal;
+          m.txAmount = amtVal;
+          m.txNote = noteVal;
+          renderCustomerLedgerModal(m);
+          return;
+        }
+        m.statusType = 'success';
+        m.statusMsg = (m.entryMode === 'payment' ? 'Recorded Payment' : 'Recorded Credit Sale') + ' of ' + formatEtbAmount(parseNumSafe(amtVal)) + ' for "' + sanitizeUserText(custVal, 120) + '". Running balance updated.';
+        m.txCustomer = sanitizeUserText(custVal, 120);
+        m.txDate = dtVal;
+        m.txAmount = '';
+        m.txNote = '';
+        renderCustomerLedgerModal(m);
+        if (!state.activeBotId) renderDashboard();
+      };
+
+      document.getElementById('clg-flt-cust').onchange = function (e) {
+        m.customerFilter = e.target.value || 'all';
+        renderCustomerLedgerModal(m);
+      };
+      var debouncedSearch = debounce(function (val) {
+        m.searchQuery = val;
+        renderCustomerLedgerModal(m);
+        var si = document.getElementById('clg-flt-search');
+        if (si) {
+          si.focus();
+          try { si.setSelectionRange(si.value.length, si.value.length); } catch (eRng) {}
+        }
+      }, 280);
+      document.getElementById('clg-flt-search').oninput = function (e) {
+        debouncedSearch(e.target.value);
+      };
+      var applyDateInputs = function () {
+        m.fromDate = (document.getElementById('clg-flt-from') || {}).value || '';
+        m.toDate = (document.getElementById('clg-flt-to') || {}).value || '';
+        renderCustomerLedgerModal(m);
+      };
+      document.getElementById('clg-flt-from').onchange = applyDateInputs;
+      document.getElementById('clg-flt-to').onchange = applyDateInputs;
+
+      document.getElementById('clg-rng-today').onclick = function () {
+        m.fromDate = todayDefaultStr;
+        m.toDate = todayDefaultStr;
+        renderCustomerLedgerModal(m);
+      };
+      document.getElementById('clg-rng-month').onclick = function () {
+        if (calMode !== 'gregorian') {
+          var mmP = String(nowCtx.ec.month).padStart(2, '0');
+          m.fromDate = '01/' + mmP + '/' + nowCtx.ec.year;
+          m.toDate = todayDefaultStr;
+        } else {
+          var gmP = String(nowCtx.gm).padStart(2, '0');
+          m.fromDate = '01/' + gmP + '/' + nowCtx.gy;
+          m.toDate = todayDefaultStr;
+        }
+        renderCustomerLedgerModal(m);
+      };
+      document.getElementById('clg-rng-clear').onclick = function () {
+        m.customerFilter = 'all';
+        m.searchQuery = '';
+        m.fromDate = '';
+        m.toDate = '';
+        renderCustomerLedgerModal(m);
+      };
+      document.querySelectorAll('[data-clg-pick-cust]').forEach(function (tr) {
+        tr.onclick = function () {
+          var cname = tr.getAttribute('data-clg-pick-cust');
+          m.customerFilter = (String(m.customerFilter || '').toLowerCase() === String(cname || '').toLowerCase()) ? 'all' : cname;
+          renderCustomerLedgerModal(m);
+        };
+      });
     }
 
     // Boot Application & Trigger Immediate Open-Time Sync
