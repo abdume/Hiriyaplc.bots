@@ -9486,7 +9486,7 @@
               '<button type="button" class="header-action-btn" id="btn-table-history" title="Open File Version History (3m+ &amp; Restore)"><span style="color:#6EE7B7">' + icon('history', 14) + '</span><span>' + esc(t('versions')) + '</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-search" title="Search rows" style="' + (state.tableSearchOpen ? 'background:rgba(59,130,246,0.38);border-color:#93C5FD;' : '') + '">' + icon('search', 14) + '<span>Search</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FCD34D">' + icon('chart', 14) + '</span><span>' + esc(t('reports')) + '</span></button>' +
-              (((typeof isLedgerBot === 'function' && isLedgerBot(bot)) || (typeof hasCustomerStatementSupport === 'function' && hasCustomerStatementSupport(bot))) ? '<button type="button" class="header-action-btn" id="btn-table-ledger" style="background:rgba(16,185,129,0.34);border-color:rgba(167,243,208,0.6);" title="Open Customer Account Statement (All Columns &amp; Running Balance)"><span style="color:#A7F3D0">' + icon('ledger', 14) + '</span><span>' + ((typeof isLedgerBot === 'function' && isLedgerBot(bot)) ? 'Ledger Statement' : 'Customer Statement') + '</span></button>' : '') +
+              '<button type="button" class="header-action-btn" id="btn-table-ledger" style="background:rgba(16,185,129,0.34);border-color:rgba(167,243,208,0.6);" title="Open Customer Account Ledger &amp; Statements"><span style="color:#A7F3D0">' + icon('ledger', 14) + '</span><span>Ledger</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-settings" title="Table Settings">' + icon('settings', 14) + '<span>Settings</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-add-col" title="Add New Column" style="background:rgba(37,99,235,0.36);border-color:rgba(147,197,253,0.55);"><span style="color:#BFDBFE">' + icon('plus', 14) + '</span><span>' + esc(t('add_column')) + '</span></button>' +
               '<button type="button" class="header-action-btn" id="btn-table-sync" title="Immediately sync Telegram Bot &amp; Supabase Cloud">' + icon('refresh', 14) + '<span>' + esc(t('sync')) + '</span></button>' +
@@ -9752,6 +9752,7 @@
             '<button class="dropdown-item" id="more-access-code">' + icon('lock', 15) + '<span>Lock Screen &amp; Change Code</span></button>' +
             '<button class="dropdown-item" id="more-settings">' + icon('settings', 15) + '<span>Bot Settings / Rename</span></button>' +
             '<button class="dropdown-item" id="more-reports">' + icon('chart', 15) + '<span>Daily/Weekly/Monthly Reports</span></button>' +
+            '<button class="dropdown-item" id="more-ledger">' + icon('ledger', 15) + '<span>Customer Account Ledger</span></button>' +
             '<button class="dropdown-item" id="more-pivot">' + icon('pie', 15) + '<span>Pivot Summary Graph</span></button>' +
             '<button class="dropdown-item danger" id="more-clear">' + icon('trash', 15) + '<span>Clear All Rows</span></button>' +
           '</div>';
@@ -10014,11 +10015,17 @@
       document.getElementById('btn-table-sync').onclick = function () { syncAllNow('manual'); };
       document.getElementById('btn-table-history').onclick = function () { openModal('file_history', { botId: bot.id }); };
       document.getElementById('btn-table-reports').onclick = function () { openModal('reports', { folder: bot.folder || 'General' }); };
-      var tblLedgerBtn = document.getElementById('btn-table-ledger');
-      if (tblLedgerBtn) tblLedgerBtn.onclick = function () {
+      var openFileLedgerModal = function () {
         var isDedL = (typeof isLedgerBot === 'function' && isLedgerBot(bot));
-        openModal('customer_ledger', { folder: bot.folder || 'General', botId: bot.id, showAllColumns: !isDedL });
+        var hasCust = (typeof hasCustomerStatementSupport === 'function' && hasCustomerStatementSupport(bot));
+        if (isDedL || hasCust) {
+          openModal('customer_ledger', { folder: bot.folder || 'General', botId: bot.id, showAllColumns: !isDedL });
+        } else {
+          openModal('customer_ledger', { folder: bot.folder || 'General' });
+        }
       };
+      var tblLedgerBtn = document.getElementById('btn-table-ledger');
+      if (tblLedgerBtn) tblLedgerBtn.onclick = openFileLedgerModal;
       document.getElementById('btn-table-settings').onclick = function () { openModal('settings', { bot: bot }); };
       var tblPrevPageBtn = document.getElementById('btn-table-prev-page');
       var tblNextPageBtn = document.getElementById('btn-table-next-page');
@@ -12487,6 +12494,8 @@
         document.getElementById('more-access-code').onclick = function () { state.showMoreMenu = false; openModal('access_code'); };
         document.getElementById('more-settings').onclick = function () { state.showMoreMenu = false; openModal('settings', { bot: bot }); };
         document.getElementById('more-reports').onclick = function () { state.showMoreMenu = false; openModal('reports'); };
+        var moreLedgerBtn = document.getElementById('more-ledger');
+        if (moreLedgerBtn) moreLedgerBtn.onclick = function () { state.showMoreMenu = false; openFileLedgerModal(); };
         document.getElementById('more-pivot').onclick = function () { state.showMoreMenu = false; openModal('pivot', { bot: bot }); };
         document.getElementById('more-clear').onclick = function () {
           state.showMoreMenu = false;
