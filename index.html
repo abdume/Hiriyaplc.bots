@@ -19729,11 +19729,12 @@
 
     function detectLedgerColumns(bot) {
       var cols = Array.isArray(bot && bot.columns) ? bot.columns : [];
-      var findCol = function (exactNames, fuzzyPatterns, excludeMap) {
+      var findCol = function (exactNames, fuzzyPatterns, excludeMap, skipDateType) {
         for (var i = 0; i < exactNames.length; i++) {
           var target = exactNames[i].toLowerCase();
           var hit = cols.find(function (c) {
             if (excludeMap && excludeMap[c.id]) return false;
+            if (skipDateType && c.type === 'date') return false;
             return String(c.name || '').trim().toLowerCase() === target;
           });
           if (hit) return hit;
@@ -19742,6 +19743,7 @@
           var re = fuzzyPatterns[j];
           var hitF = cols.find(function (c) {
             if (excludeMap && excludeMap[c.id]) return false;
+            if (skipDateType && c.type === 'date') return false;
             return re.test(String(c.name || '').trim());
           });
           if (hitF) return hitF;
@@ -19749,41 +19751,49 @@
         return null;
       };
       var custCol = findCol(
-        ['customer name', 'customer', 'client name', 'buyer', 'name', 'full name', 'client', 'user', 'account name'],
-        [/^customer/i, /^client/i, /^buyer/i, /^name$/i, /\bname\b/i, /^user$/i, /^account/i]
+        ['customer name', 'customer', 'client name', 'buyer', 'name', 'full name', 'client', 'user', 'account name', 'ስም', 'ደንበኛ'],
+        [/^customer/i, /^client/i, /^buyer/i, /^name$/i, /\bname\b/i, /^user$/i, /^account/i, /ስም|ደንበኛ/i]
       );
       var typeCol = findCol(['type', 'tx type', 'transaction type', 'entry type'], [/\btype\b/i]);
       var balCol = findCol(
         ['running balance', 'outstanding balance', 'remaining balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
-        [/running\s*bal|remaining\s*bal|outstanding|\bbalance\b|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b/i]
+        [/running\s*bal|remaining\s*bal|outstanding|\bbalance\b|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b/i],
+        null,
+        true
       );
       var exclBal = {};
       if (balCol) exclBal[balCol.id] = true;
       if (custCol) exclBal[custCol.id] = true;
 
       var payDateCol = findCol(
-        ['payment date', 'paid date', 'pay date', 'deposit date'],
-        [/pay(?:ment)?\s*date|paid\s*date|deposit\s*date/i],
+        ['payment date', 'paid date', 'pay date', 'date paid', 'deposit date'],
+        [/pay(?:ment)?\s*date|paid\s*date|date\s*(?:of\s*)?paid|date\s*of\s*payment|deposit\s*date/i],
         exclBal
       );
+      var exclForPayAmt = Object.assign({}, exclBal);
+      if (payDateCol) exclForPayAmt[payDateCol.id] = true;
+
       var payAmtCol = findCol(
         ['paid amount', 'payment amount', 'amount paid', 'paid', 'payment', 'received', 'deposit'],
-        [/paid\s*(?:amt|amount)?|payment\s*(?:amt|amount)?|\bpaid\b|\bpayment\b|\breceived\b|\bdeposit\b/i],
-        exclBal
+        [/paid\s*(?:amt|amount|birr)?|payment\s*(?:amt|amount|birr)?|\bpaid\b|\bpayment\b|\breceived\b|\bdeposit\b/i],
+        exclForPayAmt,
+        true
       );
-      var exclPayBal = Object.assign({}, exclBal);
+      var exclPayBal = Object.assign({}, exclForPayAmt);
       if (payAmtCol) exclPayBal[payAmtCol.id] = true;
-      if (payDateCol) exclPayBal[payDateCol.id] = true;
 
       var saleDateCol = findCol(
         ['sale date', 'credit date', 'invoice date'],
         [/sale\s*date|credit\s*date|invoice\s*date/i],
         exclPayBal
       );
+      if (saleDateCol) exclPayBal[saleDateCol.id] = true;
+
       var saleAmtCol = findCol(
         ['sale amount', 'credit amount', 'sale / credit', 'credit'],
         [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount)?/i],
-        exclPayBal
+        exclPayBal,
+        true
       );
       var noteCol = findCol(
         ['reference / note', 'note', 'notes', 'description', 'remark', 'quality / quantity'],
@@ -19801,7 +19811,8 @@
       var genericTotalCol = saleAmtCol || findCol(
         ['total amount', 'grand total', 'invoice', 'total', 'amount', 'birr', 'sum'],
         [/\btotal\b|grand|invoice|\bamount\b|\bsum\b/i],
-        exclPayBal
+        exclPayBal,
+        true
       ) || cols.find(function (c) {
         return !exclPayBal[c.id] && (c.type === 'formula' || c.type === 'amount');
       }) || null;
@@ -20100,7 +20111,7 @@
     function extractLedgerEntriesFromRow(row, det, bot, origIdx) {
       var out = [];
       if (!row || !det) return out;
-      var custRaw = det.custCol ? String(row[det.custCol.id] || '').trim() : '';
+      var custRaw = det.custCol ? String(row[det.custCol.id] || '').replace(/\s+/g, ' ').trim() : '';
       var typeRaw = det.typeCol ? String(row[det.typeCol.id] || '').trim() : '';
       var noteRaw = det.noteCol ? String(row[det.noteCol.id] || '').trim() : '';
 
@@ -20111,8 +20122,8 @@
       var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
       var pAmt = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
 
-      // For regular custom tables that only have Paid + Remaining Balance (no Total column), infer Total = Paid + Balance
-      if (!det.isDedicatedLedger && sAmt === 0 && det.balCol) {
+      // Only when a regular table lacks ANY Sale/Total column (Paid + Balance only), infer Total = Paid + Balance
+      if (!det.isDedicatedLedger && !activeSaleCol && sAmt === 0 && det.balCol) {
         var bVal = readLedgerNumericCell(row, det.balCol, bot);
         if (bVal > 0 || (pAmt > 0 && bVal !== 0)) {
           sAmt = roundEtb2(pAmt + bVal);
@@ -20149,6 +20160,7 @@
         if (hasVal) hasAnyRowData = true;
         allRowCols.push({
           colId: colObj.id,
+          colKey: String(colObj.name || 'Column').trim().toLowerCase(),
           name: colObj.name || 'Column',
           type: colObj.type || 'text',
           isNumeric: isNumCol,
@@ -20171,6 +20183,7 @@
       }
       var allColsSummary = summaryParts.join(' · ');
       var custName = custRaw || 'Walk-in Customer';
+      var fileRowNum = origIdx + 1;
       var createdMs = Date.parse(row._createdAt || row._updatedAt || '') || 0;
       var baseSeq = typeof row._txSeq === 'number' ? row._txSeq : origIdx;
       var preferEth = bot.ledgerCalendarMode ? (bot.ledgerCalendarMode !== 'gregorian') : true;
@@ -20194,6 +20207,7 @@
           out.push({
             entryId: row.id + '_sale',
             rowId: row.id,
+            fileRowNum: fileRowNum,
             botId: bot.id,
             botName: bot.name,
             folder: bot.folder || 'General',
@@ -20225,6 +20239,7 @@
             out.push({
               entryId: row.id + '_pay_' + ti,
               rowId: row.id,
+              fileRowNum: fileRowNum,
               botId: bot.id,
               botName: bot.name,
               folder: bot.folder || 'General',
@@ -20257,6 +20272,7 @@
       out.push({
         entryId: row.id,
         rowId: row.id,
+        fileRowNum: fileRowNum,
         botId: bot.id,
         botName: bot.name,
         folder: bot.folder || 'General',
@@ -20384,6 +20400,7 @@
         statementRows.push({
           entryId: e.entryId,
           rowId: e.rowId,
+          fileRowNum: e.fileRowNum,
           botId: e.botId,
           botName: e.botName,
           folder: e.folder,
@@ -20417,18 +20434,46 @@
       });
       var outstandingBalance = roundEtb2(openingBalance + totalCredit - totalPaid);
 
-      var sourceColumns = scopeBots.length === 1 && Array.isArray(scopeBots[0].columns)
-        ? scopeBots[0].columns.slice()
-        : [];
+      var isMultiBotScope = scopeBots.length > 1;
+      var sourceColumns = [];
+      if (scopeBots.length === 1 && Array.isArray(scopeBots[0].columns)) {
+        sourceColumns = scopeBots[0].columns.slice();
+      } else if (scopeBots.length > 1) {
+        var seenUnionCols = {};
+        var activeBotIdsMap = {};
+        statementRows.forEach(function (sr) { activeBotIdsMap[sr.botId] = true; });
+        var botsForCols = Object.keys(activeBotIdsMap).length > 0
+          ? scopeBots.filter(function (b) { return activeBotIdsMap[b.id]; })
+          : scopeBots;
+        botsForCols.forEach(function (b) {
+          (b.columns || []).forEach(function (c) {
+            var cKey = String(c.name || 'Column').trim().toLowerCase();
+            if (!seenUnionCols[cKey]) {
+              seenUnionCols[cKey] = true;
+              sourceColumns.push(Object.assign({}, c, { _colKey: cKey }));
+            }
+          });
+        });
+      }
       var allColsTotals = {};
+      var allColsKeyTotals = {};
+      var matchedRowNums = [];
+      var seenRowNumKey = {};
       var countedRowIds = {};
       statementRows.forEach(function (sr) {
         var uniqKey = sr.botId + '::' + sr.rowId;
         if (countedRowIds[uniqKey]) return;
         countedRowIds[uniqKey] = true;
+        if (sr.fileRowNum && !seenRowNumKey[uniqKey]) {
+          seenRowNumKey[uniqKey] = true;
+          matchedRowNums.push(sr.fileRowNum);
+        }
         (sr.allRowCols || []).forEach(function (rc) {
           if (rc.isNumeric && rc.hasValue) {
             allColsTotals[rc.colId] = roundEtb2((allColsTotals[rc.colId] || 0) + (rc.numeric || 0));
+            if (rc.colKey) {
+              allColsKeyTotals[rc.colKey] = roundEtb2((allColsKeyTotals[rc.colKey] || 0) + (rc.numeric || 0));
+            }
           }
         });
       });
@@ -20442,8 +20487,11 @@
 
       return {
         scopeBots: scopeBots,
+        isMultiBotScope: isMultiBotScope,
         sourceColumns: sourceColumns,
         allColsTotals: allColsTotals,
+        allColsKeyTotals: allColsKeyTotals,
+        matchedRowNums: matchedRowNums,
         isSingleCustomTable: Boolean(scopeBots.length === 1 && !isLedgerBot(scopeBots[0])),
         rows: statementRows,
         customerSummaries: customerSummaries,
@@ -20537,26 +20585,36 @@
           window.XLSX.utils.book_append_sheet(wb, wsCust, 'Customer Balances');
 
           if (data.sourceColumns && data.sourceColumns.length > 0) {
-            var fullHdr = ['#'].concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
+            var fullHdr = ['#', 'File Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
             var fullAoa = [
               ['All Column Row Data & Running Balance — ' + custTitle],
               fullHdr
             ];
             data.rows.forEach(function (r, idx) {
               var rcMap = {};
-              (r.allRowCols || []).forEach(function (rc) { rcMap[rc.colId] = rc; });
-              var rowArr = [idx + 1];
+              var rcKeyMap = {};
+              (r.allRowCols || []).forEach(function (rc) {
+                rcMap[rc.colId] = rc;
+                if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
+              });
+              var rowArr = [idx + 1, r.fileRowNum ? ('Row ' + r.fileRowNum) : ''];
+              if (data.isMultiBotScope) rowArr.push(r.botName || '');
               data.sourceColumns.forEach(function (col) {
-                var cell = rcMap[col.id];
+                var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
+                var cell = rcMap[col.id] || rcKeyMap[cKey];
                 rowArr.push(cell && cell.hasValue ? (cell.isNumeric ? cell.numeric : cell.display) : '');
               });
               rowArr.push(r.typeLabel, r.kind === 'sale' ? r.saleAmount : '', r.kind === 'payment' ? r.paidAmount : '', r.runningBalance);
               fullAoa.push(rowArr);
             });
-            var fullTot = ['TOTALS'];
+            var fullTot = ['TOTALS', data.matchedRowNums && data.matchedRowNums.length ? (data.matchedRowNums.length + ' rows') : ''];
+            if (data.isMultiBotScope) fullTot.push('');
             data.sourceColumns.forEach(function (col) {
               var isNumC = (col.type === 'amount' || col.type === 'number' || col.type === 'formula');
-              fullTot.push(isNumC && Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) ? data.allColsTotals[col.id] : '');
+              var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
+              var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
+              var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) ? data.allColsTotals[col.id] : ((data.allColsKeyTotals || {})[cKey]);
+              fullTot.push(hasTot ? totV : '');
             });
             fullTot.push(data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
             fullAoa.push(fullTot);
@@ -20603,17 +20661,24 @@
           return '<th' + (isNumC ? ' style="text-align:right;"' : '') + '>' + esc(c.name || 'Column') + '</th>';
         }).join('');
         var fullRowsHtml = data.rows.length === 0
-          ? '<tr><td colspan="' + (data.sourceColumns.length + 5) + '" style="text-align:center;color:#64748B;padding:24px;">No rows match the selected customer and date range.</td></tr>'
+          ? '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 7 : 6)) + '" style="text-align:center;color:#64748B;padding:24px;">No rows match the selected customer and date range.</td></tr>'
           : data.rows.map(function (r, idx) {
               var rcMap = {};
-              (r.allRowCols || []).forEach(function (rc) { rcMap[rc.colId] = rc; });
+              var rcKeyMap = {};
+              (r.allRowCols || []).forEach(function (rc) {
+                rcMap[rc.colId] = rc;
+                if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
+              });
               var colTds = data.sourceColumns.map(function (c) {
-                var cell = rcMap[c.id];
+                var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
+                var cell = rcMap[c.id] || rcKeyMap[cKey];
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
                 return '<td style="' + (isNumC ? 'text-align:right;font-family:monospace;' : '') + '">' + esc(cell ? cell.display : '—') + '</td>';
               }).join('');
               return '<tr>' +
                 '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+                '<td style="text-align:center;font-family:monospace;">' + esc(r.fileRowNum ? ('Row ' + r.fileRowNum) : '—') + '</td>' +
+                (data.isMultiBotScope ? ('<td>' + esc(r.botName || '') + '</td>') : '') +
                 colTds +
                 '<td>' + esc(r.typeLabel) + '</td>' +
                 '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
@@ -20623,12 +20688,15 @@
             }).join('');
         var fullFootTds = data.sourceColumns.map(function (c) {
           var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-          if (!isNumC || !Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id)) return '<td></td>';
-          return '<td style="text-align:right;font-family:monospace;">' + esc(formatNumericValue(data.allColsTotals[c.id], c)) + '</td>';
+          var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
+          var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
+          var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
+          if (!hasTot) return '<td></td>';
+          return '<td style="text-align:right;font-family:monospace;">' + esc(formatNumericValue(totV, c)) + '</td>';
         }).join('');
-        tableHtml = '<table><thead><tr><th>#</th>' + colThs + '<th>Type</th><th style="text-align:right;">Credit (ETB)</th><th style="text-align:right;">Paid (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th></tr></thead>' +
+        tableHtml = '<table><thead><tr><th>#</th><th>File Row</th>' + (data.isMultiBotScope ? '<th>File</th>' : '') + colThs + '<th>Type</th><th style="text-align:right;">Credit (ETB)</th><th style="text-align:right;">Paid (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th></tr></thead>' +
           '<tbody>' + fullRowsHtml + '</tbody>' +
-          '<tfoot><tr><td>Σ</td>' + fullFootTds + '<td>' + data.rows.length + ' tx</td>' +
+          '<tfoot><tr><td>Σ</td><td>' + (data.matchedRowNums ? data.matchedRowNums.length : 0) + ' rows</td>' + (data.isMultiBotScope ? '<td></td>' : '') + fullFootTds + '<td>' + data.rows.length + ' tx</td>' +
           '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
           '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
           '<td style="text-align:right;font-family:monospace;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td></tr></tfoot></table>';
@@ -21060,13 +21128,28 @@
         '</div>';
       }
 
+      // Clean summary line showing exact source File Row numbers (e.g. Row 15, Row 60) + All Columns count
+      var rowNumsPreview = (data.matchedRowNums || []).slice(0, 14).map(function (rn) { return 'Row ' + rn; }).join(', ') + ((data.matchedRowNums || []).length > 14 ? ' +' + ((data.matchedRowNums || []).length - 14) + ' more' : '');
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:#475569;padding:2px 2px;">' +
+        '<div>' +
+          '<strong style="color:#0F172A;">' + esc(activeCustLabel || 'All Customers') + '</strong>' +
+          ' &middot; ' + (activeTargetBot ? esc(activeTargetBot.name) : 'All Tables') +
+          (rowNumsPreview ? (' &middot; File Rows: <span class="mono" style="color:#0F172A;font-weight:700;">' + esc(rowNumsPreview) + '</span>') : '') +
+          (hasSourceCols ? (' &middot; ' + data.sourceColumns.length + ' Column Headers') : '') +
+        '</div>' +
+        '<div style="font-size:11.5px;color:#64748B;">Tap any <strong style="color:#0F172A;">Row #</strong> to jump to that row in the spreadsheet</div>' +
+      '</div>';
+
       // Main Chronological Customer Account Statement Table:
       // Supports BOTH Full Row Columns + Running Balance view AND Accounting Ledger (Sale Date/Amount, Payment Date/Amount, Running Balance) view
       if (showAllCols) {
+        var extraMultiTh = data.isMultiBotScope ? '<th>File</th>' : '';
         html += '<div class="ledger-stmt-wrap">' +
           '<table class="ledger-stmt-table">' +
             '<thead><tr>' +
-              '<th style="width:40px;text-align:center;">#</th>' +
+              '<th style="width:38px;text-align:center;">#</th>' +
+              '<th style="width:74px;text-align:center;">Row #</th>' +
+              extraMultiTh +
               data.sourceColumns.map(function (c) {
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
                 return '<th' + (isNumC ? ' class="num"' : '') + '>' + esc(c.name || 'Column') + '</th>';
@@ -21079,14 +21162,19 @@
             '<tbody>';
 
         if (data.rows.length === 0) {
-          html += '<tr><td colspan="' + (data.sourceColumns.length + 5) + '" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions match the selected customer or filter.</td></tr>';
+          html += '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 7 : 6)) + '" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions match the selected customer or filter.</td></tr>';
         } else {
           html += data.rows.map(function (r, idx) {
             var isSale = r.kind === 'sale';
             var rcMap = {};
-            (r.allRowCols || []).forEach(function (rc) { rcMap[rc.colId] = rc; });
+            var rcKeyMap = {};
+            (r.allRowCols || []).forEach(function (rc) {
+              rcMap[rc.colId] = rc;
+              if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
+            });
             var colCellsHtml = data.sourceColumns.map(function (c) {
-              var cell = rcMap[c.id];
+              var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
+              var cell = rcMap[c.id] || rcKeyMap[cKey];
               var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
               if (cell && cell.isCustomerCol && cell.hasValue) {
                 return '<td><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(cell.display) + '</button></td>';
@@ -21095,6 +21183,8 @@
             }).join('');
             return '<tr>' +
               '<td style="text-align:center;color:#64748B;" class="mono">' + (idx + 1) + '</td>' +
+              '<td style="text-align:center;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to Row ' + (r.fileRowNum || (idx + 1)) + ' in file">Row ' + (r.fileRowNum || (idx + 1)) + '</button></td>' +
+              (data.isMultiBotScope ? ('<td style="font-size:11.5px;color:#475569;white-space:nowrap;">' + esc(r.botName || '') + '</td>') : '') +
               colCellsHtml +
               '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';white-space:nowrap;">' + esc(r.typeLabel) + '</td>' +
               '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
@@ -21107,13 +21197,18 @@
         html += '</tbody>' +
           '<tfoot><tr>' +
             '<td style="text-align:center;">Σ</td>' +
+            '<td style="text-align:center;" class="mono">' + ((data.matchedRowNums || []).length) + 'r</td>' +
+            (data.isMultiBotScope ? '<td></td>' : '') +
             data.sourceColumns.map(function (c, cIdx) {
               var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
+              var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
+              var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
+              var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
               if (cIdx === 0 && !isNumC) {
                 return '<td>Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Open: ' + esc(formatEtbAmount(data.openingBalance))) : '') + ')</td>';
               }
-              if (!isNumC || !Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id)) return '<td></td>';
-              return '<td class="num mono">' + esc(formatNumericValue(data.allColsTotals[c.id], c)) + '</td>';
+              if (!hasTot) return '<td></td>';
+              return '<td class="num mono">' + esc(formatNumericValue(totV, c)) + '</td>';
             }).join('') +
             '<td>' + data.rows.length + ' tx</td>' +
             '<td class="num mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
@@ -21125,7 +21220,7 @@
         html += '<div class="ledger-stmt-wrap">' +
           '<table class="ledger-stmt-table">' +
             '<thead><tr>' +
-              '<th style="width:40px;text-align:center;">#</th>' +
+              '<th style="width:66px;text-align:center;">Row</th>' +
               '<th>Customer Name</th>' +
               '<th>Type</th>' +
               '<th>Sale Date</th>' +
@@ -21145,7 +21240,7 @@
             var detNote = r.note || '';
             if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
             return '<tr>' +
-              '<td style="text-align:center;color:#64748B;" class="mono">' + (idx + 1) + '</td>' +
+              '<td style="text-align:center;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to Row ' + (r.fileRowNum || (idx + 1)) + ' in file">#' + (r.fileRowNum || (idx + 1)) + '</button></td>' +
               '<td><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(r.customerName) + '</button></td>' +
               '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';">' + esc(r.typeLabel) + '</td>' +
               '<td class="mono" style="font-size:12px;">' + esc(isSale ? r.saleDateDisplay : '—') + '</td>' +
@@ -21341,6 +21436,20 @@
           var cname = tr.getAttribute('data-clg-pick-cust');
           m.customerFilter = (String(m.customerFilter || '').toLowerCase() === String(cname || '').toLowerCase()) ? 'all' : cname;
           renderCustomerLedgerModal(m);
+        };
+      });
+      document.querySelectorAll('[data-clg-jump-bot][data-clg-jump-row]').forEach(function (btn) {
+        btn.onclick = function () {
+          var jBotId = btn.getAttribute('data-clg-jump-bot');
+          var jRowId = btn.getAttribute('data-clg-jump-row');
+          if (!jBotId || !jRowId) return;
+          closeModal();
+          state.activeBotId = jBotId;
+          state.tableSearchQuery = '';
+          state.editingCell = null;
+          state._resetTableScroll = false;
+          state._pendingScrollToRowId = jRowId;
+          renderApp();
         };
       });
     }
