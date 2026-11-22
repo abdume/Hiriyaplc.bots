@@ -1826,7 +1826,7 @@
     }
     .ledger-stmt-table tbody td {
       padding: 8px 10px;
-      border-bottom: 1px solid #F1F5F9;
+      border-bottom: 1px solid #E2E8F0;
       color: #0F172A;
       vertical-align: middle;
     }
@@ -20530,16 +20530,15 @@
         ['Date Range:', rangeTitle, 'Calendar:', calTag],
         ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Outstanding Balance (ETB):', data.outstandingBalance],
         [],
-        ['#', 'Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
+        ['Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
       ];
 
-      data.rows.forEach(function (r, idx) {
+      data.rows.forEach(function (r) {
         var noteCell = r.note || '';
         if (r.allColsSummary) {
           noteCell = noteCell ? (noteCell + ' | ' + r.allColsSummary) : r.allColsSummary;
         }
         aoa.push([
-          idx + 1,
           r.customerName,
           r.typeLabel,
           r.kind === 'sale' ? r.saleDateDisplay : '',
@@ -20552,8 +20551,7 @@
       });
 
       aoa.push([
-        'TOTALS',
-        custTitle,
+        'TOTALS — ' + custTitle,
         data.rows.length + ' tx',
         data.hasFromFilter ? ('Opening: ' + formatEtbAmount(data.openingBalance)) : '',
         data.totalCredit,
@@ -20568,7 +20566,7 @@
           var wb = window.XLSX.utils.book_new();
           var wsStmt = window.XLSX.utils.aoa_to_sheet(aoa);
           wsStmt['!cols'] = [
-            { wch: 6 }, { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }
+            { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }
           ];
           window.XLSX.utils.book_append_sheet(wb, wsStmt, 'Account Statement');
 
@@ -20585,19 +20583,19 @@
           window.XLSX.utils.book_append_sheet(wb, wsCust, 'Customer Balances');
 
           if (data.sourceColumns && data.sourceColumns.length > 0) {
-            var fullHdr = ['#', 'File Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
+            var fullHdr = (data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
             var fullAoa = [
               ['All Column Row Data & Running Balance — ' + custTitle],
               fullHdr
             ];
-            data.rows.forEach(function (r, idx) {
+            data.rows.forEach(function (r) {
               var rcMap = {};
               var rcKeyMap = {};
               (r.allRowCols || []).forEach(function (rc) {
                 rcMap[rc.colId] = rc;
                 if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
               });
-              var rowArr = [idx + 1, r.fileRowNum ? ('Row ' + r.fileRowNum) : ''];
+              var rowArr = [];
               if (data.isMultiBotScope) rowArr.push(r.botName || '');
               data.sourceColumns.forEach(function (col) {
                 var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
@@ -20607,16 +20605,25 @@
               rowArr.push(r.typeLabel, r.kind === 'sale' ? r.saleAmount : '', r.kind === 'payment' ? r.paidAmount : '', r.runningBalance);
               fullAoa.push(rowArr);
             });
-            var fullTot = ['TOTALS', data.matchedRowNums && data.matchedRowNums.length ? (data.matchedRowNums.length + ' rows') : ''];
-            if (data.isMultiBotScope) fullTot.push('');
-            data.sourceColumns.forEach(function (col) {
+            var fullTot = [];
+            var placedTotLabelX = false;
+            if (data.isMultiBotScope) {
+              fullTot.push('TOTALS');
+              placedTotLabelX = true;
+            }
+            data.sourceColumns.forEach(function (col, cIdx) {
               var isNumC = (col.type === 'amount' || col.type === 'number' || col.type === 'formula');
               var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
               var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
               var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) ? data.allColsTotals[col.id] : ((data.allColsKeyTotals || {})[cKey]);
-              fullTot.push(hasTot ? totV : '');
+              if (!placedTotLabelX && cIdx === 0 && !isNumC) {
+                fullTot.push('TOTALS');
+                placedTotLabelX = true;
+              } else {
+                fullTot.push(hasTot ? totV : '');
+              }
             });
-            fullTot.push(data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
+            fullTot.push((!placedTotLabelX ? 'TOTALS · ' : '') + data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
             fullAoa.push(fullTot);
             var wsFull = window.XLSX.utils.aoa_to_sheet(fullAoa);
             window.XLSX.utils.book_append_sheet(wb, wsFull, 'All Column Row Data');
@@ -20661,8 +20668,8 @@
           return '<th' + (isNumC ? ' style="text-align:right;"' : '') + '>' + esc(c.name || 'Column') + '</th>';
         }).join('');
         var fullRowsHtml = data.rows.length === 0
-          ? '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 7 : 6)) + '" style="text-align:center;color:#64748B;padding:24px;">No rows match the selected customer and date range.</td></tr>'
-          : data.rows.map(function (r, idx) {
+          ? '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 5 : 4)) + '" style="text-align:center;color:#64748B;padding:24px;">No rows match the selected customer and date range.</td></tr>'
+          : data.rows.map(function (r) {
               var rcMap = {};
               var rcKeyMap = {};
               (r.allRowCols || []).forEach(function (rc) {
@@ -20673,54 +20680,56 @@
                 var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
                 var cell = rcMap[c.id] || rcKeyMap[cKey];
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-                return '<td style="' + (isNumC ? 'text-align:right;font-family:monospace;' : '') + '">' + esc(cell ? cell.display : '—') + '</td>';
+                return '<td style="' + (isNumC ? 'text-align:right;font-family:monospace;' : '') + '">' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
               }).join('');
               return '<tr>' +
-                '<td style="text-align:center;">' + (idx + 1) + '</td>' +
-                '<td style="text-align:center;font-family:monospace;">' + esc(r.fileRowNum ? ('Row ' + r.fileRowNum) : '—') + '</td>' +
                 (data.isMultiBotScope ? ('<td>' + esc(r.botName || '') + '</td>') : '') +
                 colTds +
                 '<td>' + esc(r.typeLabel) + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatEtbAmount(r.paidAmount) : '—') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
               '</tr>';
             }).join('');
-        var fullFootTds = data.sourceColumns.map(function (c) {
+        var placedTotPdf = Boolean(data.isMultiBotScope);
+        var fullFootTds = data.sourceColumns.map(function (c, cIdx) {
           var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
           var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
           var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
           var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
+          if (!placedTotPdf && cIdx === 0 && !isNumC) {
+            placedTotPdf = true;
+            return '<td>TOTALS (' + data.rows.length + ' tx)</td>';
+          }
           if (!hasTot) return '<td></td>';
           return '<td style="text-align:right;font-family:monospace;">' + esc(formatNumericValue(totV, c)) + '</td>';
         }).join('');
-        tableHtml = '<table><thead><tr><th>#</th><th>File Row</th>' + (data.isMultiBotScope ? '<th>File</th>' : '') + colThs + '<th>Type</th><th style="text-align:right;">Credit (ETB)</th><th style="text-align:right;">Paid (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th></tr></thead>' +
+        tableHtml = '<table><thead><tr>' + (data.isMultiBotScope ? '<th>File</th>' : '') + colThs + '<th>Type</th><th style="text-align:right;">Credit (ETB)</th><th style="text-align:right;">Paid (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th></tr></thead>' +
           '<tbody>' + fullRowsHtml + '</tbody>' +
-          '<tfoot><tr><td>Σ</td><td>' + (data.matchedRowNums ? data.matchedRowNums.length : 0) + ' rows</td>' + (data.isMultiBotScope ? '<td></td>' : '') + fullFootTds + '<td>' + data.rows.length + ' tx</td>' +
+          '<tfoot><tr>' + (data.isMultiBotScope ? '<td>TOTALS</td>' : '') + fullFootTds + '<td>' + (!placedTotPdf ? 'TOTALS · ' : '') + data.rows.length + ' tx</td>' +
           '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
           '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
           '<td style="text-align:right;font-family:monospace;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td></tr></tfoot></table>';
       } else {
         var rowsHtml = data.rows.length === 0
-          ? '<tr><td colspan="9" style="text-align:center;color:#64748B;padding:24px;">No ledger transactions match the selected customer and date range.</td></tr>'
-          : data.rows.map(function (r, idx) {
+          ? '<tr><td colspan="8" style="text-align:center;color:#64748B;padding:24px;">No ledger transactions match the selected customer and date range.</td></tr>'
+          : data.rows.map(function (r) {
               var detNote = r.note || '';
               if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
               return '<tr>' +
-                '<td style="text-align:center;">' + (idx + 1) + '</td>' +
                 '<td style="font-weight:700;">' + esc(r.customerName) + '</td>' +
                 '<td>' + esc(r.typeLabel) + '</td>' +
-                '<td>' + esc(r.kind === 'sale' ? r.saleDateDisplay : '—') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
-                '<td>' + esc(r.kind === 'payment' ? r.paymentDateDisplay : '—') + '</td>' +
-                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatEtbAmount(r.paidAmount) : '—') + '</td>' +
+                '<td>' + esc(r.kind === 'sale' ? r.saleDateDisplay : '') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
+                '<td>' + esc(r.kind === 'payment' ? r.paymentDateDisplay : '') + '</td>' +
+                '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
-                '<td>' + esc(detNote || '—') + '</td>' +
+                '<td>' + esc(detNote) + '</td>' +
               '</tr>';
             }).join('');
-        tableHtml = '<table><thead><tr><th>#</th><th>Customer Name</th><th>Type</th><th>Sale Date</th><th style="text-align:right;">Sale Amount (ETB)</th><th>Payment Date</th><th style="text-align:right;">Paid Amount (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th><th>Reference / Row Data</th></tr></thead>' +
+        tableHtml = '<table><thead><tr><th>Customer Name</th><th>Type</th><th>Sale Date</th><th style="text-align:right;">Sale Amount (ETB)</th><th>Payment Date</th><th style="text-align:right;">Paid Amount (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th><th>Reference / Row Data</th></tr></thead>' +
           '<tbody>' + rowsHtml + '</tbody>' +
-          '<tfoot><tr><td colspan="4">Σ Statement Totals (' + data.rows.length + ' transactions' + (data.hasFromFilter ? ' · Opening ' + esc(formatEtbAmount(data.openingBalance)) : '') + ')</td>' +
+          '<tfoot><tr><td colspan="3">Statement Totals (' + data.rows.length + ' transactions' + (data.hasFromFilter ? ' · Opening ' + esc(formatEtbAmount(data.openingBalance)) : '') + ')</td>' +
           '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td><td></td>' +
           '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
           '<td style="text-align:right;font-family:monospace;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td><td></td></tr></tfoot></table>';
@@ -21128,27 +21137,24 @@
         '</div>';
       }
 
-      // Clean summary line showing exact source File Row numbers (e.g. Row 15, Row 60) + All Columns count
-      var rowNumsPreview = (data.matchedRowNums || []).slice(0, 14).map(function (rn) { return 'Row ' + rn; }).join(', ') + ((data.matchedRowNums || []).length > 14 ? ' +' + ((data.matchedRowNums || []).length - 14) + ' more' : '');
+      // Clean summary line without row numbers — shows active customer, table, and column count
       html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:#475569;padding:2px 2px;">' +
         '<div>' +
           '<strong style="color:#0F172A;">' + esc(activeCustLabel || 'All Customers') + '</strong>' +
           ' &middot; ' + (activeTargetBot ? esc(activeTargetBot.name) : 'All Tables') +
-          (rowNumsPreview ? (' &middot; File Rows: <span class="mono" style="color:#0F172A;font-weight:700;">' + esc(rowNumsPreview) + '</span>') : '') +
-          (hasSourceCols ? (' &middot; ' + data.sourceColumns.length + ' Column Headers') : '') +
+          (hasSourceCols ? (' &middot; ' + data.sourceColumns.length + ' Columns') : '') +
         '</div>' +
-        '<div style="font-size:11.5px;color:#64748B;">Tap any <strong style="color:#0F172A;">Row #</strong> to jump to that row in the spreadsheet</div>' +
+        '<div style="font-size:11.5px;color:#64748B;">' + data.rows.length + ' Transactions</div>' +
       '</div>';
 
       // Main Chronological Customer Account Statement Table:
-      // Supports BOTH Full Row Columns + Running Balance view AND Accounting Ledger (Sale Date/Amount, Payment Date/Amount, Running Balance) view
+      // Shows exact column headers and row data cleanly without row numbers
       if (showAllCols) {
         var extraMultiTh = data.isMultiBotScope ? '<th>File</th>' : '';
+        var placedTotUi = Boolean(data.isMultiBotScope);
         html += '<div class="ledger-stmt-wrap">' +
           '<table class="ledger-stmt-table">' +
             '<thead><tr>' +
-              '<th style="width:38px;text-align:center;">#</th>' +
-              '<th style="width:74px;text-align:center;">Row #</th>' +
               extraMultiTh +
               data.sourceColumns.map(function (c) {
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
@@ -21162,9 +21168,9 @@
             '<tbody>';
 
         if (data.rows.length === 0) {
-          html += '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 7 : 6)) + '" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions match the selected customer or filter.</td></tr>';
+          html += '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 5 : 4)) + '" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions match the selected customer or filter.</td></tr>';
         } else {
-          html += data.rows.map(function (r, idx) {
+          html += data.rows.map(function (r) {
             var isSale = r.kind === 'sale';
             var rcMap = {};
             var rcKeyMap = {};
@@ -21179,16 +21185,14 @@
               if (cell && cell.isCustomerCol && cell.hasValue) {
                 return '<td><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(cell.display) + '</button></td>';
               }
-              return '<td class="' + (isNumC ? 'num mono' : '') + '">' + esc(cell ? cell.display : '—') + '</td>';
+              return '<td class="' + (isNumC ? 'num mono' : '') + '">' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
             }).join('');
             return '<tr>' +
-              '<td style="text-align:center;color:#64748B;" class="mono">' + (idx + 1) + '</td>' +
-              '<td style="text-align:center;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to Row ' + (r.fileRowNum || (idx + 1)) + ' in file">Row ' + (r.fileRowNum || (idx + 1)) + '</button></td>' +
               (data.isMultiBotScope ? ('<td style="font-size:11.5px;color:#475569;white-space:nowrap;">' + esc(r.botName || '') + '</td>') : '') +
               colCellsHtml +
               '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';white-space:nowrap;">' + esc(r.typeLabel) + '</td>' +
-              '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
-              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatEtbAmount(r.paidAmount) : '—') + '</td>' +
+              '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
+              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
               '<td class="num mono col-run-bal">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
             '</tr>';
           }).join('');
@@ -21196,21 +21200,20 @@
 
         html += '</tbody>' +
           '<tfoot><tr>' +
-            '<td style="text-align:center;">Σ</td>' +
-            '<td style="text-align:center;" class="mono">' + ((data.matchedRowNums || []).length) + 'r</td>' +
-            (data.isMultiBotScope ? '<td></td>' : '') +
+            (data.isMultiBotScope ? '<td>Totals</td>' : '') +
             data.sourceColumns.map(function (c, cIdx) {
               var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
               var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
               var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
               var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
-              if (cIdx === 0 && !isNumC) {
+              if (!placedTotUi && cIdx === 0 && !isNumC) {
+                placedTotUi = true;
                 return '<td>Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Open: ' + esc(formatEtbAmount(data.openingBalance))) : '') + ')</td>';
               }
               if (!hasTot) return '<td></td>';
               return '<td class="num mono">' + esc(formatNumericValue(totV, c)) + '</td>';
             }).join('') +
-            '<td>' + data.rows.length + ' tx</td>' +
+            '<td>' + (!placedTotUi ? 'Totals · ' : '') + data.rows.length + ' tx</td>' +
             '<td class="num mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
             '<td class="num mono" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
             '<td class="num mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</td>' +
@@ -21220,7 +21223,6 @@
         html += '<div class="ledger-stmt-wrap">' +
           '<table class="ledger-stmt-table">' +
             '<thead><tr>' +
-              '<th style="width:66px;text-align:center;">Row</th>' +
               '<th>Customer Name</th>' +
               '<th>Type</th>' +
               '<th>Sale Date</th>' +
@@ -21233,29 +21235,28 @@
             '<tbody>';
 
         if (data.rows.length === 0) {
-          html += '<tr><td colspan="9" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions recorded yet for the selected filter. Use "+ Record Sale / Credit" or "+ Record Payment" above.</td></tr>';
+          html += '<tr><td colspan="8" style="text-align:center;padding:28px 14px;color:#64748B;">No transactions recorded yet for the selected filter. Use "+ Record Sale / Credit" or "+ Record Payment" above.</td></tr>';
         } else {
-          html += data.rows.map(function (r, idx) {
+          html += data.rows.map(function (r) {
             var isSale = r.kind === 'sale';
             var detNote = r.note || '';
             if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
             return '<tr>' +
-              '<td style="text-align:center;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to Row ' + (r.fileRowNum || (idx + 1)) + ' in file">#' + (r.fileRowNum || (idx + 1)) + '</button></td>' +
               '<td><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(r.customerName) + '</button></td>' +
               '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';">' + esc(r.typeLabel) + '</td>' +
-              '<td class="mono" style="font-size:12px;">' + esc(isSale ? r.saleDateDisplay : '—') + '</td>' +
-              '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '—') + '</td>' +
-              '<td class="mono" style="font-size:12px;">' + esc(!isSale ? r.paymentDateDisplay : '—') + '</td>' +
-              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatEtbAmount(r.paidAmount) : '—') + '</td>' +
+              '<td class="mono" style="font-size:12px;">' + esc(isSale ? r.saleDateDisplay : '') + '</td>' +
+              '<td class="num mono col-sale-amt">' + esc(isSale ? formatEtbAmount(r.saleAmount) : '') + '</td>' +
+              '<td class="mono" style="font-size:12px;">' + esc(!isSale ? r.paymentDateDisplay : '') + '</td>' +
+              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatEtbAmount(r.paidAmount) : '') + '</td>' +
               '<td class="num mono col-run-bal">' + esc(formatEtbAmount(r.runningBalance)) + '</td>' +
-              '<td style="color:#475569;font-size:11.5px;">' + esc(detNote || '—') + '</td>' +
+              '<td style="color:#475569;font-size:11.5px;">' + esc(detNote) + '</td>' +
             '</tr>';
           }).join('');
         }
 
         html += '</tbody>' +
           '<tfoot><tr>' +
-            '<td colspan="4">Σ Statement Totals (' + data.rows.length + ' rows' + (data.hasFromFilter ? (' · Opening: ' + esc(formatEtbAmount(data.openingBalance))) : '') + ')</td>' +
+            '<td colspan="3">Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Opening: ' + esc(formatEtbAmount(data.openingBalance))) : '') + ')</td>' +
             '<td class="num mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</td>' +
             '<td></td>' +
             '<td class="num mono" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</td>' +
@@ -21436,20 +21437,6 @@
           var cname = tr.getAttribute('data-clg-pick-cust');
           m.customerFilter = (String(m.customerFilter || '').toLowerCase() === String(cname || '').toLowerCase()) ? 'all' : cname;
           renderCustomerLedgerModal(m);
-        };
-      });
-      document.querySelectorAll('[data-clg-jump-bot][data-clg-jump-row]').forEach(function (btn) {
-        btn.onclick = function () {
-          var jBotId = btn.getAttribute('data-clg-jump-bot');
-          var jRowId = btn.getAttribute('data-clg-jump-row');
-          if (!jBotId || !jRowId) return;
-          closeModal();
-          state.activeBotId = jBotId;
-          state.tableSearchQuery = '';
-          state.editingCell = null;
-          state._resetTableScroll = false;
-          state._pendingScrollToRowId = jRowId;
-          renderApp();
         };
       });
     }
