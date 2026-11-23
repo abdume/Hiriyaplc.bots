@@ -2006,6 +2006,94 @@
       cursor: pointer;
     }
     .tb-sheet-cust-btn:hover { background: #047857; }
+    .tb-sheet-pay-card {
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .tb-sheet-pay-btn {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: 9px;
+      background: #1D4ED8;
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+    }
+    .tb-sheet-pay-btn:hover { background: #1E40AF; }
+    .cell-pay-hist-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: 5px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      border: 1px solid #93C5FD;
+      background: #EFF6FF;
+      color: #1D4ED8;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.25;
+      cursor: pointer;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .cell-pay-hist-badge:hover { background: #DBEAFE; border-color: #2563EB; }
+    .ledger-stmt-table tbody tr.ledger-row-payment td {
+      background: #F0FDF4;
+    }
+    .ledger-stmt-table tbody tr.ledger-row-payment:hover td {
+      background: #DCFCE7;
+    }
+    .ledger-stmt-table tbody tr.ledger-row-sale td {
+      background: #FFFFFF;
+    }
+    .ledger-type-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .ledger-type-pill.is-sale {
+      background: #DBEAFE;
+      color: #1E40AF;
+      border: 1px solid #BFDBFE;
+    }
+    .ledger-type-pill.is-pay {
+      background: #D1FAE5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+    }
+    .rph-entry-row {
+      display: grid;
+      grid-template-columns: minmax(110px, 1fr) minmax(115px, 1.1fr) minmax(110px, 1.2fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 9px 10px;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      background: #F8FAFC;
+    }
+    @media (max-width: 600px) {
+      .rph-entry-row {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
     .ledger-cust-link {
       background: transparent;
       border: none;
@@ -9168,6 +9256,7 @@
         var fillMode = options.fillMode || 'overwrite';
         var startIdx = Math.max(0, Number(options.startRowIdx) || 0);
         var writeRowCell = function (rowObj, rawV) {
+          var prevV = rowObj[targetCol.id];
           var parsedV = parseCellValueForCol(rawV, targetCol);
           rowObj[targetCol.id] = parsedV;
           rowObj._actor = actor;
@@ -9175,6 +9264,9 @@
           if (targetCol.type === 'date' && String(parsedV).trim() !== '') rowObj._dateEdited = true;
           if (targetCol.type !== 'date' && String(parsedV).trim() !== '' && String(parsedV) !== '0') {
             autoFillRowDates(bot, rowObj, nowIso, targetCol.id);
+          }
+          if (typeof syncRowPaymentHistoryOnEdit === 'function') {
+            syncRowPaymentHistoryOnEdit(bot, rowObj, targetCol, prevV, parsedV, nowIso);
           }
           pastedCount++;
         };
@@ -9227,6 +9319,7 @@
       if (isSingleSource && targets && targets.length > 0) {
         var singleSrc = matrix[0][0];
         targets.forEach(function (m) {
+          var prevV = m.row[m.col.id];
           var parsedVal = parseCellValueForCol(singleSrc, m.col);
           m.row[m.col.id] = parsedVal;
           m.row._actor = actor;
@@ -9234,6 +9327,9 @@
           if (m.col.type === 'date' && String(parsedVal).trim() !== '') m.row._dateEdited = true;
           if (m.col.type !== 'date' && String(parsedVal).trim() !== '' && String(parsedVal) !== '0') {
             autoFillRowDates(bot, m.row, nowIso, m.col.id);
+          }
+          if (typeof syncRowPaymentHistoryOnEdit === 'function') {
+            syncRowPaymentHistoryOnEdit(bot, m.row, m.col, prevV, parsedVal, nowIso);
           }
           pastedCount++;
         });
@@ -9281,6 +9377,7 @@
           }
           var tc = bot.columns[targetColIdx];
           if (!tc) continue;
+          var prevCellV = tr[tc.id];
           var parsed = parseCellValueForCol(srcRowArr[dc], tc);
           tr[tc.id] = parsed;
           tr._actor = actor;
@@ -9288,6 +9385,9 @@
           if (tc.type === 'date' && String(parsed).trim() !== '') tr._dateEdited = true;
           if (tc.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
             autoFillRowDates(bot, tr, nowIso, tc.id);
+          }
+          if (typeof syncRowPaymentHistoryOnEdit === 'function') {
+            syncRowPaymentHistoryOnEdit(bot, tr, tc, prevCellV, parsed, nowIso);
           }
           pastedCount++;
         }
@@ -9316,6 +9416,10 @@
         '</div></td>';
 
       var cols = bot.columns || [];
+      var rowDet = (typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null;
+      var rowPayHist = Array.isArray(row._paymentHistory)
+        ? row._paymentHistory.filter(function (ph) { return ph && Number(ph.amount) > 0; })
+        : [];
       for (var cIdx = 0; cIdx < cols.length; cIdx++) {
         var col = cols[cIdx];
         var val = row[col.id];
@@ -9377,16 +9481,24 @@
           var fs = st.italic ? 'italic' : 'normal';
           var cellFontSize = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
           var dispCellTxt = formatCell(val, col, row, bot);
-          var custColMatch = (typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null;
+          var custColMatch = rowDet ? rowDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null);
           var cleanCustCell = (typeof normalizeCustomerLabel === 'function') ? normalizeCustomerLabel(dispCellTxt) : String(dispCellTxt || '').trim();
           var isCustNameCell = Boolean(custColMatch && custColMatch.id === col.id && cleanCustCell !== '');
+          var isPayCellWithHist = Boolean(
+            rowPayHist.length > 0 &&
+            rowDet &&
+            ((rowDet.payAmtCol && rowDet.payAmtCol.id === col.id) || (rowDet.payDateCol && rowDet.payDateCol.id === col.id))
+          );
+          var payHistBadgeHtml = isPayCellWithHist
+            ? ('<button type="button" class="cell-pay-hist-badge" data-pay-hist-row="' + esc(row.id) + '" title="' + esc(rowPayHist.map(function (ph) { return formatStmtNumber(ph.amount) + ' @ ' + (ph.dateStr || '—'); }).join(' | ')) + '">' + rowPayHist.length + (rowPayHist.length === 1 ? ' pay' : ' pays') + '</button>')
+            : '';
           var commentTip = commentObj && commentObj.text ? ' | Comment: ' + commentObj.text : '';
           var titleTip = isFrm && col.formulaExpr
             ? ' title="Formula: =' + esc(col.formulaExpr) + ' (click to edit; drag or right-click for toolbar)' + esc(commentTip) + '"'
             : (isCustNameCell
               ? ' title="Click cell or Statement button to view ' + esc(cleanCustCell) + ' account transactions, all columns & balance' + esc(commentTip) + '"'
               : ' title="Click to write/edit · Drag, long-press, or right-click for toolbar' + esc(commentTip) + '"');
-          var innerSpanHtml = '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(isCustNameCell ? '#065F46' : color) + ';font-weight:' + (isCustNameCell ? '700' : fw) + ';font-style:' + fs + ';font-size:' + cellFontSize + 'px;line-height:1.35;">' + esc(dispCellTxt) + '</span>';
+          var innerSpanHtml = '<span class="' + ((isAmt || isFrm || isNum) ? 'mono' : '') + (isAmt ? ' cell-amount' : '') + '" style="color:' + esc(isCustNameCell ? '#065F46' : color) + ';font-weight:' + (isCustNameCell ? '700' : fw) + ';font-style:' + fs + ';font-size:' + cellFontSize + 'px;line-height:1.35;">' + esc(dispCellTxt) + '</span>' + payHistBadgeHtml;
           var cellContentHtml = isCustNameCell
             ? ('<div class="cell-cust-wrap">' + innerSpanHtml + '<button type="button" class="cell-cust-stmt-btn" data-cust-stmt-name="' + esc(cleanCustCell) + '" title="Open ' + esc(cleanCustCell) + ' Statement">' + icon('ledger', 11) + '<span>Statement</span></button></div>')
             : innerSpanHtml;
@@ -10473,6 +10585,9 @@
           if (col && col.type !== 'date' && String(parsed).trim() !== '' && String(parsed) !== '0') {
             autoFillRowDates(bot, editedRowObj, nowIso, ed.colId);
           }
+          if (col && typeof syncRowPaymentHistoryOnEdit === 'function') {
+            syncRowPaymentHistoryOnEdit(bot, editedRowObj, col, oldVal, parsed, nowIso);
+          }
         }
         bot.updatedAt = nowIso;
         if (String(oldVal === undefined || oldVal === null ? '' : oldVal) !== String(parsed)) {
@@ -10535,7 +10650,8 @@
         sheetCard.id = 'tb-sheet-card';
         sheetCard.className = 'tb-sheet-card';
 
-        var custColSheet = (typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null;
+        var sheetDet = (typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null;
+        var custColSheet = sheetDet ? sheetDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null);
         var rowCustName = custColSheet ? ((typeof normalizeCustomerLabel === 'function') ? normalizeCustomerLabel(rowObj[custColSheet.id]) : String(rowObj[custColSheet.id] || '').trim()) : '';
         var custStmtCardHtml = '';
         if (rowCustName && typeof buildCustomerLedgerData === 'function') {
@@ -10553,10 +10669,34 @@
             '<button type="button" id="tb-sheet-cust-stmt" class="tb-sheet-cust-btn">' + icon('ledger', 16) + '<span>View &ldquo;' + esc(rowCustName) + '&rdquo; Statement (All Columns &amp; Balance)</span></button>' +
           '</div>';
         }
+        var payHistCardHtml = '';
+        var canManagePayHist = Boolean(sheetDet && sheetDet.payAmtCol && sheetDet.payAmtCol.type !== 'formula' && rowObj._ledgerKind !== 'payment');
+        if (canManagePayHist && (
+          colObj.id === sheetDet.payAmtCol.id ||
+          (sheetDet.payDateCol && colObj.id === sheetDet.payDateCol.id) ||
+          (sheetDet.custCol && colObj.id === sheetDet.custCol.id) ||
+          (sheetDet.balCol && colObj.id === sheetDet.balCol.id) ||
+          (Array.isArray(rowObj._paymentHistory) && rowObj._paymentHistory.length > 0)
+        )) {
+          var sheetHistList = (typeof getNormalizedRowPaymentHistory === 'function')
+            ? getNormalizedRowPaymentHistory(rowObj, sheetDet, bot, readLedgerNumericCell(rowObj, sheetDet.payAmtCol, bot))
+            : [];
+          var payHistSummaryTxt = sheetHistList.length > 0
+            ? sheetHistList.map(function (ph) { return formatStmtNumber(ph.amount) + ' (' + (ph.dateStr || '—') + ')'; }).join(' · ')
+            : (state.lang === 'am' ? 'እስካሁን የተመዘገበ ክፍያ የለም' : 'No dated payments logged yet');
+          payHistCardHtml = '<div class="tb-sheet-pay-card">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11.5px;color:#1E40AF;font-weight:700;">' +
+              '<span>' + (state.lang === 'am' ? 'የክፍያ ታሪክ (በክፍያ ቀን)' : 'Dated Payment History') + ' (' + sheetHistList.length + ')</span>' +
+            '</div>' +
+            '<div class="mono" style="font-size:11px;color:#334155;line-height:1.35;">' + esc(payHistSummaryTxt) + '</div>' +
+            '<button type="button" id="tb-sheet-pay-hist" class="tb-sheet-pay-btn">' + icon('plus', 15) + '<span>' + (state.lang === 'am' ? '+ ክፍያ ጨምር / ታሪክ አስተካክል' : '+ Add Payment / Manage Payment Dates') + '</span></button>' +
+          '</div>';
+        }
 
         sheetCard.innerHTML =
           '<div class="tb-sheet-val" id="tb-sheet-val">' + esc(previewTxt) + '</div>' +
           custStmtCardHtml +
+          payHistCardHtml +
           '<div class="tb-sheet-grid">' +
             '<button type="button" id="tb-sheet-edit" class="tb-sheet-tile is-primary">' + icon('edit', 20) + '<span>Edit</span></button>' +
             '<button type="button" id="tb-sheet-copy" class="tb-sheet-tile">' + icon('copy', 20) + '<span>Copy</span></button>' +
@@ -10587,6 +10727,13 @@
             customerFilter: rowCustName,
             showAllColumns: true
           });
+        };
+
+        var btnPayHistSheet = document.getElementById('tb-sheet-pay-hist');
+        if (btnPayHistSheet) btnPayHistSheet.onclick = function (e) {
+          e.stopPropagation();
+          closeSheet(true);
+          openModal('row_payment_history', { botId: bot.id, rowId: rowObj.id });
         };
 
         var btnEdit = document.getElementById('tb-sheet-edit');
@@ -10742,9 +10889,14 @@
         if (!guardWriteAction(logLabel || 'Clear Contents')) return;
         var nowIso = new Date().toISOString();
         targets.forEach(function (m) {
-          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
+          var prevClr = m.row[m.col.id];
+          var nextClr = m.col.type === 'checkbox' ? false : '';
+          m.row[m.col.id] = nextClr;
           m.row._actor = getCurrentActor();
           m.row._updatedAt = nowIso;
+          if (typeof syncRowPaymentHistoryOnEdit === 'function') {
+            syncRowPaymentHistoryOnEdit(bot, m.row, m.col, prevClr, nextClr, nowIso);
+          }
         });
         bot.updatedAt = nowIso;
         state.toolbarSubMode = null;
@@ -10760,9 +10912,14 @@
         if (!copySelectedCellsAction(true, targets)) return;
         var nowIso = new Date().toISOString();
         targets.forEach(function (m) {
-          m.row[m.col.id] = m.col.type === 'checkbox' ? false : '';
+          var prevCut = m.row[m.col.id];
+          var nextCut = m.col.type === 'checkbox' ? false : '';
+          m.row[m.col.id] = nextCut;
           m.row._actor = getCurrentActor();
           m.row._updatedAt = nowIso;
+          if (typeof syncRowPaymentHistoryOnEdit === 'function') {
+            syncRowPaymentHistoryOnEdit(bot, m.row, m.col, prevCut, nextCut, nowIso);
+          }
         });
         bot.updatedAt = nowIso;
         state.toolbarSubMode = null;
@@ -11913,6 +12070,15 @@
                 customerFilter: cStmtName,
                 showAllColumns: true
               });
+            }
+            return;
+          }
+          var payHistBtn = e.target.closest('.cell-pay-hist-badge[data-pay-hist-row]');
+          if (payHistBtn) {
+            e.stopPropagation();
+            var phRowId = payHistBtn.getAttribute('data-pay-hist-row');
+            if (phRowId) {
+              openModal('row_payment_history', { botId: bot.id, rowId: phRowId });
             }
             return;
           }
@@ -13286,6 +13452,7 @@
       else if (m.type === 'folder_lock') renderFolderLockModal(m);
       else if (m.type === 'folder_unlock_prompt') renderFolderUnlockPromptModal(m);
       else if (m.type === 'customer_ledger') renderCustomerLedgerModal(m);
+      else if (m.type === 'row_payment_history') renderRowPaymentHistoryModal(m);
       else if (m.type === 'create_ledger_in_folder') renderCreateLedgerModal(m);
     }
 
@@ -16256,12 +16423,12 @@
 
     function isBalanceColName(name) {
       var n = String(name || '').toLowerCase();
-      return /remain|romin|remin|balance|balce|balnce|unpaid|owed|debt|due|ቀሪ/.test(n);
+      return /remain|romain|romin|remin|balance|balce|balnce|unpaid|owed|debt|due|ቀሪ/.test(n);
     }
 
     function isPaidColName(name) {
       var n = String(name || '').toLowerCase();
-      return /paid|payment|received|deposit|pay|የተከፈለ/.test(n) && !isBalanceColName(n);
+      return /paid|payment|received|deposit|pay|የተከፈለ|ክፍያ/.test(n) && !isBalanceColName(n);
     }
 
     function isFolderEthiopianCalendar(folderName, botFilterId) {
@@ -19926,8 +20093,8 @@
       );
       var typeCol = findCol(['type', 'tx type', 'transaction type', 'entry type'], [/\btype\b/i]);
       var balCol = findCol(
-        ['running balance', 'outstanding balance', 'remaining balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
-        [/running\s*bal|remaining\s*bal|outstanding|\bbalance\b|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b/i],
+        ['running balance', 'outstanding balance', 'remaining balance', 'romainbalce', 'romain balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
+        [/running\s*bal|remaining\s*bal|outstanding|romain|\bbalance\b|balce|balnce|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b|ቀሪ/i],
         null,
         true
       );
@@ -19936,16 +20103,16 @@
       if (custCol) exclBal[custCol.id] = true;
 
       var payDateCol = findCol(
-        ['payment date', 'paid date', 'pay date', 'date paid', 'deposit date'],
-        [/pay(?:ment)?\s*date|paid\s*date|date\s*(?:of\s*)?paid|date\s*of\s*payment|deposit\s*date|paid\s*(?:ec|gc|day)|ክፍያ\s*ቀን/i],
+        ['payment date', 'paid date', 'paid data', 'pay date', 'pay data', 'date paid', 'deposit date', 'የክፍያ ቀን'],
+        [/pay(?:ment)?\s*(?:date|data)|paid\s*(?:date|data)|date\s*(?:of\s*)?paid|date\s*of\s*payment|deposit\s*date|paid\s*(?:ec|gc|day)|(?:የ)?ክፍያ\s*ቀን/i],
         exclBal
       );
       var exclForPayAmt = Object.assign({}, exclBal);
       if (payDateCol) exclForPayAmt[payDateCol.id] = true;
 
       var payAmtCol = findCol(
-        ['paid amount', 'payment amount', 'amount paid', 'paid', 'payment', 'received', 'deposit'],
-        [/paid\s*(?:amt|amount|birr|etb)?|payment\s*(?:amt|amount|birr|etb)?|\bpay\s*(?:amt|amount|birr|etb)\b|\bpaid\b|\bpayment\b|\bpay\b|\breceived\b|\bdeposit\b|ክፍያ|ከፈለ/i],
+        ['paid amount', 'payment amount', 'amount paid', 'paid', 'payment', 'received', 'deposit', 'የተከፈለ'],
+        [/paid\s*(?:amt|amount|birr|etb)?|payment\s*(?:amt|amount|birr|etb)?|\bpay\s*(?:amt|amount|birr|etb)\b|\bpaid\b|\bpayment\b|\bpay\b|\breceived\b|\bdeposit\b|የተከፈለ|ክፍያ|ከፈለ/i],
         exclForPayAmt,
         true
       );
@@ -20278,6 +20445,311 @@
       return { ok: true, row: nr, bot: bot };
     }
 
+    function getFallbackPaymentDateStr(row, det, bot) {
+      var pDateCol = det && (det.payDateCol || det.genericDateCol || det.saleDateCol);
+      if (pDateCol) {
+        return formatAutoDateStr(pDateCol, new Date());
+      }
+      var preferEth = !bot || bot.ledgerCalendarMode !== 'gregorian';
+      return formatAutoDateStr({ calendarType: preferEth ? 'ethiopian' : 'gregorian', dateFormat: 'dmy' }, new Date());
+    }
+
+    function cloneAllRowColsList(list) {
+      return (list || []).map(function (item) {
+        return Object.assign({}, item);
+      });
+    }
+
+    function ensureRowPaymentHistorySeeded(bot, row, det, seedAmt, seedDateStr, nowIso) {
+      if (!row || !det) return [];
+      if (Array.isArray(row._paymentHistory)) return row._paymentHistory;
+      var amt = (seedAmt !== '' && seedAmt !== null && seedAmt !== undefined) ? parseNumSafe(seedAmt) : 0;
+      if (isNaN(amt) || amt <= 0) {
+        row._paymentHistory = [];
+        return row._paymentHistory;
+      }
+      var sDateFallback = det.saleDateCol ? String(row[det.saleDateCol.id] || '').trim() : (det.genericDateCol ? String(row[det.genericDateCol.id] || '').trim() : '');
+      var cleanSeedDate = String(seedDateStr === undefined || seedDateStr === null ? '' : seedDateStr).trim();
+      var autoFallback = false;
+      if (!cleanSeedDate) {
+        cleanSeedDate = sDateFallback || getFallbackPaymentDateStr(row, det, bot);
+        autoFallback = !sDateFallback;
+      }
+      row._paymentHistory = [{
+        id: 'ph_seed_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        amount: roundEtb2(amt),
+        dateStr: cleanSeedDate,
+        note: '',
+        isoAt: row._createdAt || row._updatedAt || nowIso || new Date().toISOString(),
+        awaitingDate: false,
+        autoFallbackDate: autoFallback
+      }];
+      return row._paymentHistory;
+    }
+
+    function getNormalizedRowPaymentHistory(row, det, bot, pAmtOverride) {
+      if (!row || !det) return [];
+      var pAmt = typeof pAmtOverride === 'number'
+        ? pAmtOverride
+        : (det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0);
+      if (isNaN(pAmt) || pAmt <= 0) return [];
+      var pDateRaw = det.payDateCol ? String(row[det.payDateCol.id] || '').trim() : '';
+      var sDateRaw = det.saleDateCol ? String(row[det.saleDateCol.id] || '').trim() : (det.genericDateCol ? String(row[det.genericDateCol.id] || '').trim() : '');
+
+      if (!Array.isArray(row._paymentHistory) || row._paymentHistory.length === 0) {
+        return [];
+      }
+
+      var clean = row._paymentHistory
+        .filter(function (e) { return e && Number(e.amount) > 0; })
+        .map(function (e) {
+          return {
+            id: e.id || ('ph_' + Math.random().toString(36).slice(2, 8)),
+            amount: roundEtb2(Number(e.amount)),
+            dateStr: String(e.dateStr || '').trim() || pDateRaw || sDateRaw || getFallbackPaymentDateStr(row, det, bot),
+            note: String(e.note || '').trim(),
+            isoAt: e.isoAt || row._updatedAt || row._createdAt || new Date().toISOString()
+          };
+        });
+      if (clean.length === 0) return [];
+
+      var histSum = roundEtb2(clean.reduce(function (acc, item) { return acc + item.amount; }, 0));
+      var diff = roundEtb2(pAmt - histSum);
+      if (diff > 0.01) {
+        clean.push({
+          id: 'ph_diff_' + Date.now(),
+          amount: diff,
+          dateStr: String(row._stagedPayDate || '').trim() || pDateRaw || sDateRaw || getFallbackPaymentDateStr(row, det, bot),
+          note: '',
+          isoAt: row._updatedAt || new Date().toISOString()
+        });
+      } else if (diff < -0.01) {
+        var toTrim = Math.abs(diff);
+        while (toTrim > 0.005 && clean.length > 0) {
+          var tail = clean[clean.length - 1];
+          if (tail.amount <= toTrim + 0.005) {
+            toTrim = roundEtb2(toTrim - tail.amount);
+            clean.pop();
+          } else {
+            tail.amount = roundEtb2(tail.amount - toTrim);
+            toTrim = 0;
+          }
+        }
+      }
+      return clean;
+    }
+
+    function syncRowPaymentHistoryOnEdit(bot, row, col, prevVal, newVal, nowIso) {
+      if (!bot || !row || !col || typeof detectLedgerColumns !== 'function') return;
+      var det = detectLedgerColumns(bot);
+      if (!det || !det.payAmtCol) return;
+
+      var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+      var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+      if (row._ledgerKind === 'payment' && sAmt === 0) return;
+
+      var ts = nowIso || new Date().toISOString();
+      var pDateId = det.payDateCol ? det.payDateCol.id : null;
+      var pAmtId = det.payAmtCol ? det.payAmtCol.id : null;
+
+      if (pAmtId && col.id === pAmtId) {
+        var curPayDateRaw = pDateId ? String(row[pDateId] || '').trim() : '';
+        var sDateFallback = det.saleDateCol ? String(row[det.saleDateCol.id] || '').trim() : (det.genericDateCol ? String(row[det.genericDateCol.id] || '').trim() : '');
+        var prevPaid = (prevVal !== '' && prevVal !== null && prevVal !== undefined) ? parseNumSafe(prevVal) : 0;
+        if (isNaN(prevPaid)) prevPaid = 0;
+        var newPaid = (newVal !== '' && newVal !== null && newVal !== undefined) ? parseNumSafe(newVal) : 0;
+        if (isNaN(newPaid)) newPaid = 0;
+        newPaid = roundEtb2(newPaid);
+
+        if (newPaid <= 0) {
+          row._paymentHistory = [];
+          delete row._pendingPayEntryId;
+          delete row._stagedPayDate;
+        } else {
+          var hist = ensureRowPaymentHistorySeeded(bot, row, det, prevPaid, curPayDateRaw, ts);
+          var histSum = roundEtb2(hist.reduce(function (acc, item) { return acc + (Number(item.amount) || 0); }, 0));
+          var delta = roundEtb2(newPaid - histSum);
+
+          if (delta > 0.005) {
+            var newEntryId = 'ph_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+            var stagedDate = String(row._stagedPayDate || '').trim();
+            var chosenDate = stagedDate || curPayDateRaw || sDateFallback || getFallbackPaymentDateStr(row, det, bot);
+            var isAutoFallback = !stagedDate && !curPayDateRaw;
+            hist.push({
+              id: newEntryId,
+              amount: delta,
+              dateStr: chosenDate,
+              note: '',
+              isoAt: ts,
+              awaitingDate: !stagedDate,
+              autoFallbackDate: isAutoFallback
+            });
+            if (stagedDate) {
+              if (pDateId && !curPayDateRaw) row[pDateId] = stagedDate;
+              delete row._stagedPayDate;
+              delete row._pendingPayEntryId;
+            } else {
+              row._pendingPayEntryId = newEntryId;
+            }
+          } else if (delta < -0.005) {
+            var removeAmt = Math.abs(delta);
+            while (removeAmt > 0.005 && hist.length > 0) {
+              var tailItem = hist[hist.length - 1];
+              var tailVal = Number(tailItem.amount) || 0;
+              if (tailVal <= removeAmt + 0.005) {
+                removeAmt = roundEtb2(removeAmt - tailVal);
+                hist.pop();
+              } else {
+                tailItem.amount = roundEtb2(tailVal - removeAmt);
+                removeAmt = 0;
+              }
+            }
+            delete row._stagedPayDate;
+          }
+        }
+
+        // Auto-sync manual Remaining Balance column when it tracks Total - Paid
+        if (det.balCol && det.balCol.type !== 'formula' && sAmt > 0) {
+          var curBalRaw = row[det.balCol.id];
+          var curBalStr = (curBalRaw === undefined || curBalRaw === null) ? '' : String(curBalRaw).trim();
+          var curBalNum = curBalStr !== '' ? parseNumSafe(curBalRaw) : NaN;
+          var expectedPrevBal = roundEtb2(sAmt - prevPaid);
+          if (curBalStr === '' || (!isNaN(curBalNum) && Math.abs(curBalNum - expectedPrevBal) <= 0.05)) {
+            row[det.balCol.id] = roundEtb2(sAmt - Math.max(0, newPaid));
+          }
+        }
+        return;
+      }
+
+      if (pDateId && col.id === pDateId) {
+        var curPaidNum = readLedgerNumericCell(row, det.payAmtCol, bot);
+        var histD = ensureRowPaymentHistorySeeded(bot, row, det, curPaidNum, prevVal, ts);
+        var newDateTrimmed = String(newVal === undefined || newVal === null ? '' : newVal).trim();
+        if (!newDateTrimmed) {
+          delete row._stagedPayDate;
+          return;
+        }
+        var targetEntry = null;
+        if (row._pendingPayEntryId) {
+          targetEntry = histD.find(function (e) { return e && e.id === row._pendingPayEntryId; }) || null;
+        }
+        if (!targetEntry && histD.length > 0) {
+          var lastE = histD[histD.length - 1];
+          if (lastE && (lastE.autoFallbackDate || lastE.awaitingDate)) {
+            targetEntry = lastE;
+          }
+        }
+        if (targetEntry) {
+          targetEntry.dateStr = newDateTrimmed;
+          targetEntry.awaitingDate = false;
+          targetEntry.autoFallbackDate = false;
+          delete row._pendingPayEntryId;
+          delete row._stagedPayDate;
+        } else {
+          // Existing entries already have confirmed dates; stage this Paid Date for the next Paid increment
+          row._stagedPayDate = newDateTrimmed;
+        }
+      }
+    }
+
+    function applyRowPaymentHistoryTotals(bot, row, histArray, opts) {
+      opts = opts || {};
+      if (!bot || !row || typeof detectLedgerColumns !== 'function') return;
+      var det = detectLedgerColumns(bot);
+      var cleanHist = (Array.isArray(histArray) ? histArray : [])
+        .filter(function (e) { return e && Number(e.amount) > 0; })
+        .map(function (e) {
+          return {
+            id: e.id || ('ph_' + Date.now() + '_' + Math.floor(Math.random() * 10000)),
+            amount: roundEtb2(Number(e.amount)),
+            dateStr: String(e.dateStr || '').trim() || getFallbackPaymentDateStr(row, det, bot),
+            note: sanitizeUserText(e.note || '', 300),
+            isoAt: e.isoAt || new Date().toISOString(),
+            awaitingDate: false,
+            autoFallbackDate: false
+          };
+        });
+
+      var preferEth = bot.ledgerCalendarMode ? (bot.ledgerCalendarMode !== 'gregorian') : (det.payDateCol ? isEthiopianCol(det.payDateCol) : true);
+      cleanHist.sort(function (a, b) {
+        var dmA = parseFlexibleDateMeta(a.dateStr, a.isoAt, det.payDateCol || det.genericDateCol, preferEth);
+        var dmB = parseFlexibleDateMeta(b.dateStr, b.isoAt, det.payDateCol || det.genericDateCol, preferEth);
+        var dA = Date.UTC(dmA.gy, dmA.gm - 1, dmA.gd);
+        var dB = Date.UTC(dmB.gy, dmB.gm - 1, dmB.gd);
+        if (dA !== dB) return dA - dB;
+        return (Date.parse(a.isoAt || '') || 0) - (Date.parse(b.isoAt || '') || 0);
+      });
+
+      var totalPaidVal = roundEtb2(cleanHist.reduce(function (acc, item) { return acc + item.amount; }, 0));
+      var latestDateStr = cleanHist.length > 0 ? cleanHist[cleanHist.length - 1].dateStr : '';
+      var nowIso = new Date().toISOString();
+
+      row._paymentHistory = cleanHist;
+      delete row._pendingPayEntryId;
+      delete row._stagedPayDate;
+      row._actor = getCurrentActor();
+      row._updatedAt = nowIso;
+
+      if (det.payAmtCol && det.payAmtCol.type !== 'formula') {
+        row[det.payAmtCol.id] = cleanHist.length > 0 ? totalPaidVal : '';
+      }
+      if (det.payDateCol) {
+        row[det.payDateCol.id] = latestDateStr;
+        if (latestDateStr) row._dateEdited = true;
+      }
+
+      var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+      var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+      if (det.balCol && det.balCol.type !== 'formula' && sAmt > 0) {
+        row[det.balCol.id] = roundEtb2(sAmt - totalPaidVal);
+      }
+
+      if (isLedgerBot(bot) && typeof recalculateLedgerBotBalances === 'function') {
+        recalculateLedgerBotBalances(bot);
+      }
+      bot.updatedAt = nowIso;
+      if (!opts.skipUpdateBot) {
+        updateBot(bot, 'EDIT', opts.auditMsg || ('Updated dated payment history (' + cleanHist.length + ' payment' + (cleanHist.length === 1 ? '' : 's') + ', total ' + formatEtbAmount(totalPaidVal) + ')'));
+      }
+      return { totalPaid: totalPaidVal, count: cleanHist.length, latestDateStr: latestDateStr };
+    }
+
+    function addDatedPaymentToRow(bot, row, tx) {
+      if (!guardWriteAction('Add Dated Payment')) return { ok: false, error: 'Action blocked by access control.' };
+      if (!bot || !row) return { ok: false, error: 'Row not found.' };
+      var det = detectLedgerColumns(bot);
+      var amtNum = sanitizeNumericInput(tx && tx.amount);
+      if (amtNum === '' || isNaN(Number(amtNum)) || Number(amtNum) <= 0) {
+        return { ok: false, error: 'Please enter a valid positive Paid Amount (> 0).' };
+      }
+      amtNum = roundEtb2(Number(amtNum));
+      var calMode = (tx && tx.calendarMode) || (det.payDateCol && !isEthiopianCol(det.payDateCol) ? 'gregorian' : 'ethiopian');
+      var parsedDateMeta = parseLedgerInputDate(tx && tx.dateStr, calMode);
+      if (!parsedDateMeta) {
+        return { ok: false, error: 'Please enter a valid Paid Date (e.g. 12/03/2019 EC).' };
+      }
+      var storeCol = det.payDateCol || { calendarType: calMode === 'gregorian' ? 'gregorian' : 'ethiopian', dateFormat: 'dmy' };
+      var storedDateStr = formatAutoDateStr(storeCol, parsedDateMeta.date);
+      var curPaid = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
+      var curPayDateRaw = det.payDateCol ? String(row[det.payDateCol.id] || '').trim() : '';
+      var existing = ensureRowPaymentHistorySeeded(bot, row, det, curPaid, curPayDateRaw, new Date().toISOString());
+      var nextList = existing.map(function (e) { return Object.assign({}, e); });
+      nextList.push({
+        id: 'ph_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+        amount: amtNum,
+        dateStr: storedDateStr,
+        note: sanitizeUserText((tx && tx.note) || '', 300),
+        isoAt: new Date().toISOString(),
+        awaitingDate: false,
+        autoFallbackDate: false
+      });
+      var custLabel = det.custCol ? normalizeCustomerLabel(row[det.custCol.id]) : '';
+      var res = applyRowPaymentHistoryTotals(bot, row, nextList, {
+        auditMsg: 'Added payment ' + formatEtbAmount(amtNum) + ' on ' + storedDateStr + (custLabel ? (' for "' + custLabel + '"') : '')
+      });
+      return Object.assign({ ok: true, dateStr: storedDateStr, amount: amtNum }, res);
+    }
+
     function extractLedgerEntriesFromRow(row, det, bot, origIdx) {
       var out = [];
       if (!row || !det) return out;
@@ -20305,7 +20777,7 @@
       }
 
       // Capture ALL column row data for this row so Full Column Statement shows every column
-      var allRowCols = [];
+      var rawRowCols = [];
       var summaryParts = [];
       var skipSummaryIds = {};
       if (det.custCol) skipSummaryIds[det.custCol.id] = true;
@@ -20332,7 +20804,7 @@
               ? (dispClean !== '' && (!isNaN(numCellVal) && (numCellVal !== 0 || (rawCell !== undefined && rawCell !== ''))))
               : (dispClean !== ''));
         if (hasVal) hasAnyRowData = true;
-        allRowCols.push({
+        rawRowCols.push({
           colId: colObj.id,
           colKey: String(colObj.name || 'Column').trim().toLowerCase(),
           name: colObj.name || 'Column',
@@ -20347,8 +20819,8 @@
       }
 
       if (!custRaw && !sDateRaw && !pDateRaw && sAmt === 0 && pAmt === 0 && !hasAnyRowData) return out;
-      for (var ci2 = 0; ci2 < allRowCols.length; ci2++) {
-        var rcItem = allRowCols[ci2];
+      for (var ci2 = 0; ci2 < rawRowCols.length; ci2++) {
+        var rcItem = rawRowCols[ci2];
         if (!rcItem.hasValue && rcItem._hasEvalFormulaNum) rcItem.hasValue = true;
         delete rcItem._hasEvalFormulaNum;
         if (rcItem.hasValue && !skipSummaryIds[rcItem.colId] && (!det.saleAmtCol || rcItem.colId !== det.saleAmtCol.id) && (!det.payAmtCol || rcItem.colId !== det.payAmtCol.id)) {
@@ -20372,12 +20844,38 @@
       var explicitKind = row._ledgerKind === 'payment' || /^payment/i.test(typeRaw) ? 'payment'
         : (row._ledgerKind === 'sale' || /^credit|^sale/i.test(typeRaw) ? 'sale' : '');
 
-      var hasBothSaleAndPay = (sAmt > 0 && pAmt > 0);
+      var normHist = getNormalizedRowPaymentHistory(row, det, bot, pAmt);
       var pDateTokens = pDateRaw ? splitPaymentDateTokens(pDateRaw) : [];
+      var hasBothSaleAndPay = (sAmt > 0 && pAmt > 0);
+      var shouldSplit = row._ledgerKind !== 'payment' && (
+        hasBothSaleAndPay ||
+        normHist.length > 1 ||
+        (sAmt > 0 && normHist.length > 0) ||
+        pDateTokens.length > 1
+      );
 
-      if (hasBothSaleAndPay || pDateTokens.length > 1) {
+      if (shouldSplit) {
         if (sAmt > 0 || sDateRaw) {
           var sMetaBoth = parseFlexibleDateMeta(sDateRaw, row._createdAt || bot.updatedAt, det.saleDateCol || det.genericDateCol, preferEth);
+          var saleCols = cloneAllRowColsList(rawRowCols);
+          var saleDateColId = det.saleDateCol ? det.saleDateCol.id : (det.genericDateCol ? det.genericDateCol.id : null);
+          saleCols.forEach(function (rc) {
+            if (det.payAmtCol && rc.colId === det.payAmtCol.id) {
+              rc.display = '';
+              rc.numeric = 0;
+              rc.hasValue = false;
+            } else if (det.payDateCol && rc.colId === det.payDateCol.id) {
+              rc.display = '';
+              rc.hasValue = false;
+            } else if (det.typeCol && rc.colId === det.typeCol.id) {
+              rc.display = 'Credit Sale';
+              rc.hasValue = true;
+            } else if (det.balCol && rc.colId === det.balCol.id) {
+              rc._isLedgerBalCol = true;
+            } else if (saleDateColId && rc.colId === saleDateColId && sDateRaw) {
+              rc._entryDateMeta = sMetaBoth;
+            }
+          });
           out.push({
             entryId: row.id + '_sale',
             rowId: row.id,
@@ -20393,53 +20891,101 @@
             saleAmount: roundEtb2(sAmt),
             paidAmount: 0,
             note: noteRaw,
-            allRowCols: allRowCols,
+            allRowCols: saleCols,
+            rawRowCols: rawRowCols,
             allColsSummary: allColsSummary,
             kindOrder: 0,
             createdMs: createdMs,
             txSeq: baseSeq,
             origIdx: origIdx,
-            rawRow: row
+            rawRow: row,
+            balColRef: det.balCol
           });
         }
-        if (pAmt > 0 || pDateTokens.length > 0) {
+
+        var paymentItems = [];
+        if (normHist.length > 0) {
+          paymentItems = normHist;
+        } else if (pAmt > 0 || pDateTokens.length > 0) {
           var tokens = pDateTokens.length > 0 ? pDateTokens : [sDateRaw || ''];
           var splitAmt = tokens.length > 1 ? roundEtb2(pAmt / tokens.length) : roundEtb2(pAmt);
           var remAmt = roundEtb2(pAmt);
           for (var ti = 0; ti < tokens.length; ti++) {
             var partAmt = (ti === tokens.length - 1) ? remAmt : splitAmt;
             remAmt = roundEtb2(remAmt - partAmt);
-            var pMetaPart = parseFlexibleDateMeta(tokens[ti], row._createdAt || bot.updatedAt, det.payDateCol || det.genericDateCol, preferEth);
-            out.push({
-              entryId: row.id + '_pay_' + ti,
-              rowId: row.id,
-              fileRowNum: fileRowNum,
-              botId: bot.id,
-              botName: bot.name,
-              folder: bot.folder || 'General',
-              customerName: custName,
-              kind: 'payment',
-              typeLabel: 'Payment',
-              dateMeta: pMetaPart,
-              utcDayMs: Date.UTC(pMetaPart.gy, pMetaPart.gm - 1, pMetaPart.gd),
-              saleAmount: 0,
-              paidAmount: roundEtb2(partAmt),
-              note: noteRaw,
-              allRowCols: allRowCols,
-              allColsSummary: allColsSummary,
-              kindOrder: 1,
-              createdMs: createdMs,
-              txSeq: baseSeq + ((ti + 1) * 0.001),
-              origIdx: origIdx,
-              rawRow: row
+            paymentItems.push({
+              amount: roundEtb2(partAmt),
+              dateStr: tokens[ti],
+              note: '',
+              isoAt: row._updatedAt || row._createdAt || bot.updatedAt
             });
           }
+        }
+
+        var payDateTargetId = det.payDateCol ? det.payDateCol.id : (det.genericDateCol ? det.genericDateCol.id : null);
+        for (var pi = 0; pi < paymentItems.length; pi++) {
+          var phItem = paymentItems[pi];
+          var pMetaPart = parseFlexibleDateMeta(phItem.dateStr || pDateRaw || sDateRaw, phItem.isoAt || row._createdAt || bot.updatedAt, det.payDateCol || det.genericDateCol, preferEth);
+          var payCols = cloneAllRowColsList(rawRowCols);
+          var payLabel = paymentItems.length > 1 ? ('Payment #' + (pi + 1)) : 'Payment';
+          var payNoteText = phItem.note || (noteRaw ? (noteRaw + ' (' + payLabel + ')') : ('Payment for #' + fileRowNum));
+          payCols.forEach(function (rc) {
+            if (det.custCol && rc.colId === det.custCol.id) {
+              // Keep customer cell
+            } else if (det.typeCol && rc.colId === det.typeCol.id) {
+              rc.display = payLabel;
+              rc.hasValue = true;
+            } else if (payDateTargetId && rc.colId === payDateTargetId) {
+              rc._entryDateMeta = pMetaPart;
+              rc.hasValue = true;
+            } else if (det.payAmtCol && rc.colId === det.payAmtCol.id) {
+              rc.numeric = roundEtb2(phItem.amount);
+              rc.display = formatNumericValue(phItem.amount, det.payAmtCol);
+              rc.hasValue = true;
+            } else if (det.balCol && rc.colId === det.balCol.id) {
+              rc._isLedgerBalCol = true;
+            } else if (det.noteCol && rc.colId === det.noteCol.id) {
+              rc.display = payNoteText;
+              rc.hasValue = Boolean(payNoteText);
+            } else {
+              rc.display = '';
+              rc.numeric = 0;
+              rc.hasValue = false;
+            }
+          });
+          var payIsoMs = Date.parse(phItem.isoAt || '') || createdMs;
+          out.push({
+            entryId: row.id + '_pay_' + pi,
+            rowId: row.id,
+            fileRowNum: fileRowNum,
+            botId: bot.id,
+            botName: bot.name,
+            folder: bot.folder || 'General',
+            customerName: custName,
+            kind: 'payment',
+            typeLabel: payLabel,
+            dateMeta: pMetaPart,
+            utcDayMs: Date.UTC(pMetaPart.gy, pMetaPart.gm - 1, pMetaPart.gd),
+            saleAmount: 0,
+            paidAmount: roundEtb2(phItem.amount),
+            note: payNoteText,
+            allRowCols: payCols,
+            rawRowCols: rawRowCols,
+            allColsSummary: 'Paid: ' + formatStmtNumber(phItem.amount) + ' ETB @ ' + formatLedgerDateDisplay(pMetaPart, bot.ledgerCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian', 'short'),
+            kindOrder: 1,
+            createdMs: payIsoMs,
+            txSeq: baseSeq + ((pi + 1) * 0.001),
+            origIdx: origIdx,
+            rawRow: row,
+            balColRef: det.balCol
+          });
         }
         return out;
       }
 
       var isPaySingle = explicitKind === 'payment' || (!explicitKind && ((pAmt > 0 && sAmt === 0) || (Boolean(pDateRaw) && sAmt === 0)));
-      var activeDateStr = isPaySingle ? (pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
+      var singleHistDate = (isPaySingle && normHist.length === 1 && normHist[0].dateStr) ? normHist[0].dateStr : '';
+      var activeDateStr = isPaySingle ? (singleHistDate || pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
       var activeCol = isPaySingle ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
       var dMetaSingle = parseFlexibleDateMeta(activeDateStr, row._createdAt || bot.updatedAt, activeCol, preferEth);
 
@@ -20458,13 +21004,15 @@
         saleAmount: isPaySingle ? 0 : roundEtb2(sAmt),
         paidAmount: isPaySingle ? roundEtb2(pAmt) : 0,
         note: noteRaw,
-        allRowCols: allRowCols,
+        allRowCols: rawRowCols,
+        rawRowCols: rawRowCols,
         allColsSummary: allColsSummary,
         kindOrder: isPaySingle ? 1 : 0,
         createdMs: createdMs,
         txSeq: baseSeq,
         origIdx: origIdx,
-        rawRow: row
+        rawRow: row,
+        balColRef: det.balCol
       });
       return out;
     }
@@ -20572,6 +21120,19 @@
 
         var dateShort = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'short');
         var dateNamed = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'named');
+        var hydratedRowCols = (e.allRowCols || []).map(function (rc) {
+          var copy = Object.assign({}, rc);
+          if (copy._isLedgerBalCol) {
+            copy.numeric = nextBal;
+            copy.display = e.balColRef ? formatNumericValue(nextBal, e.balColRef) : formatStmtNumber(nextBal);
+            copy.hasValue = true;
+          }
+          if (copy._entryDateMeta) {
+            copy.display = formatLedgerDateDisplay(copy._entryDateMeta, calendarMode, 'short');
+            copy.hasValue = true;
+          }
+          return copy;
+        });
         statementRows.push({
           entryId: e.entryId,
           rowId: e.rowId,
@@ -20590,7 +21151,8 @@
           paidAmount: e.paidAmount,
           runningBalance: nextBal,
           note: e.note,
-          allRowCols: e.allRowCols || [],
+          allRowCols: hydratedRowCols,
+          rawRowCols: e.rawRowCols || hydratedRowCols,
           allColsSummary: e.allColsSummary || '',
           utcDayMs: e.utcDayMs
         });
@@ -20643,7 +21205,7 @@
           seenRowNumKey[uniqKey] = true;
           matchedRowNums.push(sr.fileRowNum);
         }
-        (sr.allRowCols || []).forEach(function (rc) {
+        (sr.rawRowCols || sr.allRowCols || []).forEach(function (rc) {
           if (rc.isNumeric && rc.hasValue) {
             allColsTotals[rc.colId] = roundEtb2((allColsTotals[rc.colId] || 0) + (rc.numeric || 0));
             if (rc.colKey) {
@@ -20850,11 +21412,13 @@
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
                 return '<td style="' + (isNumC ? 'text-align:right;font-family:monospace;' : '') + '">' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
               }).join('');
-              return '<tr>' +
+              var isPayPdf = r.kind !== 'sale';
+              var rowBgStyle = isPayPdf ? ' style="background:#F0FDF4;"' : '';
+              return '<tr' + rowBgStyle + '>' +
                 '<td style="text-align:center;font-family:monospace;color:#475569;">#' + (r.fileRowNum || (idx + 1)) + '</td>' +
                 (data.isMultiBotScope ? ('<td>' + esc(r.botName || '') + '</td>') : '') +
                 colTds +
-                '<td>' + esc(r.typeLabel) + '</td>' +
+                '<td style="font-weight:700;color:' + (isPayPdf ? '#047857' : '#1E40AF') + ';">' + esc(r.typeLabel) + '</td>' +
                 '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
@@ -20880,10 +21444,11 @@
           : data.rows.map(function (r, idx) {
               var detNote = r.note || '';
               if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
-              return '<tr>' +
+              var isPayPdf2 = r.kind !== 'sale';
+              return '<tr' + (isPayPdf2 ? ' style="background:#F0FDF4;"' : '') + '>' +
                 '<td style="text-align:center;font-family:monospace;color:#475569;">#' + (r.fileRowNum || (idx + 1)) + '</td>' +
                 '<td style="font-weight:700;">' + esc(r.customerName) + '</td>' +
-                '<td>' + esc(r.typeLabel) + '</td>' +
+                '<td style="font-weight:700;color:' + (isPayPdf2 ? '#047857' : '#1E40AF') + ';">' + esc(r.typeLabel) + '</td>' +
                 '<td>' + esc(r.kind === 'sale' ? r.saleDateDisplay : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
                 '<td>' + esc(r.kind === 'payment' ? r.paymentDateDisplay : '') + '</td>' +
@@ -21431,11 +21996,14 @@
               return '<td class="' + cellCls + '"' + cellStyle + '>' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
             }).join('');
             var rowLabel = '#' + (r.fileRowNum || (idx + 1));
-            return '<tr>' +
+            var typeDisplayLbl = (state && state.lang === 'am')
+              ? (isSale ? 'ሽያጭ / ብድር' : (r.typeLabel.replace(/^Payment/i, 'ክፍያ')))
+              : r.typeLabel;
+            return '<tr class="' + (isSale ? 'ledger-row-sale' : 'ledger-row-payment') + '">' +
               '<td style="text-align:center;white-space:nowrap;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to ' + rowLabel + ' in spreadsheet">' + rowLabel + '</button></td>' +
               (data.isMultiBotScope ? ('<td style="font-size:11.5px;color:#475569;white-space:nowrap;">' + esc(r.botName || '') + '</td>') : '') +
               colCellsHtml +
-              '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';white-space:nowrap;">' + esc(r.typeLabel) + '</td>' +
+              '<td style="white-space:nowrap;"><span class="ledger-type-pill ' + (isSale ? 'is-sale' : 'is-pay') + '">' + esc(typeDisplayLbl) + '</span></td>' +
               '<td class="num mono col-sale-amt">' + esc(isSale ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
               '<td class="num mono col-paid-amt">' + esc(!isSale ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
               '<td class="num mono col-run-bal">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
@@ -21488,10 +22056,13 @@
             var detNote = r.note || '';
             if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
             var rowLabel = '#' + (r.fileRowNum || (idx + 1));
-            return '<tr>' +
+            var typeDisplayLbl2 = (state && state.lang === 'am')
+              ? (isSale ? 'ሽያጭ / ብድር' : (r.typeLabel.replace(/^Payment/i, 'ክፍያ')))
+              : r.typeLabel;
+            return '<tr class="' + (isSale ? 'ledger-row-sale' : 'ledger-row-payment') + '">' +
               '<td style="text-align:center;white-space:nowrap;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to ' + rowLabel + ' in spreadsheet">' + rowLabel + '</button></td>' +
               '<td style="white-space:nowrap;"><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(r.customerName) + '</button></td>' +
-              '<td style="font-weight:700;color:' + (isSale ? '#1E40AF' : '#047857') + ';white-space:nowrap;">' + esc(r.typeLabel) + '</td>' +
+              '<td style="white-space:nowrap;"><span class="ledger-type-pill ' + (isSale ? 'is-sale' : 'is-pay') + '">' + esc(typeDisplayLbl2) + '</span></td>' +
               '<td class="mono" style="font-size:12px;white-space:nowrap;">' + esc(isSale ? r.saleDateDisplay : '') + '</td>' +
               '<td class="num mono col-sale-amt">' + esc(isSale ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
               '<td class="mono" style="font-size:12px;white-space:nowrap;">' + esc(!isSale ? r.paymentDateDisplay : '') + '</td>' +
@@ -21703,6 +22274,243 @@
           renderApp();
         };
       });
+    }
+
+    function renderRowPaymentHistoryModal(m) {
+      if (!m) m = {};
+      var bot = (state.bots || []).find(function (b) { return b && b.id === (m.botId || (m.bot && m.bot.id)); }) || m.bot;
+      var rowIdx = bot && Array.isArray(bot.rows) ? bot.rows.findIndex(function (r) { return r && r.id === (m.rowId || (m.row && m.row.id)); }) : -1;
+      var row = (bot && rowIdx !== -1) ? bot.rows[rowIdx] : m.row;
+      if (!bot || !row) { closeModal(); return; }
+
+      var det = detectLedgerColumns(bot);
+      var calMode = m.calendarMode || (det.payDateCol ? (isEthiopianCol(det.payDateCol) ? 'ethiopian' : 'gregorian') : (state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian'));
+      var isAm = state.lang === 'am';
+      var custName = det.custCol ? normalizeCustomerLabel(row[det.custCol.id]) : '';
+      var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+      var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+      var pAmt = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
+      var curPayDateRaw = det.payDateCol ? String(row[det.payDateCol.id] || '').trim() : '';
+
+      // Seed payment history non-destructively in memory if legacy row has paid amount without _paymentHistory
+      var hist = getNormalizedRowPaymentHistory(row, det, bot, pAmt);
+      if (hist.length === 0 && pAmt > 0) {
+        hist = [{
+          id: 'ph_seed_' + row.id,
+          amount: roundEtb2(pAmt),
+          dateStr: curPayDateRaw || getFallbackPaymentDateStr(row, det, bot),
+          note: '',
+          isoAt: row._createdAt || row._updatedAt || new Date().toISOString()
+        }];
+      }
+
+      var totalPaid = roundEtb2(hist.reduce(function (acc, item) { return acc + (Number(item.amount) || 0); }, 0));
+      var remBal = sAmt > 0 ? roundEtb2(sAmt - totalPaid) : (det.balCol ? readLedgerNumericCell(row, det.balCol, bot) : 0);
+
+      var nowCtx = getReportNowContext(calMode !== 'gregorian');
+      var todayDefaultStr = calMode !== 'gregorian'
+        ? (String(nowCtx.ec.day).padStart(2, '0') + '/' + String(nowCtx.ec.month).padStart(2, '0') + '/' + nowCtx.ec.year)
+        : formatDmyDate(new Date());
+      if (m.newDate === undefined) m.newDate = todayDefaultStr;
+
+      var entriesHtml = hist.length === 0
+        ? '<div style="padding:14px;border:1px dashed #CBD5E1;border-radius:10px;text-align:center;color:#64748B;font-size:12px;">' +
+            (isAm ? 'እስካሁን የተመዘገበ ክፍያ የለም። ከታች አዲስ ክፍያ ከቀን ጋር ይጨምሩ።' : 'No dated payments logged for this row yet. Add a payment with its Paid Date below.') +
+          '</div>'
+        : hist.map(function (ph, idx) {
+            return '<div class="rph-entry-row">' +
+              '<div>' +
+                '<div style="font-size:10px;font-weight:800;color:#64748B;margin-bottom:2px;">#' + (idx + 1) + ' ' + (isAm ? 'መጠን (ETB)' : 'Amount (ETB)') + '</div>' +
+                '<input type="number" step="0.01" min="0.01" class="form-input mono" data-rph-amt-idx="' + idx + '" value="' + esc(String(ph.amount)) + '" style="padding:6px 8px;font-size:12.5px;" />' +
+              '</div>' +
+              '<div>' +
+                '<div style="font-size:10px;font-weight:800;color:#64748B;margin-bottom:2px;">' + (isAm ? 'የክፍያ ቀን' : 'Paid Date') + ' (' + (calMode === 'ethiopian' ? 'EC' : 'GC') + ')</div>' +
+                '<input type="text" class="form-input mono" data-rph-date-idx="' + idx + '" value="' + esc(ph.dateStr || '') + '" placeholder="' + esc(todayDefaultStr) + '" style="padding:6px 8px;font-size:12.5px;" />' +
+              '</div>' +
+              '<div>' +
+                '<div style="font-size:10px;font-weight:800;color:#64748B;margin-bottom:2px;">' + (isAm ? 'ማስታወሻ' : 'Note') + '</div>' +
+                '<input type="text" class="form-input" data-rph-note-idx="' + idx + '" value="' + esc(ph.note || '') + '" placeholder="Cash / Bank" style="padding:6px 8px;font-size:12.5px;" />' +
+              '</div>' +
+              '<div style="display:flex;gap:5px;align-items:end;padding-top:14px;">' +
+                '<button type="button" class="btn btn-primary" data-rph-save-idx="' + idx + '" style="padding:6px 10px;font-size:11.5px;">' + (isAm ? 'አስቀምጥ' : 'Save') + '</button>' +
+                '<button type="button" class="btn btn-outline" data-rph-del-idx="' + idx + '" style="padding:6px 8px;font-size:11.5px;color:#DC2626;border-color:#FCA5A5;" title="Delete entry">' + icon('trash', 13) + '</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:640px;" id="m-card">' +
+        '<header class="modal-header" style="background:linear-gradient(135deg,#1E3A8A,#065F46);">' +
+          '<div style="display:flex;align-items:center;gap:9px;min-width:0;flex:1;">' +
+            icon('ledger', 20) +
+            '<div style="min-width:0;">' +
+              '<h2 style="font-size:15px;font-weight:800;">' + (isAm ? 'የክፍያ ታሪክ በቀን' : 'Dated Payment History') + (custName ? (' &mdash; ' + esc(custName)) : '') + '</h2>' +
+              '<div style="font-size:11px;color:#BFDBFE;">Row #' + (rowIdx >= 0 ? (rowIdx + 1) : '?') + ' &middot; ' + esc(bot.name) + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<button class="icon-btn" id="rph-close">' + icon('close', 18) + '</button>' +
+        '</header>' +
+        '<div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
+          (m.statusMsg ? ('<div style="padding:8px 11px;border-radius:9px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>') : '') +
+          '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
+            '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">' + (isAm ? 'ጠቅላላ ሽያጭ' : 'Order Total') + '</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(sAmt)) + '</div></div>' +
+            '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">' + (isAm ? 'ጠቅላላ የተከፈለ' : 'Total Paid') + ' (' + hist.length + ')</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(totalPaid)) + '</div></div>' +
+            '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">' + (isAm ? 'ቀሪ ሂሳብ' : 'Remaining') + '</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(remBal)) + '</div></div>' +
+          '</div>' +
+          '<form id="rph-add-form" class="ledger-entry-card" style="padding:12px;">' +
+            '<div style="font-size:12.5px;font-weight:800;color:#065F46;margin-bottom:8px;">+ ' + (isAm ? 'አዲስ ክፍያ ከክፍያ ቀን ጋር ጨምር' : 'Add New Dated Payment') + '</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end;">' +
+              '<div>' +
+                '<label class="field-label" for="rph-new-amt">' + (isAm ? 'የተከፈለ መጠን (ETB)' : 'Paid Amount (ETB)') + '</label>' +
+                '<input id="rph-new-amt" type="number" step="0.01" min="0.01" class="form-input mono" value="' + esc(m.newAmt || '') + '" placeholder="e.g. 10000" required />' +
+              '</div>' +
+              '<div>' +
+                '<label class="field-label" for="rph-new-date">' + (isAm ? 'የክፍያ ቀን' : 'Paid Date') + ' (' + (calMode === 'ethiopian' ? 'EC' : 'GC') + ')</label>' +
+                '<div style="display:flex;gap:4px;">' +
+                  '<input id="rph-new-date" class="form-input mono" value="' + esc(m.newDate || '') + '" placeholder="' + esc(todayDefaultStr) + '" required />' +
+                  '<button type="button" id="rph-today-btn" class="btn btn-outline" style="padding:6px 8px;font-size:11px;">Today</button>' +
+                '</div>' +
+              '</div>' +
+              '<div>' +
+                '<label class="field-label" for="rph-new-note">' + (isAm ? 'ማስታወሻ (አማራጭ)' : 'Note (Optional)') + '</label>' +
+                '<input id="rph-new-note" class="form-input" value="' + esc(m.newNote || '') + '" placeholder="Receipt / Cash" />' +
+              '</div>' +
+              '<div>' +
+                '<button type="submit" class="btn btn-green" style="width:100%;padding:9px 12px;">' + icon('plus', 14) + '<span>' + (isAm ? 'ክፍያ መዝግብ' : 'Add Payment') + '</span></button>' +
+              '</div>' +
+            '</div>' +
+            '<div id="rph-preview" class="mono" style="margin-top:8px;font-size:11.5px;color:#0F172A;font-weight:700;"></div>' +
+          '</form>' +
+          '<div>' +
+            '<div style="font-size:12px;font-weight:800;color:#0F172A;margin-bottom:6px;">' + (isAm ? 'የተመዘገቡ ክፍያዎች (' + hist.length + ')' : 'Recorded Dated Payments (' + hist.length + ')') + '</div>' +
+            '<div style="display:flex;flex-direction:column;gap:7px;">' + entriesHtml + '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding-top:4px;border-top:1px solid #E2E8F0;">' +
+            (custName ? '<button type="button" id="rph-open-stmt" class="btn btn-dark-blue">' + icon('ledger', 14) + '<span>' + (isAm ? 'የደንበኛ መግለጫ ክፈት' : 'Open Statement for "' + esc(custName) + '"') + '</span></button>' : '') +
+            '<button type="button" id="rph-done" class="btn btn-outline">' + (isAm ? 'ዝጋ' : 'Done') + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div></div>';
+
+      document.getElementById('modal-root').innerHTML = html;
+      document.getElementById('m-bg').onclick = closeModal;
+      document.getElementById('m-card').onclick = function (e) { e.stopPropagation(); };
+      document.getElementById('rph-close').onclick = closeModal;
+      document.getElementById('rph-done').onclick = closeModal;
+
+      var amtInput = document.getElementById('rph-new-amt');
+      var previewEl = document.getElementById('rph-preview');
+      var refreshPreview = function () {
+        if (!previewEl) return;
+        var addN = amtInput ? parseFloat(amtInput.value) : 0;
+        if (isNaN(addN) || addN <= 0) {
+          previewEl.textContent = '';
+          return;
+        }
+        var nextTotPaid = roundEtb2(totalPaid + addN);
+        var nextBal = sAmt > 0 ? roundEtb2(sAmt - nextTotPaid) : roundEtb2(remBal - addN);
+        previewEl.textContent = (isAm ? 'አዲስ ጠቅላላ ክፍያ: ' : 'New Total Paid: ') + formatEtbAmount(nextTotPaid) +
+          ' · ' + (isAm ? 'አዲስ ቀሪ: ' : 'New Remaining: ') + formatEtbAmount(nextBal);
+      };
+      if (amtInput) {
+        amtInput.oninput = refreshPreview;
+        refreshPreview();
+      }
+
+      var todayBtn = document.getElementById('rph-today-btn');
+      if (todayBtn) todayBtn.onclick = function () {
+        var dInp = document.getElementById('rph-new-date');
+        if (dInp) dInp.value = todayDefaultStr;
+        m.newDate = todayDefaultStr;
+      };
+
+      document.getElementById('rph-add-form').onsubmit = function (e) {
+        e.preventDefault();
+        var aV = document.getElementById('rph-new-amt').value;
+        var dV = document.getElementById('rph-new-date').value;
+        var nV = document.getElementById('rph-new-note').value;
+        var res = addDatedPaymentToRow(bot, row, { amount: aV, dateStr: dV, note: nV, calendarMode: calMode });
+        if (!res.ok) {
+          m.statusType = 'error';
+          m.statusMsg = res.error;
+          m.newAmt = aV;
+          m.newDate = dV;
+          m.newNote = nV;
+          renderRowPaymentHistoryModal(m);
+          return;
+        }
+        m.statusType = 'success';
+        m.statusMsg = 'Logged payment ' + formatEtbAmount(res.amount) + ' on ' + res.dateStr + ' (Total Paid: ' + formatEtbAmount(res.totalPaid) + ')';
+        m.newAmt = '';
+        m.newDate = dV;
+        m.newNote = '';
+        if (state.activeBotId === bot.id) renderTableView(bot);
+        renderRowPaymentHistoryModal(m);
+      };
+
+      document.querySelectorAll('[data-rph-save-idx]').forEach(function (btn) {
+        btn.onclick = function () {
+          if (!guardWriteAction('Update Payment Entry')) return;
+          var eIdx = parseInt(btn.getAttribute('data-rph-save-idx'), 10);
+          var amtEl = document.querySelector('[data-rph-amt-idx="' + eIdx + '"]');
+          var dateEl = document.querySelector('[data-rph-date-idx="' + eIdx + '"]');
+          var noteEl = document.querySelector('[data-rph-note-idx="' + eIdx + '"]');
+          var newA = parseNumSafe(amtEl ? amtEl.value : 0);
+          var newD = String(dateEl ? dateEl.value : '').trim();
+          var newN = String(noteEl ? noteEl.value : '').trim();
+          if (isNaN(newA) || newA <= 0) {
+            m.statusType = 'error';
+            m.statusMsg = 'Amount must be greater than 0.';
+            renderRowPaymentHistoryModal(m);
+            return;
+          }
+          var parsedDm = parseLedgerInputDate(newD, calMode);
+          if (!parsedDm) {
+            m.statusType = 'error';
+            m.statusMsg = 'Please enter a valid Paid Date (e.g. 10/03/2019).';
+            renderRowPaymentHistoryModal(m);
+            return;
+          }
+          var storeCol = det.payDateCol || { calendarType: calMode === 'gregorian' ? 'gregorian' : 'ethiopian', dateFormat: 'dmy' };
+          var nextArr = hist.map(function (item) { return Object.assign({}, item); });
+          nextArr[eIdx].amount = roundEtb2(newA);
+          nextArr[eIdx].dateStr = formatAutoDateStr(storeCol, parsedDm.date);
+          nextArr[eIdx].note = sanitizeUserText(newN, 300);
+          applyRowPaymentHistoryTotals(bot, row, nextArr, {
+            auditMsg: 'Edited dated payment #' + (eIdx + 1) + ' -> ' + formatEtbAmount(newA) + ' @ ' + nextArr[eIdx].dateStr
+          });
+          m.statusType = 'success';
+          m.statusMsg = 'Updated payment #' + (eIdx + 1) + ' (' + formatEtbAmount(newA) + ' on ' + nextArr[eIdx].dateStr + ')';
+          if (state.activeBotId === bot.id) renderTableView(bot);
+          renderRowPaymentHistoryModal(m);
+        };
+      });
+
+      document.querySelectorAll('[data-rph-del-idx]').forEach(function (btn) {
+        btn.onclick = function () {
+          if (!guardWriteAction('Delete Payment Entry')) return;
+          var eIdx = parseInt(btn.getAttribute('data-rph-del-idx'), 10);
+          var nextArr = hist.filter(function (_, i) { return i !== eIdx; }).map(function (item) { return Object.assign({}, item); });
+          applyRowPaymentHistoryTotals(bot, row, nextArr, {
+            auditMsg: 'Deleted dated payment entry #' + (eIdx + 1)
+          });
+          m.statusType = 'success';
+          m.statusMsg = 'Removed payment entry #' + (eIdx + 1);
+          if (state.activeBotId === bot.id) renderTableView(bot);
+          renderRowPaymentHistoryModal(m);
+        };
+      });
+
+      var stmtBtn = document.getElementById('rph-open-stmt');
+      if (stmtBtn && custName) {
+        stmtBtn.onclick = function () {
+          openModal('customer_ledger', {
+            folder: bot.folder || 'General',
+            botId: bot.id,
+            customerFilter: custName,
+            showAllColumns: true
+          });
+        };
+      }
     }
 
     // Boot Application & Trigger Immediate Open-Time Sync
