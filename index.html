@@ -3266,6 +3266,7 @@
       var candidates = [
         'voice/day-' + idx + '.mp3',
         './voice/day-' + idx + '.mp3',
+        '/Hiriyaplc.bots/voice/day-' + idx + '.mp3',
         '/voice/day-' + idx + '.mp3',
         'public/voice/day-' + idx + '.mp3'
       ];
@@ -4216,7 +4217,9 @@
     }
 
     function assetImgHtml(src, cls, alt, modalTitle) {
-      var fallback = src.charAt(0) === '/' ? ('public' + src) : src;
+      var fallback = src.indexOf('./assets/') === 0
+        ? ('/Hiriyaplc.bots/' + src.slice(2))
+        : (src.charAt(0) === '/' ? ('public' + src) : src);
       return '<img src="' + esc(src) + '" data-preview-src="' + esc(src) + '" data-preview-title="' + esc(modalTitle || alt) + '" class="' + esc(cls) + '" alt="' + esc(alt) + '" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + esc(fallback) + '\';}" />';
     }
 
@@ -4960,6 +4963,7 @@
     }
 
     function startSharedSecurityEvents() {
+      if (!hasBackendApiServer()) return;
       if (typeof window.EventSource !== 'undefined') {
         try {
           var es = new EventSource('/api/security-events');
