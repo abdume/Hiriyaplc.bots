@@ -7,14 +7,15 @@
       "role": "admin",
       "source": "Admin",
       "platform": "Admin",
-      "deviceId": "dev_5sf1xi_mwi688w1",
+      "deviceId": "dev_dezz6x_mwtpfhc0",
       "deviceIds": [
-        "dev_5sf1xi_mwi688w1"
+        "dev_5sf1xi_mwi688w1",
+        "dev_dezz6x_mwtpfhc0"
       ],
       "deviceLabel": "Android Phone · Chrome",
       "telegramId": "",
       "telegramUsername": "",
-      "ip": "196.191.52.243",
+      "ip": "196.188.188.219",
       "blocked": false,
       "blockExpiresAt": null,
       "blockDurationMins": 0,
@@ -22,9 +23,9 @@
       "adds": 0,
       "edits": 0,
       "deletes": 0,
-      "activeSeconds": 1743,
+      "activeSeconds": 2127,
       "firstSeen": "2026-11-15T18:30:55.751Z",
-      "lastSeen": "2026-11-21T13:52:40.794Z"
+      "lastSeen": "2026-11-23T20:28:32.878Z"
     },
     {
       "id": "abdulfeta",
@@ -52,5 +53,5 @@
     }
   ],
   "logs": [],
-  "updatedAt": "2026-11-21T13:52:40.794Z"
+  "updatedAt": "2026-11-23T20:28:32.878Z"
 }

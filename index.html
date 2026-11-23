@@ -271,8 +271,8 @@
       white-space: nowrap;
     }
 
-    /* Dashboard 2-Column Card Grid */
-    .dashboard-main { max-width: 1120px; margin: 0 auto; padding: 14px 12px 36px; }
+    /* Dashboard Responsive Card Grid */
+    .dashboard-main { max-width: min(1440px, 100%); margin: 0 auto; padding: 14px 14px 40px; }
     .grid-meta {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 10px; font-size: 12px; gap: 8px; flex-wrap: wrap;
@@ -287,6 +287,14 @@
     @media (min-width: 640px) {
       .bot-grid,
       .folder-card-grid { gap: 14px; }
+    }
+    @media (min-width: 900px) {
+      .bot-grid,
+      .folder-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (min-width: 1240px) {
+      .bot-grid,
+      .folder-card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
 
     .bot-card,
@@ -450,14 +458,30 @@
 
     /* Context Dropdown Menu */
     .dropdown-menu {
-      position: absolute; right: 0; top: 28px; width: 190px; max-width: calc(100vw - 32px); z-index: 60;
+      position: absolute; right: 0; top: 28px; width: 196px; max-width: calc(100vw - 32px); z-index: 60;
       background: #fff; border-radius: 12px; border: 1px solid var(--border);
       box-shadow: 0 14px 32px rgba(15,23,42,0.18); padding: 4px 0;
     }
-    .bot-grid > :nth-child(odd) .dropdown-menu,
-    .folder-card-grid > :nth-child(odd) .dropdown-menu {
-      right: auto;
-      left: 0;
+    @media (max-width: 899px) {
+      .bot-grid > :nth-child(odd) .dropdown-menu,
+      .folder-card-grid > :nth-child(odd) .dropdown-menu {
+        right: auto;
+        left: 0;
+      }
+    }
+    @media (min-width: 900px) and (max-width: 1239px) {
+      .bot-grid > :nth-child(3n+1) .dropdown-menu,
+      .folder-card-grid > :nth-child(3n+1) .dropdown-menu {
+        right: auto;
+        left: 0;
+      }
+    }
+    @media (min-width: 1240px) {
+      .bot-grid > :nth-child(4n+1) .dropdown-menu,
+      .folder-card-grid > :nth-child(4n+1) .dropdown-menu {
+        right: auto;
+        left: 0;
+      }
     }
     .dropdown-item {
       width: 100%; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #334155;
@@ -502,16 +526,17 @@
     .table-view-shell .app-header { flex-shrink: 0; position: relative; top: auto; z-index: 40; }
     .table-wrap {
       flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch;
-      background: #fff; padding-bottom: 128px; position: relative;
+      background: #fff; padding-bottom: 148px; position: relative;
+      scrollbar-gutter: stable;
     }
-    .table-wrap.sigma-hidden { padding-bottom: 84px; }
+    .table-wrap.sigma-hidden { padding-bottom: 92px; }
     .table-wrap.is-writing { padding-bottom: 170px; }
-    .sheet-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; background: #fff; }
+    .sheet-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; background: #fff; }
     .sheet-table th {
       position: sticky; top: 0; z-index: 26; background: #F8FAFC;
       border-right: 1px solid #CBD5E1; border-bottom: 2px solid #94A3B8;
       padding: 10px 12px; text-align: left; font-weight: 700; color: #1E293B; cursor: pointer;
-      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08); white-space: nowrap;
     }
     .sheet-table th:hover { background: #EFF6FF; }
     .sheet-table th.frozen-col, .sheet-table td.frozen-col {
@@ -522,7 +547,7 @@
     .sheet-table th.frozen-col { top: 0; z-index: 36; background: #E2E8F0; }
     .sheet-table td {
       border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
-      padding: 8px 12px; vertical-align: middle; height: 38px;
+      padding: 8px 12px; vertical-align: middle; min-height: 38px; height: auto;
     }
     .sheet-table tr:nth-child(even) td:not(.frozen-col) { background: #FAFBFC; }
     .sheet-table tr:hover td:not(.frozen-col) { background: #EFF6FF; }
@@ -1013,7 +1038,7 @@
       background: #10B981; border-color: #A7F3D0; color: #fff;
     }
     .day-chip-num { font-size: 13px; font-weight: 800; line-height: 1.2; }
-    .folder-summary-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .folder-summary-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
     .dash-summary-wrap {
       background: #fff; border: 1px solid #CBD5E1; border-radius: 20px;
       margin-bottom: 18px; box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07); overflow: hidden;
@@ -1197,7 +1222,7 @@
       border-radius: 16px; overflow: hidden; display: flex; flex-direction: column;
       box-shadow: 0 24px 48px rgba(15,23,42,0.28);
     }
-    .modal-card.wide { max-width: 980px; }
+    .modal-card.wide { max-width: min(1360px, 95vw); }
     .modal-card.narrow { max-width: 400px; }
     .modal-header {
       background: var(--blue-dark); color: #fff; padding: 14px 18px;
@@ -1800,7 +1825,10 @@
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       background: #fff;
-      max-height: 430px;
+      max-height: 460px;
+    }
+    @media (min-width: 1024px) {
+      .ledger-stmt-wrap { max-height: 62vh; }
     }
     .ledger-stmt-table {
       width: max-content;
@@ -1855,8 +1883,14 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 6px;
+      gap: 8px;
       width: 100%;
+      min-width: 0;
+    }
+    .cell-cust-wrap > span:first-child {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .cell-cust-stmt-btn {
       display: inline-flex;
@@ -2082,6 +2116,16 @@
       return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + path + '</svg>';
     }
 
+    function relativeSeedDateStr(daysAgo, hh, mm) {
+      var d = new Date(Date.now() - (Number(daysAgo) || 0) * 86400000);
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2, '0');
+      var day = String(d.getDate()).padStart(2, '0');
+      var hStr = String(hh !== undefined ? hh : d.getHours()).padStart(2, '0');
+      var mStr = String(mm !== undefined ? mm : d.getMinutes()).padStart(2, '0');
+      return y + '-' + m + '-' + day + ' ' + hStr + ':' + mStr;
+    }
+
     var INITIAL_BOTS = [
       {
         id: 'bot_ledger_1',
@@ -2103,14 +2147,14 @@
           { id: 'col_date', name: 'Transaction Date', type: 'date', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
         ],
         rows: [
-          { id: 'ledger_r1', col_cname: 'Alexander Wright (@alex_w)', col_quality: '10x Grade-A Specialty Coffee', col_total: 450, col_paid: 450, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-12 09:15' },
-          { id: 'ledger_r2', col_cname: 'Sophia Miller (@sophiam)', col_quality: '5x Enterprise Cloud Seats', col_total: 1250, col_paid: 800, col_balance: 450, col_status: 'Partial ($450 due)', col_date: '2026-11-12 08:30' },
-          { id: 'ledger_r3', col_cname: 'Daniel Chen (@chendan)', col_quality: '25x Premium Cotton Fabric', col_total: 875, col_paid: 875, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-11 15:40' },
-          { id: 'ledger_r4', col_cname: 'Elena Rostova (@elena_r)', col_quality: '2x 4K Studio Monitors (Refurb)', col_total: 920, col_paid: 500, col_balance: 420, col_status: 'Partial ($420 due)', col_date: '2026-11-10 11:20' },
-          { id: 'ledger_r5', col_cname: 'Marcus Vance (@marcus_v)', col_quality: '50x Stainless Steel Fittings', col_total: 620, col_paid: 620, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-09 14:10' },
-          { id: 'ledger_r6', col_cname: 'Sarah Connor (@s_connor)', col_quality: '1x Custom Telegram Bot Suite', col_total: 1500, col_paid: 750, col_balance: 750, col_status: 'Partial ($750 due)', col_date: '2026-11-06 17:00' },
-          { id: 'ledger_r7', col_cname: 'David Kim (@dkim)', col_quality: '15x High-Grade Copper Wire Rolls', col_total: 1100, col_paid: 1100, col_balance: 0, col_status: 'Paid in Full', col_date: '2026-11-03 10:45' },
-          { id: 'ledger_r8', col_cname: 'Amira Hassan (@amira_h)', col_quality: '8x Heavy-Duty Cargo Straps', col_total: 320, col_paid: 100, col_balance: 220, col_status: 'Partial ($220 due)', col_date: '2026-11-01 13:30' }
+          { id: 'ledger_r1', col_cname: 'Alexander Wright (@alex_w)', col_quality: '10x Grade-A Specialty Coffee', col_total: 450, col_paid: 450, col_balance: 0, col_status: 'Paid in Full', col_date: relativeSeedDateStr(0, 9, 15) },
+          { id: 'ledger_r2', col_cname: 'Sophia Miller (@sophiam)', col_quality: '5x Enterprise Cloud Seats', col_total: 1250, col_paid: 800, col_balance: 450, col_status: 'Partial ($450 due)', col_date: relativeSeedDateStr(0, 8, 30) },
+          { id: 'ledger_r3', col_cname: 'Daniel Chen (@chendan)', col_quality: '25x Premium Cotton Fabric', col_total: 875, col_paid: 875, col_balance: 0, col_status: 'Paid in Full', col_date: relativeSeedDateStr(1, 15, 40) },
+          { id: 'ledger_r4', col_cname: 'Elena Rostova (@elena_r)', col_quality: '2x 4K Studio Monitors (Refurb)', col_total: 920, col_paid: 500, col_balance: 420, col_status: 'Partial ($420 due)', col_date: relativeSeedDateStr(2, 11, 20) },
+          { id: 'ledger_r5', col_cname: 'Marcus Vance (@marcus_v)', col_quality: '50x Stainless Steel Fittings', col_total: 620, col_paid: 620, col_balance: 0, col_status: 'Paid in Full', col_date: relativeSeedDateStr(3, 14, 10) },
+          { id: 'ledger_r6', col_cname: 'Sarah Connor (@s_connor)', col_quality: '1x Custom Telegram Bot Suite', col_total: 1500, col_paid: 750, col_balance: 750, col_status: 'Partial ($750 due)', col_date: relativeSeedDateStr(5, 17, 0) },
+          { id: 'ledger_r7', col_cname: 'David Kim (@dkim)', col_quality: '15x High-Grade Copper Wire Rolls', col_total: 1100, col_paid: 1100, col_balance: 0, col_status: 'Paid in Full', col_date: relativeSeedDateStr(8, 10, 45) },
+          { id: 'ledger_r8', col_cname: 'Amira Hassan (@amira_h)', col_quality: '8x Heavy-Duty Cargo Straps', col_total: 320, col_paid: 100, col_balance: 220, col_status: 'Partial ($220 due)', col_date: relativeSeedDateStr(10, 13, 30) }
         ]
       },
       {
@@ -2155,10 +2199,10 @@
           { id: 'col_date', name: 'Date / Time', type: 'date', widthMultiplier: 1.1, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#64748B', bgColor: '#FFFFFF' }, includeInGraph: false }
         ],
         rows: [
-          { id: 'row_1', col_user: '7482918 @crypto_whale', col_pair: 'BTC / USD', col_target: 95500, col_status: 'Triggered', col_date: '2026-11-12 09:30' },
-          { id: 'row_2', col_user: '9128342 @sarah_eth', col_pair: 'ETH / USD', col_target: 3450.5, col_status: 'Monitoring', col_date: '2026-11-12 08:45' },
-          { id: 'row_3', col_user: '5561234 @alex_trader', col_pair: 'SOL / USD', col_target: 210, col_status: 'Monitoring', col_date: '2026-11-12 07:15' },
-          { id: 'row_4', col_user: '8839201 @maria_defi', col_pair: 'BNB / USD', col_target: 640, col_status: 'Triggered', col_date: '2026-11-11 22:10' }
+          { id: 'row_1', col_user: '7482918 @crypto_whale', col_pair: 'BTC / USD', col_target: 95500, col_status: 'Triggered', col_date: relativeSeedDateStr(0, 9, 30) },
+          { id: 'row_2', col_user: '9128342 @sarah_eth', col_pair: 'ETH / USD', col_target: 3450.5, col_status: 'Monitoring', col_date: relativeSeedDateStr(0, 8, 45) },
+          { id: 'row_3', col_user: '5561234 @alex_trader', col_pair: 'SOL / USD', col_target: 210, col_status: 'Monitoring', col_date: relativeSeedDateStr(0, 7, 15) },
+          { id: 'row_4', col_user: '8839201 @maria_defi', col_pair: 'BNB / USD', col_target: 640, col_status: 'Triggered', col_date: relativeSeedDateStr(1, 22, 10) }
         ]
       },
       {
@@ -4258,7 +4302,7 @@
       folderSearchOpen: false,
       folderSearchQuery: '',
       folderPage: 1,
-      folderPageSize: 6,
+      folderPageSize: 0,
       folderOpenedAt: {},
       filterType: 'all',
       selectedFolder: 'all',
@@ -4294,7 +4338,7 @@
       editingLockName: false,
       showMoreMenu: false,
       tableReportScope: 'table',
-      tableReportCollapsed: (function () { try { return localStorage.getItem(STORAGE_TABLE_REP_COLLAPSED) !== '0'; } catch (e) { return true; } })(),
+      tableReportCollapsed: (function () { try { return localStorage.getItem(STORAGE_TABLE_REP_COLLAPSED) === '1'; } catch (e) { return false; } })(),
       reportCalendarMode: (function () { try { var v = localStorage.getItem(STORAGE_REPORT_CAL_MODE); return v === 'gregorian' ? 'gregorian' : 'ethiopian'; } catch (e) { return 'ethiopian'; } })(),
       sigmaFooterHidden: (function () { try { return localStorage.getItem(STORAGE_SIGMA_HIDDEN) === '1'; } catch (e) { return false; } })(),
       _lastRenderedTableBotId: null,
@@ -8095,6 +8139,10 @@
           '</div>';
         }
 
+        if (typeof renderFolderLedgerDashboardCard === 'function') {
+          html += renderFolderLedgerDashboardCard('all');
+        }
+
         html += '<div class="grid-meta">' +
           '<span class="grid-meta-title">' + icon('table', 15) + '<span>All Tables (' + filtered.length + ')</span></span>' +
           '<span style="color:#64748B;font-size:11.5px;">' + esc(t('tap_card')) + '</span>' +
@@ -8168,10 +8216,15 @@
             '<button type="button" class="folder-mini-btn" data-report-folder="' + esc(selFolder) + '" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;" title="Folder Reports">' + icon('chart', 12) + '<span>Report</span></button>' +
             '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-search" title="Search tables in ' + esc(selFolder) + '" style="' + (state.folderSearchOpen ? 'background:rgba(255,255,255,0.32);border-color:#fff;' : '') + '">' + icon('search', 16) + '</button>' +
             '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-settings" title="Folder Settings">' + icon('settings', 16) + '</button>' +
-            '<div class="folder-pager-wrap" title="Folder Pages">' +
+            '<div class="folder-pager-wrap" title="Folder Pages / Show All">' +
               '<button type="button" class="folder-icon-btn on-dark" id="btn-folder-prev-page" title="Previous Page" style="width:26px;height:26px;"' + (curFolderPage <= 1 ? ' disabled' : '') + '>' + icon('chevronLeft', 14) + '</button>' +
-              '<span class="folder-pager-label">' + curFolderPage + '/' + totalFolderPages + '</span>' +
+              '<span class="folder-pager-label">' + (pageSizeVal >= folderFiltered.length ? ('All ' + folderFiltered.length) : (curFolderPage + '/' + totalFolderPages)) + '</span>' +
               '<button type="button" class="folder-mini-btn" id="btn-folder-next-page" title="Show Next Page" style="padding:4px 8px;background:rgba(255,255,255,0.22);border-color:rgba(255,255,255,0.38);color:#fff;' + (curFolderPage >= totalFolderPages ? 'opacity:0.45;' : '') + '"' + (curFolderPage >= totalFolderPages ? ' disabled' : '') + '><span>Next Page</span>' + icon('chevronRight', 12) + '</button>' +
+              '<select id="sel-folder-page-size" aria-label="Files per page" style="background:rgba(15,23,42,0.45);color:#fff;border:1px solid rgba(255,255,255,0.28);border-radius:6px;font-size:10.5px;font-weight:700;padding:3px 5px;outline:none;cursor:pointer;">' +
+                '<option value="0"' + (!state.folderPageSize ? ' selected' : '') + ' style="color:#0F172A;">All</option>' +
+                '<option value="12"' + (state.folderPageSize === 12 ? ' selected' : '') + ' style="color:#0F172A;">12/pg</option>' +
+                '<option value="24"' + (state.folderPageSize === 24 ? ' selected' : '') + ' style="color:#0F172A;">24/pg</option>' +
+              '</select>' +
             '</div>' +
             '<button type="button" class="folder-mini-btn" data-add-table-folder="' + esc(selFolder) + '" style="background:#fff;border-color:#fff;color:#0F172A;">' + icon('plus', 12) + '<span>Add Table</span></button>' +
             '<button type="button" class="folder-mini-btn" id="btn-rename-cur-folder" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);color:#fff;">' + icon('edit', 12) + '<span>Rename</span></button>' +
@@ -8533,6 +8586,12 @@
       if (fldPrevFoot) fldPrevFoot.onclick = goPrevFolderPage;
       var fldNextFoot = document.getElementById('btn-folder-next-page-foot');
       if (fldNextFoot) fldNextFoot.onclick = goNextFolderPage;
+      var fldPageSizeSel = document.getElementById('sel-folder-page-size');
+      if (fldPageSizeSel) fldPageSizeSel.onchange = function (e) {
+        state.folderPageSize = parseInt(e.target.value, 10) || 0;
+        state.folderPage = 1;
+        renderDashboard();
+      };
 
       document.querySelectorAll('[data-folder]').forEach(function (btn) {
         btn.onclick = function () {
@@ -8581,19 +8640,23 @@
       });
       var fldCreateLedgerBtn = document.getElementById('btn-fld-create-ledger');
       if (fldCreateLedgerBtn) fldCreateLedgerBtn.onclick = function () {
-        openModal('create_ledger_in_folder', { folder: state.selectedFolder || 'General' });
+        var fArg = fldCreateLedgerBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
+        openModal('create_ledger_in_folder', { folder: (fArg && fArg !== 'all') ? fArg : (state.adminConfig.telegramDefaultFolder || 'General') });
       };
       var fldOpenLedgerBtn = document.getElementById('btn-fld-open-ledger');
       if (fldOpenLedgerBtn) fldOpenLedgerBtn.onclick = function () {
-        openModal('customer_ledger', { folder: state.selectedFolder || 'all', botId: fldOpenLedgerBtn.getAttribute('data-bot-id') || '' });
+        var fArg = fldOpenLedgerBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
+        openModal('customer_ledger', { folder: fArg, botId: fldOpenLedgerBtn.getAttribute('data-bot-id') || '' });
       };
       var fldAddSaleBtn = document.getElementById('btn-fld-add-sale');
       if (fldAddSaleBtn) fldAddSaleBtn.onclick = function () {
-        openModal('customer_ledger', { folder: state.selectedFolder || 'all', botId: fldAddSaleBtn.getAttribute('data-bot-id') || '', entryMode: 'sale' });
+        var fArg = fldAddSaleBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
+        openModal('customer_ledger', { folder: fArg, botId: fldAddSaleBtn.getAttribute('data-bot-id') || '', entryMode: 'sale' });
       };
       var fldAddPayBtn = document.getElementById('btn-fld-add-pay');
       if (fldAddPayBtn) fldAddPayBtn.onclick = function () {
-        openModal('customer_ledger', { folder: state.selectedFolder || 'all', botId: fldAddPayBtn.getAttribute('data-bot-id') || '', entryMode: 'payment' });
+        var fArg = fldAddPayBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
+        openModal('customer_ledger', { folder: fArg, botId: fldAddPayBtn.getAttribute('data-bot-id') || '', entryMode: 'payment' });
       };
       document.querySelectorAll('[data-lock-folder]').forEach(function (btn) {
         btn.onclick = function (e) {
@@ -9548,7 +9611,7 @@
         var minW = Math.round(130 * (col.widthMultiplier || 1));
         html += '<th data-edit-col="' + esc(col.id) + '" style="min-width:' + minW + 'px;" title="Tap to Edit Column Properties">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
-            '<span class="truncate">' + esc(col.name) + '</span>' +
+            '<span style="white-space:nowrap;">' + esc(col.name) + '</span>' +
           '</div></th>';
       });
       html += '<th id="th-add-col" style="min-width:124px;background:#EFF6FF;color:#0D47A1;cursor:pointer;text-align:center;" title="Click to add a new column"><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">' + icon('plus', 13) + '<span>Add Column</span></span></th>';
@@ -16964,7 +17027,7 @@
     function renderDynamicDayBreakdownTable(dayGroups, repSummary, emptyMsg, totalLabel, todayMarker) {
       var cols = (repSummary && repSummary.columnSummaries) ? repSummary.columnSummaries : [];
       var met = (repSummary && repSummary.met) ? repSummary.met : { rowCount: 0 };
-      var displayCols = cols.slice(0, 8);
+      var displayCols = cols;
       var colSpanCount = 2 + displayCols.length;
       var colHeaderColors = ['#6D28D9', '#0D47A1', '#15803D', '#C2410C', '#0891B2', '#BE185D'];
       var todayYmdVal = (repSummary && repSummary.todayYmd) ? repSummary.todayYmd : getLocalYmd(new Date());
@@ -17019,9 +17082,8 @@
     function renderMatchingRowsBreakdownTable(items, repSummary, headingText) {
       if (!items || items.length === 0) return '';
       var cols = (repSummary && repSummary.columnSummaries) ? repSummary.columnSummaries : [];
-      var displayCols = cols.filter(function (c) { return c.type !== 'date'; }).slice(0, 6);
-      if (displayCols.length === 0) displayCols = cols.slice(0, 6);
-      var list = items.slice(0, 60);
+      var displayCols = cols;
+      var list = items.slice(0, 500);
       var colHeaderColors = ['#6D28D9', '#0D47A1', '#15803D', '#C2410C', '#0891B2', '#BE185D'];
       var ths = displayCols.map(function (c, i) {
         var clr = c.isBalance ? '#C2410C' : (c.isPaid ? '#15803D' : colHeaderColors[i % colHeaderColors.length]);
@@ -17297,7 +17359,7 @@
             '<span class="pill-badge" style="background:#DBEAFE;color:#0D47A1;">' + folderBotsAll.length + ' table(s) &middot; ' + filtered.length + ' row(s)</span>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;">' +
-            colSummaries.slice(0, 5).map(function (c) {
+            colSummaries.map(function (c) {
               return '<span class="mono" style="background:#EFF6FF;border:1px solid #BFDBFE;padding:2px 8px;border-radius:6px;color:#1E3A8A;">' + esc(c.name) + ': <strong>' + esc(c.summaryValue) + '</strong></span>';
             }).join('') +
           '</div>' +
@@ -17341,7 +17403,7 @@
           '<div class="mono" style="display:flex;gap:16px;flex-wrap:wrap;font-weight:700;">' +
             (colSummaries.length === 0
               ? '<span>0 Columns</span>'
-              : colSummaries.slice(0, 6).map(function (c) {
+              : colSummaries.map(function (c) {
                   return '<span>' + esc(c.name) + ': <strong style="color:#FCD34D;">' + esc(c.summaryValue) + '</strong></span>';
                 }).join('')) +
           '</div>' +
@@ -20813,40 +20875,81 @@
     }
 
     function renderFolderLedgerDashboardCard(folderName) {
-      var folderLedgers = getFolderLedgerBots(folderName);
-      if (folderLedgers.length === 0) {
+      var scopeFld = folderName || 'all';
+      var isAllScope = scopeFld === 'all';
+      var folderLedgers = getFolderLedgerBots(scopeFld);
+      var folderCustTables = (state.bots || []).filter(function (b) {
+        if (!hasCustomerStatementSupport(b)) return false;
+        if (!isAllScope) {
+          return normalizeFolderName(b.folder).toLowerCase() === String(scopeFld).trim().toLowerCase();
+        }
+        return true;
+      });
+      var seenSummaryBots = {};
+      var statementTables = [];
+      folderLedgers.forEach(function (b) {
+        if (b && !seenSummaryBots[b.id]) {
+          seenSummaryBots[b.id] = true;
+          statementTables.push(b);
+        }
+      });
+      folderCustTables.forEach(function (b) {
+        if (b && !seenSummaryBots[b.id]) {
+          seenSummaryBots[b.id] = true;
+          statementTables.push(b);
+        }
+      });
+
+      if (statementTables.length === 0) {
+        var createLabel = isAllScope ? 'Create Customer Ledger' : ('Create Ledger in "' + esc(scopeFld) + '"');
+        var descTxt = isAllScope
+          ? 'Track customer credit sales, payments, Ethiopian Calendar dates & ETB running balances in one live Statement card.'
+          : ('Track separate credit sales, payments, Ethiopian Calendar dates & ETB running balances inside "' + esc(scopeFld) + '".');
         return '<section class="ledger-folder-panel" aria-label="Customer Account Ledger">' +
           '<div class="ledger-folder-head" style="margin-bottom:0;">' +
             '<div style="display:flex;align-items:center;gap:10px;">' +
               '<span style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">' + icon('ledger', 18) + '</span>' +
               '<div>' +
-                '<div style="font-size:14px;font-weight:800;color:#0F172A;">Customer Account Ledger &amp; Running Balance</div>' +
-                '<div style="font-size:12px;color:#64748B;">Track separate credit sales, payments, Ethiopian Calendar dates &amp; ETB running balances inside "' + esc(folderName) + '".</div>' +
+                '<div style="font-size:14px;font-weight:800;color:#0F172A;">Customer Account Statement &amp; Running Balance</div>' +
+                '<div style="font-size:12px;color:#64748B;">' + descTxt + '</div>' +
               '</div>' +
             '</div>' +
-            '<button type="button" id="btn-fld-create-ledger" class="btn btn-green" style="padding:8px 14px;font-size:12.5px;">' + icon('plus', 14) + '<span>Create Ledger in "' + esc(folderName) + '"</span></button>' +
+            '<button type="button" id="btn-fld-create-ledger" data-folder="' + esc(scopeFld) + '" class="btn btn-green" style="padding:8px 14px;font-size:12.5px;">' + icon('plus', 14) + '<span>' + createLabel + '</span></button>' +
           '</div>' +
         '</section>';
       }
 
-      var primaryLedger = folderLedgers[0];
+      var primaryLedger = folderLedgers[0] || statementTables[0];
+      var canRecordQuick = Boolean(primaryLedger && (isLedgerBot(primaryLedger) || (function () {
+        var dCheck = detectLedgerColumns(primaryLedger);
+        var sWritable = !dCheck.saleAmtCol || dCheck.saleAmtCol.type !== 'formula';
+        var pWritable = !dCheck.payAmtCol || dCheck.payAmtCol.type !== 'formula';
+        return Boolean(dCheck.custCol && dCheck.balCol && sWritable && pWritable);
+      })()));
       var calMode = state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
-      var ledgerData = buildCustomerLedgerData({ folder: folderName, calendarMode: calMode });
+      var ledgerData = buildCustomerLedgerData({
+        folder: scopeFld,
+        includeAllCustomerTables: true,
+        calendarMode: calMode
+      });
+      var cardTitle = isAllScope
+        ? 'Customer Statement Summary &mdash; All Folders'
+        : ('Customer Statement Summary &mdash; ' + esc(scopeFld));
 
-      return '<section class="ledger-folder-panel" aria-label="Folder Customer Account Ledger">' +
+      return '<section class="ledger-folder-panel" aria-label="Folder Customer Statement Summary">' +
         '<div class="ledger-folder-head">' +
           '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
             '<span style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">' + icon('ledger', 18) + '</span>' +
             '<div style="min-width:0;">' +
-              '<div style="font-size:14px;font-weight:800;color:#0F172A;">Customer Account Ledger &mdash; ' + esc(folderName) + '</div>' +
-              '<div class="num-tab" style="font-size:11.5px;color:#64748B;">' + folderLedgers.length + ' ledger' + (folderLedgers.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.customerSummaries.length + ' customer' + (ledgerData.customerSummaries.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.rows.length + ' transaction' + (ledgerData.rows.length === 1 ? '' : 's') + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
+              '<div style="font-size:14px;font-weight:800;color:#0F172A;">' + cardTitle + '</div>' +
+              '<div class="num-tab" style="font-size:11.5px;color:#64748B;">' + statementTables.length + ' table' + (statementTables.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.customerSummaries.length + ' customer' + (ledgerData.customerSummaries.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.rows.length + ' transaction' + (ledgerData.rows.length === 1 ? '' : 's') + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-            '<button type="button" id="btn-fld-add-sale" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-primary" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Sale</span></button>' +
-            '<button type="button" id="btn-fld-add-pay" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-green" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Payment</span></button>' +
-            '<button type="button" id="btn-fld-open-ledger" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-dark-blue" style="padding:6px 12px;font-size:11.5px;">' + icon('ledger', 13) + '<span>Open Statement</span></button>' +
-            '<button type="button" id="btn-fld-create-ledger" class="btn btn-outline" style="padding:6px 10px;font-size:11.5px;" title="Create another Ledger table inside this folder">' + icon('plus', 12) + '<span>New Ledger</span></button>' +
+            (canRecordQuick ? '<button type="button" id="btn-fld-add-sale" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-primary" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Sale</span></button>' : '') +
+            (canRecordQuick ? '<button type="button" id="btn-fld-add-pay" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-green" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Payment</span></button>' : '') +
+            '<button type="button" id="btn-fld-open-ledger" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="btn btn-dark-blue" style="padding:6px 12px;font-size:11.5px;">' + icon('ledger', 13) + '<span>Open Statement</span></button>' +
+            '<button type="button" id="btn-fld-create-ledger" data-folder="' + esc(scopeFld) + '" class="btn btn-outline" style="padding:6px 10px;font-size:11.5px;" title="Create another Ledger table inside a folder">' + icon('plus', 12) + '<span>New Ledger</span></button>' +
           '</div>' +
         '</div>' +
         '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
@@ -20987,7 +21090,7 @@
       var targetFolderForCreate = m.folder !== 'all' ? m.folder : (state.adminConfig.telegramDefaultFolder || 'General');
       var hasSourceCols = Boolean(data.sourceColumns && data.sourceColumns.length > 0);
       if (m.showAllColumns === undefined) {
-        m.showAllColumns = Boolean(activeTargetBot && !isLedgerBot(activeTargetBot));
+        m.showAllColumns = hasSourceCols;
       }
       var showAllCols = Boolean(m.showAllColumns && hasSourceCols);
       var canRecordDirectly = Boolean(activeTargetBot && (isLedgerBot(activeTargetBot) || (function () {
@@ -20998,7 +21101,7 @@
       })()));
       var activeCustLabel = (m.customerFilter && m.customerFilter !== 'all') ? m.customerFilter : '';
 
-      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:1160px;" id="m-card">' +
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:min(1360px,95vw);" id="m-card">' +
         '<header class="modal-header" style="background:linear-gradient(135deg,#0F172A 0%,#065F46 100%);">' +
           '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
             icon('ledger', 22) +
