@@ -1489,16 +1489,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
     }
     .lock-hero-img {
-      width: 106px;
-      height: 106px;
+      width: 92px;
+      height: 92px;
       object-fit: contain;
       background: #fff;
-      border-radius: 18px;
-      padding: 5px;
+      border-radius: 16px;
+      padding: 4px;
       border: 2px solid #10B981;
       box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
     }
@@ -2972,7 +2972,7 @@
     var BRAND_ASSETS = {
       maedSaltMiyaw: './assets/aistudio/IMG_20261117_233433_326_78ae2938_78ae2938.jpg',
       logoWhiteStars: './assets/aistudio/file_000000003a3c8210ac093d7bf55b2a9c_7f2565a5_7f2565a5.png',
-      logoGreenStars: './assets/aistudio/file_000000002e1481f4b0a098ac50b472ae_e5f32c46.png',
+      logoGreenStars: './assets/aistudio/file_000000002e1481f4b0a098ac50b472ae_e5f32c46_e5f32c46.png',
       posterAdama: './assets/aistudio/file_000000007c048210acefecd95c486656_e7fa0c87.png',
       abdulfetaPhoto: './assets/aistudio/IMG_20261115_175858_499_9a85135f.jpg'
     };
@@ -13845,8 +13845,9 @@
         '<form id="lock-form" class="lock-card' + (state.lockShake ? ' shake' : '') + '" autocomplete="off">' +
           '<div class="lock-brand-showcase">' +
             '<div class="lock-brand-logos">' +
+              assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A White Stars Crest", "MA'ED Salt — MIYAW 3A Crest") +
+              assetImgHtml(BRAND_ASSETS.logoGreenStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A Green Stars Emblem", "MA'ED Salt — MIYAW 3A Green Emblem") +
               assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'lock-hero-img', "Hiriya Salt Production PLC — MA'ED Salt Emblem", "MA'ED Salt — MIYAW 3A") +
-              assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A Crest", "MA'ED Salt — MIYAW 3A Crest") +
             '</div>' +
             '<div class="lock-company-banner">' +
               '<div class="lock-company-en">Hiriya Salt Production PLC · MA’ED Table Salt</div>' +
