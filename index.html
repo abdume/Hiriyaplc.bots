@@ -59,10 +59,13 @@
       box-shadow: 0 4px 16px rgba(15, 23, 42, 0.22);
     }
     .header-inner {
-      max-width: 1240px; margin: 0 auto;
+      max-width: 1480px; margin: 0 auto;
       padding: 8px 14px; min-height: 54px; height: 54px;
       display: flex; align-items: center; justify-content: space-between;
       gap: 8px; flex-wrap: nowrap;
+    }
+    @media (min-width: 1024px) {
+      .header-inner { padding: 8px 22px; height: 58px; min-height: 58px; }
     }
     .header-left { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-width: 0; }
     .header-brand-mark {
@@ -107,8 +110,11 @@
       border-top: 1px solid rgba(255,255,255,0.08);
       padding: 6px 14px;
     }
+    @media (min-width: 1024px) {
+      .dash-subbar { padding: 7px 22px; }
+    }
     .dash-subbar-inner {
-      max-width: 1240px; margin: 0 auto;
+      max-width: 1480px; margin: 0 auto;
       display: flex; align-items: center; justify-content: space-between;
       gap: 8px; flex-wrap: nowrap; overflow-x: auto;
       scrollbar-width: none;
@@ -271,8 +277,58 @@
       white-space: nowrap;
     }
 
-    /* Dashboard Responsive Card Grid */
-    .dashboard-main { max-width: min(1440px, 100%); margin: 0 auto; padding: 14px 14px 40px; }
+    /* Dashboard Desktop Workspace Shell & Responsive Card Grid */
+    .desk-shell { display: block; max-width: min(1480px, 100%); margin: 0 auto; padding: 14px 14px 40px; }
+    .desk-sidebar { display: none; }
+    .dashboard-main { width: 100%; min-width: 0; }
+    @media (min-width: 1120px) {
+      .desk-shell {
+        display: grid;
+        grid-template-columns: 256px minmax(0, 1fr);
+        gap: 22px;
+        padding: 18px 22px 48px;
+        align-items: start;
+      }
+      .desk-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        position: sticky;
+        top: 16px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 18px;
+        padding: 14px 12px;
+        box-shadow: 0 6px 22px rgba(15, 23, 42, 0.05);
+        scrollbar-width: thin;
+      }
+    }
+    .desk-sb-section-lbl {
+      font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+      color: #64748B; padding: 2px 8px 6px;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    }
+    .desk-sb-nav { display: flex; flex-direction: column; gap: 3px; }
+    .desk-sb-btn {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #334155;
+      text-align: left; transition: background 0.14s, color 0.14s; white-space: nowrap;
+    }
+    .desk-sb-btn:hover { background: #EFF6FF; color: #1E3A8A; }
+    .desk-sb-btn.active {
+      background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%);
+      color: #FFFFFF; font-weight: 700;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.22);
+    }
+    .desk-sb-btn-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
+    .desk-sb-count {
+      font-size: 11px; font-weight: 700; color: #64748B;
+      font-variant-numeric: tabular-nums; flex-shrink: 0;
+    }
+    .desk-sb-btn.active .desk-sb-count { color: rgba(255,255,255,0.9); }
+    .desk-sb-divider { border-top: 1px solid #F1F5F9; margin: 2px 0; }
     .grid-meta {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 10px; font-size: 12px; gap: 8px; flex-wrap: wrap;
@@ -292,7 +348,7 @@
       .bot-grid,
       .folder-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
-    @media (min-width: 1240px) {
+    @media (min-width: 1320px) {
       .bot-grid,
       .folder-card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
@@ -596,44 +652,49 @@
       padding: 8px 12px; vertical-align: middle; min-height: 38px; height: auto;
       overflow-wrap: anywhere; word-break: break-word;
     }
+    .sheet-table td.col-nowrap { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
     @media (min-width: 900px) {
       .sheet-table.is-fit-desktop {
-        width: 100%;
+        width: max-content;
         min-width: 100%;
         table-layout: auto;
       }
       .sheet-table.is-fit-desktop th {
-        padding: 8px 8px;
-        white-space: normal;
+        padding: 9px 10px;
+        white-space: nowrap;
         font-size: 12.5px;
       }
       .sheet-table.is-fit-desktop .th-col-lbl {
-        white-space: normal;
-        word-break: break-word;
+        white-space: nowrap;
         line-height: 1.25;
       }
       .sheet-table.is-fit-desktop th.frozen-col,
       .sheet-table.is-fit-desktop td.frozen-col {
-        width: 62px; min-width: 62px; max-width: 62px;
-        padding: 5px 3px;
+        width: 70px; min-width: 70px; max-width: 70px;
+        padding: 6px 4px;
       }
       .sheet-table.is-fit-desktop td {
-        padding: 7px 8px;
+        padding: 8px 10px;
         white-space: normal;
-        overflow-wrap: anywhere;
-        word-break: break-word;
+        overflow-wrap: break-word;
+        word-break: normal;
+      }
+      .sheet-table.is-fit-desktop td.col-nowrap {
+        white-space: nowrap;
+        overflow-wrap: normal;
       }
       .sheet-table.is-fit-desktop tfoot tr.table-sum-row td {
-        padding: 9px 8px;
+        padding: 10px 10px;
         font-size: 12.5px;
+        white-space: nowrap;
       }
       .sheet-table.is-fit-desktop .cell-cust-wrap {
-        flex-wrap: wrap;
-        gap: 4px 6px;
+        flex-wrap: nowrap;
+        gap: 6px;
       }
       .sheet-table.is-fit-desktop .cell-cust-stmt-btn {
-        padding: 1px 5px;
-        font-size: 9.5px;
+        padding: 2px 7px;
+        font-size: 10px;
       }
     }
     .sheet-table tr:nth-child(even) td:not(.frozen-col) { background: #FAFBFC; }
@@ -983,6 +1044,19 @@
       box-shadow: 0 -16px 48px rgba(15, 23, 42, 0.24);
       padding: 20px 18px 24px; color: #1E293B; font-family: inherit;
     }
+    @media (min-width: 768px) {
+      .tb-sheet-backdrop {
+        align-items: center;
+        padding: 20px;
+        backdrop-filter: blur(2px);
+      }
+      .tb-sheet-card {
+        border-radius: 22px;
+        max-width: 440px;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+        padding: 22px 22px 24px;
+      }
+    }
     .tb-sheet-val {
       font-size: 18px; font-weight: 500; color: #0F172A; line-height: 1.3;
       margin-bottom: 16px; padding: 0 2px;
@@ -1049,6 +1123,34 @@
       box-shadow: 0 12px 30px rgba(6, 95, 70, 0.22);
       border: 1px solid rgba(255,255,255,0.18);
       display: flex; flex-direction: column; gap: 12px;
+    }
+    .hero-main-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+    .hero-cal-col { min-width: 0; }
+    @media (min-width: 1024px) {
+      .welcome-hero-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(350px, 1fr);
+        gap: 20px;
+        align-items: center;
+        padding: 20px 24px;
+      }
+      .hero-cal-col {
+        background: rgba(15, 23, 42, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 14px;
+        padding: 12px;
+      }
+      .hero-cal-col .week-strip {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 6px;
+        overflow: visible;
+        padding-bottom: 0;
+      }
+      .hero-cal-col .day-chip {
+        min-width: 0;
+        padding: 8px 4px;
+      }
     }
     .hero-top-brand {
       font-size: 12.5px; font-weight: 800; color: #A7F3D0; letter-spacing: 0.01em;
@@ -1298,6 +1400,20 @@
       background: #DBEAFE; color: var(--blue-primary);
       display: flex; align-items: center; justify-content: center;
     }
+    @media (min-width: 900px) {
+      .sigma-footer { padding: 8px 20px; }
+      .bottom-toolbar {
+        height: 48px; justify-content: center; gap: 16px; padding: 0 20px;
+        background: #F8FAFC;
+      }
+      .toolbar-btn {
+        flex-direction: row; gap: 7px; font-size: 12.5px; font-weight: 700;
+        padding: 6px 14px; border-radius: 9px; border: 1px solid transparent;
+        transition: background 0.14s, border-color 0.14s, color 0.14s;
+      }
+      .toolbar-btn:hover { background: #EFF6FF; border-color: #BFDBFE; color: #1E3A8A; }
+      .toolbar-tester-circle { width: 24px; height: 24px; }
+    }
 
     /* Modals */
     .modal-backdrop {
@@ -1465,6 +1581,31 @@
       width: 100%; max-width: 455px; background: #fff; border-radius: 24px;
       padding: 24px 24px 22px; box-shadow: 0 28px 64px rgba(7, 30, 74, 0.45);
       border: 1px solid rgba(255,255,255,0.28); text-align: center;
+    }
+    .lock-desk-grid {
+      display: flex; flex-direction: column;
+    }
+    .lock-left-pane, .lock-right-pane {
+      display: flex; flex-direction: column;
+    }
+    @media (min-width: 900px) {
+      .lock-card {
+        max-width: 880px;
+        padding: 28px 30px;
+      }
+      .lock-desk-grid {
+        display: grid;
+        grid-template-columns: 1.08fr 0.92fr;
+        gap: 28px;
+        align-items: center;
+      }
+      .lock-left-pane .lock-voice-card { margin-bottom: 0; }
+      .lock-right-pane {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 18px;
+        padding: 22px 20px;
+      }
     }
     .lock-card.shake { animation: lockShake 0.36s ease-in-out; }
     @keyframes lockShake {
@@ -8911,6 +9052,60 @@
       }
 
       html += '</header>';
+      html += '<div class="desk-shell">';
+
+      html += '<aside class="desk-sidebar" aria-label="Desktop Workspace Navigation">' +
+        '<div class="desk-sb-section-lbl"><span>Workspace</span></div>' +
+        '<nav class="desk-sb-nav">' +
+          '<button type="button" class="desk-sb-btn' + (state.selectedFolder === 'all' ? ' active' : '') + '" data-folder="all">' +
+            '<span class="desk-sb-btn-left">' + icon('grid', 15) + '<span class="truncate">All Folders</span></span>' +
+            '<span class="desk-sb-count">' + totalTablesCount + '</span>' +
+          '</button>' +
+          '<button type="button" class="desk-sb-btn" id="sb-nav-reports">' +
+            '<span class="desk-sb-btn-left">' + icon('chart', 15) + '<span class="truncate">' + esc(t('reports')) + '</span></span>' +
+          '</button>' +
+          '<button type="button" class="desk-sb-btn" id="sb-nav-ledger">' +
+            '<span class="desk-sb-btn-left">' + icon('ledger', 15) + '<span class="truncate">Customer Ledger</span></span>' +
+          '</button>' +
+          '<button type="button" class="desk-sb-btn" id="sb-nav-import">' +
+            '<span class="desk-sb-btn-left">' + icon('excel', 15) + '<span class="truncate">' + esc(t('import_excel')) + '</span></span>' +
+          '</button>' +
+          '<button type="button" class="desk-sb-btn" id="sb-nav-backup">' +
+            '<span class="desk-sb-btn-left">' + icon('folder', 15) + '<span class="truncate">' + esc(t('backup_restore')) + '</span></span>' +
+          '</button>' +
+          '<button type="button" class="desk-sb-btn" id="sb-nav-admin">' +
+            '<span class="desk-sb-btn-left">' + icon('shield', 15) + '<span class="truncate">' + esc(t('admin')) + '</span></span>' +
+          '</button>' +
+          '<button type="button" class="desk-sb-btn" id="sb-nav-cloud">' +
+            '<span class="desk-sb-btn-left">' + icon('refresh', 15) + '<span class="truncate">Cloud Sync</span></span>' +
+          '</button>' +
+        '</nav>' +
+        '<div class="desk-sb-divider"></div>' +
+        '<div class="desk-sb-section-lbl">' +
+          '<span>Folders (' + folders.length + ')</span>' +
+          '<button type="button" id="sb-btn-add-folder" style="color:#0D47A1;font-weight:800;font-size:11px;cursor:pointer;">+ New</button>' +
+        '</div>' +
+        '<div class="desk-sb-nav">' +
+          folders.map(function (fn) {
+            var fnLower = fn.toLowerCase();
+            var fnCount = state.bots.filter(function (b) { return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === fnLower; }).length;
+            var fnLocked = isFolderLocked(fn);
+            var fnUnlocked = isFolderUnlocked(fn);
+            var isAct = String(state.selectedFolder || '').toLowerCase() === fnLower;
+            return '<button type="button" class="desk-sb-btn' + (isAct ? ' active' : '') + '" data-folder="' + esc(fn) + '" title="' + esc(fn) + '">' +
+              '<span class="desk-sb-btn-left">' + icon(fnLocked && !fnUnlocked ? 'lock' : 'folder', 14) + '<span class="truncate">' + esc(fn) + '</span></span>' +
+              '<span class="desk-sb-count">' + fnCount + '</span>' +
+            '</button>';
+          }).join('') +
+        '</div>' +
+        '<div class="desk-sb-divider"></div>' +
+        '<div class="desk-sb-nav">' +
+          '<button type="button" class="desk-sb-btn" id="sb-nav-help">' +
+            '<span class="desk-sb-btn-left">' + icon('info', 15) + '<span class="truncate">Help &amp; Guide</span></span>' +
+          '</button>' +
+        '</div>' +
+      '</aside>';
+
       html += '<main class="dashboard-main">';
 
       var dayInfo = getWelcomeDayInfo(state.lang, state.previewDayOffset);
@@ -8927,30 +9122,34 @@
           : (state.lang === 'am' ? '🔊 ድምፅ አዳምጥ' : '🔊 Play Voice'));
 
       html += '<section class="welcome-hero-card">' +
-        '<div class="hero-top-brand">Hiriya Salt Production PLC &middot; MA’ED Table Salt</div>' +
-        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-          '<span class="hero-single-date-pill" id="hero-date-pill">' + esc(dayInfo.singlePill) + '</span>' +
-          (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FDE68A;font-size:10.5px;padding:3px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
-        '</div>' +
-        '<h1 class="hero-greeting-title" id="hero-welcome-headline">እንኳን ደህና መጡ, ' + esc(greetName) + '!</h1>' +
-        '<div class="hero-daily-checkin" id="hero-daily-checkin">' +
-          '<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">' +
-            '<span style="font-size:14px;font-weight:700;color:#fff;line-height:1.4;">' + esc(dp.displayText) + '</span>' +
+        '<div class="hero-main-col">' +
+          '<div class="hero-top-brand">Hiriya Salt Production PLC &middot; MA’ED Table Salt</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<span class="hero-single-date-pill" id="hero-date-pill">' + esc(dayInfo.singlePill) + '</span>' +
+            (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FDE68A;font-size:10.5px;padding:3px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
           '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-            '<button type="button" id="hero-voice-name-btn" class="lang-toggle-btn" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.35);font-size:11.5px;padding:6px 10px;white-space:nowrap;">' + (dp.userName ? ('👤 ' + esc(dp.userName)) : '👤 Set Name') + '</button>' +
-            '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.32);border-color:rgba(167,243,208,0.65);font-size:12px;padding:6px 12px;white-space:nowrap;">' + heroPlayLabel + '</button>' +
+          '<h1 class="hero-greeting-title" id="hero-welcome-headline">እንኳን ደህና መጡ, ' + esc(greetName) + '!</h1>' +
+          '<div class="hero-daily-checkin" id="hero-daily-checkin">' +
+            '<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">' +
+              '<span style="font-size:14px;font-weight:700;color:#fff;line-height:1.4;">' + esc(dp.displayText) + '</span>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+              '<button type="button" id="hero-voice-name-btn" class="lang-toggle-btn" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.35);font-size:11.5px;padding:6px 10px;white-space:nowrap;">' + (dp.userName ? ('👤 ' + esc(dp.userName)) : '👤 Set Name') + '</button>' +
+              '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.32);border-color:rgba(167,243,208,0.65);font-size:12px;padding:6px 12px;white-space:nowrap;">' + heroPlayLabel + '</button>' +
+            '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="week-strip">' +
-          weekDays.map(function (wd) {
-            var cls = wd.isToday ? 'today' : (wd.isSelected ? 'preview' : '');
-            return '<button type="button" class="day-chip ' + cls + '" data-day-offset="' + wd.offset + '" title="' + (wd.isToday ? 'Live Today' : 'Preview +' + wd.offset + ' day(s)') + '">' +
-              '<span style="font-size:9.5px;opacity:0.95;font-weight:800;">' + (wd.isToday ? (state.lang === 'am' ? 'ዛሬ' : 'TODAY') : esc(wd.label)) + '</span>' +
-              '<span class="day-chip-num">' + esc(wd.label) + ' ' + wd.dayNum + '</span>' +
-              '<span style="font-size:9px;opacity:0.9;" class="mono">' + String(wd.ecDay).padStart(2, '0') + '/' + String(wd.ecMonth).padStart(2, '0') + ' EC</span>' +
-            '</button>';
-          }).join('') +
+        '<div class="hero-cal-col">' +
+          '<div class="week-strip">' +
+            weekDays.map(function (wd) {
+              var cls = wd.isToday ? 'today' : (wd.isSelected ? 'preview' : '');
+              return '<button type="button" class="day-chip ' + cls + '" data-day-offset="' + wd.offset + '" title="' + (wd.isToday ? 'Live Today' : 'Preview +' + wd.offset + ' day(s)') + '">' +
+                '<span style="font-size:9.5px;opacity:0.95;font-weight:800;">' + (wd.isToday ? (state.lang === 'am' ? 'ዛሬ' : 'TODAY') : esc(wd.label)) + '</span>' +
+                '<span class="day-chip-num">' + esc(wd.label) + ' ' + wd.dayNum + '</span>' +
+                '<span style="font-size:9px;opacity:0.9;" class="mono">' + String(wd.ecDay).padStart(2, '0') + '/' + String(wd.ecMonth).padStart(2, '0') + ' EC</span>' +
+              '</button>';
+            }).join('') +
+          '</div>' +
         '</div>' +
       '</section>';
 
@@ -9403,7 +9602,7 @@
         html += '</section>';
       }
 
-      html += '</main>';
+      html += '</main></div>';
 
       document.getElementById('app').innerHTML = html;
       bindDashboardEvents();
@@ -9879,6 +10078,23 @@
 
       var emptyCreate = document.getElementById('btn-empty-create');
       if (emptyCreate) emptyCreate.onclick = function () { createInstantBot(false); };
+
+      var sbRep = document.getElementById('sb-nav-reports');
+      if (sbRep) sbRep.onclick = function () { openModal('reports'); };
+      var sbLed = document.getElementById('sb-nav-ledger');
+      if (sbLed) sbLed.onclick = function () { openModal('customer_ledger', { folder: state.selectedFolder || 'all' }); };
+      var sbImp = document.getElementById('sb-nav-import');
+      if (sbImp) sbImp.onclick = function () { openModal('import_excel', { mode: 'new' }); };
+      var sbBak = document.getElementById('sb-nav-backup');
+      if (sbBak) sbBak.onclick = function () { openModal('backup', { tab: 'vault' }); };
+      var sbAdm = document.getElementById('sb-nav-admin');
+      if (sbAdm) sbAdm.onclick = function () { openModal('admin', { tab: 'logs' }); };
+      var sbCld = document.getElementById('sb-nav-cloud');
+      if (sbCld) sbCld.onclick = function () { openModal('supabase', { authTab: 'login' }); };
+      var sbHlp = document.getElementById('sb-nav-help');
+      if (sbHlp) sbHlp.onclick = function () { openModal('help'); };
+      var sbAddFld = document.getElementById('sb-btn-add-folder');
+      if (sbAddFld) sbAddFld.onclick = function () { openModal('add_folder'); };
     }
 
     function buildBlankRowForBot(bot) {
@@ -10385,7 +10601,8 @@
           var cellContentHtml = isCustNameCell
             ? ('<div class="cell-cust-wrap">' + innerSpanHtml + '<button type="button" class="cell-cust-stmt-btn" data-cust-stmt-name="' + esc(cleanCustCell) + '" title="Open ' + esc(cleanCustCell) + ' Statement">' + icon('ledger', 11) + '<span>Statement</span></button></div>')
             : innerSpanHtml;
-          rowHtml += '<td class="cell-clickable cell-menu-target cell-selectable' + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:' + (isCustNameCell ? 'pointer' : 'text') + ';' + align + bg + '">' +
+          var isNowrapType = isAmt || isFrm || isNum || col.type === 'date';
+          rowHtml += '<td class="cell-clickable cell-menu-target cell-selectable' + (isNowrapType ? ' col-nowrap' : '') + cellSelClass + '" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '"' + titleTip + ' style="cursor:' + (isCustNameCell ? 'pointer' : 'text') + ';' + align + bg + '">' +
             commentMarkHtml +
             cellContentHtml +
             commentBadgeHtml +
@@ -10674,15 +10891,20 @@
 
       bot.columns.forEach(function (col) {
         var mult = col.widthMultiplier || 1;
+        var baseFitW = col.type === 'checkbox'
+          ? 64
+          : (col.type === 'date'
+            ? 100
+            : ((col.type === 'amount' || col.type === 'number' || col.type === 'formula') ? 104 : 132));
         var minW = isFitDesktop
-          ? Math.max(64, Math.round(74 * Math.min(1.45, mult)))
-          : Math.round(130 * mult);
+          ? Math.max(baseFitW, Math.round(baseFitW * Math.min(1.45, mult)))
+          : Math.round(135 * mult);
         html += '<th data-edit-col="' + esc(col.id) + '" style="min-width:' + minW + 'px;" title="Tap to Edit Column Properties">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
             '<span class="th-col-lbl">' + esc(col.name) + '</span>' +
           '</div></th>';
       });
-      var addColMinW = isFitDesktop ? 84 : 124;
+      var addColMinW = isFitDesktop ? 92 : 124;
       html += '<th id="th-add-col" style="min-width:' + addColMinW + 'px;background:#EFF6FF;color:#0D47A1;cursor:pointer;text-align:center;" title="Click to add a new column"><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;">' + icon('plus', 13) + '<span>' + (isFitDesktop ? 'Add Col' : 'Add Column') + '</span></span></th>';
       html += '</tr></thead><tbody>';
 
@@ -14057,64 +14279,70 @@
           '<button type="button" id="lock-lang-btn" class="lang-toggle-btn">' + esc(t('lang_btn')) + '</button>' +
         '</div>' +
         '<form id="lock-form" class="lock-card' + (state.lockShake ? ' shake' : '') + '" autocomplete="off">' +
-          '<div class="lock-brand-showcase">' +
-            '<div class="lock-brand-logos">' +
-              assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A White Stars Crest", "MA'ED Salt — MIYAW 3A Crest") +
-              assetImgHtml(BRAND_ASSETS.logoGreenStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A Green Stars Emblem", "MA'ED Salt — MIYAW 3A Green Emblem") +
-              assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'lock-hero-img', "Hiriya Salt Production PLC — MA'ED Salt Emblem", "MA'ED Salt — MIYAW 3A") +
+          '<div class="lock-desk-grid">' +
+            '<div class="lock-left-pane">' +
+              '<div class="lock-brand-showcase">' +
+                '<div class="lock-brand-logos">' +
+                  assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A White Stars Crest", "MA'ED Salt — MIYAW 3A Crest") +
+                  assetImgHtml(BRAND_ASSETS.logoGreenStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A Green Stars Emblem", "MA'ED Salt — MIYAW 3A Green Emblem") +
+                  assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'lock-hero-img', "Hiriya Salt Production PLC — MA'ED Salt Emblem", "MA'ED Salt — MIYAW 3A") +
+                '</div>' +
+                '<div class="lock-company-banner">' +
+                  '<div class="lock-company-en">Hiriya Salt Production PLC · MA’ED Table Salt</div>' +
+                  '<div class="lock-company-am">እንኳን ደህና መጡ</div>' +
+                '</div>' +
+              '</div>' +
+              '<div id="lock-voice-card" class="lock-voice-card' + (isListened ? ' is-listened' : '') + '">' +
+                '<div class="lock-voice-head">' +
+                  '<span class="lock-voice-day-pill">📅 ' + esc(dailyPrompt.amDay) + ' · ' + esc(dailyPrompt.enDay) + '</span>' +
+                  '<span id="lock-voice-status" class="lock-voice-status' + (isListened ? ' is-done' : '') + '">' + (isListened ? (isAm ? '✓ ተዳምጧል' : '✓ Ready') : (isAm ? 'ዕለታዊ ድምፅ' : 'Daily Voice')) + '</span>' +
+                '</div>' +
+                '<div id="lock-voice-text" class="lock-voice-text">' + esc(dailyPrompt.displayText) + '</div>' +
+                '<div id="lock-name-wrap" style="margin:8px 0;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">' +
+                  ((!dailyPrompt.userName || state.editingLockName)
+                    ? '<input id="lock-user-name-inp" type="text" value="' + esc(dailyPrompt.userName || '') + '" placeholder="' + (isAm ? 'ስምዎን ያስገቡ (ለምሳሌ shemse)...' : 'Your name (e.g. shemse)...') + '" style="flex:1;min-width:140px;max-width:210px;padding:6px 10px;border-radius:8px;border:1px solid #93C5FD;font-size:12px;background:#fff;color:#0F172A;outline:none;" />' +
+                      '<button type="button" id="lock-user-name-save" style="padding:6px 11px;border-radius:8px;background:#0F766E;color:#fff;font-size:11.5px;font-weight:700;">' + (isAm ? 'አስቀምጥና አዳምጥ' : 'Save & Speak') + '</button>' +
+                      (dailyPrompt.userName ? '<button type="button" id="lock-cancel-name-btn" style="padding:6px 8px;border-radius:8px;border:1px solid #CBD5E1;background:#fff;color:#64748B;font-size:11px;font-weight:700;">✕</button>' : '')
+                    : '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(15,118,110,0.1);border:1px solid rgba(15,118,110,0.28);color:#065F46;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;">' +
+                        '<span>👤 ' + esc(dailyPrompt.userName) + '</span>' +
+                        '<button type="button" id="lock-edit-name-btn" style="color:#0D47A1;text-decoration:underline;font-weight:800;font-size:11px;">' + (isAm ? 'ቀይር' : 'Change') + '</button>' +
+                      '</span>') +
+                '</div>' +
+                '<div class="lock-voice-progress"><div id="lock-voice-bar" class="lock-voice-bar" style="width:' + (isListened ? 100 : (_dailyVoiceCtrl.progress || 0)) + '%;"></div></div>' +
+                '<button type="button" id="lock-voice-play-btn" class="lock-voice-btn' + (isListened ? '' : ' is-enable-prompt') + '">' +
+                  (isListened ? (isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice') : (isAm ? '🔊 ድምፅ ለመስማት ይንኩ · Tap to Enable Voice' : '🔊 Tap to Enable Voice')) +
+                '</button>' +
+              '</div>' +
             '</div>' +
-            '<div class="lock-company-banner">' +
-              '<div class="lock-company-en">Hiriya Salt Production PLC · MA’ED Table Salt</div>' +
-              '<div class="lock-company-am">እንኳን ደህና መጡ</div>' +
+            '<div class="lock-right-pane">' +
+              '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">' +
+                '<span style="width:28px;height:28px;border-radius:999px;background:#EFF6FF;color:#0D47A1;display:inline-flex;align-items:center;justify-content:center;">' + icon('lock', 15) + '</span>' +
+                '<h1 style="font-size:19px;font-weight:800;color:#0F172A;">' + esc(titleTxt) + '</h1>' +
+              '</div>' +
+              '<p style="font-size:12.5px;color:#64748B;margin-bottom:10px;line-height:1.45;">' + esc(subTxt) + '</p>' +
+              '<div id="lock-voice-gate-hint" style="font-size:11.5px;font-weight:800;margin-bottom:10px;color:' + (isLockedOut ? '#DC2626' : '#0F766E') + ';">' +
+                (isLockedOut
+                  ? ('⛔ Too many failed attempts. Input locked for ' + remLockSec + 's.')
+                  : (failAttempts > 0 ? ('⚠️ ' + failAttempts + ' of 5 failed attempts used before 60s lock.') : (isAm ? '🔐 የመግቢያ ኮድዎን ያስገቡ' : '🔐 Enter access code below to continue.'))) +
+              '</div>' +
+              '<div id="lock-code-gate-wrap" class="' + (isLockedOut ? 'lock-gate-locked' : '') + '" style="text-align:left;">' +
+                '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
+                '<div style="display:flex;gap:8px;align-items:center;">' +
+                  '<input id="lock-code-inp" name="tablebot_lock_pin" type="' + (state.lockShowCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '"' + (isLockedOut ? ' disabled' : ' autofocus') + ' />' +
+                  '<button type="button" id="lock-eye-btn" class="btn btn-outline" style="padding:10px 12px;font-size:11.5px;white-space:nowrap;">' + (state.lockShowCode ? 'Hide' : 'Show') + '</button>' +
+                '</div>' +
+              '</div>' +
+              (state.lockError
+                ? '<div id="lock-err-msg" class="lock-error-box">' + icon('ban', 15) + '<span>' + esc(state.lockError) + '</span></div>'
+                : '') +
+              '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;"' + (isLockedOut ? ' disabled' : '') + '>' +
+                icon('shield', 16) + '<span>' + esc(isLockedOut ? ('Locked (' + remLockSec + 's)') : btnTxt) + '</span>' +
+              '</button>' +
+              '<div style="margin-top:14px;font-size:11px;color:#64748B;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px dashed #E2E8F0;padding-top:10px;">' +
+                '<span style="display:inline-flex;align-items:center;gap:4px;">' + icon('shield', 12) + '<span>Session-protected access · 5 failed attempts = 60s lock</span></span>' +
+                '<button type="button" id="lock-sync-btn" style="font-size:11px;font-weight:800;color:#0D47A1;text-decoration:underline;">' + (isAm ? 'ኮድ አዘምን (Sync)' : 'Sync Latest Code') + '</button>' +
+              '</div>' +
             '</div>' +
-          '</div>' +
-          '<div id="lock-voice-card" class="lock-voice-card' + (isListened ? ' is-listened' : '') + '">' +
-            '<div class="lock-voice-head">' +
-              '<span class="lock-voice-day-pill">📅 ' + esc(dailyPrompt.amDay) + ' · ' + esc(dailyPrompt.enDay) + '</span>' +
-              '<span id="lock-voice-status" class="lock-voice-status' + (isListened ? ' is-done' : '') + '">' + (isListened ? (isAm ? '✓ ተዳምጧል' : '✓ Ready') : (isAm ? 'ዕለታዊ ድምፅ' : 'Daily Voice')) + '</span>' +
-            '</div>' +
-            '<div id="lock-voice-text" class="lock-voice-text">' + esc(dailyPrompt.displayText) + '</div>' +
-            '<div id="lock-name-wrap" style="margin:8px 0;display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">' +
-              ((!dailyPrompt.userName || state.editingLockName)
-                ? '<input id="lock-user-name-inp" type="text" value="' + esc(dailyPrompt.userName || '') + '" placeholder="' + (isAm ? 'ስምዎን ያስገቡ (ለምሳሌ shemse)...' : 'Your name (e.g. shemse)...') + '" style="flex:1;min-width:140px;max-width:210px;padding:6px 10px;border-radius:8px;border:1px solid #93C5FD;font-size:12px;background:#fff;color:#0F172A;outline:none;" />' +
-                  '<button type="button" id="lock-user-name-save" style="padding:6px 11px;border-radius:8px;background:#0F766E;color:#fff;font-size:11.5px;font-weight:700;">' + (isAm ? 'አስቀምጥና አዳምጥ' : 'Save & Speak') + '</button>' +
-                  (dailyPrompt.userName ? '<button type="button" id="lock-cancel-name-btn" style="padding:6px 8px;border-radius:8px;border:1px solid #CBD5E1;background:#fff;color:#64748B;font-size:11px;font-weight:700;">✕</button>' : '')
-                : '<span style="display:inline-flex;align-items:center;gap:6px;background:rgba(15,118,110,0.1);border:1px solid rgba(15,118,110,0.28);color:#065F46;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;">' +
-                    '<span>👤 ' + esc(dailyPrompt.userName) + '</span>' +
-                    '<button type="button" id="lock-edit-name-btn" style="color:#0D47A1;text-decoration:underline;font-weight:800;font-size:11px;">' + (isAm ? 'ቀይር' : 'Change') + '</button>' +
-                  '</span>') +
-            '</div>' +
-            '<div class="lock-voice-progress"><div id="lock-voice-bar" class="lock-voice-bar" style="width:' + (isListened ? 100 : (_dailyVoiceCtrl.progress || 0)) + '%;"></div></div>' +
-            '<button type="button" id="lock-voice-play-btn" class="lock-voice-btn' + (isListened ? '' : ' is-enable-prompt') + '">' +
-              (isListened ? (isAm ? '🔁 ድምፁን እንደገና ያዳምጡ' : '🔁 Replay Daily Voice') : (isAm ? '🔊 ድምፅ ለመስማት ይንኩ · Tap to Enable Voice' : '🔊 Tap to Enable Voice')) +
-            '</button>' +
-          '</div>' +
-          '<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">' +
-            '<span style="width:28px;height:28px;border-radius:999px;background:#EFF6FF;color:#0D47A1;display:inline-flex;align-items:center;justify-content:center;">' + icon('lock', 15) + '</span>' +
-            '<h1 style="font-size:19px;font-weight:800;color:#0F172A;">' + esc(titleTxt) + '</h1>' +
-          '</div>' +
-          '<p style="font-size:12.5px;color:#64748B;margin-bottom:10px;line-height:1.45;">' + esc(subTxt) + '</p>' +
-          '<div id="lock-voice-gate-hint" style="font-size:11.5px;font-weight:800;margin-bottom:10px;color:' + (isLockedOut ? '#DC2626' : '#0F766E') + ';">' +
-            (isLockedOut
-              ? ('⛔ Too many failed attempts. Input locked for ' + remLockSec + 's.')
-              : (failAttempts > 0 ? ('⚠️ ' + failAttempts + ' of 5 failed attempts used before 60s lock.') : (isAm ? '🔐 የመግቢያ ኮድዎን ያስገቡ' : '🔐 Enter access code below to continue.'))) +
-          '</div>' +
-          '<div id="lock-code-gate-wrap" class="' + (isLockedOut ? 'lock-gate-locked' : '') + '" style="text-align:left;">' +
-            '<label class="field-label" for="lock-code-inp">' + (isAm ? 'የመግቢያ ኮድ' : 'Access Code') + '</label>' +
-            '<div style="display:flex;gap:8px;align-items:center;">' +
-              '<input id="lock-code-inp" name="tablebot_lock_pin" type="' + (state.lockShowCode ? 'text' : 'password') + '" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-input mono" style="font-size:16px;letter-spacing:0.12em;padding:11px 14px;" placeholder="' + esc(placeholderTxt) + '"' + (isLockedOut ? ' disabled' : ' autofocus') + ' />' +
-              '<button type="button" id="lock-eye-btn" class="btn btn-outline" style="padding:10px 12px;font-size:11.5px;white-space:nowrap;">' + (state.lockShowCode ? 'Hide' : 'Show') + '</button>' +
-            '</div>' +
-          '</div>' +
-          (state.lockError
-            ? '<div id="lock-err-msg" class="lock-error-box">' + icon('ban', 15) + '<span>' + esc(state.lockError) + '</span></div>'
-            : '') +
-          '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;"' + (isLockedOut ? ' disabled' : '') + '>' +
-            icon('shield', 16) + '<span>' + esc(isLockedOut ? ('Locked (' + remLockSec + 's)') : btnTxt) + '</span>' +
-          '</button>' +
-          '<div style="margin-top:14px;font-size:11px;color:#64748B;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px dashed #E2E8F0;padding-top:10px;">' +
-            '<span style="display:inline-flex;align-items:center;gap:4px;">' + icon('shield', 12) + '<span>Session-protected access · 5 failed attempts = 60s lock</span></span>' +
-            '<button type="button" id="lock-sync-btn" style="font-size:11px;font-weight:800;color:#0D47A1;text-decoration:underline;">' + (isAm ? 'ኮድ አዘምን (Sync)' : 'Sync Latest Code') + '</button>' +
           '</div>' +
         '</form>' +
       '</div>';
