@@ -1485,13 +1485,20 @@
       align-items: center;
       gap: 10px;
     }
+    .lock-brand-logos {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
     .lock-hero-img {
-      width: 122px;
-      height: 122px;
+      width: 106px;
+      height: 106px;
       object-fit: contain;
       background: #fff;
       border-radius: 18px;
-      padding: 6px;
+      padding: 5px;
       border: 2px solid #10B981;
       box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
     }
@@ -1897,6 +1904,8 @@
     }
     .ledger-tab-btn.active-sale { background: #1D4ED8; color: #fff; }
     .ledger-tab-btn.active-pay { background: #059669; color: #fff; }
+    .ledger-tab-btn.active-all { background: #0F172A; color: #fff; }
+    .ledger-tab-btn.active-unpaid { background: #D97706; color: #fff; }
     .ledger-filter-bar {
       display: grid;
       grid-template-columns: repeat(1, 1fr);
@@ -2961,8 +2970,8 @@
     }
 
     var BRAND_ASSETS = {
-      maedSaltMiyaw: './assets/aistudio/IMG_20261117_233433_326_78ae2938.jpg',
-      logoWhiteStars: './assets/aistudio/file_000000003a3c8210ac093d7bf55b2a9c_7f2565a5.png',
+      maedSaltMiyaw: './assets/aistudio/IMG_20261117_233433_326_78ae2938_78ae2938.jpg',
+      logoWhiteStars: './assets/aistudio/file_000000003a3c8210ac093d7bf55b2a9c_7f2565a5_7f2565a5.png',
       logoGreenStars: './assets/aistudio/file_000000002e1481f4b0a098ac50b472ae_e5f32c46.png',
       posterAdama: './assets/aistudio/file_000000007c048210acefecd95c486656_e7fa0c87.png',
       abdulfetaPhoto: './assets/aistudio/IMG_20261115_175858_499_9a85135f.jpg'
@@ -4548,7 +4557,8 @@
       sortOrder: 'recent',
       activeCardMenuId: null,
       activeFolderMenuId: null,
-      dashSummaryCollapsed: false,
+      showExportMenu: false,
+      dashSummaryCollapsed: true,
       dashDayBreakdownOpen: true,
       previewDayOffset: 0,
       lastRenderedYmd: '',
@@ -8048,15 +8058,58 @@
     }
 
     function exportBotCsv(bot) {
-      var headers = bot.columns.map(function (c) { return '"' + c.name.replace(/"/g, '""') + '"'; }).join(',');
+      var headers = bot.columns.map(function (c) { return '"' + String(c.name || '').replace(/"/g, '""') + '"'; }).join(',');
       var rows = bot.rows.map(function (r) {
         return bot.columns.map(function (c) {
           var v = r[c.id];
           return '"' + String(v !== undefined && v !== null ? v : '').replace(/"/g, '""') + '"';
         }).join(',');
       }).join('\n');
-      downloadBlob(headers + '\n' + rows, bot.name.replace(/\s+/g, '_') + '_data.csv', 'text/csv;charset=utf-8;');
+      downloadBlob(headers + '\n' + rows, (bot.name || 'TableBot').replace(/[^\w\-]+/g, '_') + '_data.csv', 'text/csv;charset=utf-8;');
       showToast('Exported ' + bot.name + ' to CSV');
+    }
+
+    function exportBotExcel(bot) {
+      if (!bot) return;
+      var headers = (bot.columns || []).map(function (c) { return c.name || 'Column'; });
+      var aoa = [headers];
+      (bot.rows || []).forEach(function (r) {
+        aoa.push((bot.columns || []).map(function (c) {
+          var v = r[c.id];
+          if (c.type === 'checkbox') return v ? 'Yes' : 'No';
+          if (c.type === 'formula') return formatCell(v, c, r, bot);
+          if (c.type === 'amount' || c.type === 'number') {
+            var n = parseNumSafe(v);
+            return (v !== '' && v !== undefined && v !== null && !isNaN(n)) ? n : '';
+          }
+          return v !== undefined && v !== null ? String(v) : '';
+        }));
+      });
+      var safeName = (bot.name || 'TableBot').replace(/[^a-z0-9\-_]+/gi, '_');
+      downloadWorkbookAsExcel([{ name: (bot.name || 'Sheet1').slice(0, 31), aoa: aoa }], safeName + '_' + new Date().toISOString().slice(0, 10));
+    }
+
+    function exportBotPdf(bot) {
+      if (!bot) return;
+      var cols = (bot.columns || []).map(function (c) {
+        var isNum = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
+        return { label: c.name || 'Column', align: isNum ? 'right' : 'left', weight: isNum ? 1.0 : 1.35 };
+      });
+      var rows = (bot.rows || []).map(function (r, idx) {
+        return (bot.columns || []).map(function (c) {
+          var txt = c.type === 'checkbox' ? (r[c.id] ? 'Yes' : 'No') : formatCell(r[c.id], c, r, bot);
+          return (txt !== undefined && txt !== null && String(txt).trim() !== '') ? String(txt) : '';
+        });
+      });
+      var safeName = (bot.name || 'TableBot').replace(/[^a-z0-9\-_]+/gi, '_');
+      downloadStructuredPdfDocument({
+        title: 'Hiriya Salt Production PLC · ' + (bot.name || 'Table'),
+        subtitle: 'Folder: ' + (bot.folder || 'General') + ' · Rows: ' + rows.length + ' · Exported ' + formatDmyDate(new Date()),
+        columns: cols,
+        rows: rows,
+        landscape: cols.length > 5,
+        filename: safeName + '_' + new Date().toISOString().slice(0, 10) + '.pdf'
+      });
     }
 
     function exportJsonBackup() {
@@ -8065,15 +8118,519 @@
     }
 
     function downloadBlob(content, filename, mime) {
-      var blob = new Blob([content], { type: mime });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      try {
+        var mimeStr = mime || 'application/octet-stream';
+        var payload = content;
+        if (typeof payload === 'string' && /^text\/csv/i.test(mimeStr) && payload.charCodeAt(0) !== 0xFEFF) {
+          payload = '\uFEFF' + payload;
+        }
+        var blob = (typeof Blob !== 'undefined' && payload instanceof Blob)
+          ? payload
+          : new Blob([payload], { type: mimeStr });
+        if (window.navigator && typeof window.navigator.msSaveOrOpenBlob === 'function') {
+          window.navigator.msSaveOrOpenBlob(blob, filename);
+          return true;
+        }
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () {
+          try { if (a.parentNode) a.parentNode.removeChild(a); } catch (eRm) {}
+        }, 1500);
+        setTimeout(function () {
+          try { URL.revokeObjectURL(url); } catch (eRv) {}
+        }, 60000);
+        return true;
+      } catch (err) {
+        try {
+          var fallbackMime = mime || 'application/octet-stream';
+          var fallbackHref = typeof content === 'string'
+            ? ('data:' + fallbackMime + ';charset=utf-8,' + encodeURIComponent(content))
+            : null;
+          if (fallbackHref) {
+            var a2 = document.createElement('a');
+            a2.href = fallbackHref;
+            a2.download = filename;
+            a2.style.display = 'none';
+            document.body.appendChild(a2);
+            a2.click();
+            setTimeout(function () { try { if (a2.parentNode) a2.parentNode.removeChild(a2); } catch (eRm2) {} }, 1500);
+            return true;
+          }
+        } catch (err2) {}
+        showToast('Download blocked by browser. Please allow file downloads.');
+        return false;
+      }
+    }
+
+    function xmlEscapeExcel(val) {
+      return String(val === undefined || val === null ? '' : val)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function buildSpreadsheetMlXml(sheets) {
+      var wsXml = (sheets || []).map(function (sh, sIdx) {
+        var rawName = String(sh.name || ('Sheet' + (sIdx + 1))).replace(/[\\\/\?\*\[\]:]/g, '').slice(0, 31) || ('Sheet' + (sIdx + 1));
+        var rowsXml = (sh.aoa || []).map(function (row) {
+          var cellsXml = (row || []).map(function (cell) {
+            if (typeof cell === 'number' && isFinite(cell)) {
+              return '<Cell><Data ss:Type="Number">' + cell + '</Data></Cell>';
+            }
+            return '<Cell><Data ss:Type="String">' + xmlEscapeExcel(cell) + '</Data></Cell>';
+          }).join('');
+          return '<Row>' + cellsXml + '</Row>';
+        }).join('');
+        return '<Worksheet ss:Name="' + xmlEscapeExcel(rawName) + '"><Table>' + rowsXml + '</Table></Worksheet>';
+      }).join('');
+      return '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<?mso-application progid="Excel.Sheet"?>\n' +
+        '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ' +
+        'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+        wsXml + '</Workbook>';
+    }
+
+    function downloadWorkbookAsExcel(sheets, baseFilename) {
+      var safeBase = String(baseFilename || 'TableBot_Export').replace(/[^a-z0-9\-_]+/gi, '_').replace(/^_+|_+$/g, '') || 'TableBot_Export';
+      var list = Array.isArray(sheets) ? sheets : [];
+      if (window.XLSX && window.XLSX.utils && typeof window.XLSX.write === 'function') {
+        try {
+          var wb = window.XLSX.utils.book_new();
+          var usedNames = {};
+          list.forEach(function (sh, idx) {
+            var nm = String(sh.name || ('Sheet' + (idx + 1))).replace(/[\\\/\?\*\[\]:]/g, '').slice(0, 28) || ('Sheet' + (idx + 1));
+            if (usedNames[nm.toLowerCase()]) nm = nm.slice(0, 24) + '_' + (idx + 1);
+            usedNames[nm.toLowerCase()] = true;
+            var ws = window.XLSX.utils.aoa_to_sheet(sh.aoa || []);
+            if (Array.isArray(sh.cols) && sh.cols.length > 0) ws['!cols'] = sh.cols;
+            window.XLSX.utils.book_append_sheet(wb, ws, nm);
+          });
+          var wbOut = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+          var bytes = wbOut instanceof Uint8Array ? wbOut : new Uint8Array(wbOut);
+          downloadBlob(bytes, safeBase + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+          showToast('Downloaded Excel (.xlsx): ' + safeBase + '.xlsx');
+          return true;
+        } catch (errXlsx) {}
+      }
+      var xmlDoc = buildSpreadsheetMlXml(list);
+      downloadBlob(xmlDoc, safeBase + '.xls', 'application/vnd.ms-excel;charset=utf-8;');
+      showToast('Downloaded Excel (.xls): ' + safeBase + '.xls');
+      return true;
+    }
+
+    function printHtmlInHiddenFrame(htmlDoc) {
+      try {
+        var oldFr = document.getElementById('tb-print-frame');
+        if (oldFr && oldFr.parentNode) oldFr.parentNode.removeChild(oldFr);
+        var iframe = document.createElement('iframe');
+        iframe.id = 'tb-print-frame';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.visibility = 'hidden';
+        document.body.appendChild(iframe);
+        var doc = iframe.contentWindow ? iframe.contentWindow.document : iframe.contentDocument;
+        doc.open();
+        doc.write(String(htmlDoc || '').replace('onload="window.print()"', ''));
+        doc.close();
+        setTimeout(function () {
+          try {
+            if (iframe.contentWindow) {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }
+          } catch (ePr) {
+            window.print();
+          }
+          setTimeout(function () {
+            try { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); } catch (eRm) {}
+          }, 60000);
+        }, 250);
+      } catch (e) {
+        window.print();
+      }
+    }
+
+    function encodeAsciiBytes(str) {
+      var arr = new Uint8Array(str.length);
+      for (var i = 0; i < str.length; i++) arr[i] = str.charCodeAt(i) & 0xff;
+      return arr;
+    }
+
+    function concatUint8Arrays(chunks) {
+      var total = 0;
+      for (var i = 0; i < chunks.length; i++) total += chunks[i].length;
+      var out = new Uint8Array(total);
+      var off = 0;
+      for (var j = 0; j < chunks.length; j++) {
+        out.set(chunks[j], off);
+        off += chunks[j].length;
+      }
+      return out;
+    }
+
+    function escapePdfAsciiText(s) {
+      return String(s === undefined || s === null ? '' : s)
+        .replace(/[^\x20-\x7E]/g, '?')
+        .replace(/\\/g, '\\\\')
+        .replace(/\(/g, '\\(')
+        .replace(/\)/g, '\\)');
+    }
+
+    function buildTextFallbackPdfBytes(spec) {
+      var lines = [];
+      if (spec.title) lines.push(spec.title);
+      if (spec.subtitle) lines.push(spec.subtitle);
+      if (Array.isArray(spec.kpis) && spec.kpis.length > 0) {
+        lines.push(spec.kpis.map(function (k) { return k.label + ': ' + k.value; }).join('  |  '));
+      }
+      if (Array.isArray(spec.columns) && spec.columns.length > 0) {
+        lines.push(spec.columns.map(function (c) { return c.label; }).join(' | '));
+      }
+      (spec.rows || []).slice(0, 120).forEach(function (r) {
+        var cells = Array.isArray(r) ? r : (r.cells || []);
+        lines.push(cells.join(' | '));
+      });
+      if (Array.isArray(spec.totalsRow) && spec.totalsRow.length > 0) {
+        lines.push('TOTALS: ' + spec.totalsRow.join(' | '));
+      }
+      var streamParts = ['BT', '/F1 10 Tf', '36 760 Td', '13 TL'];
+      lines.forEach(function (ln, idx) {
+        streamParts.push((idx === 0 ? '' : 'T* ') + '(' + escapePdfAsciiText(ln.slice(0, 120)) + ') Tj');
+      });
+      streamParts.push('ET');
+      var streamStr = streamParts.join('\n');
+      var objs = [
+        '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+        '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+        '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+        '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+        '5 0 obj\n<< /Length ' + streamStr.length + ' >>\nstream\n' + streamStr + '\nendstream\nendobj\n'
+      ];
+      var out = '%PDF-1.4\n';
+      var offs = [0];
+      objs.forEach(function (o) { offs.push(out.length); out += o; });
+      var xrefPos = out.length;
+      out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n';
+      for (var i = 1; i < offs.length; i++) {
+        out += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+      }
+      out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefPos + '\n%%EOF';
+      return encodeAsciiBytes(out);
+    }
+
+    function buildPdfBytesFromCanvasPages(pageCanvases, ptWidth, ptHeight) {
+      var chunks = [encodeAsciiBytes('%PDF-1.4\n%\xFF\xFF\xFF\xFF\n')];
+      var offsets = [0];
+      var curOffset = chunks[0].length;
+      var pageObjNums = [];
+
+      function pushObj(objNum, bodyParts) {
+        offsets[objNum] = curOffset;
+        var hdr = encodeAsciiBytes(objNum + ' 0 obj\n');
+        var ftr = encodeAsciiBytes('\nendobj\n');
+        chunks.push(hdr);
+        curOffset += hdr.length;
+        for (var i = 0; i < bodyParts.length; i++) {
+          chunks.push(bodyParts[i]);
+          curOffset += bodyParts[i].length;
+        }
+        chunks.push(ftr);
+        curOffset += ftr.length;
+      }
+
+      // Reserve 1 = Catalog, 2 = Pages; each page uses 3 objects (Page, Image XObject, Contents)
+      var nextObj = 3;
+      for (var p = 0; p < pageCanvases.length; p++) {
+        var cv = pageCanvases[p];
+        var dataUrl = cv.toDataURL('image/jpeg', 0.90);
+        var b64 = dataUrl.split(',')[1] || '';
+        var binStr = atob(b64);
+        var jpgBytes = new Uint8Array(binStr.length);
+        for (var k = 0; k < binStr.length; k++) jpgBytes[k] = binStr.charCodeAt(k) & 0xff;
+
+        var pageObj = nextObj++;
+        var imgObj = nextObj++;
+        var contObj = nextObj++;
+        pageObjNums.push(pageObj);
+
+        var contentStream = 'q\n' + ptWidth.toFixed(2) + ' 0 0 ' + ptHeight.toFixed(2) + ' 0 0 cm\n/Im0 Do\nQ\n';
+        pushObj(imgObj, [
+          encodeAsciiBytes('<< /Type /XObject /Subtype /Image /Width ' + cv.width + ' /Height ' + cv.height + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpgBytes.length + ' >>\nstream\n'),
+          jpgBytes,
+          encodeAsciiBytes('\nendstream')
+        ]);
+        pushObj(contObj, [
+          encodeAsciiBytes('<< /Length ' + contentStream.length + ' >>\nstream\n' + contentStream + 'endstream')
+        ]);
+        pushObj(pageObj, [
+          encodeAsciiBytes('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + ptWidth.toFixed(2) + ' ' + ptHeight.toFixed(2) + '] /Resources << /XObject << /Im0 ' + imgObj + ' 0 R >> >> /Contents ' + contObj + ' 0 R >>')
+        ]);
+      }
+
+      pushObj(2, [encodeAsciiBytes('<< /Type /Pages /Kids [' + pageObjNums.map(function (n) { return n + ' 0 R'; }).join(' ') + '] /Count ' + pageObjNums.length + ' >>')]);
+      pushObj(1, [encodeAsciiBytes('<< /Type /Catalog /Pages 2 0 R >>')]);
+
+      var totalObjs = nextObj - 1;
+      var xrefOffset = curOffset;
+      var xrefStr = 'xref\n0 ' + (totalObjs + 1) + '\n0000000000 65535 f \n';
+      for (var oi = 1; oi <= totalObjs; oi++) {
+        xrefStr += String(offsets[oi] || 0).padStart(10, '0') + ' 00000 n \n';
+      }
+      xrefStr += 'trailer\n<< /Size ' + (totalObjs + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF';
+      chunks.push(encodeAsciiBytes(xrefStr));
+      return concatUint8Arrays(chunks);
+    }
+
+    function wrapPdfTextLines(ctx, text, maxWidth) {
+      var s = String(text === undefined || text === null ? '' : text).replace(/\s+/g, ' ').trim();
+      if (!s) return [''];
+      if (ctx.measureText(s).width <= maxWidth) return [s];
+      var words = s.split(' ');
+      var lines = [];
+      var cur = '';
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i];
+        var cand = cur ? (cur + ' ' + w) : w;
+        if (ctx.measureText(cand).width <= maxWidth) {
+          cur = cand;
+        } else {
+          if (cur) lines.push(cur);
+          if (ctx.measureText(w).width > maxWidth) {
+            var chBuf = '';
+            for (var ci = 0; ci < w.length; ci++) {
+              if (ctx.measureText(chBuf + w[ci]).width > maxWidth && chBuf) {
+                lines.push(chBuf);
+                chBuf = w[ci];
+              } else {
+                chBuf += w[ci];
+              }
+            }
+            cur = chBuf;
+          } else {
+            cur = w;
+          }
+        }
+      }
+      if (cur) lines.push(cur);
+      return lines.slice(0, 3);
+    }
+
+    function buildStructuredPdfBytes(spec) {
+      spec = spec || {};
+      var testCv = null;
+      var testCtx = null;
+      try {
+        testCv = document.createElement('canvas');
+        testCtx = testCv && typeof testCv.getContext === 'function' ? testCv.getContext('2d') : null;
+      } catch (eCv) { testCtx = null; }
+      if (!testCtx) return buildTextFallbackPdfBytes(spec);
+
+      var isLandscape = Boolean(spec.landscape || (spec.columns && spec.columns.length > 6));
+      var W = isLandscape ? 1754 : 1240;
+      var H = isLandscape ? 1240 : 1754;
+      var ptW = isLandscape ? 841.89 : 595.28;
+      var ptH = isLandscape ? 595.28 : 841.89;
+      var M = 44;
+      var usableW = W - M * 2;
+      var fontStack = "'Plus Jakarta Sans', 'Noto Sans Ethiopic', Arial, sans-serif";
+      var cols = Array.isArray(spec.columns) ? spec.columns : [];
+      var totalWeight = cols.reduce(function (acc, c) { return acc + (c.weight || 1); }, 0) || 1;
+      var colWidths = cols.map(function (c) { return ((c.weight || 1) / totalWeight) * usableW; });
+      var fontSizeBody = cols.length > 10 ? 12 : (cols.length > 7 ? 13.5 : 15);
+      var lineH = fontSizeBody + 5;
+
+      var pages = [];
+      var newPage = function () {
+        var cv = document.createElement('canvas');
+        cv.width = W;
+        cv.height = H;
+        var ctx = cv.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, W, H);
+        pages.push(cv);
+        return { cv: cv, ctx: ctx, y: M };
+      };
+
+      var p = newPage();
+      // Page 1 Header Banner
+      p.ctx.fillStyle = '#0F172A';
+      p.ctx.fillRect(M, p.y, usableW, 64);
+      p.ctx.fillStyle = '#FFFFFF';
+      p.ctx.font = '800 22px ' + fontStack;
+      p.ctx.textBaseline = 'middle';
+      p.ctx.fillText(String(spec.title || 'TableBot Report').slice(0, 95), M + 18, p.y + 24);
+      p.ctx.fillStyle = '#A7F3D0';
+      p.ctx.font = '600 13.5px ' + fontStack;
+      p.ctx.fillText(String(spec.subtitle || '').slice(0, 125), M + 18, p.y + 47);
+      p.y += 76;
+
+      // KPI Strip
+      var kpis = Array.isArray(spec.kpis) ? spec.kpis : [];
+      if (kpis.length > 0) {
+        var gap = 12;
+        var kW = (usableW - gap * (kpis.length - 1)) / kpis.length;
+        kpis.forEach(function (kpi, ki) {
+          var kx = M + ki * (kW + gap);
+          p.ctx.fillStyle = '#F8FAFC';
+          p.ctx.fillRect(kx, p.y, kW, 62);
+          p.ctx.strokeStyle = '#CBD5E1';
+          p.ctx.lineWidth = 1.5;
+          p.ctx.strokeRect(kx, p.y, kW, 62);
+          p.ctx.fillStyle = '#64748B';
+          p.ctx.font = '700 12px ' + fontStack;
+          p.ctx.textBaseline = 'top';
+          p.ctx.fillText(String(kpi.label || '').toUpperCase(), kx + 12, p.y + 10);
+          p.ctx.fillStyle = kpi.color || '#0F172A';
+          p.ctx.font = '800 20px ' + fontStack;
+          p.ctx.fillText(String(kpi.value || ''), kx + 12, p.y + 30);
+        });
+        p.y += 76;
+      }
+
+      var drawTableHeader = function (pageObj) {
+        if (cols.length === 0) return;
+        var hdrH = 38;
+        pageObj.ctx.fillStyle = '#EFF6FF';
+        pageObj.ctx.fillRect(M, pageObj.y, usableW, hdrH);
+        pageObj.ctx.strokeStyle = '#94A3B8';
+        pageObj.ctx.lineWidth = 1.2;
+        pageObj.ctx.strokeRect(M, pageObj.y, usableW, hdrH);
+        var cx = M;
+        pageObj.ctx.font = '800 ' + fontSizeBody + 'px ' + fontStack;
+        pageObj.ctx.textBaseline = 'middle';
+        cols.forEach(function (col, ci) {
+          var w = colWidths[ci];
+          pageObj.ctx.fillStyle = '#0F172A';
+          pageObj.ctx.textAlign = col.align === 'right' ? 'right' : (col.align === 'center' ? 'center' : 'left');
+          var tx = col.align === 'right' ? (cx + w - 8) : (col.align === 'center' ? (cx + w / 2) : (cx + 8));
+          var lbl = String(col.label || '');
+          while (lbl.length > 2 && pageObj.ctx.measureText(lbl).width > w - 14) lbl = lbl.slice(0, -1);
+          pageObj.ctx.fillText(lbl, tx, pageObj.y + hdrH / 2);
+          if (ci > 0) {
+            pageObj.ctx.beginPath();
+            pageObj.ctx.moveTo(cx, pageObj.y);
+            pageObj.ctx.lineTo(cx, pageObj.y + hdrH);
+            pageObj.ctx.stroke();
+          }
+          cx += w;
+        });
+        pageObj.ctx.textAlign = 'left';
+        pageObj.y += hdrH;
+      };
+
+      drawTableHeader(p);
+
+      var rows = Array.isArray(spec.rows) ? spec.rows : [];
+      var maxY = H - M - 40;
+      rows.forEach(function (rawRow, rIdx) {
+        var cells = Array.isArray(rawRow) ? rawRow : (rawRow.cells || []);
+        var rowKind = !Array.isArray(rawRow) ? rawRow.kind : '';
+        p.ctx.font = '500 ' + fontSizeBody + 'px ' + fontStack;
+        var wrappedPerCol = cols.map(function (col, ci) {
+          return wrapPdfTextLines(p.ctx, cells[ci] !== undefined ? cells[ci] : '', Math.max(24, colWidths[ci] - 14));
+        });
+        var maxLines = wrappedPerCol.reduce(function (mx, arr) { return Math.max(mx, arr.length); }, 1);
+        var rowH = Math.max(30, maxLines * lineH + 12);
+
+        if (p.y + rowH > maxY) {
+          p = newPage();
+          p.ctx.fillStyle = '#475569';
+          p.ctx.font = '700 13px ' + fontStack;
+          p.ctx.textBaseline = 'top';
+          p.ctx.fillText(String(spec.title || 'TableBot Report') + ' (cont.)', M, p.y);
+          p.y += 26;
+          drawTableHeader(p);
+        }
+
+        p.ctx.fillStyle = rowKind === 'payment' ? '#ECFDF5' : (rIdx % 2 === 1 ? '#F8FAFC' : '#FFFFFF');
+        p.ctx.fillRect(M, p.y, usableW, rowH);
+        p.ctx.strokeStyle = '#CBD5E1';
+        p.ctx.lineWidth = 1;
+        p.ctx.strokeRect(M, p.y, usableW, rowH);
+
+        var cx = M;
+        p.ctx.textBaseline = 'top';
+        cols.forEach(function (col, ci) {
+          var w = colWidths[ci];
+          p.ctx.fillStyle = (rowKind === 'payment' && col.isPayColor) ? '#047857' : (col.isCreditColor ? '#1E40AF' : '#0F172A');
+          p.ctx.font = (col.bold || rowKind === 'payment' && col.isPayColor) ? ('700 ' + fontSizeBody + 'px ' + fontStack) : ('500 ' + fontSizeBody + 'px ' + fontStack);
+          p.ctx.textAlign = col.align === 'right' ? 'right' : (col.align === 'center' ? 'center' : 'left');
+          var tx = col.align === 'right' ? (cx + w - 8) : (col.align === 'center' ? (cx + w / 2) : (cx + 8));
+          wrappedPerCol[ci].forEach(function (lineStr, li) {
+            p.ctx.fillText(lineStr, tx, p.y + 7 + li * lineH);
+          });
+          if (ci > 0) {
+            p.ctx.beginPath();
+            p.ctx.moveTo(cx, p.y);
+            p.ctx.lineTo(cx, p.y + rowH);
+            p.ctx.stroke();
+          }
+          cx += w;
+        });
+        p.ctx.textAlign = 'left';
+        p.y += rowH;
+      });
+
+      if (Array.isArray(spec.totalsRow) && spec.totalsRow.length > 0) {
+        var totH = 38;
+        if (p.y + totH > maxY) {
+          p = newPage();
+          drawTableHeader(p);
+        }
+        p.ctx.fillStyle = '#DBEAFE';
+        p.ctx.fillRect(M, p.y, usableW, totH);
+        p.ctx.strokeStyle = '#64748B';
+        p.ctx.lineWidth = 1.2;
+        p.ctx.strokeRect(M, p.y, usableW, totH);
+        var cxT = M;
+        p.ctx.font = '800 ' + fontSizeBody + 'px ' + fontStack;
+        p.ctx.textBaseline = 'middle';
+        cols.forEach(function (col, ci) {
+          var w = colWidths[ci];
+          p.ctx.fillStyle = '#0F172A';
+          p.ctx.textAlign = col.align === 'right' ? 'right' : (col.align === 'center' ? 'center' : 'left');
+          var tx = col.align === 'right' ? (cxT + w - 8) : (col.align === 'center' ? (cxT + w / 2) : (cxT + 8));
+          var valTxt = String(spec.totalsRow[ci] !== undefined ? spec.totalsRow[ci] : '');
+          while (valTxt.length > 2 && p.ctx.measureText(valTxt).width > w - 12) valTxt = valTxt.slice(0, -1);
+          p.ctx.fillText(valTxt, tx, p.y + totH / 2);
+          cxT += w;
+        });
+        p.ctx.textAlign = 'left';
+      }
+
+      // Page footers
+      pages.forEach(function (pgCv, pIdx) {
+        var fCtx = pgCv.getContext('2d');
+        fCtx.fillStyle = '#64748B';
+        fCtx.font = '600 12px ' + fontStack;
+        fCtx.textBaseline = 'bottom';
+        fCtx.textAlign = 'left';
+        fCtx.fillText(String(spec.footerText || 'Hiriya Salt Production PLC · TableBot'), M, H - 18);
+        fCtx.textAlign = 'right';
+        fCtx.fillText('Page ' + (pIdx + 1) + ' of ' + pages.length, W - M, H - 18);
+      });
+
+      return buildPdfBytesFromCanvasPages(pages, ptW, ptH);
+    }
+
+    function downloadStructuredPdfDocument(spec) {
+      var fname = String((spec && spec.filename) || 'TableBot_Export.pdf');
+      if (!/\.pdf$/i.test(fname)) fname += '.pdf';
+      var pdfBytes = buildStructuredPdfBytes(spec);
+      downloadBlob(pdfBytes, fname, 'application/pdf');
+      showToast('Downloaded PDF: ' + fname);
+      return pdfBytes;
     }
 
     // Dashboard View
@@ -8117,6 +8674,7 @@
           '<div class="dash-subbar-group">' +
             '<button class="header-action-btn" id="btn-dash-reports" title="Daily, Weekly &amp; Monthly Reports"><span style="color:#FDE68A">' + icon('chart', 14) + '</span><span>' + esc(t('reports')) + '</span></button>' +
             '<button class="header-action-btn" id="btn-dash-ledger" title="Customer Account Ledger &amp; Running Balance"><span style="color:#6EE7B7">' + icon('ledger', 14) + '</span><span>Ledger</span></button>' +
+            '<button class="header-action-btn" id="btn-dash-summary-bar" title="Show or hide All-Folder Summary Card" style="' + (!state.dashSummaryCollapsed ? 'background:rgba(16,185,129,0.28);border-color:#6EE7B7;' : '') + '"><span style="color:#FDE68A">' + icon('chart', 14) + '</span><span>' + (state.dashSummaryCollapsed ? 'Show Summary' : 'Hide Summary') + '</span></button>' +
           '</div>' +
           '<div class="dash-subbar-group">' +
             '<button class="icon-btn" id="btn-dash-search" title="Search tables" style="width:32px;height:32px;">' + icon('search', 18) + '</button>' +
@@ -8211,6 +8769,7 @@
             '<button type="button" class="dropdown-item" data-folder-menu-act="add_table" data-folder-name="' + esc(f) + '">' + icon('plus', 14) + '<span>New Table Here</span></button>' +
             (fUndoTarget ? '<button type="button" class="dropdown-item" data-folder-menu-act="undo" data-folder-name="' + esc(f) + '">' + icon('undo', 14) + '<span>Undo Last Change</span></button>' : '') +
             (fRedoTarget ? '<button type="button" class="dropdown-item" data-folder-menu-act="redo" data-folder-name="' + esc(f) + '">' + icon('redo', 14) + '<span>Redo Change</span></button>' : '') +
+            '<button type="button" class="dropdown-item" data-folder-menu-act="create_code" data-folder-name="' + esc(f) + '">' + icon('key', 14) + '<span>' + (fLocked ? 'Set / Change Folder Code' : 'Create Folder Code') + '</span></button>' +
             '<button type="button" class="dropdown-item" data-folder-menu-act="lock" data-folder-name="' + esc(f) + '">' + icon('lock', 14) + '<span>Folder Lock</span></button>' +
             '<button type="button" class="dropdown-item" data-folder-menu-act="ledger" data-folder-name="' + esc(f) + '">' + icon('ledger', 14) + '<span>Customer Ledger</span></button>' +
             '<button type="button" class="dropdown-item" data-folder-menu-act="reports" data-folder-name="' + esc(f) + '">' + icon('chart', 14) + '<span>Folder Reports</span></button>' +
@@ -8555,53 +9114,61 @@
         : ((state.dashReportFolder && (state.dashReportFolder === 'all' || dashFoldersList.indexOf(state.dashReportFolder) !== -1))
             ? state.dashReportFolder
             : 'all');
-      var dashDaily = calculateLiveReportSummary('daily', dashFolderScope, 'all', '');
-      var dashWeekly = calculateLiveReportSummary('weekly', dashFolderScope, 'all', '');
-      var dashMonthly = calculateLiveReportSummary('monthly', dashFolderScope, 'all', '');
-      var dashAllCols = calculateLiveReportSummary('all', dashFolderScope, 'all', '');
-      var dashIsEth = Boolean(dashWeekly.isEthiopianCal || dashDaily.isEthiopianCal || dashMonthly.isEthiopianCal);
-      var dashDays = groupReportItemsByDay(dashWeekly.filtered, dashIsEth);
-      var todayDisplayStr = dashDaily.todayDisplayLabel || formatDmyDate(new Date());
-      var weekDisplayStr = dashWeekly.weekDisplayLabel || 'Last 7 Days';
-      var monthDisplayStr = dashMonthly.monthDisplayLabel || 'This Month';
       var dashScopeLabel = dashFolderScope === 'all' ? 'All Folders' : dashFolderScope;
-      var dashClockStr = dashDaily.liveClockLabel || '';
 
-      html += '<section class="dash-summary-wrap" style="margin-top:22px;">' +
-        '<div class="dash-summary-head">' +
-          '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
-            '<span class="sum-card-icon-badge" style="color:#FDE68A;">' + icon('chart', 18) + '</span>' +
-            '<div>' +
-              '<div style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-                '<span>Summary Cards &mdash; Daily, Weekly &amp; Monthly</span>' +
-                '<span class="pill-badge" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.28);font-size:10.5px;">' + (dashFolderScope === 'all' ? 'All Folders' : ('Folder: ' + esc(dashScopeLabel))) + '</span>' +
-                '<span class="pill-badge" style="background:' + (dashIsEth ? '#10B981' : '#334155') + ';color:#fff;font-size:10px;">' + (dashIsEth ? 'Ethiopian Calendar' : 'Gregorian Calendar') + '</span>' +
-                (dashClockStr ? '<span id="dash-rep-live-clock" class="pill-badge mono" style="background:rgba(15,23,42,0.35);color:#FDE68A;border:1px solid rgba(253,230,138,0.35);font-size:10.5px;">' + esc(dashClockStr) + '</span>' : '') +
+      if (state.dashSummaryCollapsed) {
+        html += '<section style="margin-top:18px;background:#fff;border:1px dashed #CBD5E1;border-radius:12px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">' +
+          '<div style="display:flex;align-items:center;gap:8px;color:#475569;font-size:12.5px;font-weight:700;">' +
+            '<span style="color:#0D47A1;display:inline-flex;">' + icon('chart', 16) + '</span>' +
+            '<span>Summary Cards (' + esc(dashScopeLabel) + ') &mdash; Hidden on startup</span>' +
+          '</div>' +
+          '<button type="button" id="dash-sum-toggle" class="btn btn-primary" style="padding:6px 13px;font-size:12px;">' + icon('chart', 13) + '<span>Show Summary Cards</span></button>' +
+        '</section>';
+      } else {
+        var dashDaily = calculateLiveReportSummary('daily', dashFolderScope, 'all', '');
+        var dashWeekly = calculateLiveReportSummary('weekly', dashFolderScope, 'all', '');
+        var dashMonthly = calculateLiveReportSummary('monthly', dashFolderScope, 'all', '');
+        var dashAllCols = calculateLiveReportSummary('all', dashFolderScope, 'all', '');
+        var dashIsEth = Boolean(dashWeekly.isEthiopianCal || dashDaily.isEthiopianCal || dashMonthly.isEthiopianCal);
+        var dashDays = groupReportItemsByDay(dashWeekly.filtered, dashIsEth);
+        var todayDisplayStr = dashDaily.todayDisplayLabel || formatDmyDate(new Date());
+        var weekDisplayStr = dashWeekly.weekDisplayLabel || 'Last 7 Days';
+        var monthDisplayStr = dashMonthly.monthDisplayLabel || 'This Month';
+        var dashClockStr = dashDaily.liveClockLabel || '';
+
+        html += '<section class="dash-summary-wrap" style="margin-top:22px;">' +
+          '<div class="dash-summary-head">' +
+            '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+              '<span class="sum-card-icon-badge" style="color:#FDE68A;">' + icon('chart', 18) + '</span>' +
+              '<div>' +
+                '<div style="font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                  '<span>Summary Cards &mdash; Daily, Weekly &amp; Monthly</span>' +
+                  '<span class="pill-badge" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.28);font-size:10.5px;">' + (dashFolderScope === 'all' ? 'All Folders' : ('Folder: ' + esc(dashScopeLabel))) + '</span>' +
+                  '<span class="pill-badge" style="background:' + (dashIsEth ? '#10B981' : '#334155') + ';color:#fff;font-size:10px;">' + (dashIsEth ? 'Ethiopian Calendar' : 'Gregorian Calendar') + '</span>' +
+                  (dashClockStr ? '<span id="dash-rep-live-clock" class="pill-badge mono" style="background:rgba(15,23,42,0.35);color:#FDE68A;border:1px solid rgba(253,230,138,0.35);font-size:10.5px;">' + esc(dashClockStr) + '</span>' : '') +
+                '</div>' +
+                '<div style="font-size:11px;color:#BAE6FD;">Day: ' + esc(todayDisplayStr) + ' &middot; Week: ' + esc(weekDisplayStr) + ' &middot; Month: ' + esc(monthDisplayStr) + '</div>' +
               '</div>' +
-              '<div style="font-size:11px;color:#BAE6FD;">Day: ' + esc(todayDisplayStr) + ' &middot; Week: ' + esc(weekDisplayStr) + ' &middot; Month: ' + esc(monthDisplayStr) + '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+              '<button type="button" id="dash-rep-cal-toggle" class="btn" style="background:' + (dashIsEth ? '#10B981' : 'rgba(255,255,255,0.2)') + ';color:#fff;border:1px solid rgba(255,255,255,0.38);padding:5px 10px;font-size:11px;" title="Switch Report Calendar (Ethiopian / Gregorian)">' + (dashIsEth ? 'EC (Ethiopia)' : 'GC (Gregorian)') + '</button>' +
+              '<select id="dash-rep-folder" class="header-select" title="Select folder for Report Summary Cards">' +
+                '<option value="all"' + (dashFolderScope === 'all' ? ' selected' : '') + '>All Folders</option>' +
+                dashFoldersList.map(function (fn) {
+                  return '<option value="' + esc(fn) + '"' + (dashFolderScope === fn ? ' selected' : '') + '>' + esc(fn) + '</option>';
+                }).join('') +
+              '</select>' +
+              '<button type="button" id="dash-sum-days-btn" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:5px 11px;font-size:11px;">' + (state.dashDayBreakdownOpen ? 'Hide Days' : 'Daily/Weekly Rows') + '</button>' +
+              '<button type="button" id="dash-sum-open-rep" class="btn" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff;padding:5px 11px;font-size:11px;box-shadow:0 2px 8px rgba(245,158,11,0.35);">' + icon('chart', 12) + '<span>Open Reports</span></button>' +
+              '<button type="button" id="dash-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:5px 10px;font-size:11px;">Hide</button>' +
             '</div>' +
           '</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-            '<button type="button" id="dash-rep-cal-toggle" class="btn" style="background:' + (dashIsEth ? '#10B981' : 'rgba(255,255,255,0.2)') + ';color:#fff;border:1px solid rgba(255,255,255,0.38);padding:5px 10px;font-size:11px;" title="Switch Report Calendar (Ethiopian / Gregorian)">' + (dashIsEth ? 'EC (Ethiopia)' : 'GC (Gregorian)') + '</button>' +
-            '<select id="dash-rep-folder" class="header-select" title="Select folder for Report Summary Cards">' +
-              '<option value="all"' + (dashFolderScope === 'all' ? ' selected' : '') + '>All Folders</option>' +
-              dashFoldersList.map(function (fn) {
-                return '<option value="' + esc(fn) + '"' + (dashFolderScope === fn ? ' selected' : '') + '>' + esc(fn) + '</option>';
-              }).join('') +
-            '</select>' +
-            '<button type="button" id="dash-sum-days-btn" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:5px 11px;font-size:11px;">' + (state.dashDayBreakdownOpen ? 'Hide Days' : 'Daily/Weekly Rows') + '</button>' +
-            '<button type="button" id="dash-sum-open-rep" class="btn" style="background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff;padding:5px 11px;font-size:11px;box-shadow:0 2px 8px rgba(245,158,11,0.35);">' + icon('chart', 12) + '<span>Open Reports</span></button>' +
-            '<button type="button" id="dash-sum-toggle" class="btn" style="background:#fff;color:#0D47A1;padding:5px 10px;font-size:11px;">' + (state.dashSummaryCollapsed ? 'Show' : 'Hide') + '</button>' +
+          '<div class="dash-sum-cards">' +
+            renderColorfulSummaryCard('Daily Report', todayDisplayStr, dashDaily, 'daily', 'sum-card-daily', 'data-open-rper="daily"') +
+            renderColorfulSummaryCard('Weekly Sum', weekDisplayStr, dashWeekly, 'weekly', 'sum-card-weekly', 'data-open-rper="weekly"') +
+            renderColorfulSummaryCard('Monthly Sum', monthDisplayStr, dashMonthly, 'monthly', 'sum-card-monthly', 'data-open-rper="monthly"') +
           '</div>' +
-        '</div>';
-
-      if (!state.dashSummaryCollapsed) {
-        html += '<div class="dash-sum-cards">' +
-          renderColorfulSummaryCard('Daily Report', todayDisplayStr, dashDaily, 'daily', 'sum-card-daily', 'data-open-rper="daily"') +
-          renderColorfulSummaryCard('Weekly Sum', weekDisplayStr, dashWeekly, 'weekly', 'sum-card-weekly', 'data-open-rper="weekly"') +
-          renderColorfulSummaryCard('Monthly Sum', monthDisplayStr, dashMonthly, 'monthly', 'sum-card-monthly', 'data-open-rper="monthly"') +
-        '</div>' +
-        renderAllColumnsBar(dashAllCols, dashScopeLabel + ' — Column Header Data Summary (' + (dashIsEth ? 'Ethiopian Calendar' : 'All Dates') + ')');
+          renderAllColumnsBar(dashAllCols, dashScopeLabel + ' — Column Header Data Summary (' + (dashIsEth ? 'Ethiopian Calendar' : 'All Dates') + ')');
 
         if (state.dashDayBreakdownOpen) {
           var dashMatchRows = (dashDaily.filtered && dashDaily.filtered.length > 0) ? dashDaily.filtered : (dashWeekly.filtered || []);
@@ -8619,8 +9186,8 @@
             renderMatchingRowsBreakdownTable(dashMatchRows, dashWeekly, dashMatchTitle) +
           '</div>';
         }
+        html += '</section>';
       }
-      html += '</section>';
 
       html += '</main>';
 
@@ -8686,6 +9253,8 @@
       if (dSumOpenRep) dSumOpenRep.onclick = function () { openModal('reports', { folder: curDashRepFolder }); };
       var dSumDaysBtn = document.getElementById('dash-sum-days-btn');
       if (dSumDaysBtn) dSumDaysBtn.onclick = function () { state.dashDayBreakdownOpen = !state.dashDayBreakdownOpen; renderDashboard(); };
+      var dSumBarBtn = document.getElementById('btn-dash-summary-bar');
+      if (dSumBarBtn) dSumBarBtn.onclick = function () { state.dashSummaryCollapsed = !state.dashSummaryCollapsed; renderDashboard(); };
       var dSumToggle = document.getElementById('dash-sum-toggle');
       if (dSumToggle) dSumToggle.onclick = function () { state.dashSummaryCollapsed = !state.dashSummaryCollapsed; renderDashboard(); };
       document.querySelectorAll('.dash-sum-card[data-open-rper]').forEach(function (card) {
@@ -8886,6 +9455,14 @@
         var fArg = fldOpenLedgerBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
         openModal('customer_ledger', { folder: fArg, botId: fldOpenLedgerBtn.getAttribute('data-bot-id') || '' });
       };
+      document.querySelectorAll('[data-fld-ledger-vf]').forEach(function (vfBtn) {
+        vfBtn.onclick = function () {
+          var fArg = vfBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
+          var bArg = vfBtn.getAttribute('data-bot-id') || '';
+          var vfArg = vfBtn.getAttribute('data-fld-ledger-vf') || 'all';
+          openModal('customer_ledger', { folder: fArg, botId: bArg, viewFilter: vfArg });
+        };
+      });
       var fldAddSaleBtn = document.getElementById('btn-fld-add-sale');
       if (fldAddSaleBtn) fldAddSaleBtn.onclick = function () {
         var fArg = fldAddSaleBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
@@ -9017,6 +9594,8 @@
           } else if (act === 'redo') {
             var rTarget = getFolderRedoTarget(fn);
             if (rTarget) redoTableAction(rTarget);
+          } else if (act === 'create_code') {
+            openModal('folder_lock', { focusFolder: fn, createCodeMode: true });
           } else if (act === 'lock') {
             openModal('folder_lock', { focusFolder: fn });
           } else if (act === 'ledger') {
@@ -10108,7 +10687,13 @@
           '<button class="toolbar-btn" id="tb-cols">' + icon('sliders', 19) + '<span>Columns</span></button>' +
           '<button class="toolbar-btn" id="tb-filter">' + icon('filter', 19) + '<span>Filter</span></button>' +
           '<button class="toolbar-btn" id="tb-tester" style="color:#1976D2;font-weight:700;"><div class="toolbar-tester-circle">' + icon('send', 15) + '</div><span>Tester</span></button>' +
-          '<button class="toolbar-btn" id="tb-export">' + icon('share', 19) + '<span>Export</span></button>' +
+          '<div style="position:relative;"><button class="toolbar-btn" id="tb-export">' + icon('share', 19) + '<span>Export</span></button>' +
+          (state.showExportMenu ? '<div class="dropdown-menu" style="bottom:56px;top:auto;right:0;width:215px;">' +
+            '<button class="dropdown-item" id="tb-exp-xlsx">' + icon('excel', 15) + '<span>Export Excel (.xlsx)</span></button>' +
+            '<button class="dropdown-item" id="tb-exp-pdf">' + icon('pdf', 15) + '<span>Export PDF (.pdf)</span></button>' +
+            '<button class="dropdown-item" id="tb-exp-csv">' + icon('csv', 15) + '<span>Export CSV (.csv)</span></button>' +
+          '</div>' : '') +
+          '</div>' +
           '<div style="position:relative;"><button class="toolbar-btn" id="tb-more">' + icon('dotsH', 19) + '<span>More</span></button>';
 
         if (state.showMoreMenu) {
@@ -12979,13 +13564,21 @@
       var tbTesterBtn = document.getElementById('tb-tester');
       if (tbTesterBtn) tbTesterBtn.onclick = function () { openModal('telegram', { bot: bot, tab: 'simulator' }); };
       var tbExportBtn = document.getElementById('tb-export');
-      if (tbExportBtn) tbExportBtn.onclick = function () { exportBotCsv(bot); };
+      if (tbExportBtn) tbExportBtn.onclick = function (e) { e.stopPropagation(); state.showMoreMenu = false; state.showExportMenu = !state.showExportMenu; renderTableView(bot); };
+      if (state.showExportMenu) {
+        var tbExpXlsx = document.getElementById('tb-exp-xlsx');
+        if (tbExpXlsx) tbExpXlsx.onclick = function (e) { e.stopPropagation(); state.showExportMenu = false; renderTableView(bot); exportBotExcel(bot); };
+        var tbExpPdf = document.getElementById('tb-exp-pdf');
+        if (tbExpPdf) tbExpPdf.onclick = function (e) { e.stopPropagation(); state.showExportMenu = false; renderTableView(bot); exportBotPdf(bot); };
+        var tbExpCsv = document.getElementById('tb-exp-csv');
+        if (tbExpCsv) tbExpCsv.onclick = function (e) { e.stopPropagation(); state.showExportMenu = false; renderTableView(bot); exportBotCsv(bot); };
+      }
       var barSmartPasteBtn = document.getElementById('btn-bar-smart-paste');
       if (barSmartPasteBtn) barSmartPasteBtn.onclick = function () {
         openSmartPasteDialogForTargets(selectedCellsMeta, '', selectedCellsMeta && selectedCellsMeta.length ? 'cell' : 'column');
       };
       var tbMoreBtn = document.getElementById('tb-more');
-      if (tbMoreBtn) tbMoreBtn.onclick = function (e) { e.stopPropagation(); state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
+      if (tbMoreBtn) tbMoreBtn.onclick = function (e) { e.stopPropagation(); state.showExportMenu = false; state.showMoreMenu = !state.showMoreMenu; renderTableView(bot); };
       if (state.showMoreMenu) {
         var moreToggleSigma = document.getElementById('more-toggle-sigma');
         if (moreToggleSigma) moreToggleSigma.onclick = function () {
@@ -13251,7 +13844,10 @@
         '</div>' +
         '<form id="lock-form" class="lock-card' + (state.lockShake ? ' shake' : '') + '" autocomplete="off">' +
           '<div class="lock-brand-showcase">' +
-            assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'lock-hero-img', "Hiriya Salt Production PLC — MA'ED Salt", "MA'ED Salt — MIYAW 3A") +
+            '<div class="lock-brand-logos">' +
+              assetImgHtml(BRAND_ASSETS.maedSaltMiyaw, 'lock-hero-img', "Hiriya Salt Production PLC — MA'ED Salt Emblem", "MA'ED Salt — MIYAW 3A") +
+              assetImgHtml(BRAND_ASSETS.logoWhiteStars, 'lock-hero-img', "MA'ED Salt — MIYAW 3A Crest", "MA'ED Salt — MIYAW 3A Crest") +
+            '</div>' +
             '<div class="lock-company-banner">' +
               '<div class="lock-company-en">Hiriya Salt Production PLC · MA’ED Table Salt</div>' +
               '<div class="lock-company-am">እንኳን ደህና መጡ</div>' +
@@ -13437,7 +14033,12 @@
         var submitBtn = document.getElementById('lock-submit-btn');
         if (submitBtn) submitBtn.disabled = true;
         await pullSharedSecurityState('lock_submit', 1500);
-        if (state.supabaseConfig.isConnected) await pullSecurityConfigFromSupabase();
+        if (state.supabaseConfig.isConnected) {
+          await Promise.race([
+            pullSecurityConfigFromSupabase().catch(function () {}),
+            new Promise(function (resolve) { setTimeout(resolve, 1500); })
+          ]);
+        }
         if (!isAccessLockEnabled()) {
           clearLockoutCountdownTimer();
           state.lockError = '';
@@ -13896,8 +14497,13 @@
       if (folders.indexOf(focusF) === -1 && focusF) folders.unshift(focusF);
       var curLock = getFolderLock(focusF) || { enabled: false, code: '1234' };
       if (m.draftCode === undefined || m.lastFocusFolder !== focusF) {
-        m.draftCode = curLock.code || '1234';
-        m.draftEnabled = !!curLock.enabled;
+        if (m.createCodeMode && !curLock.enabled) {
+          m.draftCode = '';
+          m.draftEnabled = true;
+        } else {
+          m.draftCode = curLock.code || '1234';
+          m.draftEnabled = m.createCodeMode ? true : !!curLock.enabled;
+        }
         m.lastFocusFolder = focusF;
       }
       if (m.showCodes === undefined) m.showCodes = false;
@@ -13906,15 +14512,15 @@
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:600px;" id="m-card">' +
         '<header class="modal-header" style="background:linear-gradient(135deg,#92400E,#D97706);">' +
           '<div style="display:flex;align-items:center;gap:9px;">' + icon('lock', 20) +
-            '<div><h2 style="font-size:15.5px;font-weight:700;">Folder Lock &amp; Change Code</h2>' +
-            '<div style="font-size:11px;color:#FEF3C7;">Lock individual folders &amp; change folder codes (Protected by ' + esc(mgr) + ' Cyber Code)</div></div>' +
+            '<div><h2 style="font-size:15.5px;font-weight:700;">' + (m.createCodeMode ? 'Create / Set Folder Code' : 'Folder Lock &amp; Change Code') + '</h2>' +
+            '<div style="font-size:11px;color:#FEF3C7;">Lock individual folders &amp; create/change folder codes (Protected by ' + esc(mgr) + ' Cyber Code)</div></div>' +
           '</div>' +
           '<button class="icon-btn" id="flm-close">' + icon('close', 18) + '</button>' +
         '</header>' +
         '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">' +
           (m.statusMsg ? '<div style="padding:9px 12px;border-radius:10px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>' : '') +
           '<form id="flm-form" style="padding:14px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:12px;display:flex;flex-direction:column;gap:11px;" autocomplete="off">' +
-            '<div style="font-size:13px;font-weight:800;color:#92400E;">Set or Change Folder Lock Code</div>' +
+            '<div style="font-size:13px;font-weight:800;color:#92400E;">' + (curLock.enabled ? 'Change Folder Lock Code' : 'Create Folder Lock Code') + ' for "' + esc(focusF) + '"</div>' +
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
               '<div><label class="field-label" for="flm-folder-sel">Select Folder</label>' +
                 '<select id="flm-folder-sel" class="form-select">' +
@@ -14055,6 +14661,10 @@
           });
         };
       });
+      if (m.createCodeMode) {
+        var codeFocusEl = document.getElementById('flm-code');
+        if (codeFocusEl) { try { codeFocusEl.focus(); } catch (eFlm) {} }
+      }
     }
 
     function renderCyberControlModal(m) {
@@ -16694,11 +17304,12 @@
         var folderName = bot.folder || 'General';
         if (isFolderLocked(folderName) && !isFolderUnlocked(folderName)) return;
 
-        var findCol = function (preds, excludeMap) {
+        var findCol = function (preds, excludeMap, numericPreferred) {
           for (var pi = 0; pi < preds.length; pi++) {
             var p = preds[pi];
             var found = bot.columns.find(function (c) {
               if (excludeMap && excludeMap[c.id]) return false;
+              if (numericPreferred && c.type === 'date') return false;
               var n = (c.name || '').toLowerCase();
               return n.indexOf(p) !== -1 || c.id === p || c.type === p;
             });
@@ -16708,17 +17319,20 @@
         };
         var textCols = bot.columns.filter(function (c) { return c.type === 'text' || !c.type; });
         var cnameCol = findCol(['customer', 'user', 'name', 'client', 'buyer', 'col_cname', 'col_user', 'col_buyer']) || textCols[0];
-        var qtyCol = findCol(['quantity', 'qty', 'count', 'pcs', 'kg', 'bag', 'bags', 'unit', 'units', 'col_qty', 'col_quantity']);
+        var qtyCol = findCol(['quantity', 'qty', 'count', 'pcs', 'kg', 'bag', 'bags', 'unit', 'units', 'col_qty', 'col_quantity'], null, true);
         var qualCol = findCol(['quality', 'item', 'message', 'pair', 'inquiry', 'product', 'col_quality', 'col_item', 'quantity']) || (textCols[1] && textCols[1].id !== (cnameCol && cnameCol.id) ? textCols[1] : null);
-        var balCol = findCol(['remaining', 'remain', 'balance', 'rominbalce', 'reminbalce', 'romin', 'remin', 'balce', 'balnce', 'due', 'unpaid', 'owed', 'debt', 'ቀሪ', 'col_balance']);
+        var balCol = findCol(['remaining', 'remain', 'balance', 'rominbalce', 'reminbalce', 'romin', 'remin', 'balce', 'balnce', 'due', 'unpaid', 'owed', 'debt', 'ቀሪ', 'col_balance'], null, true);
         var exclPaidTot = {};
         if (balCol) exclPaidTot[balCol.id] = true;
-        var totCol = findCol(['total', 'grand', 'invoice', 'ጠቅላላ', 'col_total', 'formula'], exclPaidTot);
+        bot.columns.forEach(function (c) {
+          if (c.type === 'date' || isPaidColName(c.name)) exclPaidTot[c.id] = true;
+        });
+        var totCol = findCol(['total', 'grand', 'invoice', 'sale', 'credit', 'debit', 'gross', 'subtotal', 'ጠቅላላ', 'col_total', 'formula'], exclPaidTot, true);
         var exclPaid = {};
         if (balCol) exclPaid[balCol.id] = true;
         if (totCol) exclPaid[totCol.id] = true;
-        var paidCol = findCol(['paid', 'payment', 'received', 'deposit', 'pay', 'የተከፈለ', 'col_paid', 'price', 'target', 'amount', 'col_amount'], exclPaid) ||
-          findCol(['paid', 'col_paid', 'amount', 'price', 'target', 'col_amount'], balCol ? (function () { var m = {}; m[balCol.id] = true; return m; }()) : null);
+        var paidCol = findCol(['paid', 'payment', 'received', 'deposit', 'pay', 'የተከፈለ', 'col_paid', 'price', 'target', 'amount', 'col_amount'], exclPaid, true) ||
+          findCol(['paid', 'col_paid', 'amount', 'price', 'target', 'col_amount'], balCol ? (function () { var m = {}; m[balCol.id] = true; return m; }()) : null, true);
         var allDateCols = bot.columns.filter(function (c) { return c.type === 'date'; });
         var textDateCols = bot.columns.filter(function (c) { return c.type !== 'date' && /date|time|ቀን|eth|day/i.test(String(c.name || '')); });
         var otherTextCols = bot.columns.filter(function (c) {
@@ -17032,6 +17646,56 @@
       showToast('Downloaded CSV Report for "' + targetFolder + '"');
     }
 
+    function exportReportExcel(period, folder, items, met, repData) {
+      var isEth = Boolean(repData && repData.isEthiopianCal);
+      var ctx = (repData && repData.nowCtx) ? repData.nowCtx : getReportNowContext(isEth);
+      var dStr = ctx.ymd;
+      var targetFolder = (!folder || folder === 'all') ? 'All Folders' : folder;
+      var todayDisplay = formatReportDateChip(ctx, isEth, state && state.lang);
+      var cols = (repData && repData.columnSummaries) ? repData.columnSummaries : [];
+
+      var aoa = [
+        ['Hiriya Salt Production PLC · TableBot — Column Header Report'],
+        ['Period:', period.toUpperCase() + ' REPORT', 'Calendar:', isEth ? 'Ethiopian Calendar (EC · EAT UTC+3)' : 'Gregorian Calendar'],
+        ['Folder:', targetFolder, 'Date:', todayDisplay, 'Generated:', ctx.liveClockLabel],
+        ['Total Rows:', items.length],
+        [],
+        ['#', 'Row #', 'Table / Bot'].concat(cols.map(function (c) { return c.name || 'Column'; })).concat(['Date'])
+      ];
+      if (items.length === 0) {
+        aoa.push(['—', '—', 'No rows in this folder for selected period']);
+      } else {
+        items.forEach(function (it, i) {
+          var colByKey = {};
+          (it.allCols || []).forEach(function (ac) { colByKey[ac.colKey || String(ac.name || '').trim().toLowerCase()] = ac; });
+          var vals = cols.map(function (c) {
+            var ac = colByKey[c.key];
+            if (!ac || !ac.hasValue) return '';
+            if (c.isNumeric && ac.isNumeric && typeof ac.numeric === 'number' && isFinite(ac.numeric)) return ac.numeric;
+            return (ac.display !== undefined && ac.display !== '—') ? String(ac.display) : '';
+          });
+          aoa.push([i + 1, 'Row ' + (it.rowNumber || (i + 1)), it.botName].concat(vals).concat([it.date || '']));
+        });
+      }
+      aoa.push(['Σ TOTALS', '', items.length + ' rows'].concat(cols.map(function (c) {
+        return c.isNumeric ? Number(c.total || 0) : String(c.summaryValue || '');
+      })).concat(['']));
+
+      var sumAoa = [
+        ['Column Header Summaries — ' + targetFolder],
+        ['Column Header', 'Type', 'Filled Rows', 'Summary Value']
+      ];
+      cols.forEach(function (c) {
+        sumAoa.push([c.name || 'Column', c.type || 'text', c.count || 0, c.isNumeric ? Number(c.total || 0) : String(c.summaryValue || '')]);
+      });
+
+      var baseName = 'TableBot_' + targetFolder.replace(/[^a-z0-9]+/gi, '_') + '_' + period + '_Report_' + dStr;
+      downloadWorkbookAsExcel([
+        { name: 'Report Data', aoa: aoa },
+        { name: 'Column Summaries', aoa: sumAoa }
+      ], baseName);
+    }
+
     function exportReportPdfHtml(period, folder, items, met, repData) {
       var isEth = Boolean(repData && repData.isEthiopianCal);
       var ctx = (repData && repData.nowCtx) ? repData.nowCtx : getReportNowContext(isEth);
@@ -17039,32 +17703,45 @@
       var targetFolder = (!folder || folder === 'all') ? 'All Folders' : folder;
       var todayDisplay = formatReportDateChip(ctx, isEth, state && state.lang);
       var cols = (repData && repData.columnSummaries) ? repData.columnSummaries : [];
-      var colSummaryHtml = cols.map(function (c) {
-        return '<span style="display:inline-block;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:4px 10px;margin:3px 6px 3px 0;font-size:12px;"><strong>' + esc(c.name) + ':</strong> ' + esc(c.summaryValue) + '</span>';
-      }).join('');
-      var thHtml = '<th>#</th><th>Row</th><th>Table</th>' + cols.map(function (c) { return '<th style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.name) + '</th>'; }).join('') + '<th>Date</th>';
-      var rowsHtml = items.length === 0
-        ? '<tr><td colspan="' + (cols.length + 4) + '" style="text-align:center;color:#64748B;">No rows in "' + esc(targetFolder) + '" yet.</td></tr>'
-        : items.map(function (it, i) {
-            var colByKey = {};
-            (it.allCols || []).forEach(function (ac) { colByKey[ac.colKey || String(ac.name || '').trim().toLowerCase()] = ac; });
-            var tds = cols.map(function (c) {
-              var ac = colByKey[c.key];
-              var txt = (ac && ac.hasValue) ? ac.display : '—';
-              return '<td style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';font-weight:' + (c.isNumeric ? '700' : '400') + ';">' + esc(txt) + '</td>';
-            }).join('');
-            return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td style="text-align:center;">#' + (it.rowNumber || (i + 1)) + '</td><td>' + esc(it.botName) + '</td>' + tds + '<td>' + esc(it.date) + '</td></tr>';
-          }).join('');
-      var tfootHtml = '<tr style="background:#EFF6FF;font-weight:800;"><td colspan="3">Σ Totals (' + items.length + ' rows)</td>' +
-        cols.map(function (c) { return '<td style="text-align:' + (c.isNumeric ? 'right' : 'left') + ';">' + esc(c.summaryValue) + '</td>'; }).join('') +
-        '<td></td></tr>';
-      var doc = '<!doctype html><html><head><meta charset="UTF-8"><title>TableBot ' + esc(targetFolder) + ' Report</title><style>body{font-family:sans-serif;padding:30px;color:#1E293B;}h1{color:#0D47A1;}h2{font-size:14px;}table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;}th,td{border:1px solid #CBD5E1;padding:7px;}th{background:#F1F5F9;}@media print{.np{display:none;}}</style></head>' +
-        '<body onload="window.print()"><div class="np" style="background:#0D47A1;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;"><span>Print / Save as PDF</span><button onclick="window.print()" style="background:#fff;color:#0D47A1;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button></div>' +
-        '<h1>' + esc(targetFolder) + ' &mdash; ' + period.toUpperCase() + ' COLUMN REPORT</h1><p>Scope: <strong>' + esc(targetFolder) + '</strong> &middot; Date: <strong>' + esc(todayDisplay) + '</strong> &middot; Time: ' + esc(ctx.liveClockLabel) + '</p>' +
-        '<div style="margin:10px 0;">' + colSummaryHtml + '</div>' +
-        '<table><thead><tr>' + thHtml + '</tr></thead><tbody>' + rowsHtml + '</tbody><tfoot>' + tfootHtml + '</tfoot></table></body></html>';
-      downloadBlob(doc, 'TableBot_' + targetFolder.replace(/\s+/g, '_') + '_' + period + '_Report_' + dStr + '.html', 'text/html');
-      showToast('Downloaded printable PDF/HTML report for "' + targetFolder + '"');
+
+      var pdfCols = [
+        { label: '#', align: 'center', weight: 0.45 },
+        { label: 'Row', align: 'center', weight: 0.55 },
+        { label: 'Table / Bot', align: 'left', weight: 1.4, bold: true }
+      ].concat(cols.map(function (c) {
+        return { label: c.name || 'Column', align: c.isNumeric ? 'right' : 'left', weight: c.isNumeric ? 1.05 : 1.15, bold: !!c.isNumeric };
+      })).concat([{ label: 'Date', align: 'left', weight: 1.05 }]);
+
+      var pdfRows = items.map(function (it, i) {
+        var colByKey = {};
+        (it.allCols || []).forEach(function (ac) { colByKey[ac.colKey || String(ac.name || '').trim().toLowerCase()] = ac; });
+        var vals = cols.map(function (c) {
+          var ac = colByKey[c.key];
+          return (ac && ac.hasValue) ? String(ac.display || '').replace(/^\$\s*/, '') : '—';
+        });
+        return [String(i + 1), '#' + (it.rowNumber || (i + 1)), String(it.botName || '')].concat(vals).concat([String(it.date || '')]);
+      });
+
+      var totalsRow = ['Σ', 'Total', items.length + ' rows'].concat(cols.map(function (c) {
+        return String(c.summaryValue || '');
+      })).concat(['']);
+
+      var kpiList = [{ label: 'Records', value: String(items.length), color: '#0D47A1' }];
+      cols.filter(function (c) { return c.isNumeric; }).slice(0, 3).forEach(function (c, ki) {
+        kpiList.push({ label: c.name, value: String(c.summaryValue || ''), color: ki === 0 ? '#1E40AF' : ki === 1 ? '#047857' : '#B45309' });
+      });
+
+      var safeFolder = targetFolder.replace(/[^a-z0-9]+/gi, '_');
+      return downloadStructuredPdfDocument({
+        title: 'Hiriya Salt Production PLC · ' + targetFolder + ' — ' + period.toUpperCase() + ' REPORT',
+        subtitle: 'Date: ' + todayDisplay + ' · ' + ctx.liveClockLabel + ' · ' + (isEth ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)'),
+        kpis: kpiList,
+        columns: pdfCols,
+        rows: pdfRows,
+        totalsRow: totalsRow,
+        landscape: pdfCols.length > 6,
+        filename: 'TableBot_' + safeFolder + '_' + period + '_Report_' + dStr + '.pdf'
+      });
     }
 
     function formatColSummaryValue(cm, totalRows) {
@@ -17193,6 +17870,7 @@
           });
           if (!hitBase && !hitCols && !hitDateCands) return;
         }
+        if (stF === 'credit' && it.totalAmount <= 0.01) return;
         if (stF === 'paid' && it.remainingBalance > 0.01) return;
         if (stF === 'remaining' && it.remainingBalance <= 0.01) return;
         if (per === 'all') {
@@ -17650,9 +18328,10 @@
           '<div style="display:flex;align-items:center;gap:8px;position:relative;flex-wrap:wrap;">' +
             '<button id="rep-cal-toggle" class="btn" style="background:' + (isEthCal ? '#10B981' : 'rgba(255,255,255,0.16)') + ';color:#fff;border:1px solid rgba(255,255,255,0.35);padding:6px 10px;font-size:11.5px;" title="Switch Report Calendar (Ethiopian / Gregorian)">' + (isEthCal ? 'EC (Ethiopia)' : 'GC (Gregorian)') + '</button>' +
             '<button id="rep-refresh-live" class="btn" style="background:rgba(255,255,255,0.16);color:#fff;padding:6px 10px;font-size:11.5px;" title="Refresh real-time column totals">' + icon('refresh', 14) + '<span>Live Sync</span></button>' +
-            '<button id="rep-dl-toggle" class="btn btn-green" style="font-size:12px;">' + icon('download', 15) + '<span>Download PDF/CSV Report</span>' + icon('chevronDown', 13) + '</button>' +
+            '<button id="rep-dl-toggle" class="btn btn-green" style="font-size:12px;">' + icon('download', 15) + '<span>Download PDF / Excel / CSV</span>' + icon('chevronDown', 13) + '</button>' +
             (m.menuOpen ? '<div class="dropdown-menu" style="top:42px;width:240px;">' +
               '<button class="dropdown-item" id="rep-dl-pdf">' + icon('pdf', 15) + '<span>Download PDF Report</span></button>' +
+              '<button class="dropdown-item" id="rep-dl-xlsx">' + icon('excel', 15) + '<span>Download Excel (.xlsx)</span></button>' +
               '<button class="dropdown-item" id="rep-dl-csv">' + icon('csv', 15) + '<span>Download CSV Report</span></button>' +
               '<button class="dropdown-item" id="rep-print">' + icon('print', 15) + '<span>Print / Save as PDF</span></button>' +
               '<button class="dropdown-item" id="rep-copy">' + icon('copy', 15) + '<span>Copy Summary for Telegram</span></button>' +
@@ -17676,9 +18355,10 @@
               folderBotsAll.map(function (b) { return '<option value="' + esc(b.id) + '"' + (m.botId === b.id ? ' selected' : '') + '>' + esc(b.name + (isAllFoldersScope ? ' [' + (b.folder || 'General') + ']' : '')) + '</option>'; }).join('') +
             '</select>' +
             '<select id="rep-status" class="header-select">' +
-              '<option value="all"' + (m.status === 'all' ? ' selected' : '') + '>All Rows</option>' +
+              '<option value="all"' + (m.status === 'all' ? ' selected' : '') + '>All Data</option>' +
+              '<option value="credit"' + (m.status === 'credit' ? ' selected' : '') + '>Credit</option>' +
+              '<option value="remaining"' + (m.status === 'remaining' ? ' selected' : '') + '>Unpaid Balance (Rominbalce)</option>' +
               '<option value="paid"' + (m.status === 'paid' ? ' selected' : '') + '>Fully Paid</option>' +
-              '<option value="remaining"' + (m.status === 'remaining' ? ' selected' : '') + '>Remaining Due</option>' +
             '</select>' +
           '</div></div>' +
         '<div class="modal-body tinted" style="display:flex;flex-direction:column;gap:16px;">' +
@@ -17687,7 +18367,8 @@
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               '<input id="rep-search" class="form-input" style="width:200px;padding:6px 10px;font-size:12px;" placeholder="Search column data, record..." value="' + esc(m.search) + '" />' +
               '<button id="ban-pdf" class="btn btn-red" style="font-size:11.5px;">' + icon('pdf', 14) + '<span>PDF</span></button>' +
-              '<button id="ban-csv" class="btn btn-green" style="font-size:11.5px;">' + icon('csv', 14) + '<span>CSV</span></button>' +
+              '<button id="ban-xlsx" class="btn btn-green" style="font-size:11.5px;">' + icon('excel', 14) + '<span>Excel</span></button>' +
+              '<button id="ban-csv" class="btn btn-outline" style="font-size:11.5px;color:#065F46;">' + icon('csv', 14) + '<span>CSV</span></button>' +
               '<button id="ban-print" class="btn btn-outline" style="font-size:11.5px;color:#0D47A1;">' + icon('print', 14) + '<span>Print</span></button>' +
             '</div>' +
           '</div>' +
@@ -17844,6 +18525,8 @@
       document.getElementById('rep-dl-toggle').onclick = function (e) { e.stopPropagation(); m.menuOpen = !m.menuOpen; renderReportsModal(m); };
       if (m.menuOpen) {
         document.getElementById('rep-dl-pdf').onclick = function () { m.menuOpen = false; exportReportPdfHtml(m.period, m.folder, filtered, met, repData); renderReportsModal(m); };
+        var repXlsxBtn = document.getElementById('rep-dl-xlsx');
+        if (repXlsxBtn) repXlsxBtn.onclick = function () { m.menuOpen = false; exportReportExcel(m.period, m.folder, filtered, met, repData); renderReportsModal(m); };
         document.getElementById('rep-dl-csv').onclick = function () { m.menuOpen = false; exportReportCsv(m.period, m.folder, filtered, met, repData); renderReportsModal(m); };
         document.getElementById('rep-print').onclick = function () { m.menuOpen = false; window.print(); };
         document.getElementById('rep-copy').onclick = function () {
@@ -17855,6 +18538,8 @@
         };
       }
       document.getElementById('ban-pdf').onclick = function () { exportReportPdfHtml(m.period, m.folder, filtered, met, repData); };
+      var banXlsxBtn = document.getElementById('ban-xlsx');
+      if (banXlsxBtn) banXlsxBtn.onclick = function () { exportReportExcel(m.period, m.folder, filtered, met, repData); };
       document.getElementById('ban-csv').onclick = function () { exportReportCsv(m.period, m.folder, filtered, met, repData); };
       document.getElementById('ban-print').onclick = function () { window.print(); };
       document.querySelectorAll('[data-rper]').forEach(function (b) { b.onclick = function () { m.period = b.getAttribute('data-rper'); renderReportsModal(m); }; });
@@ -21256,19 +21941,18 @@
         return a.origIdx - b.origIdx;
       });
 
+      var viewFilter = (opts.viewFilter === 'credit' || opts.viewFilter === 'unpaid') ? opts.viewFilter : 'all';
+
+      // First pass: accumulate per-customer totals so Unpaid Balance / Credit filters know each customer's exact balance
       var customerAllMap = {};
-      var openingMap = {};
-      var runningMap = {};
-      var statementRows = [];
       var allTimeCredit = 0;
       var allTimePaid = 0;
-
-      for (var k = 0; k < rawEntries.length; k++) {
-        var e = rawEntries[k];
-        var cKey = e.customerName.toLowerCase();
-        if (!customerAllMap[cKey]) {
-          customerAllMap[cKey] = {
-            customerName: e.customerName,
+      for (var pIdx = 0; pIdx < rawEntries.length; pIdx++) {
+        var pe = rawEntries[pIdx];
+        var pKey = pe.customerName.toLowerCase();
+        if (!customerAllMap[pKey]) {
+          customerAllMap[pKey] = {
+            customerName: pe.customerName,
             totalCredit: 0,
             totalPaid: 0,
             outstandingBalance: 0,
@@ -21278,17 +21962,29 @@
             lastDateDisplay: '—'
           };
         }
-        var cs = customerAllMap[cKey];
-        cs.totalCredit = roundEtb2(cs.totalCredit + e.saleAmount);
-        cs.totalPaid = roundEtb2(cs.totalPaid + e.paidAmount);
-        cs.outstandingBalance = roundEtb2(cs.totalCredit - cs.totalPaid);
-        cs.txCount++;
-        if (e.kind === 'sale') cs.saleCount++;
-        else cs.paymentCount++;
-        cs.lastDateDisplay = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'short');
+        var pcs = customerAllMap[pKey];
+        pcs.totalCredit = roundEtb2(pcs.totalCredit + pe.saleAmount);
+        pcs.totalPaid = roundEtb2(pcs.totalPaid + pe.paidAmount);
+        pcs.outstandingBalance = roundEtb2(pcs.totalCredit - pcs.totalPaid);
+        pcs.txCount++;
+        if (pe.kind === 'sale') pcs.saleCount++;
+        else pcs.paymentCount++;
+        pcs.lastDateDisplay = formatLedgerDateDisplay(pe.dateMeta, calendarMode, 'short');
+        allTimeCredit = roundEtb2(allTimeCredit + pe.saleAmount);
+        allTimePaid = roundEtb2(allTimePaid + pe.paidAmount);
+      }
 
-        allTimeCredit = roundEtb2(allTimeCredit + e.saleAmount);
-        allTimePaid = roundEtb2(allTimePaid + e.paidAmount);
+      var openingMap = {};
+      var runningMap = {};
+      var statementRows = [];
+
+      for (var k = 0; k < rawEntries.length; k++) {
+        var e = rawEntries[k];
+        var cKey = e.customerName.toLowerCase();
+        var custTotals = customerAllMap[cKey];
+
+        if (viewFilter === 'unpaid' && (!custTotals || custTotals.outstandingBalance <= 0.01)) continue;
+        if (viewFilter === 'credit' && (e.kind !== 'sale' || e.saleAmount <= 0)) continue;
 
         var normCustFilter = (customerFilter === 'all' || !customerFilter) ? 'all' : normalizeCustomerLabel(customerFilter).toLowerCase();
         var matchesCust = (normCustFilter === 'all' || !normCustFilter) ? true : (cKey === normCustFilter);
@@ -21410,6 +22106,10 @@
 
       var customerSummaries = Object.keys(customerAllMap).map(function (ck) {
         return customerAllMap[ck];
+      }).filter(function (c) {
+        if (viewFilter === 'unpaid') return c.outstandingBalance > 0.01;
+        if (viewFilter === 'credit') return c.totalCredit > 0.01;
+        return true;
       }).sort(function (a, b) {
         if (b.outstandingBalance !== a.outstandingBalance) return b.outstandingBalance - a.outstandingBalance;
         return a.customerName.localeCompare(b.customerName);
@@ -21425,7 +22125,8 @@
         isSingleCustomTable: Boolean(scopeBots.length === 1 && !isLedgerBot(scopeBots[0])),
         rows: statementRows,
         customerSummaries: customerSummaries,
-        customerNames: customerSummaries.map(function (c) { return c.customerName; }),
+        customerNames: Object.keys(customerAllMap).map(function (ck) { return customerAllMap[ck].customerName; }).sort(),
+        viewFilter: viewFilter,
         calendarMode: calendarMode,
         hasDateFilter: Boolean(fromDayMs !== null || toDayMs !== null),
         hasFromFilter: fromDayMs !== null,
@@ -21452,13 +22153,15 @@
         ? ((data.fromDateDisplay || 'Start') + ' to ' + (data.toDateDisplay || 'Today'))
         : 'All Dates';
       var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
+      var vfMode = filterInfo.viewFilter || data.viewFilter || 'all';
+      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
       var dateSlug = new Date().toISOString().slice(0, 10);
 
       var aoa = [
         ['Hiriya Salt Production PLC · MA’ED Table Salt — Customer Account Ledger Statement'],
-        ['Folder:', folderTitle, 'Customer Filter:', custTitle],
+        ['Folder:', folderTitle, 'Customer Filter:', custTitle, 'View:', viewLabel],
         ['Date Range:', rangeTitle, 'Calendar:', calTag],
-        ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Outstanding Balance (ETB):', data.outstandingBalance],
+        ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Rominbalce (ETB):', data.outstandingBalance],
         [],
         ['Row', 'Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
       ];
@@ -21493,80 +22196,67 @@
         'Currency: ETB'
       ]);
 
-      if (window.XLSX && window.XLSX.utils && typeof window.XLSX.writeFile === 'function') {
-        try {
-          var wb = window.XLSX.utils.book_new();
-          var wsStmt = window.XLSX.utils.aoa_to_sheet(aoa);
-          wsStmt['!cols'] = [
-            { wch: 8 }, { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }
-          ];
-          window.XLSX.utils.book_append_sheet(wb, wsStmt, 'Account Statement');
+      var custAoa = [
+        ['Customer Balances Summary (' + calTag + ' · ' + viewLabel + ')'],
+        ['Customer Name', 'Transactions', 'Sales Count', 'Payments Count', 'Total Credit (ETB)', 'Total Paid (ETB)', 'Rominbalce (ETB)', 'Last Activity']
+      ];
+      data.customerSummaries.forEach(function (c) {
+        custAoa.push([c.customerName, c.txCount, c.saleCount, c.paymentCount, c.totalCredit, c.totalPaid, c.outstandingBalance, c.lastDateDisplay]);
+      });
+      custAoa.push(['TOTAL', data.allTime.txCount, '', '', data.allTime.totalCredit, data.allTime.totalPaid, data.allTime.outstandingBalance, '']);
 
-          var custAoa = [
-            ['Customer Balances Summary (' + calTag + ')'],
-            ['Customer Name', 'Transactions', 'Sales Count', 'Payments Count', 'Total Credit (ETB)', 'Total Paid (ETB)', 'Outstanding Balance (ETB)', 'Last Activity']
-          ];
-          data.customerSummaries.forEach(function (c) {
-            custAoa.push([c.customerName, c.txCount, c.saleCount, c.paymentCount, c.totalCredit, c.totalPaid, c.outstandingBalance, c.lastDateDisplay]);
+      var sheets = [
+        {
+          name: 'Account Statement',
+          aoa: aoa,
+          cols: [{ wch: 8 }, { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }]
+        },
+        {
+          name: 'Customer Balances',
+          aoa: custAoa,
+          cols: [{ wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 16 }]
+        }
+      ];
+
+      if (data.sourceColumns && data.sourceColumns.length > 0) {
+        var fullHdr = ['Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
+        var fullAoa = [
+          ['All Column Row Data & Running Balance — ' + custTitle + ' (' + viewLabel + ')'],
+          fullHdr
+        ];
+        data.rows.forEach(function (r, idx) {
+          var rcMap = {};
+          var rcKeyMap = {};
+          (r.allRowCols || []).forEach(function (rc) {
+            rcMap[rc.colId] = rc;
+            if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
           });
-          custAoa.push(['TOTAL', data.allTime.txCount, '', '', data.allTime.totalCredit, data.allTime.totalPaid, data.allTime.outstandingBalance, '']);
-          var wsCust = window.XLSX.utils.aoa_to_sheet(custAoa);
-          wsCust['!cols'] = [{ wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 16 }];
-          window.XLSX.utils.book_append_sheet(wb, wsCust, 'Customer Balances');
-
-          if (data.sourceColumns && data.sourceColumns.length > 0) {
-            var fullHdr = ['Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
-            var fullAoa = [
-              ['All Column Row Data & Running Balance — ' + custTitle],
-              fullHdr
-            ];
-            data.rows.forEach(function (r, idx) {
-              var rcMap = {};
-              var rcKeyMap = {};
-              (r.allRowCols || []).forEach(function (rc) {
-                rcMap[rc.colId] = rc;
-                if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
-              });
-              var rowArr = ['#' + (r.fileRowNum || (idx + 1))];
-              if (data.isMultiBotScope) rowArr.push(r.botName || '');
-              data.sourceColumns.forEach(function (col) {
-                var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
-                var cell = rcMap[col.id] || rcKeyMap[cKey];
-                rowArr.push(cell && cell.hasValue ? (cell.isNumeric ? cell.numeric : cell.display) : '');
-              });
-              rowArr.push(r.typeLabel, r.kind === 'sale' ? r.saleAmount : '', r.kind === 'payment' ? r.paidAmount : '', r.runningBalance);
-              fullAoa.push(rowArr);
-            });
-            var fullTot = ['TOTALS'];
-            if (data.isMultiBotScope) fullTot.push('');
-            data.sourceColumns.forEach(function (col) {
-              var isNumC = (col.type === 'amount' || col.type === 'number' || col.type === 'formula');
-              var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
-              var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
-              var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) ? data.allColsTotals[col.id] : ((data.allColsKeyTotals || {})[cKey]);
-              fullTot.push(hasTot ? totV : '');
-            });
-            fullTot.push(data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
-            fullAoa.push(fullTot);
-            var wsFull = window.XLSX.utils.aoa_to_sheet(fullAoa);
-            window.XLSX.utils.book_append_sheet(wb, wsFull, 'All Column Row Data');
-          }
-
-          var fname = 'Customer_Ledger_' + custTitle.replace(/[^a-z0-9]+/gi, '_') + '_' + dateSlug + '.xlsx';
-          window.XLSX.writeFile(wb, fname);
-          showToast('Exported Excel statement (.xlsx)');
-          return true;
-        } catch (errX) {}
+          var rowArr = ['#' + (r.fileRowNum || (idx + 1))];
+          if (data.isMultiBotScope) rowArr.push(r.botName || '');
+          data.sourceColumns.forEach(function (col) {
+            var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
+            var cell = rcMap[col.id] || rcKeyMap[cKey];
+            rowArr.push(cell && cell.hasValue ? (cell.isNumeric ? cell.numeric : cell.display) : '');
+          });
+          rowArr.push(r.typeLabel, r.kind === 'sale' ? r.saleAmount : '', r.kind === 'payment' ? r.paidAmount : '', r.runningBalance);
+          fullAoa.push(rowArr);
+        });
+        var fullTot = ['TOTALS'];
+        if (data.isMultiBotScope) fullTot.push('');
+        data.sourceColumns.forEach(function (col) {
+          var isNumC = (col.type === 'amount' || col.type === 'number' || col.type === 'formula');
+          var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
+          var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
+          var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, col.id) ? data.allColsTotals[col.id] : ((data.allColsKeyTotals || {})[cKey]);
+          fullTot.push(hasTot ? totV : '');
+        });
+        fullTot.push(data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
+        fullAoa.push(fullTot);
+        sheets.push({ name: 'All Column Row Data', aoa: fullAoa });
       }
 
-      var csvLines = aoa.map(function (rowArr) {
-        return rowArr.map(function (cell) {
-          return '"' + String(cell === undefined || cell === null ? '' : cell).replace(/"/g, '""') + '"';
-        }).join(',');
-      }).join('\n');
-      downloadBlob(csvLines, 'Customer_Ledger_' + custTitle.replace(/[^a-z0-9]+/gi, '_') + '_' + dateSlug + '.csv', 'text/csv;charset=utf-8;');
-      showToast('Exported Excel/CSV statement');
-      return true;
+      var baseName = 'Customer_Ledger_' + custTitle.replace(/[^a-z0-9]+/gi, '_') + '_' + dateSlug;
+      return downloadWorkbookAsExcel(sheets, baseName);
     }
 
     function buildCustomerLedgerPdfHtml(data, filterInfo) {
@@ -21577,6 +22267,8 @@
         ? ((data.fromDateDisplay || 'Start') + ' – ' + (data.toDateDisplay || 'Present'))
         : 'Complete History';
       var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
+      var vfMode = filterInfo.viewFilter || data.viewFilter || 'all';
+      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
       var nowCtx = getReportNowContext(data.calendarMode !== 'gregorian');
       var genDate = data.calendarMode !== 'gregorian'
         ? (String(nowCtx.ec.day).padStart(2, '0') + '/' + String(nowCtx.ec.month).padStart(2, '0') + '/' + nowCtx.ec.year + ' EC')
@@ -21665,18 +22357,14 @@
         '.kpi-l{font-size:10px;text-transform:uppercase;color:#64748B;font-weight:700;}.kpi-v{font-size:16px;font-weight:800;margin-top:4px;font-family:monospace;}' +
         'table{width:100%;border-collapse:collapse;font-size:11.5px;}th,td{border:1px solid #CBD5E1;padding:7px 8px;}th{background:#F1F5F9;text-align:left;font-weight:800;}' +
         'tfoot td{background:#EFF6FF;font-weight:800;}@media print{.np{display:none;}}</style></head>' +
-        '<body onload="window.print()">' +
-        '<div class="np" style="background:#0F172A;color:#fff;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">' +
-          '<span>Customer Account Statement · Ready to Print / Save as PDF</span>' +
-          '<button onclick="window.print()" style="background:#10B981;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;">Print / Save PDF</button>' +
-        '</div>' +
+        '<body>' +
         '<h1>Hiriya Salt Production PLC &middot; MA’ED Table Salt</h1>' +
-        '<div class="sub"><strong>Customer Account Ledger Statement</strong> &middot; Folder: <strong>' + esc(folderTitle) + '</strong> &middot; Customer: <strong>' + esc(custTitle) + '</strong> &middot; Date Range: <strong>' + esc(rangeTitle) + '</strong> &middot; Calendar: ' + esc(calTag) + ' &middot; Generated: ' + esc(genDate) + '</div>' +
+        '<div class="sub"><strong>Customer Account Ledger Statement</strong> &middot; Folder: <strong>' + esc(folderTitle) + '</strong> &middot; Customer: <strong>' + esc(custTitle) + '</strong> &middot; View: <strong>' + esc(viewLabel) + '</strong> &middot; Date Range: <strong>' + esc(rangeTitle) + '</strong> &middot; Calendar: ' + esc(calTag) + ' &middot; Generated: ' + esc(genDate) + '</div>' +
         '<div class="kpis">' +
           (data.hasFromFilter ? '<div class="kpi"><div class="kpi-l">Opening Balance</div><div class="kpi-v">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
           '<div class="kpi"><div class="kpi-l">Total Credit</div><div class="kpi-v" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</div></div>' +
           '<div class="kpi"><div class="kpi-l">Total Paid</div><div class="kpi-v" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</div></div>' +
-          '<div class="kpi"><div class="kpi-l">Outstanding Balance</div><div class="kpi-v" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
+          '<div class="kpi"><div class="kpi-l">Rominbalce</div><div class="kpi-v" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
         '</div>' +
         tableHtml +
         '</body></html>';
@@ -21684,12 +22372,116 @@
 
     function exportCustomerLedgerPdf(data, filterInfo) {
       filterInfo = filterInfo || {};
-      var custTitle = (!filterInfo.customer || filterInfo.customer === 'all') ? 'All_Customers' : filterInfo.customer.replace(/[^a-z0-9]+/gi, '_');
+      var calTag = data.calendarMode === 'gregorian' ? 'Gregorian (GC)' : 'Ethiopian Calendar (EC)';
+      var custTitle = (!filterInfo.customer || filterInfo.customer === 'all') ? 'All Customers' : filterInfo.customer;
+      var rangeTitle = (data.fromDateDisplay || data.toDateDisplay)
+        ? ((data.fromDateDisplay || 'Start') + ' – ' + (data.toDateDisplay || 'Present'))
+        : 'Complete History';
+      var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
+      var vfMode = filterInfo.viewFilter || data.viewFilter || 'all';
+      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
+      var useAllColsPdf = Boolean(filterInfo.showAllColumns && data.sourceColumns && data.sourceColumns.length > 0);
       var dateSlug = new Date().toISOString().slice(0, 10);
-      var htmlDoc = buildCustomerLedgerPdfHtml(data, filterInfo);
-      downloadBlob(htmlDoc, 'Customer_Statement_' + custTitle + '_' + dateSlug + '.html', 'text/html;charset=utf-8;');
-      showToast('Downloaded printable PDF / HTML statement');
-      return htmlDoc;
+      var custSlug = custTitle.replace(/[^a-z0-9]+/gi, '_') || 'All_Customers';
+
+      var kpis = [];
+      if (data.hasFromFilter) kpis.push({ label: 'Opening Balance', value: formatEtbAmount(data.openingBalance), color: '#0F172A' });
+      kpis.push({ label: 'Total Credit', value: formatEtbAmount(data.totalCredit), color: '#1E40AF' });
+      kpis.push({ label: 'Total Paid', value: formatEtbAmount(data.totalPaid), color: '#047857' });
+      kpis.push({ label: 'Rominbalce', value: formatEtbAmount(data.outstandingBalance), color: '#B45309' });
+
+      var cols = [];
+      var pdfRows = [];
+      var totalsRow = [];
+
+      if (useAllColsPdf) {
+        cols.push({ label: 'Row', align: 'center', weight: 0.55 });
+        if (data.isMultiBotScope) cols.push({ label: 'File', align: 'left', weight: 1.0 });
+        data.sourceColumns.forEach(function (c) {
+          var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
+          cols.push({ label: c.name || 'Column', align: isNumC ? 'right' : 'left', weight: isNumC ? 0.95 : 1.1 });
+        });
+        cols.push({ label: 'Type', align: 'left', weight: 0.8, isPayColor: true, bold: true });
+        cols.push({ label: 'Credit (ETB)', align: 'right', weight: 1.0, isCreditColor: true, bold: true });
+        cols.push({ label: 'Paid (ETB)', align: 'right', weight: 1.0, isPayColor: true, bold: true });
+        cols.push({ label: 'Running Balance', align: 'right', weight: 1.1, bold: true });
+
+        pdfRows = data.rows.map(function (r, idx) {
+          var rcMap = {};
+          var rcKeyMap = {};
+          (r.allRowCols || []).forEach(function (rc) {
+            rcMap[rc.colId] = rc;
+            if (rc.colKey && !rcKeyMap[rc.colKey]) rcKeyMap[rc.colKey] = rc;
+          });
+          var arr = ['#' + (r.fileRowNum || (idx + 1))];
+          if (data.isMultiBotScope) arr.push(String(r.botName || ''));
+          data.sourceColumns.forEach(function (c) {
+            var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
+            var cell = rcMap[c.id] || rcKeyMap[cKey];
+            arr.push(cell && cell.hasValue ? String(cell.display || '') : '');
+          });
+          arr.push(
+            String(r.typeLabel || ''),
+            r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '',
+            r.kind === 'payment' ? formatStmtNumber(r.paidAmount) : '',
+            formatStmtNumber(r.runningBalance)
+          );
+          return { kind: r.kind, cells: arr };
+        });
+
+        totalsRow = ['Σ'];
+        if (data.isMultiBotScope) totalsRow.push('');
+        data.sourceColumns.forEach(function (c) {
+          var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
+          var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
+          var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
+          var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
+          totalsRow.push(hasTot ? formatNumericValue(totV, c) : '');
+        });
+        totalsRow.push(data.rows.length + ' tx', formatStmtNumber(data.totalCredit), formatStmtNumber(data.totalPaid), formatStmtNumber(data.outstandingBalance));
+      } else {
+        cols = [
+          { label: 'Row', align: 'center', weight: 0.5 },
+          { label: 'Customer Name', align: 'left', weight: 1.4, bold: true },
+          { label: 'Type', align: 'left', weight: 0.85, isPayColor: true, bold: true },
+          { label: 'Sale Date', align: 'left', weight: 0.9 },
+          { label: 'Sale Amount', align: 'right', weight: 1.0, isCreditColor: true, bold: true },
+          { label: 'Paid Date', align: 'left', weight: 0.9 },
+          { label: 'Paid Amount', align: 'right', weight: 1.0, isPayColor: true, bold: true },
+          { label: 'Rominbalce', align: 'right', weight: 1.05, bold: true },
+          { label: 'Note', align: 'left', weight: 1.5 }
+        ];
+        pdfRows = data.rows.map(function (r, idx) {
+          var detNote = r.note || '';
+          if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
+          return {
+            kind: r.kind,
+            cells: [
+              '#' + (r.fileRowNum || (idx + 1)),
+              String(r.customerName || ''),
+              String(r.typeLabel || ''),
+              r.kind === 'sale' ? String(r.saleDateDisplay || '') : '',
+              r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '',
+              r.kind === 'payment' ? String(r.paymentDateDisplay || '') : '',
+              r.kind === 'payment' ? formatStmtNumber(r.paidAmount) : '',
+              formatStmtNumber(r.runningBalance),
+              detNote
+            ]
+          };
+        });
+        totalsRow = ['Σ', custTitle, data.rows.length + ' tx', '', formatStmtNumber(data.totalCredit), '', formatStmtNumber(data.totalPaid), formatStmtNumber(data.outstandingBalance), 'ETB'];
+      }
+
+      return downloadStructuredPdfDocument({
+        title: 'Hiriya Salt Production PLC · Customer Account Statement',
+        subtitle: 'Folder: ' + folderTitle + ' · Customer: ' + custTitle + ' · View: ' + viewLabel + ' · ' + rangeTitle + ' · ' + calTag,
+        kpis: kpis,
+        columns: cols,
+        rows: pdfRows,
+        totalsRow: totalsRow,
+        landscape: cols.length > 5,
+        filename: 'Customer_Statement_' + custSlug + '_' + dateSlug + '.pdf'
+      });
     }
 
     function renderFolderLedgerDashboardCard(folderName) {
@@ -21764,6 +22556,11 @@
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<div class="ledger-tab-bar" style="padding:2px;">' +
+              '<button type="button" data-fld-ledger-vf="all" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="ledger-tab-btn active-all" style="padding:4px 9px;font-size:11px;">All Data</button>' +
+              '<button type="button" data-fld-ledger-vf="credit" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="ledger-tab-btn" style="padding:4px 9px;font-size:11px;color:#1E40AF;">Credit</button>' +
+              '<button type="button" data-fld-ledger-vf="unpaid" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="ledger-tab-btn" style="padding:4px 9px;font-size:11px;color:#B45309;">Unpaid Balance</button>' +
+            '</div>' +
             (canRecordQuick ? '<button type="button" id="btn-fld-add-sale" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-primary" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Sale</span></button>' : '') +
             (canRecordQuick ? '<button type="button" id="btn-fld-add-pay" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-green" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Payment</span></button>' : '') +
             '<button type="button" id="btn-fld-open-ledger" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="btn btn-dark-blue" style="padding:6px 12px;font-size:11.5px;">' + icon('ledger', 13) + '<span>Open Statement</span></button>' +
@@ -21773,7 +22570,7 @@
         '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
           '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(ledgerData.totalCredit)) + '</div></div>' +
           '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(ledgerData.totalPaid)) + '</div></div>' +
-          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Outstanding Balance</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(ledgerData.outstandingBalance)) + '</div></div>' +
+          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(ledgerData.outstandingBalance)) + '</div></div>' +
         '</div>' +
       '</section>';
     }
@@ -21849,6 +22646,7 @@
       if (!m.calendarMode) m.calendarMode = state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
       if (!m.entryMode) m.entryMode = 'sale';
       if (!m.customerFilter) m.customerFilter = 'all';
+      if (!m.viewFilter) m.viewFilter = 'all';
 
       var folderLedgers = getFolderLedgerBots(m.folder);
       var allWorkspaceLedgers = getFolderLedgerBots('all');
@@ -21896,6 +22694,7 @@
         botId: activeBotId,
         includeAllCustomerTables: true,
         customer: m.customerFilter,
+        viewFilter: m.viewFilter,
         search: m.searchQuery || '',
         fromDate: m.fromDate || '',
         toDate: m.toDate || '',
@@ -21938,6 +22737,7 @@
             '<button type="button" id="clg-new-ledger" class="btn" style="padding:5px 10px;font-size:11.5px;background:rgba(255,255,255,0.16);color:#fff;border:1px solid rgba(255,255,255,0.35);">' + icon('plus', 13) + '<span>New Ledger</span></button>' +
             '<button type="button" id="clg-exp-xlsx" class="btn btn-green" style="padding:5px 10px;font-size:11.5px;">' + icon('excel', 13) + '<span>Excel (.xlsx)</span></button>' +
             '<button type="button" id="clg-exp-pdf" class="btn" style="padding:5px 10px;font-size:11.5px;background:#DC2626;color:#fff;">' + icon('pdf', 13) + '<span>Export PDF</span></button>' +
+            '<button type="button" id="clg-print-stmt" class="btn" style="padding:5px 10px;font-size:11.5px;background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);">' + icon('print', 13) + '<span>Print</span></button>' +
           '</div>' +
         '</header>' +
         '<div class="modal-body" style="display:flex;flex-direction:column;gap:14px;min-width:0;">';
@@ -21946,7 +22746,7 @@
         html += '<div style="padding:9px 12px;border-radius:10px;font-size:12px;font-weight:700;' + (m.statusType === 'error' ? 'background:#FEF2F2;border:1px solid #FCA5A5;color:#B91C1C;' : 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;') + '">' + esc(m.statusMsg) + '</div>';
       }
 
-      // Scope Selectors (Folder & Table/Ledger)
+      // Scope Selectors (Folder & Table/Ledger + All Data / Credit / Unpaid Balance Filter)
       html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:11px;padding:9px 12px;">' +
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
           '<label style="font-size:11px;font-weight:800;color:#475569;text-transform:uppercase;">Folder:</label>' +
@@ -21965,6 +22765,11 @@
           '</select>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+          '<div class="ledger-tab-bar" style="padding:2px;" title="Filter Statement View">' +
+            '<button type="button" data-clg-vfilter="all" class="ledger-tab-btn' + (m.viewFilter === 'all' ? ' active-all' : '') + '" style="padding:5px 10px;font-size:11.5px;">All Data</button>' +
+            '<button type="button" data-clg-vfilter="credit" class="ledger-tab-btn' + (m.viewFilter === 'credit' ? ' active-sale' : '') + '" style="padding:5px 10px;font-size:11.5px;">Credit</button>' +
+            '<button type="button" data-clg-vfilter="unpaid" class="ledger-tab-btn' + (m.viewFilter === 'unpaid' ? ' active-unpaid' : '') + '" style="padding:5px 10px;font-size:11.5px;">Unpaid Balance (Rominbalce)</button>' +
+          '</div>' +
           (hasSourceCols ? '<div class="ledger-tab-bar" style="padding:2px;">' +
             '<button type="button" id="clg-view-allcols" class="ledger-tab-btn' + (showAllCols ? ' active-sale' : '') + '" style="padding:5px 10px;font-size:11.5px;">All Column Row Data + Balance</button>' +
             '<button type="button" id="clg-view-ledger" class="ledger-tab-btn' + (!showAllCols ? ' active-pay' : '') + '" style="padding:5px 10px;font-size:11.5px;">Ledger Statement (Sale / Pay)</button>' +
@@ -21992,12 +22797,12 @@
         return;
       }
 
-      // KPI Summary Row (Opening Balance if From Date set, Total Credit, Total Paid, Outstanding Balance)
+      // KPI Summary Row (Opening Balance if From Date set, Total Credit, Total Paid, Rominbalce)
       html += '<div class="ledger-kpi-row ' + kpiColsCls + '" style="margin-bottom:0;">' +
         (data.hasFromFilter ? '<div class="ledger-kpi-box opening"><div class="ledger-kpi-lbl">Opening Balance (Before ' + esc(data.fromDateDisplay) + ')</div><div class="ledger-kpi-val">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
         '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit (Sales)</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</div></div>' +
         '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid (Payments)</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</div></div>' +
-        '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Outstanding Balance</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
+        '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
       '</div>';
 
       // Transaction Recording Card (+ Record Sale / Credit OR + Record Payment on separate row)
@@ -22083,7 +22888,7 @@
           '</div>' +
           '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:175px;overflow-y:auto;">' +
             '<table class="ledger-stmt-table" style="min-width:600px;">' +
-              '<thead><tr><th>Customer Name</th><th class="num">Tx</th><th class="num">Total Credit (ETB)</th><th class="num">Total Paid (ETB)</th><th class="num">Outstanding Balance (ETB)</th><th>Last Date</th></tr></thead>' +
+              '<thead><tr><th>Customer Name</th><th class="num">Tx</th><th class="num">Total Credit (ETB)</th><th class="num">Total Paid (ETB)</th><th class="num">Rominbalce (ETB)</th><th>Last Date</th></tr></thead>' +
               '<tbody>' +
                 data.customerSummaries.map(function (c) {
                   var isAct = normalizeCustomerLabel(m.customerFilter || '').toLowerCase() === c.customerName.toLowerCase();
@@ -22140,7 +22945,7 @@
           (data.hasFromFilter ? ('<span class="ledger-stmt-col-pill"><span style="color:#475569;font-weight:700;">Opening:</span><strong class="mono">' + esc(formatEtbAmount(data.openingBalance)) + '</strong></span>') : '') +
           '<span class="ledger-stmt-col-pill" style="border-color:#BFDBFE;background:#EFF6FF;"><span style="color:#1E40AF;font-weight:700;">Credit:</span><strong class="mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</strong></span>' +
           '<span class="ledger-stmt-col-pill" style="border-color:#A7F3D0;background:#ECFDF5;"><span style="color:#047857;font-weight:700;">Paid:</span><strong class="mono" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</strong></span>' +
-          '<span class="ledger-stmt-col-pill" style="border-color:#FDE68A;background:#FFFBEB;"><span style="color:#B45309;font-weight:700;">Balance:</span><strong class="mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</strong></span>' +
+          '<span class="ledger-stmt-col-pill" style="border-color:#FDE68A;background:#FFFBEB;"><span style="color:#B45309;font-weight:700;">Rominbalce:</span><strong class="mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</strong></span>' +
           summaryColPills +
         '</div>' +
       '</section>';
@@ -22300,12 +23105,22 @@
         openModal('create_ledger_in_folder', { folder: targetFolderForCreate, calendarMode: calMode });
       };
       document.getElementById('clg-exp-xlsx').onclick = function () {
-        exportCustomerLedgerExcel(data, { folder: m.folder, customer: m.customerFilter, showAllColumns: showAllCols });
+        exportCustomerLedgerExcel(data, { folder: m.folder, customer: m.customerFilter, showAllColumns: showAllCols, viewFilter: m.viewFilter });
       };
       document.getElementById('clg-exp-pdf').onclick = function () {
-        exportCustomerLedgerPdf(data, { folder: m.folder, customer: m.customerFilter, showAllColumns: showAllCols });
+        exportCustomerLedgerPdf(data, { folder: m.folder, customer: m.customerFilter, showAllColumns: showAllCols, viewFilter: m.viewFilter });
+      };
+      var printStmtBtn = document.getElementById('clg-print-stmt');
+      if (printStmtBtn) printStmtBtn.onclick = function () {
+        printHtmlInHiddenFrame(buildCustomerLedgerPdfHtml(data, { folder: m.folder, customer: m.customerFilter, showAllColumns: showAllCols, viewFilter: m.viewFilter }));
       };
 
+      document.querySelectorAll('[data-clg-vfilter]').forEach(function (vbtn) {
+        vbtn.onclick = function () {
+          m.viewFilter = vbtn.getAttribute('data-clg-vfilter') || 'all';
+          renderCustomerLedgerModal(m);
+        };
+      });
       var viewAllBtn = document.getElementById('clg-view-allcols');
       if (viewAllBtn) viewAllBtn.onclick = function () { m.showAllColumns = true; renderCustomerLedgerModal(m); };
       var viewLedgBtn = document.getElementById('clg-view-ledger');
@@ -22441,6 +23256,7 @@
       };
       document.getElementById('clg-rng-clear').onclick = function () {
         m.customerFilter = 'all';
+        m.viewFilter = 'all';
         m.searchQuery = '';
         m.fromDate = '';
         m.toDate = '';
