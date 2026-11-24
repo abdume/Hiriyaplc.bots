@@ -1489,12 +1489,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 8px;
+      width: 100%;
+      flex-wrap: nowrap;
     }
     .lock-hero-img {
-      width: 92px;
-      height: 92px;
+      width: clamp(68px, 23vw, 92px);
+      height: clamp(68px, 23vw, 92px);
+      flex: 0 0 auto;
       object-fit: contain;
       background: #fff;
       border-radius: 16px;
@@ -2661,6 +2663,161 @@
       return s.slice(0, 48);
     }
 
+    var AM_PHONETIC_NAME_DICT = {
+      shemse: 'ሸምሴ',
+      shemsu: 'ሸምሱ',
+      shemsedin: 'ሸምሰዲን',
+      shemsia: 'ሸምሲያ',
+      shemsiya: 'ሸምሲያ',
+      umer: 'ዑመር',
+      omar: 'ዑመር',
+      omer: 'ዑመር',
+      ali: 'አሊ',
+      abdu: 'አብዱ',
+      abdume: 'አብዱሜ',
+      abdul: 'አብዱል',
+      abdulfeta: 'አብዱልፈታ',
+      abdulfetah: 'አብዱልፈታ',
+      abdurahman: 'አብዱራህማን',
+      abebe: 'አበበ',
+      ahmed: 'አህመድ',
+      ahmad: 'አህመድ',
+      mohammed: 'መሀመድ',
+      mohamed: 'መሀመድ',
+      muhammed: 'ሙሀመድ',
+      mahmud: 'ማህሙድ',
+      hiriya: 'ሂሪያ',
+      maed: 'መዕድ',
+      sisiya: 'ሲሲያ',
+      kemal: 'ከማል',
+      jemal: 'ጀማል',
+      kedir: 'ከዲር',
+      kadir: 'ከዲር',
+      hussein: 'ሁሴን',
+      hussen: 'ሁሴን',
+      hassan: 'ሀሰን',
+      hasen: 'ሀሰን',
+      dawit: 'ዳዊት',
+      daniel: 'ዳንኤል',
+      samuel: 'ሳሙኤል',
+      yohannes: 'ዮሐንስ',
+      bereket: 'በረከት',
+      solomon: 'ሰለሞን',
+      bekele: 'በቀለ',
+      tadesse: 'ታደሰ',
+      tesfaye: 'ተስፋዬ',
+      mekonnen: 'መኮንን',
+      getachew: 'ጌታቸው',
+      girum: 'ግሩም',
+      meron: 'ሜሮን',
+      tigist: 'ትግስት',
+      selam: 'ሰላም',
+      tigabu: 'ትጋቡ',
+      hana: 'ሀና',
+      rahel: 'ራሄል',
+      fatima: 'ፋጢማ',
+      amina: 'አሚና',
+      halima: 'ሀሊማ',
+      leyla: 'ለይላ',
+      kedija: 'ከዲጃ',
+      zeyneb: 'ዘይነብ',
+      eyob: 'ኢዮብ',
+      yusuf: 'ዩሱፍ',
+      ibrahim: 'ኢብራሂም',
+      ismail: 'ኢስማኤል',
+      nuredin: 'ኑረዲን',
+      nur: 'ኑር',
+      seid: 'ሰይድ',
+      said: 'ሰይድ',
+      adem: 'አደም',
+      adam: 'አደም',
+      musa: 'ሙሳ',
+      isa: 'ኢሳ',
+      tarik: 'ታሪክ',
+      biruk: 'ብሩክ',
+      brook: 'ብሩክ',
+      eyasu: 'እያሱ',
+      henok: 'ሄኖክ',
+      nahom: 'ናሆም',
+      natnael: 'ናትናኤል'
+    };
+
+    var AM_FIDEL_BASE_MAP = {
+      h: 0x1200, l: 0x1208, m: 0x1218, r: 0x1228, s: 0x1230, sh: 0x1238,
+      q: 0x1240, b: 0x1260, v: 0x1268, t: 0x1270, ch: 0x1278, n: 0x1290,
+      gn: 0x1298, ny: 0x1298, k: 0x12A8, w: 0x12C8, z: 0x12D8, zh: 0x12E0,
+      y: 0x12E8, d: 0x12F0, j: 0x1300, g: 0x1308, f: 0x1348, p: 0x1350,
+      ph: 0x1348, th: 0x1270, ts: 0x1338
+    };
+
+    function latinWordToAmharicPhonetic(rawWord) {
+      var clean = String(rawWord || '').toLowerCase().replace(/[^a-z]/g, '');
+      if (!clean) return String(rawWord || '');
+      if (AM_PHONETIC_NAME_DICT[clean]) return AM_PHONETIC_NAME_DICT[clean];
+      var w = clean.replace(/x/g, 'ks');
+      var out = '';
+      var i = 0;
+      while (i < w.length) {
+        var cons = '';
+        if (i + 1 < w.length) {
+          var pair = w.slice(i, i + 2);
+          if (pair === 'sh' || pair === 'ch' || pair === 'gn' || pair === 'ny' || pair === 'zh' || pair === 'ph' || pair === 'th' || pair === 'ts') {
+            cons = pair;
+            i += 2;
+          }
+        }
+        if (!cons) {
+          var ch = w.charAt(i);
+          if ('aeiou'.indexOf(ch) !== -1) {
+            var vIdx = 0;
+            if (ch === 'u') vIdx = 1;
+            else if (ch === 'i') vIdx = 2;
+            else if (ch === 'a') vIdx = 0;
+            else if (ch === 'e') vIdx = 4;
+            else if (ch === 'o') vIdx = 6;
+            out += String.fromCharCode(0x12A0 + vIdx);
+            i += 1;
+            continue;
+          }
+          if (ch === 'c') {
+            var nextCh = w.charAt(i + 1) || '';
+            cons = (nextCh === 'e' || nextCh === 'i' || nextCh === 'y') ? 's' : 'k';
+          } else {
+            cons = ch;
+          }
+          i += 1;
+          while (i < w.length && w.charAt(i) === ch && cons.length === 1) {
+            i += 1;
+          }
+        }
+        var base = AM_FIDEL_BASE_MAP[cons];
+        if (!base) continue;
+        if (i < w.length && 'aeiouy'.indexOf(w.charAt(i)) !== -1) {
+          var v1 = w.charAt(i);
+          var v2 = w.charAt(i + 1) || '';
+          var order = 5;
+          if (v1 === 'e' && v2 === 'e') { order = 4; i += 2; }
+          else if (v1 === 'e') { order = (i === w.length - 1) ? 4 : 0; i += 1; }
+          else if (v1 === 'u') { order = 1; i += 1; }
+          else if (v1 === 'i' || v1 === 'y') { order = 2; i += 1; }
+          else if (v1 === 'a') { order = 3; i += 1; }
+          else if (v1 === 'o') { order = 6; i += 1; }
+          out += String.fromCharCode(base + order);
+        } else {
+          out += String.fromCharCode(base + 5);
+        }
+      }
+      return out || String(rawWord || '');
+    }
+
+    function formatSpokenUserNameForAmharic(rawName) {
+      var cleaned = cleanSpokenUserName(rawName);
+      if (!cleaned) return '';
+      return cleaned.replace(/[A-Za-z][A-Za-z'-]*/g, function (word) {
+        return latinWordToAmharicPhonetic(word);
+      }).replace(/\s+/g, ' ').trim();
+    }
+
     function getSavedUserGreetingName() {
       try {
         var v = localStorage.getItem(STORAGE_SAVED_USER_NAME);
@@ -3254,7 +3411,7 @@
       var entry = DAILY_AMHARIC_WORK_PROMPTS[idx] || DAILY_AMHARIC_WORK_PROMPTS[0];
       var greet = userOverride !== undefined ? userOverride : getActiveGreetingUser();
       var rawName = greet && greet.displayName ? String(greet.displayName).trim() : '';
-      var spokenName = cleanSpokenUserName(rawName);
+      var spokenName = formatSpokenUserNameForAmharic(rawName);
       var userSuffix = rawName ? (' ' + rawName) : '';
       var spokenSuffix = spokenName ? (', ' + spokenName) : '';
       var baseDisplay = 'ዛሬ ቀኑ ' + entry.amDay + ' ነዉ ' + entry.displayQuestion;
@@ -3889,38 +4046,38 @@
       }
 
       function getNameTtsCandidateUrls(cleanName) {
-        if (!cleanName) return [];
-        var hasAmharicName = /[\u1200-\u137F]/.test(cleanName);
+        var amName = formatSpokenUserNameForAmharic(cleanName);
+        if (!amName) return [];
         var urls = [];
         var hostStr = (typeof window !== 'undefined' && window.location && window.location.hostname) ? String(window.location.hostname).toLowerCase() : '';
         var isStaticGithubHost = hostStr.endsWith('.github.io') || hostStr === 'github.io';
         var skipApi = isStaticGithubHost || (_dailyVoiceCtrl.apiTtsUnavailableUntil && Date.now() < _dailyVoiceCtrl.apiTtsUnavailableUntil) || (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
         if (!skipApi) {
-          urls.push('/api/tts?text=' + encodeURIComponent(cleanName) + '&voice=Kore&style=' + encodeURIComponent('Clear name greeting'));
+          urls.push('/api/tts?text=' + encodeURIComponent(amName) + '&voice=Kore&style=' + encodeURIComponent('Warm, clear Ethiopian Amharic voice'));
         }
-        urls.push('https://translate.google.com/translate_tts?ie=UTF-8&tl=' + (hasAmharicName ? 'am' : 'en') + '&client=tw-ob&q=' + encodeURIComponent(cleanName));
+        urls.push('https://translate.google.com/translate_tts?ie=UTF-8&tl=am&client=tw-ob&q=' + encodeURIComponent(amName));
         return urls;
       }
 
       function preloadNameVoiceEl(userName) {
-        var cleanName = cleanSpokenUserName(userName);
-        if (!cleanName) return;
+        var amName = formatSpokenUserNameForAmharic(userName);
+        if (!amName) return;
         var nameAudio = document.getElementById('tb-name-voice-el');
-        var urls = getNameTtsCandidateUrls(cleanName);
+        var urls = getNameTtsCandidateUrls(amName);
         if (!nameAudio || !urls.length) return;
         try {
           nameAudio.referrerPolicy = 'no-referrer';
           try { nameAudio.setAttribute('referrerpolicy', 'no-referrer'); } catch (eAttr) {}
-          if (nameAudio.dataset && nameAudio.dataset.preloadedFor === cleanName && nameAudio.src === urls[0]) return;
+          if (nameAudio.dataset && nameAudio.dataset.preloadedFor === amName && nameAudio.src === urls[0]) return;
           nameAudio.src = urls[0];
-          if (nameAudio.dataset) nameAudio.dataset.preloadedFor = cleanName;
+          if (nameAudio.dataset) nameAudio.dataset.preloadedFor = amName;
           if (typeof nameAudio.load === 'function') nameAudio.load();
         } catch (ePre) {}
       }
 
       function speakAppendedUserName(userName, onDone) {
-        var cleanName = cleanSpokenUserName(userName);
-        if (!cleanName || myToken !== _dailyVoiceCtrl.playToken) {
+        var amName = formatSpokenUserNameForAmharic(userName);
+        if (!amName || myToken !== _dailyVoiceCtrl.playToken) {
           onDone();
           return;
         }
@@ -3930,7 +4087,6 @@
           doneOnce = true;
           onDone();
         };
-        var hasAmharicName = /[\u1200-\u137F]/.test(cleanName);
         var trySpeechName = function () {
           try {
             var synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
@@ -3938,12 +4094,16 @@
             if (typeof synth.resume === 'function') synth.resume();
             var voices = [];
             try { voices = synth.getVoices ? synth.getVoices() : []; } catch (eV) {}
-            var utt = new SpeechSynthesisUtterance(cleanName);
-            utt.lang = hasAmharicName ? 'am-ET' : 'en-US';
-            var preferredVoice = voices.find(function (v) {
-              return v && v.lang && v.lang.toLowerCase().indexOf(hasAmharicName ? 'am' : 'en') === 0;
+            var amVoice = voices.find(function (v) {
+              return v && v.lang && v.lang.toLowerCase().indexOf('am') === 0;
             });
-            if (preferredVoice) utt.voice = preferredVoice;
+            if (!amVoice) {
+              finish();
+              return;
+            }
+            var utt = new SpeechSynthesisUtterance(amName);
+            utt.lang = 'am-ET';
+            utt.voice = amVoice;
             utt.volume = 1.0;
             utt.rate = 0.94;
             var tid = setTimeout(finish, 3200);
@@ -3965,7 +4125,7 @@
           }
         };
 
-        var candidateUrls = getNameTtsCandidateUrls(cleanName);
+        var candidateUrls = getNameTtsCandidateUrls(amName);
         var nameAudioEl = document.getElementById('tb-name-voice-el');
         var mainAudioEl = document.getElementById('tb-daily-voice-el');
         var attempts = [];
@@ -4506,11 +4666,65 @@
       }, 1700);
     }
 
+    function getAssetFallbackList(src) {
+      var clean = String(src || '').trim();
+      var rel = clean.replace(/^\.\//, '').replace(/^\//, '');
+      var singleRel = rel.replace(/_([0-9a-f]{6,12})_\1(\.[a-z0-9]+)$/i, '_$1$2');
+      var list = [];
+      function addUrl(u) {
+        if (u && u !== clean && list.indexOf(u) === -1) list.push(u);
+      }
+      if (rel.indexOf('assets/') === 0) {
+        addUrl('/Hiriyaplc.bots/' + rel);
+        addUrl('/' + rel);
+        addUrl('./public/' + rel);
+        addUrl('/Hiriyaplc.bots/public/' + rel);
+        addUrl('/public/' + rel);
+      } else {
+        addUrl('/' + rel);
+        addUrl('./public/' + rel);
+        addUrl('/Hiriyaplc.bots/' + rel);
+      }
+      if (singleRel !== rel) {
+        addUrl('./' + singleRel);
+        addUrl('/Hiriyaplc.bots/' + singleRel);
+        addUrl('/' + singleRel);
+        addUrl('./public/' + singleRel);
+        addUrl('/Hiriyaplc.bots/public/' + singleRel);
+        addUrl('/public/' + singleRel);
+      }
+      var proto = (typeof window !== 'undefined' && window.location) ? window.location.protocol : '';
+      var host = (typeof window !== 'undefined' && window.location) ? String(window.location.hostname || '').toLowerCase() : '';
+      if (proto !== 'file:' && host && host !== 'localhost' && host !== '127.0.0.1') {
+        addUrl('https://raw.githubusercontent.com/abdume/Hiriyaplc.bots/main/public/' + singleRel);
+        if (singleRel !== rel) {
+          addUrl('https://raw.githubusercontent.com/abdume/Hiriyaplc.bots/main/public/' + rel);
+        }
+      }
+      return list;
+    }
+
+    if (typeof window !== 'undefined') {
+      window._tbImgFallback = function (img) {
+        if (!img || !img.dataset) return;
+        var raw = img.dataset.fallbacks || '';
+        if (!raw) return;
+        var list = raw.split('|');
+        var idx = parseInt(img.dataset.fbIdx || '0', 10) || 0;
+        if (idx >= list.length) {
+          img.onerror = null;
+          return;
+        }
+        var nextUrl = list[idx];
+        img.dataset.fbIdx = String(idx + 1);
+        img.dataset.previewSrc = nextUrl;
+        img.src = nextUrl;
+      };
+    }
+
     function assetImgHtml(src, cls, alt, modalTitle) {
-      var fallback = src.indexOf('./assets/') === 0
-        ? ('/Hiriyaplc.bots/' + src.slice(2))
-        : (src.charAt(0) === '/' ? ('public' + src) : src);
-      return '<img src="' + esc(src) + '" data-preview-src="' + esc(src) + '" data-preview-title="' + esc(modalTitle || alt) + '" class="' + esc(cls) + '" alt="' + esc(alt) + '" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src=\'' + esc(fallback) + '\';}" />';
+      var fallbacks = getAssetFallbackList(src);
+      return '<img src="' + esc(src) + '" data-preview-src="' + esc(src) + '" data-preview-title="' + esc(modalTitle || alt) + '" data-fallbacks="' + esc(fallbacks.join('|')) + '" data-fb-idx="0" referrerpolicy="no-referrer" decoding="async" class="' + esc(cls) + '" alt="' + esc(alt) + '" onerror="window._tbImgFallback && window._tbImgFallback(this)" onload="if(this.dataset)this.dataset.previewSrc=this.currentSrc||this.src;" />';
     }
 
     var savedAdminCfg = loadJsonStorage(STORAGE_ADMIN_CFG, {});

@@ -1225,21 +1225,222 @@ async function startServer(): Promise<void> {
     return buf;
   }
 
-  function splitBilingualTtsSegments(text: string): Array<{ tl: 'am' | 'en'; text: string }> {
-    const parts: Array<{ tl: 'am' | 'en'; text: string }> = [];
-    const re =
-      /([\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF]+[\u1200-\u137F\u1380-\u139F\u2D80-\u2DDF\s,?!።፣፤፥፦0-9]*)|([A-Za-z0-9][A-Za-z0-9\s._'-]*)/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-      const seg = m[0].replace(/^[\s,፣።]+|[\s,፣።]+$/g, '').trim();
-      if (!seg) continue;
-      const isAm = /[\u1200-\u137F]/.test(seg);
-      parts.push({ tl: isAm ? 'am' : 'en', text: seg });
+  const SERVER_AM_NAME_DICT: Record<string, string> = {
+    shemse: 'ሸምሴ',
+    shemsu: 'ሸምሱ',
+    shemsedin: 'ሸምሰዲን',
+    shemsia: 'ሸምሲያ',
+    shemsiya: 'ሸምሲያ',
+    umer: 'ዑመር',
+    omar: 'ዑመር',
+    omer: 'ዑመር',
+    ali: 'አሊ',
+    abdu: 'አብዱ',
+    abdume: 'አብዱሜ',
+    abdul: 'አብዱል',
+    abdulfeta: 'አብዱልፈታ',
+    abdulfetah: 'አብዱልፈታ',
+    abdurahman: 'አብዱራህማን',
+    abebe: 'አበበ',
+    ahmed: 'አህመድ',
+    ahmad: 'አህመድ',
+    mohammed: 'መሀመድ',
+    mohamed: 'መሀመድ',
+    muhammed: 'ሙሀመድ',
+    mahmud: 'ማህሙድ',
+    hiriya: 'ሂሪያ',
+    maed: 'መዕድ',
+    sisiya: 'ሲሲያ',
+    kemal: 'ከማል',
+    jemal: 'ጀማል',
+    kedir: 'ከዲር',
+    kadir: 'ከዲር',
+    hussein: 'ሁሴን',
+    hussen: 'ሁሴን',
+    hassan: 'ሀሰን',
+    hasen: 'ሀሰን',
+    dawit: 'ዳዊት',
+    daniel: 'ዳንኤል',
+    samuel: 'ሳሙኤል',
+    yohannes: 'ዮሐንስ',
+    bereket: 'በረከት',
+    solomon: 'ሰለሞን',
+    bekele: 'በቀለ',
+    tadesse: 'ታደሰ',
+    tesfaye: 'ተስፋዬ',
+    mekonnen: 'መኮንን',
+    getachew: 'ጌታቸው',
+    girum: 'ግሩም',
+    meron: 'ሜሮን',
+    tigist: 'ትግስት',
+    selam: 'ሰላም',
+    tigabu: 'ትጋቡ',
+    hana: 'ሀና',
+    rahel: 'ራሄል',
+    fatima: 'ፋጢማ',
+    amina: 'አሚና',
+    halima: 'ሀሊማ',
+    leyla: 'ለይላ',
+    kedija: 'ከዲጃ',
+    zeyneb: 'ዘይነብ',
+    eyob: 'ኢዮብ',
+    yusuf: 'ዩሱፍ',
+    ibrahim: 'ኢብራሂም',
+    ismail: 'ኢስማኤል',
+    nuredin: 'ኑረዲን',
+    nur: 'ኑር',
+    seid: 'ሰይድ',
+    said: 'ሰይድ',
+    adem: 'አደም',
+    adam: 'አደም',
+    musa: 'ሙሳ',
+    isa: 'ኢሳ',
+    tarik: 'ታሪክ',
+    biruk: 'ብሩክ',
+    brook: 'ብሩክ',
+    eyasu: 'እያሱ',
+    henok: 'ሄኖክ',
+    nahom: 'ናሆም',
+    natnael: 'ናትናኤል',
+  };
+
+  const SERVER_FIDEL_BASE: Record<string, number> = {
+    h: 0x1200,
+    l: 0x1208,
+    m: 0x1218,
+    r: 0x1228,
+    s: 0x1230,
+    sh: 0x1238,
+    q: 0x1240,
+    b: 0x1260,
+    v: 0x1268,
+    t: 0x1270,
+    ch: 0x1278,
+    n: 0x1290,
+    gn: 0x1298,
+    ny: 0x1298,
+    k: 0x12a8,
+    w: 0x12c8,
+    z: 0x12d8,
+    zh: 0x12e0,
+    y: 0x12e8,
+    d: 0x12f0,
+    j: 0x1300,
+    g: 0x1308,
+    f: 0x1348,
+    p: 0x1350,
+    ph: 0x1348,
+    th: 0x1270,
+    ts: 0x1338,
+  };
+
+  function fidelChar(baseCode: number, orderIdx: number): string {
+    return String.fromCharCode(baseCode + orderIdx);
+  }
+
+  function transliterateLatinWordToAmharic(rawWord: string): string {
+    const clean = rawWord.toLowerCase().replace(/[^a-z]/g, '');
+    if (!clean) return rawWord;
+    if (SERVER_AM_NAME_DICT[clean]) return SERVER_AM_NAME_DICT[clean];
+    const w = clean.replace(/x/g, 'ks');
+    let out = '';
+    let i = 0;
+    while (i < w.length) {
+      let cons = '';
+      if (i + 1 < w.length) {
+        const pair = w.slice(i, i + 2);
+        if (pair === 'sh' || pair === 'ch' || pair === 'gn' || pair === 'ny' || pair === 'zh' || pair === 'ph' || pair === 'th' || pair === 'ts') {
+          cons = pair;
+          i += 2;
+        }
+      }
+      if (!cons) {
+        const ch = w[i];
+        if ('aeiou'.includes(ch)) {
+          let vIdx = 0;
+          if (ch === 'u') vIdx = 1;
+          else if (ch === 'i') vIdx = 2;
+          else if (ch === 'a') vIdx = 0;
+          else if (ch === 'e') vIdx = 4;
+          else if (ch === 'o') vIdx = 6;
+          out += fidelChar(0x12a0, vIdx);
+          i += 1;
+          continue;
+        }
+        if (ch === 'c') {
+          const nextCh = w[i + 1] || '';
+          cons = nextCh === 'e' || nextCh === 'i' || nextCh === 'y' ? 's' : 'k';
+        } else {
+          cons = ch;
+        }
+        i += 1;
+        // collapse doubled consonants (e.g. mm, ss, ll, dd)
+        while (i < w.length && w[i] === ch && cons.length === 1) {
+          i += 1;
+        }
+      }
+      const base = SERVER_FIDEL_BASE[cons];
+      if (!base) continue;
+      if (i < w.length && 'aeiouy'.includes(w[i])) {
+        const v1 = w[i];
+        const v2 = w[i + 1] || '';
+        let order = 5;
+        if (v1 === 'e' && v2 === 'e') {
+          order = 4;
+          i += 2;
+        } else if (v1 === 'e') {
+          const atEnd = i === w.length - 1;
+          order = atEnd ? 4 : 0;
+          i += 1;
+        } else if (v1 === 'u') {
+          order = 1;
+          i += 1;
+        } else if (v1 === 'i') {
+          order = 2;
+          i += 1;
+        } else if (v1 === 'a') {
+          order = 3;
+          i += 1;
+        } else if (v1 === 'o') {
+          order = 6;
+          i += 1;
+        } else if (v1 === 'y') {
+          order = 2;
+          i += 1;
+        }
+        out += fidelChar(base, order);
+      } else {
+        out += fidelChar(base, 5);
+      }
     }
-    if (parts.length === 0 && text.trim()) {
-      parts.push({ tl: /[\u1200-\u137F]/.test(text) ? 'am' : 'en', text: text.trim() });
+    return out || rawWord;
+  }
+
+  function transliterateLatinToAmharic(text: string): string {
+    return text.replace(/[A-Za-z][A-Za-z'-]*/g, (word) => transliterateLatinWordToAmharic(word));
+  }
+
+  function splitAmharicTtsSegments(text: string): Array<{ tl: 'am'; text: string }> {
+    const amText = transliterateLatinToAmharic(text);
+    const cleaned = amText.replace(/\s+/g, ' ').trim();
+    if (!cleaned) return [];
+    const chunks: Array<{ tl: 'am'; text: string }> = [];
+    const parts = cleaned.split(/(?<=[,፣።?!])\s+/);
+    let current = '';
+    for (const part of parts) {
+      const p = part.trim();
+      if (!p) continue;
+      if (current && (current.length + 1 + p.length) > 175) {
+        chunks.push({ tl: 'am', text: current });
+        current = p;
+      } else {
+        current = current ? `${current} ${p}` : p;
+      }
     }
-    return parts;
+    if (current) {
+      chunks.push({ tl: 'am', text: current });
+    }
+    return chunks.length ? chunks : [{ tl: 'am', text: cleaned.slice(0, 180) }];
   }
 
   async function fetchGoogleTtsSegment(segText: string, tl: 'am' | 'en'): Promise<Buffer | null> {
@@ -1262,10 +1463,10 @@ async function startServer(): Promise<void> {
 
   async function synthesizeFallbackGoogleTts(text: string): Promise<{ ok: true; audioBase64: string; mimeType: string; cached: boolean } | null> {
     try {
-      const segments = splitBilingualTtsSegments(text);
+      const segments = splitAmharicTtsSegments(text);
       if (segments.length <= 1) {
-        const only = segments[0] || { tl: /[\u1200-\u137F]/.test(text) ? ('am' as const) : ('en' as const), text };
-        const buf = await fetchGoogleTtsSegment(only.text, only.tl);
+        const only = segments[0] || { tl: 'am' as const, text: transliterateLatinToAmharic(text) };
+        const buf = await fetchGoogleTtsSegment(only.text, 'am');
         if (!buf) return null;
         return {
           ok: true,
@@ -1277,7 +1478,7 @@ async function startServer(): Promise<void> {
       const chunkBufs: Buffer[] = [];
       for (let i = 0; i < segments.length; i++) {
         const seg = segments[i];
-        const b = await fetchGoogleTtsSegment(seg.text, seg.tl);
+        const b = await fetchGoogleTtsSegment(seg.text, 'am');
         if (b) {
           chunkBufs.push(i === 0 ? b : stripLeadingId3v2(b));
         }
@@ -1296,11 +1497,12 @@ async function startServer(): Promise<void> {
   }
 
   async function synthesizeTtsAudio(rawText: string, voiceName = 'Kore', style = 'Warm, clear Ethiopian Amharic voice') {
-    const text = rawText.trim().slice(0, 500);
-    if (!text) {
+    const rawTrimmed = rawText.trim().slice(0, 500);
+    if (!rawTrimmed) {
       return { ok: false as const, status: 400, code: 'BAD_REQUEST', error: 'Missing text' };
     }
-    const cacheKey = `v2::${voiceName}::${text}`;
+    const text = transliterateLatinToAmharic(rawTrimmed);
+    const cacheKey = `v3-am::${voiceName}::${text}`;
     const cached = ttsAudioCache.get(cacheKey);
     if (cached) {
       return { ok: true as const, audioBase64: cached.audioBase64, mimeType: cached.mimeType, cached: true };
@@ -1469,7 +1671,9 @@ async function startServer(): Promise<void> {
   if (process.env.NODE_ENV !== 'production') {
     let viteMiddleware: ((req: Request, res: Response, next: (err?: unknown) => void) => void) | null = null;
     const indexHtmlPath = path.resolve(process.cwd(), 'index.html');
-    app.use(express.static(path.resolve(process.cwd(), 'public'), { index: false }));
+    const publicDir = path.resolve(process.cwd(), 'public');
+    app.use(express.static(publicDir, { index: false }));
+    app.use('/Hiriyaplc.bots', express.static(publicDir, { index: false }));
 
     app.use((req: Request, res: Response, next) => {
       if (viteMiddleware) {
@@ -1503,7 +1707,14 @@ async function startServer(): Promise<void> {
       });
   } else {
     const distDir = path.resolve(process.cwd(), 'dist');
+    const publicDir = path.resolve(process.cwd(), 'public');
+    app.use('/Hiriyaplc.bots', express.static(distDir, { index: false }));
+    app.use('/Hiriyaplc.bots', express.static(publicDir, { index: false }));
     app.use(express.static(distDir));
+    app.use(express.static(publicDir, { index: false }));
+    app.use(['/assets', '/Hiriyaplc.bots/assets', '/voice', '/Hiriyaplc.bots/voice'], (_req: Request, res: Response) => {
+      res.status(404).end();
+    });
     app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
