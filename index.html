@@ -2652,7 +2652,8 @@
     }
 
     function cleanBalanceTypoText(str) {
-      var s = String(str === undefined || str === null ? '' : str);
+      var s = String(str === undefined || str === null ? '' : rawOrStr(str));
+      function rawOrStr(v) { return v; }
       if (!s) return '';
       if (/^\s*(?:total\s*)?(?:romal|romain|romin|remin)\s*bal(?:ce|nce|ance|l)?\s*$/i.test(s) ||
           /^\s*(?:total\s*)?(?:romal|romain|romin|remin)bal\s*$/i.test(s) ||
@@ -2660,11 +2661,17 @@
           /^\s*remaining\s*bal(?:ce|nce)\s*$/i.test(s)) {
         return 'Remaining Balance';
       }
+      if (/^\s*total\s*(?:sele|seles|sall|sail|sal)\s*$/i.test(s) ||
+          /^\s*totalsale\s*$/i.test(s)) {
+        return 'Total Sale';
+      }
       return s
         .replace(/\btotal\s*(?:romal|romain|romin|remin)\s*bal(?:ce|nce|ance|l)?\b/gi, 'Remaining Balance')
         .replace(/\b(?:romal|romain|romin|remin)\s*bal(?:ce|nce|ance|l)?\b/gi, 'Remaining Balance')
         .replace(/\btotalromalbal\b/gi, 'Remaining Balance')
-        .replace(/\bremaining\s*bal(?:ce|nce)\b/gi, 'Remaining Balance');
+        .replace(/\bremaining\s*bal(?:ce|nce)\b/gi, 'Remaining Balance')
+        .replace(/\btotal\s*(?:sele|seles|sall|sail|sal)\b/gi, 'Total Sale')
+        .replace(/\btotalsale\b/gi, 'Total Sale');
     }
 
     function formatColHeaderLabel(colOrName) {
@@ -12406,10 +12413,16 @@
           }
         }
         bot.updatedAt = nowIso;
-        if (String(oldVal === undefined || oldVal === null ? '' : oldVal) !== String(parsed)) {
+        var cellChanged = String(oldVal === undefined || oldVal === null ? '' : oldVal) !== String(parsed);
+        if (cellChanged) {
           updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"', { deferPersist: true, editedRow: editedRowObj });
         }
-        if (!skipRender) renderTableView(bot);
+        if (!skipRender) {
+          window._tbNeedsTableRefreshAfterEdit = null;
+          renderTableView(bot);
+        } else if (cellChanged) {
+          window._tbNeedsTableRefreshAfterEdit = bot.id;
+        }
       };
 
       // Uses global parseCellValueForCol(rawVal, col) defined above renderTableView
@@ -13937,8 +13950,13 @@
           var hasSavedCellVal = clickedRawVal !== undefined && clickedRawVal !== null && String(clickedRawVal).trim() !== '';
           if (clickedColObj && clickedColObj.type !== 'date' && hasSavedCellVal) {
             var tdRect = typeof td.getBoundingClientRect === 'function' ? td.getBoundingClientRect() : null;
+            if (window._tbNeedsTableRefreshAfterEdit === bot.id) {
+              window._tbNeedsTableRefreshAfterEdit = null;
+              renderTableView(bot);
+            }
             openCellActionSheet(rid, cid, tdRect);
           } else {
+            window._tbNeedsTableRefreshAfterEdit = null;
             openCellEditor(rid, cid);
           }
         };
@@ -19409,10 +19427,9 @@
         if (it.hasUnifiedBalance) {
           var uCustKey = it.botId + '::' + normalizeCustomerLabel(it.customerName || '').toLowerCase();
           var prevU = unifiedRemLatestByCust[uCustKey];
-          var curUMs = it.utcDayMs || it.parsedMs || 0;
           var curURow = it.rowNumber || 0;
-          if (!prevU || curUMs > prevU.ms || (curUMs === prevU.ms && curURow >= prevU.rowIdx)) {
-            unifiedRemLatestByCust[uCustKey] = { val: Number(it.remainingBalance) || 0, ms: curUMs, rowIdx: curURow };
+          if (!prevU || curURow >= prevU.rowIdx) {
+            unifiedRemLatestByCust[uCustKey] = { val: Number(it.remainingBalance) || 0, rowIdx: curURow };
           }
         } else {
           met.totalRemaining += it.remainingBalance;
@@ -19481,10 +19498,9 @@
             if (m.isBalance) {
               var ckKey = m.key + '::' + it.botId + '::' + normalizeCustomerLabel(it.customerName || '').toLowerCase();
               var prevEntry = balColLatestByCust[ckKey];
-              var curOrderMs = it.utcDayMs || it.parsedMs || 0;
               var curRowIdx = it.rowNumber || 0;
-              if (!prevEntry || curOrderMs > prevEntry.ms || (curOrderMs === prevEntry.ms && curRowIdx >= prevEntry.rowIdx)) {
-                balColLatestByCust[ckKey] = { key: m.key, val: Number(ac.numeric) || 0, ms: curOrderMs, rowIdx: curRowIdx };
+              if (!prevEntry || curRowIdx >= prevEntry.rowIdx) {
+                balColLatestByCust[ckKey] = { key: m.key, val: Number(ac.numeric) || 0, rowIdx: curRowIdx };
               }
             } else {
               m.total += (Number(ac.numeric) || 0);
@@ -19546,10 +19562,9 @@
                   if (cm.isBalance) {
                     var tck = normalizeCustomerLabel(it.customerName || '').toLowerCase();
                     var prevTB = tBalLatestByCust[tck];
-                    var curTMs = it.utcDayMs || it.parsedMs || 0;
                     var curTRow = it.rowNumber || 0;
-                    if (!prevTB || curTMs > prevTB.ms || (curTMs === prevTB.ms && curTRow >= prevTB.rowIdx)) {
-                      tBalLatestByCust[tck] = { val: Number(ac.numeric) || 0, ms: curTMs, rowIdx: curTRow };
+                    if (!prevTB || curTRow >= prevTB.rowIdx) {
+                      tBalLatestByCust[tck] = { val: Number(ac.numeric) || 0, rowIdx: curTRow };
                     }
                   } else {
                     tColObj.total += (Number(ac.numeric) || 0);
@@ -22573,8 +22588,8 @@
       if (saleDateCol) exclPayBal[saleDateCol.id] = true;
 
       var saleAmtCol = findCol(
-        ['sale amount', 'credit amount', 'sale / credit', 'credit sale', 'buye amount', 'buy amount', 'purchase amount', 'buye', 'buy', 'purchase', 'credit', 'order amount'],
-        [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount|sale)?|\bbuye\b|\bbuy\b|purchase/i],
+        ['total sale', 'total sales', 'sale amount', 'credit amount', 'sale / credit', 'credit sale', 'buye amount', 'buy amount', 'purchase amount', 'buye', 'buy', 'purchase', 'credit', 'order amount'],
+        [/total\s*sales?|sale\s*(?:amt|amount)|credit\s*(?:amt|amount|sale)?|\bbuye\b|\bbuy\b|purchase/i],
         exclPayBal,
         true
       );
@@ -22818,51 +22833,26 @@
       var det = detectLedgerColumns(bot);
       if (!det || !det.balCol) return bot;
 
-      var populated = [];
-      var emptyRows = [];
+      // Deterministic single top-to-bottom row pass (never re-sort or scramble rows)
+      var calMode = bot.ledgerCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      var eng = (typeof computeUnifiedCustomerLedgerEngine === 'function')
+        ? computeUnifiedCustomerLedgerEngine([bot], { calendarMode: calMode })
+        : null;
+      var rowBals = (eng && eng.botRowBalances && eng.botRowBalances[bot.id]) ? eng.botRowBalances[bot.id] : {};
+
       for (var i = 0; i < bot.rows.length; i++) {
         var r = bot.rows[i];
         var meta = resolveLedgerRowMeta(r, det, bot, i);
         if (!meta) {
           if (det.balCol.type !== 'formula') r[det.balCol.id] = '';
-          emptyRows.push(r);
           continue;
         }
-        populated.push(meta);
-      }
-
-      populated.sort(function (a, b) {
-        if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
-        if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
-        if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
-        if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
-        return a.origIdx - b.origIdx;
-      });
-
-      var runningMap = {};
-      for (var j = 0; j < populated.length; j++) {
-        var item = populated[j];
-        var prev = runningMap[item.custKey] || 0;
-        var netDelta;
-        if (item.isOpening) {
-          netDelta = item.openingAmount;
-        } else if (det.isDedicatedLedger) {
-          netDelta = roundEtb2((item.openingAmount || 0) + item.bothSaleAmt - item.bothPaidAmt);
-        } else {
-          netDelta = roundEtb2((item.openingAmount || 0) + item.saleAmount - item.paidAmount);
+        if (det.balCol.type !== 'formula' && Object.prototype.hasOwnProperty.call(rowBals, r.id)) {
+          r[det.balCol.id] = rowBals[r.id];
         }
-        var nextBal = roundEtb2(prev + netDelta);
-        runningMap[item.custKey] = nextBal;
-        if (det.balCol.type !== 'formula') {
-          item.row[det.balCol.id] = nextBal;
+        if (det.typeCol && !String(r[det.typeCol.id] || '').trim()) {
+          r[det.typeCol.id] = meta.isOpening ? 'Opening Balance' : (meta.isPayment ? 'Payment' : 'Credit Sale');
         }
-        if (det.typeCol && !String(item.row[det.typeCol.id] || '').trim()) {
-          item.row[det.typeCol.id] = item.isOpening ? 'Opening Balance' : (item.isPayment ? 'Payment' : 'Credit Sale');
-        }
-      }
-
-      if (populated.length > 0 && isLedgerBot(bot)) {
-        bot.rows = populated.map(function (p) { return p.row; }).concat(emptyRows);
       }
       return bot;
     }
@@ -23255,7 +23245,8 @@
       return Object.assign({ ok: true, dateStr: storedDateStr, amount: amtNum }, res);
     }
 
-    function extractLedgerEntriesFromRow(row, det, bot, origIdx) {
+    function extractLedgerEntriesFromRow(row, det, bot, origIdx, entryOpts) {
+      entryOpts = entryOpts || {};
       var out = [];
       if (!row || !det) return out;
       var custRaw = det.custCol ? normalizeCustomerLabel(row[det.custCol.id]) : '';
@@ -23360,8 +23351,9 @@
         pAmt = 0;
       }
 
-      // Opening / Initial Balance row (explicit Opening Balance type, OR standalone Remaining Balance cell with zero Buye/Paid)
-      if (explicitKind === 'opening' || (!explicitKind && sAmt === 0 && pAmt === 0 && ((hasOpenColCell && openColVal !== 0) || (hasBalCell && rawBalVal !== 0)))) {
+      // Opening / Initial Balance row (explicit Opening Balance type, Opening Balance column, OR first customer row standalone Remaining Balance cell with zero Sale/Paid)
+      var allowFirstRowBalOpening = Boolean(hasBalCell && (!det.balCol || det.balCol.type !== 'formula') && rawBalVal !== 0 && !entryOpts.seenCustBefore);
+      if (explicitKind === 'opening' || (!explicitKind && sAmt === 0 && pAmt === 0 && ((hasOpenColCell && openColVal !== 0) || allowFirstRowBalOpening))) {
         var openingAmt = openColVal !== 0 ? roundEtb2(openColVal) : (rawBalVal !== 0 ? roundEtb2(rawBalVal) : (sAmt !== 0 ? roundEtb2(sAmt) : (pAmt !== 0 ? roundEtb2(-pAmt) : 0)));
         var isUndatedOpening = (!sDateRaw && !pDateRaw);
         var openDateStr = sDateRaw || pDateRaw;
@@ -23634,37 +23626,45 @@
       return out;
     }
 
-    // ONE unified per-customer chronological balance engine shared by Main Table, Statement, Exports, and Reports:
-    // Start from customer's opening balance if one exists (otherwise 0),
-    // sort chronologically, add credit/purchase (+) and subtract paid (-).
+    // ONE unified deterministic top-to-bottom per-customer balance engine shared by Main Table, Statement, Exports, and Reports:
+    // Start from customer's opening balance (or first row's initial balance if defined, otherwise 0),
+    // process rows strictly top-to-bottom without re-sorting: balance = balance + (sale || 0) - (paid || 0).
     function computeUnifiedCustomerLedgerEngine(botsList, opts) {
       opts = opts || {};
       var calendarMode = opts.calendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
       var overrideRowsByBotId = opts.overrideRowsByBotId || null;
-      var sortEntriesChronologically = function (list) {
+      var sortEntriesTopToBottom = function (list) {
         list.sort(function (a, b) {
-          if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
-          if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
-          if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
-          if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
-          return a.origIdx - b.origIdx;
+          var boA = a._botOrder || 0, boB = b._botOrder || 0;
+          if (boA !== boB) return boA - boB;
+          if (a.origIdx !== b.origIdx) return a.origIdx - b.origIdx;
+          var soA = a._subOrder || 0, soB = b._subOrder || 0;
+          return soA - soB;
         });
       };
 
       var rawEntries = [];
-      (botsList || []).forEach(function (b) {
+      var seenCustInExtract = {};
+      (botsList || []).forEach(function (b, bIdx) {
         if (!b || isBotTombstoned(b)) return;
         var det = detectLedgerColumns(b);
         var rows = (overrideRowsByBotId && Object.prototype.hasOwnProperty.call(overrideRowsByBotId, b.id))
           ? (overrideRowsByBotId[b.id] || [])
           : (Array.isArray(b.rows) ? b.rows : []);
         for (var i = 0; i < rows.length; i++) {
-          var extracted = extractLedgerEntriesFromRow(rows[i], det, b, i);
-          for (var j = 0; j < extracted.length; j++) rawEntries.push(extracted[j]);
+          var rowObj = rows[i];
+          var cPreview = (det && det.custCol && rowObj) ? (normalizeCustomerLabel(rowObj[det.custCol.id]) || 'Walk-in Customer').toLowerCase() : 'walk-in customer';
+          var extracted = extractLedgerEntriesFromRow(rowObj, det, b, i, { seenCustBefore: Boolean(seenCustInExtract[cPreview]) });
+          for (var j = 0; j < extracted.length; j++) {
+            extracted[j]._botOrder = bIdx;
+            extracted[j]._subOrder = j;
+            rawEntries.push(extracted[j]);
+            seenCustInExtract[extracted[j].customerName.toLowerCase()] = true;
+          }
         }
       });
 
-      sortEntriesChronologically(rawEntries);
+      sortEntriesTopToBottom(rawEntries);
 
       // If a non-ledger custom table starts directly on a payment row with an explicit positive Balance cell (e.g., Paid 20,000 leaving 30,000 => initial balance was 50,000), capture that initial balance cleanly once
       var seenCustFirst = {};
@@ -23674,7 +23674,7 @@
         var fKey = fe.customerName.toLowerCase();
         if (seenCustFirst[fKey]) continue;
         seenCustFirst[fKey] = true;
-        if (!fe.isLedgerSource && fe.kind === 'payment' && fe.saleAmount === 0 && fe.paidAmount > 0 && fe.hasManualBalCell && fe.manualBalVal > 0) {
+        if (!fe.isLedgerSource && fe.kind === 'payment' && fe.saleAmount === 0 && fe.paidAmount > 0 && fe.hasManualBalCell && fe.manualBalVal > 0 && (!fe.balColRef || fe.balColRef.type !== 'formula')) {
           inferredOpenings.push({
             entryId: fe.entryId + '_inferred_opening',
             rowId: fe.rowId,
@@ -23700,13 +23700,15 @@
             createdMs: fe.createdMs,
             txSeq: fe.txSeq - 0.5,
             origIdx: fe.origIdx,
+            _botOrder: fe._botOrder || 0,
+            _subOrder: -1,
             balColRef: fe.balColRef
           });
         }
       }
       if (inferredOpenings.length > 0) {
         rawEntries = inferredOpenings.concat(rawEntries);
-        sortEntriesChronologically(rawEntries);
+        sortEntriesTopToBottom(rawEntries);
       }
 
       var customerAllMap = {};
