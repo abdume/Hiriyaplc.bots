@@ -2651,76 +2651,6 @@
       return s || 'General';
     }
 
-    function cleanBalanceTypoText(str) {
-      var s = String(str === undefined || str === null ? '' : rawOrStr(str));
-      function rawOrStr(v) { return v; }
-      if (!s) return '';
-      if (/^\s*(?:total\s*)?(?:romal|romain|romin|remin)\s*bal(?:ce|nce|ance|l)?\s*$/i.test(s) ||
-          /^\s*(?:total\s*)?(?:romal|romain|romin|remin)bal\s*$/i.test(s) ||
-          /^\s*(?:romal|romain|romin|remin)\s*balance\s*$/i.test(s) ||
-          /^\s*remaining\s*bal(?:ce|nce)\s*$/i.test(s)) {
-        return 'Remaining Balance';
-      }
-      if (/^\s*total\s*(?:sele|seles|sall|sail|sal)\s*$/i.test(s) ||
-          /^\s*totalsale\s*$/i.test(s)) {
-        return 'Total Sale';
-      }
-      return s
-        .replace(/\btotal\s*(?:romal|romain|romin|remin)\s*bal(?:ce|nce|ance|l)?\b/gi, 'Remaining Balance')
-        .replace(/\b(?:romal|romain|romin|remin)\s*bal(?:ce|nce|ance|l)?\b/gi, 'Remaining Balance')
-        .replace(/\btotalromalbal\b/gi, 'Remaining Balance')
-        .replace(/\bremaining\s*bal(?:ce|nce)\b/gi, 'Remaining Balance')
-        .replace(/\btotal\s*(?:sele|seles|sall|sail|sal)\b/gi, 'Total Sale')
-        .replace(/\btotalsale\b/gi, 'Total Sale');
-    }
-
-    function formatColHeaderLabel(colOrName) {
-      var raw = (colOrName && typeof colOrName === 'object') ? colOrName.name : colOrName;
-      var clean = cleanBalanceTypoText(String(raw === undefined || raw === null ? '' : raw).trim());
-      return clean || 'Column';
-    }
-
-    function migrateBotBalanceTypoColumns(bot) {
-      if (!bot || !Array.isArray(bot.columns)) return bot;
-      var renamedPairs = [];
-      bot.columns.forEach(function (c) {
-        if (!c || typeof c !== 'object') return;
-        var origName = String(c.name || '').trim();
-        var fixedName = cleanBalanceTypoText(origName);
-        if (fixedName && fixedName !== origName) {
-          c.name = fixedName;
-          renamedPairs.push({ oldName: origName, newName: fixedName });
-        }
-      });
-      if (renamedPairs.length > 0) {
-        var rewriteExpr = function (exprStr) {
-          var s = String(exprStr || '');
-          renamedPairs.forEach(function (pair) {
-            var escOld = pair.oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            s = s.replace(new RegExp('\\{\\s*' + escOld + '\\s*\\}', 'gi'), '{' + pair.newName + '}');
-            s = s.replace(new RegExp('(^|[^A-Za-z0-9_\\u00C0-\\uFFFF])' + escOld + '(?=$|[^A-Za-z0-9_\\u00C0-\\uFFFF])', 'gi'), '$1' + pair.newName);
-          });
-          return s;
-        };
-        bot.columns.forEach(function (c) {
-          if (c && c.type === 'formula' && c.formulaExpr) {
-            c.formulaExpr = rewriteExpr(c.formulaExpr);
-          }
-        });
-        if (Array.isArray(bot.rows)) {
-          bot.rows.forEach(function (r) {
-            if (!r || typeof r !== 'object') return;
-            Object.keys(r).forEach(function (k) {
-              if (typeof r[k] === 'string' && r[k].trim().charAt(0) === '=') {
-                r[k] = rewriteExpr(r[k]);
-              }
-            });
-          });
-        }
-      }
-      return bot;
-    }
-
     function isBotTombstonedWith(bot, tomb) {
       if (!bot || !bot.id || !tomb) return false;
       var folders = tomb.folders || {};
@@ -2760,7 +2690,7 @@
           if (Array.isArray(parsed)) {
             return parsed.filter(function (b) {
               return b && b.id !== SECURITY_BOT_ID && !isBotTombstonedWith(b, tomb);
-            }).map(function (b) { return migrateBotBalanceTypoColumns(b); });
+            });
           }
         }
       } catch (e) {}
@@ -6194,9 +6124,8 @@
       var cols = Array.isArray(bot.columns) ? bot.columns : [];
       cols.forEach(function (c) {
         if (!c || typeof c !== 'object') return;
-        c.name = cleanBalanceTypoText(sanitizeUserText(c.name, 80)) || 'Column';
+        c.name = sanitizeUserText(c.name, 80) || 'Column';
       });
-      migrateBotBalanceTypoColumns(bot);
       var rows = Array.isArray(bot.rows) ? bot.rows : [];
       for (var ri = 0; ri < rows.length; ri++) {
         sanitizeRowForSave(rows[ri], cols);
@@ -8767,14 +8696,10 @@
     }
 
     function exportBotCsv(bot) {
-      var unifiedCtx = (typeof getUnifiedMainTableContext === 'function') ? getUnifiedMainTableContext(bot) : null;
-      var headers = bot.columns.map(function (c) { return '"' + formatColHeaderLabel(c).replace(/"/g, '""') + '"'; }).join(',');
+      var headers = bot.columns.map(function (c) { return '"' + String(c.name || '').replace(/"/g, '""') + '"'; }).join(',');
       var rows = bot.rows.map(function (r) {
         return bot.columns.map(function (c) {
           var v = r[c.id];
-          if (unifiedCtx && c.id === unifiedCtx.balColId && Object.prototype.hasOwnProperty.call(unifiedCtx.rowBalanceById, r.id)) {
-            v = unifiedCtx.rowBalanceById[r.id];
-          }
           return '"' + String(v !== undefined && v !== null ? v : '').replace(/"/g, '""') + '"';
         }).join(',');
       }).join('\n');
@@ -8784,95 +8709,42 @@
 
     function exportBotExcel(bot) {
       if (!bot) return;
-      var unifiedCtx = (typeof getUnifiedMainTableContext === 'function') ? getUnifiedMainTableContext(bot) : null;
-      var headers = (bot.columns || []).map(function (c) { return formatColHeaderLabel(c); });
+      var headers = (bot.columns || []).map(function (c) { return c.name || 'Column'; });
       var aoa = [headers];
-      var colTotals = {};
       (bot.rows || []).forEach(function (r) {
         aoa.push((bot.columns || []).map(function (c) {
-          if (unifiedCtx && c.id === unifiedCtx.balColId && Object.prototype.hasOwnProperty.call(unifiedCtx.rowBalanceById, r.id)) {
-            return unifiedCtx.rowBalanceById[r.id];
-          }
           var v = r[c.id];
           if (c.type === 'checkbox') return v ? 'Yes' : 'No';
-          if (c.type === 'formula') {
-            var fn = getRowColNumeric(r, c, bot, 0);
-            if (!isNaN(fn)) {
-              colTotals[c.id] = (colTotals[c.id] || 0) + fn;
-              return roundEtb2(fn);
-            }
-            return formatCell(v, c, r, bot);
-          }
+          if (c.type === 'formula') return formatCell(v, c, r, bot);
           if (c.type === 'amount' || c.type === 'number') {
             var n = parseNumSafe(v);
-            if (v !== '' && v !== undefined && v !== null && !isNaN(n)) {
-              colTotals[c.id] = (colTotals[c.id] || 0) + n;
-              return n;
-            }
-            return '';
+            return (v !== '' && v !== undefined && v !== null && !isNaN(n)) ? n : '';
           }
           return v !== undefined && v !== null ? String(v) : '';
         }));
       });
-      if ((bot.rows || []).length > 0 && (bot.columns || []).some(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; })) {
-        var totLabelPlaced = false;
-        aoa.push((bot.columns || []).map(function (c) {
-          if (unifiedCtx && c.id === unifiedCtx.balColId) {
-            return unifiedCtx.computeTotalForRows(bot.rows);
-          }
-          if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
-            return roundEtb2(colTotals[c.id] || 0);
-          }
-          if (!totLabelPlaced) { totLabelPlaced = true; return 'TOTAL'; }
-          return '';
-        }));
-      }
       var safeName = (bot.name || 'TableBot').replace(/[^a-z0-9\-_]+/gi, '_');
       downloadWorkbookAsExcel([{ name: (bot.name || 'Sheet1').slice(0, 31), aoa: aoa }], safeName + '_' + new Date().toISOString().slice(0, 10));
     }
 
     function exportBotPdf(bot) {
       if (!bot) return;
-      var unifiedCtx = (typeof getUnifiedMainTableContext === 'function') ? getUnifiedMainTableContext(bot) : null;
       var cols = (bot.columns || []).map(function (c) {
         var isNum = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-        return { label: formatColHeaderLabel(c), align: isNum ? 'right' : 'left', weight: isNum ? 1.0 : 1.35 };
+        return { label: c.name || 'Column', align: isNum ? 'right' : 'left', weight: isNum ? 1.0 : 1.35 };
       });
-      var colTotals = {};
-      var rows = (bot.rows || []).map(function (r) {
+      var rows = (bot.rows || []).map(function (r, idx) {
         return (bot.columns || []).map(function (c) {
-          if (unifiedCtx && c.id === unifiedCtx.balColId && Object.prototype.hasOwnProperty.call(unifiedCtx.rowBalanceById, r.id)) {
-            return formatNumericValue(unifiedCtx.rowBalanceById[r.id], c);
-          }
-          if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
-            var n = getRowColNumeric(r, c, bot, 0);
-            if (!isNaN(n)) colTotals[c.id] = (colTotals[c.id] || 0) + n;
-          }
           var txt = c.type === 'checkbox' ? (r[c.id] ? 'Yes' : 'No') : formatCell(r[c.id], c, r, bot);
           return (txt !== undefined && txt !== null && String(txt).trim() !== '') ? String(txt) : '';
         });
       });
-      var totalsRow = null;
-      if ((bot.rows || []).length > 0 && (bot.columns || []).some(function (c) { return c.type === 'amount' || c.type === 'number' || c.type === 'formula'; })) {
-        var totLblDone = false;
-        totalsRow = (bot.columns || []).map(function (c) {
-          if (unifiedCtx && c.id === unifiedCtx.balColId) {
-            return formatNumericValue(unifiedCtx.computeTotalForRows(bot.rows), c);
-          }
-          if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
-            return formatNumericValue(colTotals[c.id] || 0, c);
-          }
-          if (!totLblDone) { totLblDone = true; return 'Σ Totals (' + bot.rows.length + ')'; }
-          return '';
-        });
-      }
       var safeName = (bot.name || 'TableBot').replace(/[^a-z0-9\-_]+/gi, '_');
       downloadStructuredPdfDocument({
         title: 'Hiriya Salt Production PLC · ' + (bot.name || 'Table'),
         subtitle: 'Folder: ' + (bot.folder || 'General') + ' · Rows: ' + rows.length + ' · Exported ' + formatDmyDate(new Date()),
         columns: cols,
         rows: rows,
-        totalsRow: totalsRow,
         landscape: cols.length > 5,
         filename: safeName + '_' + new Date().toISOString().slice(0, 10) + '.pdf'
       });
@@ -10954,16 +10826,12 @@
       var cols = bot.columns || [];
       var rowDet = preCtx ? preCtx.rowDet : ((typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null);
       var custColMatchPre = preCtx ? preCtx.custColMatch : (rowDet ? rowDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null));
-      var unifiedCtxPre = preCtx && preCtx.unifiedCtx ? preCtx.unifiedCtx : null;
-      var hasUnifiedRowBal = Boolean(unifiedCtxPre && unifiedCtxPre.balColId && Object.prototype.hasOwnProperty.call(unifiedCtxPre.rowBalanceById, row.id));
       var rowPayHist = Array.isArray(row._paymentHistory)
         ? row._paymentHistory.filter(function (ph) { return ph && Number(ph.amount) > 0; })
         : [];
       for (var cIdx = 0; cIdx < cols.length; cIdx++) {
         var col = cols[cIdx];
         var val = row[col.id];
-        var isUnifiedBalCell = Boolean(hasUnifiedRowBal && col.id === unifiedCtxPre.balColId);
-        var unifiedBalVal = isUnifiedBalCell ? unifiedCtxPre.rowBalanceById[row.id] : null;
         var isEd = state.editingCell && state.editingCell.rowId === row.id && state.editingCell.colId === col.id;
         var inRect = selBounds && idx >= selBounds.minR && idx <= selBounds.maxR && cIdx >= selBounds.minC && cIdx <= selBounds.maxC;
         var inExtra = !!(state.extraCells && state.extraCells[row.id + '::' + col.id]);
@@ -11001,7 +10869,7 @@
           var isDateCol = col.type === 'date';
           var inpVal = isDateCol ? toPickerInputValue(val, col) : (val !== undefined && val !== null ? val : '');
           var cellFsEd = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
-          var dispEdStr = isUnifiedBalCell ? formatNumericValue(unifiedBalVal, col) : formatCell(val, col, row, bot);
+          var dispEdStr = formatCell(val, col, row, bot);
           if (isDateCol) {
             rowHtml += '<td class="cell-clickable cell-menu-target cell-selectable" data-row-id="' + esc(row.id) + '" data-col-id="' + esc(col.id) + '" data-r-idx="' + idx + '" data-c-idx="' + cIdx + '" style="cursor:pointer;background:#EFF6FF;box-shadow:inset 0 0 0 2px #2563EB;' + align + '">' +
               '<span style="color:#0D47A1;font-weight:700;font-size:' + cellFsEd + 'px;line-height:1.35;">' + esc(dispEdStr) + '</span>' +
@@ -11021,7 +10889,7 @@
           var fw = (st.bold || isAmt || isFrm) ? '700' : '400';
           var fs = st.italic ? 'italic' : 'normal';
           var cellFontSize = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
-          var dispCellTxt = isUnifiedBalCell ? formatNumericValue(unifiedBalVal, col) : formatCell(val, col, row, bot);
+          var dispCellTxt = formatCell(val, col, row, bot);
           var custColMatch = custColMatchPre;
           var cleanCustCell = (typeof normalizeCustomerLabel === 'function') ? normalizeCustomerLabel(dispCellTxt) : String(dispCellTxt || '').trim();
           var isCustNameCell = Boolean(custColMatch && custColMatch.id === col.id && cleanCustCell !== '');
@@ -11268,18 +11136,9 @@
       var prevFormulaCache = _activeFormulaEvalCache;
       _activeFormulaEvalCache = {};
       try {
-      var preRowDet = (typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null;
-      var preCustCol = preRowDet ? preRowDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null);
-      var unifiedTableCtx = (typeof getUnifiedMainTableContext === 'function') ? getUnifiedMainTableContext(bot) : null;
-      var preRowCtx = { rowDet: preRowDet, custColMatch: preCustCol, unifiedCtx: unifiedTableCtx };
-
       var colSums = {};
       bot.columns.forEach(function (c) {
         if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
-          if (unifiedTableCtx && c.id === unifiedTableCtx.balColId) {
-            colSums[c.id] = unifiedTableCtx.computeTotalForRows(visibleRows);
-            return;
-          }
           var s = 0;
           for (var riSum = 0; riSum < visibleRows.length; riSum++) {
             var n = getRowColNumeric(visibleRows[riSum], c, bot, 0);
@@ -11384,7 +11243,7 @@
           : Math.round(135 * mult);
         html += '<th data-edit-col="' + esc(col.id) + '" style="min-width:' + minW + 'px;" title="Tap to Edit Column Properties">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
-            '<span class="th-col-lbl">' + esc(formatColHeaderLabel(col)) + '</span>' +
+            '<span class="th-col-lbl">' + esc(col.name) + '</span>' +
           '</div></th>';
       });
       var addColMinW = isFitDesktop ? 92 : 124;
@@ -11490,6 +11349,9 @@
         tblWin.start = 0;
       }
       var isTableWindowed = !tblWin.showAll && totalVisRows > DEFAULT_WIN_SIZE;
+      var preRowDet = (typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null;
+      var preCustCol = preRowDet ? preRowDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null);
+      var preRowCtx = { rowDet: preRowDet, custColMatch: preCustCol };
 
       var renderSliceLen = Math.max(0, winEnd - winStart);
       var rowHtmlParts = new Array(renderSliceLen);
@@ -11509,7 +11371,7 @@
           var colSt = col.style || {};
           var colFs = (colSt.fontSize && Number(colSt.fontSize) >= 10) ? Math.min(32, Number(colSt.fontSize)) : 13;
           var sumFs = (col.sumFontSize && Number(col.sumFontSize) >= 12) ? Math.min(34, Number(col.sumFontSize)) : Math.max(17, colFs + 4);
-          var tag = 'Σ ' + esc(formatColHeaderLabel(col));
+          var tag = 'Σ ' + esc(col.name);
           html += '<td style="text-align:right;">' +
             '<div style="font-size:10.5px;text-transform:uppercase;color:#1E3A8A;font-weight:800;letter-spacing:0.03em;">' + tag + '</div>' +
             '<div class="mono table-sum-val" data-sum-val-col="' + esc(col.id) + '" style="font-size:' + sumFs + 'px;color:' + badgeCol + ';">' + esc(formattedSum) + '</div>' +
@@ -11641,8 +11503,8 @@
           numCols.forEach(function (c) {
             var tot = colSums[c.id] || 0;
             html += '<div style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap;">' +
-              '<span style="color:#BFDBFE;font-size:12px;font-weight:400;">' + esc(formatColHeaderLabel(c)) + ':</span>' +
-              '<span class="mono" data-sigma-val-col="' + esc(c.id) + '" style="color:#FCD34D;font-weight:800;">' + esc(formatNumericValue(tot, c)) + '</span></div>';
+              '<span style="color:#BFDBFE;font-size:12px;font-weight:400;">' + esc(c.name) + ':</span>' +
+              '<span class="mono" style="color:#FCD34D;font-weight:800;">' + esc(formatNumericValue(tot, c)) + '</span></div>';
           });
         }
         html += '</div>' +
@@ -12241,34 +12103,26 @@
         var tableElNow = document.querySelector('.sheet-table');
         var tbodyElNow = tableElNow && tableElNow.tBodies && tableElNow.tBodies[0] ? tableElNow.tBodies[0] : null;
         var wrapElNow = document.querySelector('.table-wrap');
-        var hasUnifiedCustomerBal = Boolean(unifiedTableCtx && unifiedTableCtx.balColId);
-        if (!state.tableSearchQuery && tbodyElNow && wrapElNow && !(hasPresetValues && (hasUnifiedCustomerBal || (typeof isLedgerBot === 'function' && isLedgerBot(bot))))) {
+        if (!state.tableSearchQuery && tbodyElNow && wrapElNow && !(hasPresetValues && typeof isLedgerBot === 'function' && isLedgerBot(bot))) {
           visibleRows.push(nr);
           var newIdx = visibleRows.length - 1;
           var twAppend = state.tableWindowByBot && state.tableWindowByBot[bot.id];
           var isWindowTailVisible = !twAppend || twAppend.showAll || (visibleRows.length <= 150) || ((twAppend.start || 0) + (twAppend.size || 150) >= newIdx);
           if (isWindowTailVisible) {
-            var rowHtml = renderTableRowHtml(bot, nr, newIdx, null, preRowCtx);
+            var rowHtml = renderTableRowHtml(bot, nr, newIdx, null);
             tbodyElNow.insertAdjacentHTML('beforeend', rowHtml);
             refreshTableHeaderStats(visibleRows);
             if (hasPresetValues) {
-              var nextUnifiedAppend = (typeof getUnifiedMainTableContext === 'function') ? getUnifiedMainTableContext(bot, visibleRows) : null;
               bot.columns.forEach(function (sumCol) {
                 if (sumCol.type !== 'amount' && sumCol.type !== 'number' && sumCol.type !== 'formula') return;
-                var total = 0;
-                if (nextUnifiedAppend && sumCol.id === nextUnifiedAppend.balColId) {
-                  total = nextUnifiedAppend.computeTotalForRows(visibleRows);
-                } else {
-                  for (var ri = 0; ri < visibleRows.length; ri++) {
-                    var n = getRowColNumeric(visibleRows[ri], sumCol, bot, 0);
-                    if (!isNaN(n)) total += n;
-                  }
-                }
-                var formattedTot = formatNumericValue(total, sumCol);
                 var el = document.querySelector('[data-sum-val-col="' + sumCol.id + '"]');
-                if (el) el.textContent = formattedTot;
-                var sigEl = document.querySelector('[data-sigma-val-col="' + sumCol.id + '"]');
-                if (sigEl) sigEl.textContent = formattedTot;
+                if (!el) return;
+                var total = 0;
+                for (var ri = 0; ri < visibleRows.length; ri++) {
+                  var n = getRowColNumeric(visibleRows[ri], sumCol, bot, 0);
+                  if (!isNaN(n)) total += n;
+                }
+                el.textContent = formatNumericValue(total, sumCol);
               });
             }
             var newTrEl = findTableRowElById(wrapElNow, nr.id) || tbodyElNow.lastElementChild;
@@ -12413,16 +12267,10 @@
           }
         }
         bot.updatedAt = nowIso;
-        var cellChanged = String(oldVal === undefined || oldVal === null ? '' : oldVal) !== String(parsed);
-        if (cellChanged) {
+        if (String(oldVal === undefined || oldVal === null ? '' : oldVal) !== String(parsed)) {
           updateBot(bot, 'EDIT', 'Edited "' + (col ? col.name : ed.colId) + '": "' + oldVal + '" -> "' + parsed + '"', { deferPersist: true, editedRow: editedRowObj });
         }
-        if (!skipRender) {
-          window._tbNeedsTableRefreshAfterEdit = null;
-          renderTableView(bot);
-        } else if (cellChanged) {
-          window._tbNeedsTableRefreshAfterEdit = bot.id;
-        }
+        if (!skipRender) renderTableView(bot);
       };
 
       // Uses global parseCellValueForCol(rawVal, col) defined above renderTableView
@@ -13950,13 +13798,8 @@
           var hasSavedCellVal = clickedRawVal !== undefined && clickedRawVal !== null && String(clickedRawVal).trim() !== '';
           if (clickedColObj && clickedColObj.type !== 'date' && hasSavedCellVal) {
             var tdRect = typeof td.getBoundingClientRect === 'function' ? td.getBoundingClientRect() : null;
-            if (window._tbNeedsTableRefreshAfterEdit === bot.id) {
-              window._tbNeedsTableRefreshAfterEdit = null;
-              renderTableView(bot);
-            }
             openCellActionSheet(rid, cid, tdRect);
           } else {
-            window._tbNeedsTableRefreshAfterEdit = null;
             openCellEditor(rid, cid);
           }
         };
@@ -14418,42 +14261,21 @@
                 draftParsed = isNaN(dn) ? '' : dn;
               }
             }
-            var draftVisRows = visibleRows.map(function (vr) {
-              if (vr.id === state.editingCell.rowId) {
-                var copyR = Object.assign({}, vr);
-                copyR[editColNorm.id] = draftParsed;
-                return copyR;
-              }
-              return vr;
-            });
-            var draftFullRows = (bot.rows || []).map(function (br) {
-              if (br.id === state.editingCell.rowId) {
-                var copyBr = Object.assign({}, br);
-                copyBr[editColNorm.id] = draftParsed;
-                return copyBr;
-              }
-              return br;
-            });
-            var draftUnifiedCtx = (typeof getUnifiedMainTableContext === 'function')
-              ? getUnifiedMainTableContext(bot, draftFullRows)
-              : null;
             bot.columns.forEach(function (sumCol) {
               if (sumCol.type !== 'amount' && sumCol.type !== 'number' && sumCol.type !== 'formula') return;
               var el = document.querySelector('[data-sum-val-col="' + sumCol.id + '"]');
-              var sigEl = document.querySelector('[data-sigma-val-col="' + sumCol.id + '"]');
-              if (!el && !sigEl) return;
+              if (!el) return;
               var total = 0;
-              if (draftUnifiedCtx && sumCol.id === draftUnifiedCtx.balColId) {
-                total = draftUnifiedCtx.computeTotalForRows(draftVisRows);
-              } else {
-                draftVisRows.forEach(function (targetRow) {
-                  var n = getRowColNumeric(targetRow, sumCol, bot, 0);
-                  if (!isNaN(n)) total += n;
-                });
-              }
-              var formattedLiveTot = formatNumericValue(total, sumCol);
-              if (el) el.textContent = formattedLiveTot;
-              if (sigEl) sigEl.textContent = formattedLiveTot;
+              visibleRows.forEach(function (vr) {
+                var targetRow = vr;
+                if (vr.id === state.editingCell.rowId) {
+                  targetRow = Object.assign({}, vr);
+                  targetRow[editColNorm.id] = draftParsed;
+                }
+                var n = getRowColNumeric(targetRow, sumCol, bot, 0);
+                if (!isNaN(n)) total += n;
+              });
+              el.textContent = formatNumericValue(total, sumCol);
             });
           };
 
@@ -17536,10 +17358,7 @@
     function renderColumnModal(m) {
       var bot = m.bot;
       var origCol = m.column;
-      if (!m.draft) {
-        m.draft = JSON.parse(JSON.stringify(origCol));
-        m.draft.name = formatColHeaderLabel(m.draft);
-      }
+      if (!m.draft) m.draft = JSON.parse(JSON.stringify(origCol));
       var d = m.draft;
       var st = d.style || (d.style = { bold: false, italic: false, align: 'left', color: '#1E293B', bgColor: '#FFFFFF' });
 
@@ -17646,8 +17465,7 @@
 
       if (d.type === 'formula') {
         var colChips = bot.columns.filter(function (c) { return c.id !== origCol.id; }).map(function (c) {
-          var cleanChipName = formatColHeaderLabel(c);
-          return '<button type="button" class="btn btn-outline col-fchip" data-cname="' + esc(cleanChipName) + '" style="padding:3px 8px;font-size:10.5px;">+ ' + esc(cleanChipName) + '</button>';
+          return '<button type="button" class="btn btn-outline col-fchip" data-cname="' + esc(c.name) + '" style="padding:3px 8px;font-size:10.5px;">+ ' + esc(c.name) + '</button>';
         }).join('');
         var fPrevStatus = buildFormulaPreviewStatus(d.formulaExpr || '', d, bot);
         html += '<div id="col-formula-card" style="background:#F5F3FF;border:1px solid #DDD6FE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">' +
@@ -18006,7 +17824,7 @@
       document.getElementById('col-open-pivot').onclick = function () { openModal('pivot', { bot: bot, colId: origCol.id }); };
       document.getElementById('col-save').onclick = function () {
         if (!guardWriteAction('Edit Column Properties')) return;
-        d.name = cleanBalanceTypoText((d.name || '').trim()) || 'Untitled Column';
+        d.name = (d.name || '').trim() || 'Untitled Column';
         if (d.type === 'formula') {
           var fBoxNow = document.getElementById('col-formula-expr');
           if (fBoxNow) d.formulaExpr = fBoxNow.value;
@@ -18822,15 +18640,13 @@
         var defaultEthDateCol = allDateCols.find(function (c) { return isEthiopianCol(c); }) || null;
         var fallbackDateCol = allDateCols[0] || textDateCols[0] || findCol(['date', 'time', 'ቀን']);
 
-        var botUnifiedCtx = (typeof getUnifiedMainTableContext === 'function') ? getUnifiedMainTableContext(bot) : null;
         var colNameCounts = {};
         var botColMetaList = (bot.columns || []).map(function (c) {
-          var cleanCName = formatColHeaderLabel(c);
-          var baseKey = cleanCName.trim().toLowerCase() || 'column';
+          var baseKey = String(c.name || 'Column').trim().toLowerCase() || 'column';
           colNameCounts[baseKey] = (colNameCounts[baseKey] || 0) + 1;
           var occ = colNameCounts[baseKey];
           var colKey = occ === 1 ? baseKey : (baseKey + ' #' + occ);
-          var dispName = occ === 1 ? cleanCName : (cleanCName + ' (' + occ + ')');
+          var dispName = occ === 1 ? (c.name || 'Column') : ((c.name || 'Column') + ' (' + occ + ')');
           return { col: c, colKey: colKey, dispName: dispName };
         });
 
@@ -18997,38 +18813,28 @@
           }
 
           var rowNumFormulaSum = 0;
-          var hasUnifiedRowVal = Boolean(botUnifiedCtx && botUnifiedCtx.balColId && Object.prototype.hasOwnProperty.call(botUnifiedCtx.rowBalanceById, row.id));
-          var unifiedRowBalVal = hasUnifiedRowVal ? botUnifiedCtx.rowBalanceById[row.id] : NaN;
           var allCols = [];
           botColMetaList.forEach(function (metaC) {
             var c = metaC.col;
             var rawVal = row[c.id];
             var isNumType = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-            var isUnifiedBalHere = Boolean(hasUnifiedRowVal && c.id === botUnifiedCtx.balColId);
-            var numVal = isUnifiedBalHere
-              ? unifiedRowBalVal
-              : (isNumType ? getRowColNumeric(row, c, bot, 0) : NaN);
+            var numVal = isNumType ? getRowColNumeric(row, c, bot, 0) : NaN;
             var mixedNum = NaN;
-            if (!isNumType && !isUnifiedBalHere && isMoneyTextCol(c) && rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+            if (!isNumType && isMoneyTextCol(c) && rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
               mixedNum = extractAmountFromMixedCell(rawVal, c, row, bot);
               if (!isNaN(mixedNum)) {
                 isNumType = true;
                 numVal = mixedNum;
               }
             }
-            if (isUnifiedBalHere) isNumType = true;
             if (isNumType && !isNaN(numVal)) rowNumFormulaSum += numVal;
-            var rawDisp = isUnifiedBalHere
-              ? formatNumericValue(unifiedRowBalVal, c)
-              : (c.type === 'checkbox' ? (rawVal ? 'Yes' : 'No') : formatCell(rawVal, c, row, bot));
+            var rawDisp = c.type === 'checkbox' ? (rawVal ? 'Yes' : 'No') : formatCell(rawVal, c, row, bot);
             var dispVal = (isNumType && typeof rawDisp === 'string') ? rawDisp.replace(/^\$\s*/, '') : rawDisp;
-            var hasVal = isUnifiedBalHere
-              ? true
-              : (c.type === 'checkbox'
-                  ? !!rawVal
-                  : (c.type === 'formula'
-                      ? !isNaN(numVal)
-                      : (isNumType ? (!isNaN(numVal) && (rawVal !== '' && rawVal !== undefined && rawVal !== null)) : (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== ''))));
+            var hasVal = c.type === 'checkbox'
+              ? !!rawVal
+              : (c.type === 'formula'
+                  ? !isNaN(numVal)
+                  : (isNumType ? (!isNaN(numVal) && (rawVal !== '' && rawVal !== undefined && rawVal !== null)) : (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '')));
             var cleanCurr = (c.currency && c.currency !== 'None' && c.currency !== '$') ? c.currency : '';
             allCols.push({
               id: c.id,
@@ -19049,13 +18855,11 @@
 
           var totVal = colNum(totCol);
           var paidVal = colNum(paidCol);
-          var balVal = hasUnifiedRowVal
-            ? unifiedRowBalVal
-            : ((balCol && (row[balCol.id] !== undefined && row[balCol.id] !== '' || balCol.type === 'formula'))
-                ? colNum(balCol)
-                : (totVal > 0 && paidCol && (!totCol || totCol.id !== paidCol.id) ? roundEtb2(totVal - paidVal) : 0));
+          var balVal = (balCol && (row[balCol.id] !== undefined && row[balCol.id] !== '' || balCol.type === 'formula'))
+            ? colNum(balCol)
+            : (totVal > 0 && paidCol && (!totCol || totCol.id !== paidCol.id) ? Math.max(0, totVal - paidVal) : 0);
           if (totVal <= 0 && !balCol) totVal = paidVal > 0 ? paidVal : rowNumFormulaSum;
-          if (totVal <= 0 && balCol) totVal = paidVal + Math.max(0, balVal);
+          if (totVal <= 0 && balCol) totVal = paidVal + balVal;
           if (paidVal <= 0 && totVal > 0 && !balCol) paidVal = totVal;
           var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
 
@@ -19071,7 +18875,6 @@
             totalAmount: totVal,
             paidAmount: paidVal,
             remainingBalance: balVal,
-            hasUnifiedBalance: hasUnifiedRowVal,
             numFormulaSum: rowNumFormulaSum,
             allCols: allCols,
             status: st,
@@ -19420,34 +19223,21 @@
       });
 
       var met = { totalInvoiced: 0, totalPaid: 0, totalRemaining: 0, totalQuantity: 0, numFormulaSum: 0, rowCount: filtered.length, paidCount: 0, balCount: 0 };
-      var unifiedRemLatestByCust = {};
       filtered.forEach(function (it) {
         met.totalInvoiced += it.totalAmount;
         met.totalPaid += it.paidAmount;
-        if (it.hasUnifiedBalance) {
-          var uCustKey = it.botId + '::' + normalizeCustomerLabel(it.customerName || '').toLowerCase();
-          var prevU = unifiedRemLatestByCust[uCustKey];
-          var curURow = it.rowNumber || 0;
-          if (!prevU || curURow >= prevU.rowIdx) {
-            unifiedRemLatestByCust[uCustKey] = { val: Number(it.remainingBalance) || 0, rowIdx: curURow };
-          }
-        } else {
-          met.totalRemaining += it.remainingBalance;
-        }
+        met.totalRemaining += it.remainingBalance;
         met.totalQuantity += (it.quantity || 0);
         met.numFormulaSum += (it.numFormulaSum || 0);
         if (it.remainingBalance <= 0.01) met.paidCount++; else met.balCount++;
-      });
-      Object.keys(unifiedRemLatestByCust).forEach(function (uk) {
-        met.totalRemaining = roundEtb2(met.totalRemaining + unifiedRemLatestByCust[uk].val);
       });
       met.rate = met.totalInvoiced > 0 ? (met.totalPaid / met.totalInvoiced) * 100 : (filtered.length > 0 ? 100 : 0);
 
       var colMap = {};
       var colOrder = [];
       var ensureColMeta = function (c, forcedKey, forcedName) {
-        var label = formatColHeaderLabel(forcedName || c.name || 'Column');
-        var key = forcedKey || c.colKey || label.trim().toLowerCase() || 'column';
+        var key = forcedKey || c.colKey || String(c.name || 'Column').trim().toLowerCase() || 'column';
+        var label = forcedName || c.name || 'Column';
         if (!colMap[key]) {
           var cleanCurr = (c.currency && c.currency !== 'None' && c.currency !== '$') ? c.currency : '';
           colMap[key] = {
@@ -19479,32 +19269,21 @@
         if (!isAllFolders && bf !== fld) return;
         var bNameCnt = {};
         (b.columns || []).forEach(function (c) {
-          var cleanNm = formatColHeaderLabel(c);
-          var bk = cleanNm.trim().toLowerCase() || 'column';
+          var bk = String(c.name || 'Column').trim().toLowerCase() || 'column';
           bNameCnt[bk] = (bNameCnt[bk] || 0) + 1;
           var occ = bNameCnt[bk];
           var ck = occ === 1 ? bk : (bk + ' #' + occ);
-          var dn = occ === 1 ? cleanNm : (cleanNm + ' (' + occ + ')');
+          var dn = occ === 1 ? (c.name || 'Column') : ((c.name || 'Column') + ' (' + occ + ')');
           ensureColMeta(c, ck, dn);
         });
       });
 
-      var balColLatestByCust = {};
       filtered.forEach(function (it) {
         (it.allCols || []).forEach(function (ac) {
           var m = ensureColMeta(ac, ac.colKey, ac.name);
           if (ac.isNumeric) {
             m.isNumeric = true;
-            if (m.isBalance) {
-              var ckKey = m.key + '::' + it.botId + '::' + normalizeCustomerLabel(it.customerName || '').toLowerCase();
-              var prevEntry = balColLatestByCust[ckKey];
-              var curRowIdx = it.rowNumber || 0;
-              if (!prevEntry || curRowIdx >= prevEntry.rowIdx) {
-                balColLatestByCust[ckKey] = { key: m.key, val: Number(ac.numeric) || 0, rowIdx: curRowIdx };
-              }
-            } else {
-              m.total += (Number(ac.numeric) || 0);
-            }
+            m.total += (Number(ac.numeric) || 0);
             if (ac.isCurrency) {
               m.isCurrency = true;
               if (ac.currency) m.currency = ac.currency;
@@ -19516,12 +19295,6 @@
             if (ac.display && ac.display !== '—') m.latestDisplay = ac.display;
           }
         });
-      });
-      Object.keys(balColLatestByCust).forEach(function (ckKey) {
-        var entry = balColLatestByCust[ckKey];
-        if (colMap[entry.key]) {
-          colMap[entry.key].total = roundEtb2(colMap[entry.key].total + entry.val);
-        }
       });
 
       var columnSummaries = colOrder.map(function (cm) {
@@ -19554,22 +19327,10 @@
             checkedCount: 0,
             latestDisplay: ''
           };
-          var tBalLatestByCust = {};
           tItems.forEach(function (it) {
             (it.allCols || []).forEach(function (ac) {
               if ((ac.colKey || String(ac.name || '').trim().toLowerCase()) === cm.key) {
-                if (ac.isNumeric) {
-                  if (cm.isBalance) {
-                    var tck = normalizeCustomerLabel(it.customerName || '').toLowerCase();
-                    var prevTB = tBalLatestByCust[tck];
-                    var curTRow = it.rowNumber || 0;
-                    if (!prevTB || curTRow >= prevTB.rowIdx) {
-                      tBalLatestByCust[tck] = { val: Number(ac.numeric) || 0, rowIdx: curTRow };
-                    }
-                  } else {
-                    tColObj.total += (Number(ac.numeric) || 0);
-                  }
-                }
+                if (ac.isNumeric) tColObj.total += (Number(ac.numeric) || 0);
                 if (ac.checked) tColObj.checkedCount++;
                 if (ac.hasValue) {
                   tColObj.count++;
@@ -19578,11 +19339,6 @@
               }
             });
           });
-          if (cm.isBalance) {
-            Object.keys(tBalLatestByCust).forEach(function (tck) {
-              tColObj.total = roundEtb2(tColObj.total + tBalLatestByCust[tck].val);
-            });
-          }
           tColObj.summaryValue = formatColSummaryValue(tColObj, tItems.length);
           tCols[cm.key] = tColObj;
         });
@@ -21438,7 +21194,7 @@
       }
       return sheets.map(function (sh) {
         var headers = (sh.aoa[0] || []).map(function (h, idx) {
-          var t = cleanBalanceTypoText(String(h === undefined || h === null ? '' : h).trim());
+          var t = String(h === undefined || h === null ? '' : h).trim();
           return t || ('Column ' + (idx + 1));
         });
         var body = sh.aoa.slice(1).map(function (rowArr) {
@@ -22555,14 +22311,6 @@
       if (balCol) exclBal[balCol.id] = true;
       if (custCol) exclBal[custCol.id] = true;
 
-      var openBalCol = findCol(
-        ['opening balance', 'initial balance', 'starting balance', 'previous balance', 'prev balance', 'opening', 'መነሻ ቀሪ'],
-        [/opening\s*bal|initial\s*bal|starting\s*bal|prev(?:ious)?\s*bal|^opening$|መነሻ/i],
-        exclBal,
-        true
-      );
-      if (openBalCol) exclBal[openBalCol.id] = true;
-
       var payDateCol = findCol(
         ['payment date', 'paid date', 'paid data', 'pay date', 'pay data', 'date paid', 'deposit date', 'የክፍያ ቀን'],
         [/pay(?:ment)?\s*(?:date|data)|paid\s*(?:date|data)|date\s*(?:of\s*)?paid|date\s*of\s*payment|deposit\s*date|paid\s*(?:ec|gc|day)|(?:የ)?ክፍያ\s*ቀን/i],
@@ -22572,8 +22320,8 @@
       if (payDateCol) exclForPayAmt[payDateCol.id] = true;
 
       var payAmtCol = findCol(
-        ['paid amount', 'payment amount', 'amount paid', 'cash paid', 'amt paid', 'paid', 'payment', 'received', 'recieved', 'deposit', 'የተከፈለ'],
-        [/paid\s*(?:amt|amount|birr|etb)?|payment\s*(?:amt|amount|birr|etb)?|\bpay\s*(?:amt|amount|birr|etb)\b|\bpaid\b|\bpayment\b|\bpay\b|\breceived\b|\brecieved\b|\bdeposit\b|የተከፈለ|ክፍያ|ከፈለ/i],
+        ['paid amount', 'payment amount', 'amount paid', 'cash paid', 'amt paid', 'paid', 'payment', 'received', 'deposit', 'የተከፈለ'],
+        [/paid\s*(?:amt|amount|birr|etb)?|payment\s*(?:amt|amount|birr|etb)?|\bpay\s*(?:amt|amount|birr|etb)\b|\bpaid\b|\bpayment\b|\bpay\b|\breceived\b|\bdeposit\b|የተከፈለ|ክፍያ|ከፈለ/i],
         exclForPayAmt,
         true
       );
@@ -22588,8 +22336,8 @@
       if (saleDateCol) exclPayBal[saleDateCol.id] = true;
 
       var saleAmtCol = findCol(
-        ['total sale', 'total sales', 'sale amount', 'credit amount', 'sale / credit', 'credit sale', 'buye amount', 'buy amount', 'purchase amount', 'buye', 'buy', 'purchase', 'credit', 'order amount'],
-        [/total\s*sales?|sale\s*(?:amt|amount)|credit\s*(?:amt|amount|sale)?|\bbuye\b|\bbuy\b|purchase/i],
+        ['sale amount', 'credit amount', 'sale / credit', 'credit sale', 'buye amount', 'buy amount', 'purchase amount', 'buye', 'buy', 'purchase', 'credit', 'order amount'],
+        [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount|sale)?|\bbuye\b|\bbuy\b|purchase/i],
         exclPayBal,
         true
       );
@@ -22607,8 +22355,8 @@
       ) || cols.find(function (c) { return c.type === 'date' && (!payDateCol || c.id !== payDateCol.id); }) || null;
 
       var genericTotalCol = saleAmtCol || findCol(
-        ['total amount', 'grand total', 'total price', 'total sales', 'subtotal', 'sub total', 'invoice', 'total', 'sales', 'sale', 'buye', 'buy', 'purchase', 'debit', 'amount', 'price', 'cost', 'birr', 'etb', 'sum', 'ጠቅላላ', 'ዋጋ', 'ሽያጭ'],
-        [/\btotal\b|grand|subtotal|invoice|\bbuye\b|\bbuy\b|purchase|\bamount\b|\bsum\b/i, /\bdebit\b|\bbirr\b|\betb\b|\bprice\b|\bcost\b|ጠቅላላ|ዋጋ|ሽያጭ/i],
+        ['total amount', 'grand total', 'total price', 'total sales', 'invoice', 'total', 'sales', 'sale', 'buye', 'buy', 'purchase', 'debit', 'amount', 'birr', 'etb', 'sum'],
+        [/\btotal\b|grand|invoice|\bbuye\b|\bbuy\b|purchase|\bamount\b|\bsum\b/i, /\bdebit\b|\bbirr\b|\betb\b/i],
         exclPayBal,
         true
       ) || cols.find(function (c) {
@@ -22620,7 +22368,6 @@
       var detOut = {
         custCol: custCol,
         typeCol: typeCol,
-        openBalCol: openBalCol,
         saleDateCol: saleDateCol,
         saleAmtCol: saleAmtCol,
         payDateCol: payDateCol,
@@ -22762,7 +22509,7 @@
 
     function resolveLedgerRowMeta(row, det, bot, origIdx) {
       if (!row || !det) return null;
-      var custRaw = det.custCol ? normalizeCustomerLabel(row[det.custCol.id]) : '';
+      var custRaw = det.custCol ? String(row[det.custCol.id] || '').trim() : '';
       var typeRaw = det.typeCol ? String(row[det.typeCol.id] || '').trim() : '';
       var sDateRaw = det.saleDateCol ? String(row[det.saleDateCol.id] || '').trim() : (det.genericDateCol ? String(row[det.genericDateCol.id] || '').trim() : '');
       var pDateRaw = det.payDateCol ? String(row[det.payDateCol.id] || '').trim() : '';
@@ -22773,18 +22520,14 @@
       if (isNaN(sAmt)) sAmt = 0;
       if (isNaN(pAmt)) pAmt = 0;
 
-      var hasOpenColCell = Boolean(det.openBalCol && row[det.openBalCol.id] !== '' && row[det.openBalCol.id] !== null && row[det.openBalCol.id] !== undefined);
-      var openColVal = hasOpenColCell ? readLedgerNumericCell(row, det.openBalCol, bot) : 0;
-      if (isNaN(openColVal) || !isFinite(openColVal)) openColVal = 0;
-
       var hasBalCell = Boolean(det.balCol && row[det.balCol.id] !== '' && row[det.balCol.id] !== null && row[det.balCol.id] !== undefined);
       var rawBalVal = hasBalCell ? readLedgerNumericCell(row, det.balCol, bot) : 0;
       if (isNaN(rawBalVal) || !isFinite(rawBalVal)) rawBalVal = 0;
 
-      var hasAnyVal = Boolean(custRaw || sDateRaw || pDateRaw || sAmt !== 0 || pAmt !== 0 || (hasOpenColCell && openColVal !== 0) || (hasBalCell && rawBalVal !== 0));
+      var hasAnyVal = Boolean(custRaw || sDateRaw || pDateRaw || sAmt !== 0 || pAmt !== 0 || (hasBalCell && rawBalVal !== 0));
       if (!hasAnyVal) return null;
 
-      var isOpening = row._ledgerKind === 'opening' || isOpeningLedgerType(typeRaw) || (sAmt === 0 && pAmt === 0 && ((hasOpenColCell && openColVal !== 0) || (hasBalCell && rawBalVal !== 0)) && !isPaymentLedgerType(typeRaw) && !isSaleLedgerType(typeRaw));
+      var isOpening = row._ledgerKind === 'opening' || isOpeningLedgerType(typeRaw) || (sAmt === 0 && pAmt === 0 && hasBalCell && rawBalVal !== 0 && !isPaymentLedgerType(typeRaw) && !isSaleLedgerType(typeRaw));
       var isPayment = !isOpening && (row._ledgerKind === 'payment' || isPaymentLedgerType(typeRaw) || (pAmt !== 0 && sAmt === 0 && !sDateRaw) || (Boolean(pDateRaw) && !sDateRaw && sAmt === 0 && !isSaleLedgerType(typeRaw)));
 
       var effSaleAmt = sAmt;
@@ -22798,8 +22541,8 @@
       }
 
       var openingAmt = isOpening
-        ? (openColVal !== 0 ? roundEtb2(openColVal) : (rawBalVal !== 0 ? roundEtb2(rawBalVal) : (effSaleAmt !== 0 ? roundEtb2(effSaleAmt) : (effPaidAmt !== 0 ? roundEtb2(-effPaidAmt) : 0))))
-        : roundEtb2(openColVal);
+        ? (rawBalVal !== 0 ? roundEtb2(rawBalVal) : (effSaleAmt !== 0 ? roundEtb2(effSaleAmt) : (effPaidAmt !== 0 ? roundEtb2(-effPaidAmt) : 0)))
+        : 0;
       var isUndatedOpening = Boolean(isOpening && !sDateRaw && !pDateRaw);
 
       var activeDateRaw = isPayment ? (pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
@@ -22833,26 +22576,51 @@
       var det = detectLedgerColumns(bot);
       if (!det || !det.balCol) return bot;
 
-      // Deterministic single top-to-bottom row pass (never re-sort or scramble rows)
-      var calMode = bot.ledgerCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
-      var eng = (typeof computeUnifiedCustomerLedgerEngine === 'function')
-        ? computeUnifiedCustomerLedgerEngine([bot], { calendarMode: calMode })
-        : null;
-      var rowBals = (eng && eng.botRowBalances && eng.botRowBalances[bot.id]) ? eng.botRowBalances[bot.id] : {};
-
+      var populated = [];
+      var emptyRows = [];
       for (var i = 0; i < bot.rows.length; i++) {
         var r = bot.rows[i];
         var meta = resolveLedgerRowMeta(r, det, bot, i);
         if (!meta) {
           if (det.balCol.type !== 'formula') r[det.balCol.id] = '';
+          emptyRows.push(r);
           continue;
         }
-        if (det.balCol.type !== 'formula' && Object.prototype.hasOwnProperty.call(rowBals, r.id)) {
-          r[det.balCol.id] = rowBals[r.id];
+        populated.push(meta);
+      }
+
+      populated.sort(function (a, b) {
+        if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
+        if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
+        if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
+        if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
+        return a.origIdx - b.origIdx;
+      });
+
+      var runningMap = {};
+      for (var j = 0; j < populated.length; j++) {
+        var item = populated[j];
+        var prev = runningMap[item.custKey] || 0;
+        var netDelta;
+        if (item.isOpening) {
+          netDelta = item.openingAmount;
+        } else if (det.isDedicatedLedger) {
+          netDelta = roundEtb2(item.bothSaleAmt - item.bothPaidAmt);
+        } else {
+          netDelta = roundEtb2(item.saleAmount - item.paidAmount);
         }
-        if (det.typeCol && !String(r[det.typeCol.id] || '').trim()) {
-          r[det.typeCol.id] = meta.isOpening ? 'Opening Balance' : (meta.isPayment ? 'Payment' : 'Credit Sale');
+        var nextBal = roundEtb2(prev + netDelta);
+        runningMap[item.custKey] = nextBal;
+        if (det.balCol.type !== 'formula') {
+          item.row[det.balCol.id] = nextBal;
         }
+        if (det.typeCol && !String(item.row[det.typeCol.id] || '').trim()) {
+          item.row[det.typeCol.id] = item.isOpening ? 'Opening Balance' : (item.isPayment ? 'Payment' : 'Credit Sale');
+        }
+      }
+
+      if (populated.length > 0 && isLedgerBot(bot)) {
+        bot.rows = populated.map(function (p) { return p.row; }).concat(emptyRows);
       }
       return bot;
     }
@@ -23245,8 +23013,7 @@
       return Object.assign({ ok: true, dateStr: storedDateStr, amount: amtNum }, res);
     }
 
-    function extractLedgerEntriesFromRow(row, det, bot, origIdx, entryOpts) {
-      entryOpts = entryOpts || {};
+    function extractLedgerEntriesFromRow(row, det, bot, origIdx) {
       var out = [];
       if (!row || !det) return out;
       var custRaw = det.custCol ? normalizeCustomerLabel(row[det.custCol.id]) : '';
@@ -23263,10 +23030,6 @@
         var pInlineAmt = extractAmountFromMixedCell(pDateRaw, det.payDateCol, row, bot);
         if (!isNaN(pInlineAmt) && pInlineAmt > 0) pAmt = pInlineAmt;
       }
-
-      var hasOpenColCell = Boolean(det.openBalCol && row[det.openBalCol.id] !== '' && row[det.openBalCol.id] !== null && row[det.openBalCol.id] !== undefined);
-      var openColVal = hasOpenColCell ? readLedgerNumericCell(row, det.openBalCol, bot) : 0;
-      if (isNaN(openColVal) || !isFinite(openColVal)) openColVal = 0;
 
       var hasBalCell = Boolean(det.balCol && row[det.balCol.id] !== '' && row[det.balCol.id] !== null && row[det.balCol.id] !== undefined);
       var rawBalVal = hasBalCell ? readLedgerNumericCell(row, det.balCol, bot) : 0;
@@ -23287,7 +23050,6 @@
       var hasAnyRowData = false;
       for (var ci = 0; ci < botCols.length; ci++) {
         var colObj = botCols[ci];
-        var cleanColLabel = formatColHeaderLabel(colObj);
         var rawCell = row[colObj.id];
         var isNumCol = (colObj.type === 'amount' || colObj.type === 'number' || colObj.type === 'formula');
         var numCellVal = isNumCol ? readLedgerNumericCell(row, colObj, bot) : NaN;
@@ -23303,8 +23065,8 @@
         if (hasVal) hasAnyRowData = true;
         rawRowCols.push({
           colId: colObj.id,
-          colKey: cleanColLabel.trim().toLowerCase(),
-          name: cleanColLabel,
+          colKey: String(colObj.name || 'Column').trim().toLowerCase(),
+          name: colObj.name || 'Column',
           type: colObj.type || 'text',
           isNumeric: isNumCol,
           numeric: (!isNaN(numCellVal) && isFinite(numCellVal)) ? numCellVal : 0,
@@ -23315,7 +23077,7 @@
         });
       }
 
-      if (!custRaw && !sDateRaw && !pDateRaw && sAmt === 0 && pAmt === 0 && openColVal === 0 && rawBalVal === 0 && !hasAnyRowData) return out;
+      if (!custRaw && !sDateRaw && !pDateRaw && sAmt === 0 && pAmt === 0 && rawBalVal === 0 && !hasAnyRowData) return out;
       for (var ci2 = 0; ci2 < rawRowCols.length; ci2++) {
         var rcItem = rawRowCols[ci2];
         if (!rcItem.hasValue && rcItem._hasEvalFormulaNum) rcItem.hasValue = true;
@@ -23351,10 +23113,9 @@
         pAmt = 0;
       }
 
-      // Opening / Initial Balance row (explicit Opening Balance type, Opening Balance column, OR first customer row standalone Remaining Balance cell with zero Sale/Paid)
-      var allowFirstRowBalOpening = Boolean(hasBalCell && (!det.balCol || det.balCol.type !== 'formula') && rawBalVal !== 0 && !entryOpts.seenCustBefore);
-      if (explicitKind === 'opening' || (!explicitKind && sAmt === 0 && pAmt === 0 && ((hasOpenColCell && openColVal !== 0) || allowFirstRowBalOpening))) {
-        var openingAmt = openColVal !== 0 ? roundEtb2(openColVal) : (rawBalVal !== 0 ? roundEtb2(rawBalVal) : (sAmt !== 0 ? roundEtb2(sAmt) : (pAmt !== 0 ? roundEtb2(-pAmt) : 0)));
+      // Opening / Initial Balance row (explicit Opening Balance type, OR standalone Remaining Balance cell with zero Buye/Paid)
+      if (explicitKind === 'opening' || (!explicitKind && sAmt === 0 && pAmt === 0 && hasBalCell && rawBalVal !== 0)) {
+        var openingAmt = rawBalVal !== 0 ? roundEtb2(rawBalVal) : (sAmt !== 0 ? roundEtb2(sAmt) : (pAmt !== 0 ? roundEtb2(-pAmt) : 0));
         var isUndatedOpening = (!sDateRaw && !pDateRaw);
         var openDateStr = sDateRaw || pDateRaw;
         var openMeta = parseFlexibleDateMeta(openDateStr, row._createdAt || bot.updatedAt, det.saleDateCol || det.genericDateCol || det.payDateCol, preferEth);
@@ -23398,41 +23159,6 @@
           balColRef: det.balCol
         });
         return out;
-      }
-
-      // If a non-opening row also carries a separate Opening Balance column value, emit opening first
-      if (hasOpenColCell && openColVal !== 0) {
-        var rowOpenMeta = parseFlexibleDateMeta(sDateRaw || pDateRaw, row._createdAt || bot.updatedAt, det.saleDateCol || det.genericDateCol || det.payDateCol, preferEth);
-        out.push({
-          entryId: row.id + '_open',
-          rowId: row.id,
-          fileRowNum: fileRowNum,
-          botId: bot.id,
-          botName: bot.name,
-          folder: bot.folder || 'General',
-          customerName: custName,
-          kind: 'opening',
-          typeLabel: 'Opening Balance',
-          isUndatedOpening: false,
-          dateMeta: rowOpenMeta,
-          utcDayMs: Date.UTC(rowOpenMeta.gy, rowOpenMeta.gm - 1, rowOpenMeta.gd),
-          openingAmount: roundEtb2(openColVal),
-          saleAmount: 0,
-          paidAmount: 0,
-          hasManualBalCell: hasBalCell,
-          manualBalVal: roundEtb2(rawBalVal),
-          isLedgerSource: isLedgerBot(bot) || det.isDedicatedLedger,
-          note: noteRaw || 'Opening Balance',
-          allRowCols: cloneAllRowColsList(rawRowCols),
-          rawRowCols: rawRowCols,
-          allColsSummary: allColsSummary,
-          kindOrder: -1,
-          createdMs: createdMs,
-          txSeq: baseSeq - 0.1,
-          origIdx: origIdx,
-          rawRow: row,
-          balColRef: det.balCol
-        });
       }
 
       var normHist = getNormalizedRowPaymentHistory(row, det, bot, pAmt);
@@ -23626,225 +23352,6 @@
       return out;
     }
 
-    // ONE unified deterministic top-to-bottom per-customer balance engine shared by Main Table, Statement, Exports, and Reports:
-    // Start from customer's opening balance (or first row's initial balance if defined, otherwise 0),
-    // process rows strictly top-to-bottom without re-sorting: balance = balance + (sale || 0) - (paid || 0).
-    function computeUnifiedCustomerLedgerEngine(botsList, opts) {
-      opts = opts || {};
-      var calendarMode = opts.calendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
-      var overrideRowsByBotId = opts.overrideRowsByBotId || null;
-      var sortEntriesTopToBottom = function (list) {
-        list.sort(function (a, b) {
-          var boA = a._botOrder || 0, boB = b._botOrder || 0;
-          if (boA !== boB) return boA - boB;
-          if (a.origIdx !== b.origIdx) return a.origIdx - b.origIdx;
-          var soA = a._subOrder || 0, soB = b._subOrder || 0;
-          return soA - soB;
-        });
-      };
-
-      var rawEntries = [];
-      var seenCustInExtract = {};
-      (botsList || []).forEach(function (b, bIdx) {
-        if (!b || isBotTombstoned(b)) return;
-        var det = detectLedgerColumns(b);
-        var rows = (overrideRowsByBotId && Object.prototype.hasOwnProperty.call(overrideRowsByBotId, b.id))
-          ? (overrideRowsByBotId[b.id] || [])
-          : (Array.isArray(b.rows) ? b.rows : []);
-        for (var i = 0; i < rows.length; i++) {
-          var rowObj = rows[i];
-          var cPreview = (det && det.custCol && rowObj) ? (normalizeCustomerLabel(rowObj[det.custCol.id]) || 'Walk-in Customer').toLowerCase() : 'walk-in customer';
-          var extracted = extractLedgerEntriesFromRow(rowObj, det, b, i, { seenCustBefore: Boolean(seenCustInExtract[cPreview]) });
-          for (var j = 0; j < extracted.length; j++) {
-            extracted[j]._botOrder = bIdx;
-            extracted[j]._subOrder = j;
-            rawEntries.push(extracted[j]);
-            seenCustInExtract[extracted[j].customerName.toLowerCase()] = true;
-          }
-        }
-      });
-
-      sortEntriesTopToBottom(rawEntries);
-
-      // If a non-ledger custom table starts directly on a payment row with an explicit positive Balance cell (e.g., Paid 20,000 leaving 30,000 => initial balance was 50,000), capture that initial balance cleanly once
-      var seenCustFirst = {};
-      var inferredOpenings = [];
-      for (var fi = 0; fi < rawEntries.length; fi++) {
-        var fe = rawEntries[fi];
-        var fKey = fe.customerName.toLowerCase();
-        if (seenCustFirst[fKey]) continue;
-        seenCustFirst[fKey] = true;
-        if (!fe.isLedgerSource && fe.kind === 'payment' && fe.saleAmount === 0 && fe.paidAmount > 0 && fe.hasManualBalCell && fe.manualBalVal > 0 && (!fe.balColRef || fe.balColRef.type !== 'formula')) {
-          inferredOpenings.push({
-            entryId: fe.entryId + '_inferred_opening',
-            rowId: fe.rowId,
-            fileRowNum: fe.fileRowNum,
-            botId: fe.botId,
-            botName: fe.botName,
-            folder: fe.folder,
-            customerName: fe.customerName,
-            kind: 'opening',
-            typeLabel: 'Opening Balance',
-            isInferredOpening: true,
-            isUndatedOpening: true,
-            dateMeta: null,
-            utcDayMs: -8640000000000000,
-            openingAmount: roundEtb2(fe.manualBalVal + fe.paidAmount),
-            saleAmount: 0,
-            paidAmount: 0,
-            note: 'Initial / Opening Balance',
-            allRowCols: [],
-            rawRowCols: [],
-            allColsSummary: '',
-            kindOrder: -1,
-            createdMs: fe.createdMs,
-            txSeq: fe.txSeq - 0.5,
-            origIdx: fe.origIdx,
-            _botOrder: fe._botOrder || 0,
-            _subOrder: -1,
-            balColRef: fe.balColRef
-          });
-        }
-      }
-      if (inferredOpenings.length > 0) {
-        rawEntries = inferredOpenings.concat(rawEntries);
-        sortEntriesTopToBottom(rawEntries);
-      }
-
-      var customerAllMap = {};
-      var rowBalanceByKey = {};
-      var botRowBalances = {};
-      var allTimeOpening = 0;
-      var allTimeCredit = 0;
-      var allTimePaid = 0;
-
-      for (var pIdx = 0; pIdx < rawEntries.length; pIdx++) {
-        var pe = rawEntries[pIdx];
-        var pKey = pe.customerName.toLowerCase();
-        if (!customerAllMap[pKey]) {
-          customerAllMap[pKey] = {
-            customerName: pe.customerName,
-            customerKey: pKey,
-            openingBalance: 0,
-            totalCredit: 0,
-            totalPaid: 0,
-            runningBalance: 0,
-            outstandingBalance: 0,
-            remainingBalance: 0,
-            txCount: 0,
-            saleCount: 0,
-            paymentCount: 0,
-            lastDateDisplay: '—'
-          };
-        }
-        var pcs = customerAllMap[pKey];
-        if (pe.kind === 'opening') {
-          pcs.openingBalance = roundEtb2(pcs.openingBalance + (pe.openingAmount || 0));
-          pcs.runningBalance = roundEtb2(pcs.runningBalance + (pe.openingAmount || 0));
-          allTimeOpening = roundEtb2(allTimeOpening + (pe.openingAmount || 0));
-        } else if (pe.kind === 'sale') {
-          pcs.totalCredit = roundEtb2(pcs.totalCredit + (pe.saleAmount || 0));
-          pcs.runningBalance = roundEtb2(pcs.runningBalance + (pe.saleAmount || 0));
-          pcs.saleCount++;
-          allTimeCredit = roundEtb2(allTimeCredit + (pe.saleAmount || 0));
-        } else {
-          pcs.totalPaid = roundEtb2(pcs.totalPaid + (pe.paidAmount || 0));
-          pcs.runningBalance = roundEtb2(pcs.runningBalance - (pe.paidAmount || 0));
-          pcs.paymentCount++;
-          allTimePaid = roundEtb2(allTimePaid + (pe.paidAmount || 0));
-        }
-        pcs.outstandingBalance = pcs.runningBalance;
-        pcs.remainingBalance = pcs.runningBalance;
-        pe._unifiedRunningBalance = pcs.runningBalance;
-        pe._customerKey = pKey;
-
-        if (!pe.isInferredOpening && pe.rowId) {
-          var rbKey = pe.botId + '::' + pe.rowId;
-          rowBalanceByKey[rbKey] = pcs.runningBalance;
-          if (!botRowBalances[pe.botId]) botRowBalances[pe.botId] = {};
-          botRowBalances[pe.botId][pe.rowId] = pcs.runningBalance;
-        }
-        if (!pe.isInferredOpening) pcs.txCount++;
-        if (pe.dateMeta) {
-          pcs.lastDateDisplay = formatLedgerDateDisplay(pe.dateMeta, calendarMode, 'short');
-        }
-      }
-
-      var allTimeOutstanding = 0;
-      Object.keys(customerAllMap).forEach(function (ck) {
-        allTimeOutstanding = roundEtb2(allTimeOutstanding + customerAllMap[ck].outstandingBalance);
-      });
-
-      return {
-        entries: rawEntries,
-        customerAllMap: customerAllMap,
-        rowBalanceByKey: rowBalanceByKey,
-        botRowBalances: botRowBalances,
-        allTime: {
-          openingBalance: allTimeOpening,
-          totalCredit: allTimeCredit,
-          totalPaid: allTimePaid,
-          outstandingBalance: allTimeOutstanding,
-          txCount: rawEntries.filter(function (e) { return !e.isInferredOpening; }).length
-        }
-      };
-    }
-
-    function getUnifiedMainTableContext(bot, overrideRows) {
-      if (!bot || !Array.isArray(bot.columns)) return null;
-      var det = detectLedgerColumns(bot);
-      if (!det || !det.custCol || !det.balCol) return null;
-      var calMode = (state && state.reportCalendarMode === 'gregorian') ? 'gregorian' : 'ethiopian';
-      var engineOpts = { calendarMode: calMode };
-      if (Array.isArray(overrideRows)) {
-        engineOpts.overrideRowsByBotId = {};
-        engineOpts.overrideRowsByBotId[bot.id] = overrideRows;
-      }
-      var eng = computeUnifiedCustomerLedgerEngine([bot], engineOpts);
-      var rowBalanceById = eng.botRowBalances[bot.id] || {};
-      var computeTotalForRows = function (rowsSubset) {
-        var list = Array.isArray(rowsSubset) ? rowsSubset : [];
-        if (list.length === 0) return 0;
-        var visRowIdSet = {};
-        var representedCustKeys = {};
-        for (var i = 0; i < list.length; i++) {
-          var r = list[i];
-          if (!r || !r.id) continue;
-          visRowIdSet[r.id] = true;
-          if (Object.prototype.hasOwnProperty.call(rowBalanceById, r.id)) {
-            var cRaw = normalizeCustomerLabel(r[det.custCol.id]) || 'Walk-in Customer';
-            representedCustKeys[cRaw.toLowerCase()] = true;
-          }
-        }
-        // Take the final chronological running balance among visible rows for each represented customer
-        // (equals customer's exact final Remaining Balance whenever all rows of that customer are visible)
-        var lastVisBalByCust = {};
-        for (var ei = 0; ei < eng.entries.length; ei++) {
-          var e = eng.entries[ei];
-          if (e.isInferredOpening || !visRowIdSet[e.rowId]) continue;
-          lastVisBalByCust[e._customerKey] = e._unifiedRunningBalance;
-        }
-        var totalRem = 0;
-        Object.keys(representedCustKeys).forEach(function (ck) {
-          if (Object.prototype.hasOwnProperty.call(lastVisBalByCust, ck)) {
-            totalRem = roundEtb2(totalRem + lastVisBalByCust[ck]);
-          } else if (eng.customerAllMap[ck]) {
-            totalRem = roundEtb2(totalRem + eng.customerAllMap[ck].remainingBalance);
-          }
-        });
-        return totalRem;
-      };
-      return {
-        det: det,
-        balColId: det.balCol.id,
-        custColId: det.custCol.id,
-        rowBalanceById: rowBalanceById,
-        customerAllMap: eng.customerAllMap,
-        allTime: eng.allTime,
-        computeTotalForRows: computeTotalForRows
-      };
-    }
-
     function buildCustomerLedgerData(opts) {
       opts = opts || {};
       var folderFilter = opts.folder || 'all';
@@ -23873,11 +23380,126 @@
         return true;
       });
 
-      var unified = computeUnifiedCustomerLedgerEngine(scopeBots, { calendarMode: calendarMode });
-      var rawEntries = unified.entries;
-      var customerAllMap = unified.customerAllMap;
+      var rawEntries = [];
+      scopeBots.forEach(function (b) {
+        var det = detectLedgerColumns(b);
+        var rows = Array.isArray(b.rows) ? b.rows : [];
+        for (var i = 0; i < rows.length; i++) {
+          var extracted = extractLedgerEntriesFromRow(rows[i], det, b, i);
+          for (var j = 0; j < extracted.length; j++) rawEntries.push(extracted[j]);
+        }
+      });
+
+      // Strictly sort chronologically (oldest -> newest; Opening Balance -> Credit Sale/Buye -> Payment)
+      rawEntries.sort(function (a, b) {
+        if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
+        if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
+        if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
+        if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
+        return a.origIdx - b.origIdx;
+      });
+
+      // If a non-ledger custom table starts directly on a payment row with an explicit positive Balance cell (e.g., Paid 20,000 leaving 30,000 => initial balance was 50,000), capture that initial balance cleanly once
+      var seenCustFirst = {};
+      var inferredOpenings = [];
+      for (var fi = 0; fi < rawEntries.length; fi++) {
+        var fe = rawEntries[fi];
+        var fKey = fe.customerName.toLowerCase();
+        if (seenCustFirst[fKey]) continue;
+        seenCustFirst[fKey] = true;
+        if (!fe.isLedgerSource && fe.kind === 'payment' && fe.saleAmount === 0 && fe.paidAmount > 0 && fe.hasManualBalCell && fe.manualBalVal > 0) {
+          inferredOpenings.push({
+            entryId: fe.entryId + '_inferred_opening',
+            rowId: fe.rowId,
+            fileRowNum: fe.fileRowNum,
+            botId: fe.botId,
+            botName: fe.botName,
+            folder: fe.folder,
+            customerName: fe.customerName,
+            kind: 'opening',
+            typeLabel: 'Opening Balance',
+            isInferredOpening: true,
+            isUndatedOpening: true,
+            dateMeta: null,
+            utcDayMs: -8640000000000000,
+            openingAmount: roundEtb2(fe.manualBalVal + fe.paidAmount),
+            saleAmount: 0,
+            paidAmount: 0,
+            note: 'Initial / Opening Balance',
+            allRowCols: [],
+            rawRowCols: [],
+            allColsSummary: '',
+            kindOrder: -1,
+            createdMs: fe.createdMs,
+            txSeq: fe.txSeq - 0.5,
+            origIdx: fe.origIdx,
+            balColRef: fe.balColRef
+          });
+        }
+      }
+      if (inferredOpenings.length > 0) {
+        rawEntries = inferredOpenings.concat(rawEntries);
+        rawEntries.sort(function (a, b) {
+          if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
+          if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
+          if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
+          if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
+          return a.origIdx - b.origIdx;
+        });
+      }
 
       var viewFilter = (opts.viewFilter === 'credit' || opts.viewFilter === 'unpaid') ? opts.viewFilter : 'all';
+
+      // First pass: accumulate per-customer sequential balances so Unpaid Balance / Credit filters know each customer's exact balance
+      var customerAllMap = {};
+      var allTimeOpening = 0;
+      var allTimeCredit = 0;
+      var allTimePaid = 0;
+      for (var pIdx = 0; pIdx < rawEntries.length; pIdx++) {
+        var pe = rawEntries[pIdx];
+        var pKey = pe.customerName.toLowerCase();
+        if (!customerAllMap[pKey]) {
+          customerAllMap[pKey] = {
+            customerName: pe.customerName,
+            openingBalance: 0,
+            totalCredit: 0,
+            totalPaid: 0,
+            runningBalance: 0,
+            outstandingBalance: 0,
+            txCount: 0,
+            saleCount: 0,
+            paymentCount: 0,
+            lastDateDisplay: '—'
+          };
+        }
+        var pcs = customerAllMap[pKey];
+        if (pe.kind === 'opening') {
+          pcs.openingBalance = roundEtb2(pcs.openingBalance + (pe.openingAmount || 0));
+          pcs.runningBalance = roundEtb2(pcs.runningBalance + (pe.openingAmount || 0));
+          allTimeOpening = roundEtb2(allTimeOpening + (pe.openingAmount || 0));
+        } else if (pe.kind === 'sale') {
+          pcs.totalCredit = roundEtb2(pcs.totalCredit + (pe.saleAmount || 0));
+          pcs.runningBalance = roundEtb2(pcs.runningBalance + (pe.saleAmount || 0));
+          pcs.saleCount++;
+          allTimeCredit = roundEtb2(allTimeCredit + (pe.saleAmount || 0));
+        } else {
+          pcs.totalPaid = roundEtb2(pcs.totalPaid + (pe.paidAmount || 0));
+          pcs.runningBalance = roundEtb2(pcs.runningBalance - (pe.paidAmount || 0));
+          pcs.paymentCount++;
+          allTimePaid = roundEtb2(allTimePaid + (pe.paidAmount || 0));
+        }
+        pcs.outstandingBalance = pcs.runningBalance;
+        if (!pe.isInferredOpening) pcs.txCount++;
+        if (pe.dateMeta) {
+          pcs.lastDateDisplay = formatLedgerDateDisplay(pe.dateMeta, calendarMode, 'short');
+        }
+      }
+
+      var allTimeOutstanding = 0;
+      Object.keys(customerAllMap).forEach(function (ck) {
+        allTimeOutstanding = roundEtb2(allTimeOutstanding + customerAllMap[ck].outstandingBalance);
+      });
+
       var openingMap = {};
       var runningMap = {};
       var statementRows = [];
@@ -23930,7 +23552,6 @@
         var dateNamed = e.dateMeta ? formatLedgerDateDisplay(e.dateMeta, calendarMode, 'named') : '';
         var hydratedRowCols = (e.allRowCols || []).map(function (rc) {
           var copy = Object.assign({}, rc);
-          copy.name = formatColHeaderLabel(copy.name);
           if (copy._isLedgerBalCol) {
             copy.numeric = nextBal;
             copy.display = e.balColRef ? formatNumericValue(nextBal, e.balColRef) : formatStmtNumber(nextBal);
@@ -23999,9 +23620,7 @@
       var isMultiBotScope = scopeBots.length > 1;
       var sourceColumns = [];
       if (scopeBots.length === 1 && Array.isArray(scopeBots[0].columns)) {
-        sourceColumns = scopeBots[0].columns.map(function (c) {
-          return Object.assign({}, c, { name: formatColHeaderLabel(c), _colKey: formatColHeaderLabel(c).trim().toLowerCase() });
-        });
+        sourceColumns = scopeBots[0].columns.slice();
       } else if (scopeBots.length > 1) {
         var seenUnionCols = {};
         var activeBotIdsMap = {};
@@ -24011,11 +23630,10 @@
           : scopeBots;
         botsForCols.forEach(function (b) {
           (b.columns || []).forEach(function (c) {
-            var cleanC = formatColHeaderLabel(c);
-            var cKey = cleanC.trim().toLowerCase();
+            var cKey = String(c.name || 'Column').trim().toLowerCase();
             if (!seenUnionCols[cKey]) {
               seenUnionCols[cKey] = true;
-              sourceColumns.push(Object.assign({}, c, { name: cleanC, _colKey: cKey }));
+              sourceColumns.push(Object.assign({}, c, { _colKey: cKey }));
             }
           });
         });
@@ -24052,7 +23670,7 @@
       (sourceColumns || []).forEach(function (c) {
         var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
         if (!isNumC) return;
-        var cKey = c._colKey || formatColHeaderLabel(c).trim().toLowerCase();
+        var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
         if (balanceColIds[c.id] || balanceColKeys[cKey] || isBalanceColName(c.name)) {
           allColsTotals[c.id] = outstandingBalance;
           allColsKeyTotals[cKey] = outstandingBalance;
@@ -24092,7 +23710,13 @@
         totalCredit: totalCredit,
         totalPaid: totalPaid,
         outstandingBalance: outstandingBalance,
-        allTime: unified.allTime
+        allTime: {
+          openingBalance: allTimeOpening,
+          totalCredit: allTimeCredit,
+          totalPaid: allTimePaid,
+          outstandingBalance: allTimeOutstanding,
+          txCount: rawEntries.filter(function (e) { return !e.isInferredOpening; }).length
+        }
       };
     }
 
@@ -24170,7 +23794,7 @@
       ];
 
       if (data.sourceColumns && data.sourceColumns.length > 0) {
-        var fullHdr = ['Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return formatColHeaderLabel(c); })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
+        var fullHdr = ['Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
         var fullAoa = [
           ['All Column Row Data & Running Balance — ' + custTitle + ' (' + viewLabel + ')'],
           fullHdr
@@ -24231,7 +23855,7 @@
       if (useAllColsPdf) {
         var colThs = data.sourceColumns.map(function (c) {
           var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-          return '<th' + (isNumC ? ' style="text-align:right;"' : '') + '>' + esc(formatColHeaderLabel(c)) + '</th>';
+          return '<th' + (isNumC ? ' style="text-align:right;"' : '') + '>' + esc(c.name || 'Column') + '</th>';
         }).join('');
         var fullRowsHtml = data.rows.length === 0
           ? '<tr><td colspan="' + (data.sourceColumns.length + (data.isMultiBotScope ? 6 : 5)) + '" style="text-align:center;color:#64748B;padding:24px;">No rows match the selected customer and date range.</td></tr>'
@@ -24352,7 +23976,7 @@
         if (data.isMultiBotScope) cols.push({ label: 'File', align: 'left', weight: 1.0 });
         data.sourceColumns.forEach(function (c) {
           var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-          cols.push({ label: formatColHeaderLabel(c), align: isNumC ? 'right' : 'left', weight: isNumC ? 0.95 : 1.1 });
+          cols.push({ label: c.name || 'Column', align: isNumC ? 'right' : 'left', weight: isNumC ? 0.95 : 1.1 });
         });
         cols.push({ label: 'Type', align: 'left', weight: 0.8, isPayColor: true, bold: true });
         cols.push({ label: 'Credit (ETB)', align: 'right', weight: 1.0, isCreditColor: true, bold: true });
@@ -24908,13 +24532,12 @@
       // Prominent Customer Statement Summary Card (all numeric column totals + matching row summary)
       var summaryColPills = (data.sourceColumns || []).map(function (c) {
         var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-        var cleanCNm = formatColHeaderLabel(c);
-        var cKey = c._colKey || cleanCNm.trim().toLowerCase();
+        var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
         var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
         if (!hasTot) return '';
         var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
         return '<span class="ledger-stmt-col-pill">' +
-          '<span style="color:#475569;font-weight:700;">' + esc(cleanCNm) + ':</span>' +
+          '<span style="color:#475569;font-weight:700;">' + esc(c.name || 'Column') + ':</span>' +
           '<strong class="mono" style="color:#0F172A;">' + esc(formatNumericValue(totV, c)) + '</strong>' +
         '</span>';
       }).filter(Boolean).join('');
@@ -24958,7 +24581,7 @@
               extraMultiTh +
               data.sourceColumns.map(function (c) {
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
-                return '<th' + (isNumC ? ' class="num"' : '') + '>' + esc(formatColHeaderLabel(c)) + '</th>';
+                return '<th' + (isNumC ? ' class="num"' : '') + '>' + esc(c.name || 'Column') + '</th>';
               }).join('') +
               '<th>Type</th>' +
               '<th class="num">Credit (ETB)</th>' +
