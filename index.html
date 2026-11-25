@@ -2299,6 +2299,9 @@
     .ledger-stmt-table tbody tr.ledger-row-sale td {
       background: #FFFFFF;
     }
+    .ledger-stmt-table tbody tr.ledger-row-opening td {
+      background: #F8FAFC;
+    }
     .ledger-type-pill {
       display: inline-flex;
       align-items: center;
@@ -2318,6 +2321,11 @@
       background: #D1FAE5;
       color: #065F46;
       border: 1px solid #A7F3D0;
+    }
+    .ledger-type-pill.is-opening {
+      background: #E2E8F0;
+      color: #334155;
+      border: 1px solid #CBD5E1;
     }
     .rph-entry-row {
       display: grid;
@@ -18502,7 +18510,7 @@
 
     function isBalanceColName(name) {
       var n = String(name || '').toLowerCase();
-      return /remain|romain|romin|remin|balance|balce|balnce|unpaid|owed|debt|due|ቀሪ/.test(n);
+      return /remain|romain|romin|remin|romal|balance|balce|balnce|unpaid|owed|debt|due|ቀሪ/.test(n);
     }
 
     function isPaidColName(name) {
@@ -18612,7 +18620,7 @@
         var cnameCol = findCol(['customer', 'user', 'name', 'client', 'buyer', 'col_cname', 'col_user', 'col_buyer']) || textCols[0];
         var qtyCol = findCol(['quantity', 'qty', 'count', 'pcs', 'kg', 'bag', 'bags', 'unit', 'units', 'col_qty', 'col_quantity'], null, true);
         var qualCol = findCol(['quality', 'item', 'message', 'pair', 'inquiry', 'product', 'col_quality', 'col_item', 'quantity']) || (textCols[1] && textCols[1].id !== (cnameCol && cnameCol.id) ? textCols[1] : null);
-        var balCol = findCol(['remaining', 'remain', 'balance', 'rominbalce', 'reminbalce', 'romin', 'remin', 'balce', 'balnce', 'due', 'unpaid', 'owed', 'debt', 'ቀሪ', 'col_balance'], null, true);
+        var balCol = findCol(['remaining balance', 'remaining', 'remain', 'balance', 'totalromalbal', 'romalbalce', 'romalbal', 'romainbalce', 'rominbalce', 'reminbalce', 'romain', 'romin', 'remin', 'romal', 'balce', 'balnce', 'due', 'unpaid', 'owed', 'debt', 'ቀሪ', 'col_balance'], null, true);
         var exclPaidTot = {};
         if (balCol) exclPaidTot[balCol.id] = true;
         bot.columns.forEach(function (c) {
@@ -19668,7 +19676,7 @@
             '<select id="rep-status" class="header-select">' +
               '<option value="all"' + (m.status === 'all' ? ' selected' : '') + '>All Data</option>' +
               '<option value="credit"' + (m.status === 'credit' ? ' selected' : '') + '>Credit</option>' +
-              '<option value="remaining"' + (m.status === 'remaining' ? ' selected' : '') + '>Unpaid Balance (Rominbalce)</option>' +
+              '<option value="remaining"' + (m.status === 'remaining' ? ' selected' : '') + '>Unpaid Balance (Remaining Balance)</option>' +
               '<option value="paid"' + (m.status === 'paid' ? ' selected' : '') + '>Fully Paid</option>' +
             '</select>' +
           '</div></div>' +
@@ -22294,8 +22302,8 @@
       );
       var typeCol = findCol(['type', 'tx type', 'transaction type', 'entry type'], [/\btype\b/i]);
       var balCol = findCol(
-        ['running balance', 'outstanding balance', 'remaining balance', 'romainbalce', 'romain balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
-        [/running\s*bal|remaining\s*bal|outstanding|romain|\bbalance\b|balce|balnce|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b|ቀሪ/i],
+        ['running balance', 'outstanding balance', 'remaining balance', 'totalromalbal', 'romalbalce', 'romalbal', 'romainbalce', 'rominbalce', 'reminbalce', 'romain balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
+        [/running\s*bal|remaining\s*bal|outstanding|total\s*(?:rom|rem)|romal|romain|\bbalance\b|balce|balnce|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b|ቀሪ/i],
         null,
         true
       );
@@ -22312,7 +22320,7 @@
       if (payDateCol) exclForPayAmt[payDateCol.id] = true;
 
       var payAmtCol = findCol(
-        ['paid amount', 'payment amount', 'amount paid', 'paid', 'payment', 'received', 'deposit', 'የተከፈለ'],
+        ['paid amount', 'payment amount', 'amount paid', 'cash paid', 'amt paid', 'paid', 'payment', 'received', 'deposit', 'የተከፈለ'],
         [/paid\s*(?:amt|amount|birr|etb)?|payment\s*(?:amt|amount|birr|etb)?|\bpay\s*(?:amt|amount|birr|etb)\b|\bpaid\b|\bpayment\b|\bpay\b|\breceived\b|\bdeposit\b|የተከፈለ|ክፍያ|ከፈለ/i],
         exclForPayAmt,
         true
@@ -22321,15 +22329,15 @@
       if (payAmtCol) exclPayBal[payAmtCol.id] = true;
 
       var saleDateCol = findCol(
-        ['sale date', 'credit date', 'invoice date'],
-        [/sale\s*date|credit\s*date|invoice\s*date/i],
+        ['sale date', 'credit date', 'invoice date', 'purchase date', 'buye date', 'buy date'],
+        [/sale\s*date|credit\s*date|invoice\s*date|purchase\s*date|buye?\s*date/i],
         exclPayBal
       );
       if (saleDateCol) exclPayBal[saleDateCol.id] = true;
 
       var saleAmtCol = findCol(
-        ['sale amount', 'credit amount', 'sale / credit', 'credit'],
-        [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount)?/i],
+        ['sale amount', 'credit amount', 'sale / credit', 'credit sale', 'buye amount', 'buy amount', 'purchase amount', 'buye', 'buy', 'purchase', 'credit', 'order amount'],
+        [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount|sale)?|\bbuye\b|\bbuy\b|purchase/i],
         exclPayBal,
         true
       );
@@ -22347,8 +22355,8 @@
       ) || cols.find(function (c) { return c.type === 'date' && (!payDateCol || c.id !== payDateCol.id); }) || null;
 
       var genericTotalCol = saleAmtCol || findCol(
-        ['total amount', 'grand total', 'total price', 'total sales', 'invoice', 'total', 'sales', 'sale', 'debit', 'amount', 'birr', 'etb', 'sum'],
-        [/\btotal\b|grand|invoice|\bamount\b|\bsum\b/i, /\bdebit\b|\bbirr\b|\betb\b/i],
+        ['total amount', 'grand total', 'total price', 'total sales', 'invoice', 'total', 'sales', 'sale', 'buye', 'buy', 'purchase', 'debit', 'amount', 'birr', 'etb', 'sum'],
+        [/\btotal\b|grand|invoice|\bbuye\b|\bbuy\b|purchase|\bamount\b|\bsum\b/i, /\bdebit\b|\bbirr\b|\betb\b/i],
         exclPayBal,
         true
       ) || cols.find(function (c) {
@@ -22489,6 +22497,16 @@
       return ledgerBot;
     }
 
+    function isOpeningLedgerType(typeStr) {
+      return /^(?:opening|initial|start(?:ing)?|prev(?:ious)?|old|carry|brought|beg(?:inning)?)\b|opening\s*bal|initial\s*bal|starting\s*bal|መነሻ/i.test(String(typeStr || '').trim());
+    }
+    function isPaymentLedgerType(typeStr) {
+      return /^(?:paid|payment|pay\b|deposit|received|cash\s*in)|ክፍያ|የተከፈለ/i.test(String(typeStr || '').trim());
+    }
+    function isSaleLedgerType(typeStr) {
+      return /^(?:credit|sale|buye|buy\b|purchase|invoice|debit|order)|ሽያጭ|ብድር/i.test(String(typeStr || '').trim());
+    }
+
     function resolveLedgerRowMeta(row, det, bot, origIdx) {
       if (!row || !det) return null;
       var custRaw = det.custCol ? String(row[det.custCol.id] || '').trim() : '';
@@ -22502,28 +22520,51 @@
       if (isNaN(sAmt)) sAmt = 0;
       if (isNaN(pAmt)) pAmt = 0;
 
-      var hasAnyVal = Boolean(custRaw || sDateRaw || pDateRaw || sAmt !== 0 || pAmt !== 0);
+      var hasBalCell = Boolean(det.balCol && row[det.balCol.id] !== '' && row[det.balCol.id] !== null && row[det.balCol.id] !== undefined);
+      var rawBalVal = hasBalCell ? readLedgerNumericCell(row, det.balCol, bot) : 0;
+      if (isNaN(rawBalVal) || !isFinite(rawBalVal)) rawBalVal = 0;
+
+      var hasAnyVal = Boolean(custRaw || sDateRaw || pDateRaw || sAmt !== 0 || pAmt !== 0 || (hasBalCell && rawBalVal !== 0));
       if (!hasAnyVal) return null;
 
-      var isPayment = row._ledgerKind === 'payment' || /^payment/i.test(typeRaw) || (pAmt !== 0 && sAmt === 0 && !sDateRaw) || (Boolean(pDateRaw) && !sDateRaw && sAmt === 0);
+      var isOpening = row._ledgerKind === 'opening' || isOpeningLedgerType(typeRaw) || (sAmt === 0 && pAmt === 0 && hasBalCell && rawBalVal !== 0 && !isPaymentLedgerType(typeRaw) && !isSaleLedgerType(typeRaw));
+      var isPayment = !isOpening && (row._ledgerKind === 'payment' || isPaymentLedgerType(typeRaw) || (pAmt !== 0 && sAmt === 0 && !sDateRaw) || (Boolean(pDateRaw) && !sDateRaw && sAmt === 0 && !isSaleLedgerType(typeRaw)));
+
+      var effSaleAmt = sAmt;
+      var effPaidAmt = pAmt;
+      if (isPayment && effPaidAmt === 0 && effSaleAmt !== 0 && !det.payAmtCol) {
+        effPaidAmt = effSaleAmt;
+        effSaleAmt = 0;
+      } else if (!isPayment && !isOpening && effSaleAmt === 0 && effPaidAmt !== 0 && isSaleLedgerType(typeRaw)) {
+        effSaleAmt = effPaidAmt;
+        effPaidAmt = 0;
+      }
+
+      var openingAmt = isOpening
+        ? (rawBalVal !== 0 ? roundEtb2(rawBalVal) : (effSaleAmt !== 0 ? roundEtb2(effSaleAmt) : (effPaidAmt !== 0 ? roundEtb2(-effPaidAmt) : 0)))
+        : 0;
+      var isUndatedOpening = Boolean(isOpening && !sDateRaw && !pDateRaw);
+
       var activeDateRaw = isPayment ? (pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
       var activeDateCol = isPayment ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
       var preferEth = bot.ledgerCalendarMode ? (bot.ledgerCalendarMode !== 'gregorian') : (activeDateCol ? isEthiopianCol(activeDateCol) : true);
       var dMeta = parseFlexibleDateMeta(activeDateRaw, row._createdAt || row._updatedAt || bot.updatedAt, activeDateCol, preferEth);
-      var utcDayMs = Date.UTC(dMeta.gy, dMeta.gm - 1, dMeta.gd);
+      var utcDayMs = isUndatedOpening ? -8640000000000000 : Date.UTC(dMeta.gy, dMeta.gm - 1, dMeta.gd);
       var createdMs = Date.parse(row._createdAt || row._updatedAt || '') || 0;
       var txSeq = typeof row._txSeq === 'number' ? row._txSeq : origIdx;
 
       return {
         row: row,
         custKey: (custRaw || 'Walk-in Customer').toLowerCase(),
+        isOpening: isOpening,
         isPayment: isPayment,
-        saleAmount: isPayment ? 0 : roundEtb2(sAmt),
-        paidAmount: isPayment ? roundEtb2(pAmt) : 0,
-        bothSaleAmt: roundEtb2(sAmt),
-        bothPaidAmt: roundEtb2(pAmt),
+        openingAmount: openingAmt,
+        saleAmount: (isOpening || isPayment) ? 0 : roundEtb2(effSaleAmt),
+        paidAmount: isPayment ? roundEtb2(effPaidAmt) : 0,
+        bothSaleAmt: isOpening ? 0 : roundEtb2(effSaleAmt),
+        bothPaidAmt: isOpening ? 0 : roundEtb2(effPaidAmt),
         utcDayMs: utcDayMs,
-        kindOrder: isPayment ? 1 : 0,
+        kindOrder: isOpening ? -1 : (isPayment ? 1 : 0),
         createdMs: createdMs,
         txSeq: txSeq,
         origIdx: origIdx
@@ -22541,7 +22582,7 @@
         var r = bot.rows[i];
         var meta = resolveLedgerRowMeta(r, det, bot, i);
         if (!meta) {
-          r[det.balCol.id] = '';
+          if (det.balCol.type !== 'formula') r[det.balCol.id] = '';
           emptyRows.push(r);
           continue;
         }
@@ -22560,14 +22601,21 @@
       for (var j = 0; j < populated.length; j++) {
         var item = populated[j];
         var prev = runningMap[item.custKey] || 0;
-        var netDelta = det.isDedicatedLedger
-          ? roundEtb2(item.bothSaleAmt - item.bothPaidAmt)
-          : roundEtb2((item.isPayment ? 0 : item.saleAmount) - (item.isPayment ? item.paidAmount : item.bothPaidAmt));
+        var netDelta;
+        if (item.isOpening) {
+          netDelta = item.openingAmount;
+        } else if (det.isDedicatedLedger) {
+          netDelta = roundEtb2(item.bothSaleAmt - item.bothPaidAmt);
+        } else {
+          netDelta = roundEtb2(item.saleAmount - item.paidAmount);
+        }
         var nextBal = roundEtb2(prev + netDelta);
         runningMap[item.custKey] = nextBal;
-        item.row[det.balCol.id] = nextBal;
+        if (det.balCol.type !== 'formula') {
+          item.row[det.balCol.id] = nextBal;
+        }
         if (det.typeCol && !String(item.row[det.typeCol.id] || '').trim()) {
-          item.row[det.typeCol.id] = item.isPayment ? 'Payment' : 'Credit Sale';
+          item.row[det.typeCol.id] = item.isOpening ? 'Opening Balance' : (item.isPayment ? 'Payment' : 'Credit Sale');
         }
       }
 
@@ -22587,26 +22635,28 @@
         return { ok: false, error: 'Selected table is missing Customer Name or Balance columns.' };
       }
 
-      var kind = tx && tx.kind === 'payment' ? 'payment' : 'sale';
+      var kind = (tx && (tx.kind === 'payment' || tx.kind === 'opening')) ? tx.kind : 'sale';
       var custName = sanitizeUserText((tx && tx.customerName) || '', 120);
       if (!custName) return { ok: false, error: 'Customer Name is required.' };
 
       var amtNum = sanitizeNumericInput(tx && tx.amount);
-      if (amtNum === '' || isNaN(Number(amtNum)) || Number(amtNum) <= 0) {
-        return { ok: false, error: 'Please enter a valid positive amount in ETB (> 0).' };
+      if (amtNum === '' || isNaN(Number(amtNum)) || (kind === 'opening' ? Number(amtNum) < 0 : Number(amtNum) <= 0)) {
+        return { ok: false, error: kind === 'opening' ? 'Please enter a valid Opening Balance in ETB (>= 0).' : 'Please enter a valid positive amount in ETB (> 0).' };
       }
       amtNum = roundEtb2(Number(amtNum));
 
       var calMode = (tx && tx.calendarMode) || bot.ledgerCalendarMode || 'ethiopian';
       var targetDateCol = kind === 'payment' ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
-      var parsedDateMeta = parseLedgerInputDate(tx && tx.txDateStr, calMode);
-      if (!parsedDateMeta) {
-        return { ok: false, error: 'Please enter a valid ' + (kind === 'payment' ? 'Payment Date' : 'Sale Date') + ' (e.g. DD/MM/YYYY EC or YYYY-MM-DD).' };
+      var rawDateInput = String((tx && tx.txDateStr) || '').trim();
+      var storedDateStr = '';
+      if (kind !== 'opening' || rawDateInput !== '') {
+        var parsedDateMeta = parseLedgerInputDate(rawDateInput, calMode);
+        if (!parsedDateMeta) {
+          return { ok: false, error: 'Please enter a valid ' + (kind === 'payment' ? 'Payment Date' : (kind === 'opening' ? 'Opening Date' : 'Sale Date')) + ' (e.g. DD/MM/YYYY EC or YYYY-MM-DD).' };
+        }
+        var storeCol = targetDateCol || { calendarType: calMode === 'gregorian' ? 'gregorian' : 'ethiopian', dateFormat: 'dmy' };
+        storedDateStr = formatAutoDateStr(storeCol, parsedDateMeta.date);
       }
-
-      // Always store the date cleanly formatted according to the ledger column's calendar type
-      var storeCol = targetDateCol || { calendarType: calMode === 'gregorian' ? 'gregorian' : 'ethiopian', dateFormat: 'dmy' };
-      var storedDateStr = formatAutoDateStr(storeCol, parsedDateMeta.date);
       var noteVal = sanitizeUserText((tx && tx.note) || '', 400);
 
       var nowIso = new Date().toISOString();
@@ -22624,10 +22674,18 @@
       nr._txSeq = maxSeq + 1;
 
       nr[det.custCol.id] = custName;
-      if (det.typeCol) nr[det.typeCol.id] = kind === 'payment' ? 'Payment' : 'Credit Sale';
+      if (det.typeCol) nr[det.typeCol.id] = kind === 'opening' ? 'Opening Balance' : (kind === 'payment' ? 'Payment' : 'Credit Sale');
       if (det.noteCol) nr[det.noteCol.id] = noteVal;
 
-      if (kind === 'sale') {
+      if (kind === 'opening') {
+        if (det.saleDateCol) nr[det.saleDateCol.id] = storedDateStr;
+        else if (det.genericDateCol) nr[det.genericDateCol.id] = storedDateStr;
+        if (det.saleAmtCol) nr[det.saleAmtCol.id] = '';
+        else if (det.genericTotalCol) nr[det.genericTotalCol.id] = '';
+        if (det.payDateCol) nr[det.payDateCol.id] = '';
+        if (det.payAmtCol) nr[det.payAmtCol.id] = '';
+        if (det.balCol && det.balCol.type !== 'formula') nr[det.balCol.id] = amtNum;
+      } else if (kind === 'sale') {
         if (det.saleDateCol) nr[det.saleDateCol.id] = storedDateStr;
         else if (det.genericDateCol) nr[det.genericDateCol.id] = storedDateStr;
         if (det.saleAmtCol) nr[det.saleAmtCol.id] = amtNum;
@@ -22646,7 +22704,7 @@
       bot.rows.push(nr);
       recalculateLedgerBotBalances(bot);
       bot.updatedAt = nowIso;
-      updateBot(bot, 'ADD', (kind === 'payment' ? 'Payment' : 'Credit Sale') + ' for "' + custName + '" (' + formatEtbAmount(amtNum) + ' on ' + storedDateStr + ')');
+      updateBot(bot, 'ADD', (kind === 'opening' ? 'Opening Balance' : (kind === 'payment' ? 'Payment' : 'Credit Sale')) + ' for "' + custName + '" (' + formatEtbAmount(amtNum) + (storedDateStr ? (' on ' + storedDateStr) : '') + ')');
       return { ok: true, row: nr, bot: bot };
     }
 
@@ -22973,13 +23031,9 @@
         if (!isNaN(pInlineAmt) && pInlineAmt > 0) pAmt = pInlineAmt;
       }
 
-      // Only when a regular table lacks ANY Sale/Total column (Paid + Balance only), infer Total = Paid + Balance
-      if (!det.isDedicatedLedger && !activeSaleCol && sAmt === 0 && det.balCol) {
-        var bVal = readLedgerNumericCell(row, det.balCol, bot);
-        if (bVal > 0 || (pAmt > 0 && bVal !== 0)) {
-          sAmt = roundEtb2(pAmt + bVal);
-        }
-      }
+      var hasBalCell = Boolean(det.balCol && row[det.balCol.id] !== '' && row[det.balCol.id] !== null && row[det.balCol.id] !== undefined);
+      var rawBalVal = hasBalCell ? readLedgerNumericCell(row, det.balCol, bot) : 0;
+      if (isNaN(rawBalVal) || !isFinite(rawBalVal)) rawBalVal = 0;
 
       // Capture ALL column row data for this row so Full Column Statement shows every column
       var rawRowCols = [];
@@ -23023,7 +23077,7 @@
         });
       }
 
-      if (!custRaw && !sDateRaw && !pDateRaw && sAmt === 0 && pAmt === 0 && !hasAnyRowData) return out;
+      if (!custRaw && !sDateRaw && !pDateRaw && sAmt === 0 && pAmt === 0 && rawBalVal === 0 && !hasAnyRowData) return out;
       for (var ci2 = 0; ci2 < rawRowCols.length; ci2++) {
         var rcItem = rawRowCols[ci2];
         if (!rcItem.hasValue && rcItem._hasEvalFormulaNum) rcItem.hasValue = true;
@@ -23046,8 +23100,66 @@
         return parts.length > 0 ? parts : [String(str).trim()];
       };
 
-      var explicitKind = row._ledgerKind === 'payment' || /^payment/i.test(typeRaw) ? 'payment'
-        : (row._ledgerKind === 'sale' || /^credit|^sale/i.test(typeRaw) ? 'sale' : '');
+      var explicitKind = row._ledgerKind === 'opening' || isOpeningLedgerType(typeRaw) ? 'opening'
+        : (row._ledgerKind === 'payment' || isPaymentLedgerType(typeRaw) ? 'payment'
+          : (row._ledgerKind === 'sale' || isSaleLedgerType(typeRaw) ? 'sale' : ''));
+
+      // Single-amount-column tables (e.g. Type = "Paid" with Amount column only)
+      if (explicitKind === 'payment' && pAmt === 0 && sAmt !== 0 && !det.payAmtCol) {
+        pAmt = sAmt;
+        sAmt = 0;
+      } else if (explicitKind === 'sale' && sAmt === 0 && pAmt !== 0 && !det.saleAmtCol) {
+        sAmt = pAmt;
+        pAmt = 0;
+      }
+
+      // Opening / Initial Balance row (explicit Opening Balance type, OR standalone Remaining Balance cell with zero Buye/Paid)
+      if (explicitKind === 'opening' || (!explicitKind && sAmt === 0 && pAmt === 0 && hasBalCell && rawBalVal !== 0)) {
+        var openingAmt = rawBalVal !== 0 ? roundEtb2(rawBalVal) : (sAmt !== 0 ? roundEtb2(sAmt) : (pAmt !== 0 ? roundEtb2(-pAmt) : 0));
+        var isUndatedOpening = (!sDateRaw && !pDateRaw);
+        var openDateStr = sDateRaw || pDateRaw;
+        var openMeta = parseFlexibleDateMeta(openDateStr, row._createdAt || bot.updatedAt, det.saleDateCol || det.genericDateCol || det.payDateCol, preferEth);
+        var openCols = cloneAllRowColsList(rawRowCols);
+        openCols.forEach(function (rc) {
+          if (det.typeCol && rc.colId === det.typeCol.id) {
+            rc.display = 'Opening Balance';
+            rc.hasValue = true;
+          } else if (det.balCol && rc.colId === det.balCol.id) {
+            rc._isLedgerBalCol = true;
+          }
+        });
+        out.push({
+          entryId: row.id,
+          rowId: row.id,
+          fileRowNum: fileRowNum,
+          botId: bot.id,
+          botName: bot.name,
+          folder: bot.folder || 'General',
+          customerName: custName,
+          kind: 'opening',
+          typeLabel: 'Opening Balance',
+          isUndatedOpening: isUndatedOpening,
+          dateMeta: isUndatedOpening ? null : openMeta,
+          utcDayMs: isUndatedOpening ? -8640000000000000 : Date.UTC(openMeta.gy, openMeta.gm - 1, openMeta.gd),
+          openingAmount: openingAmt,
+          saleAmount: 0,
+          paidAmount: 0,
+          hasManualBalCell: hasBalCell,
+          manualBalVal: openingAmt,
+          isLedgerSource: isLedgerBot(bot) || det.isDedicatedLedger,
+          note: noteRaw || 'Opening Balance',
+          allRowCols: openCols,
+          rawRowCols: openCols,
+          allColsSummary: allColsSummary,
+          kindOrder: -1,
+          createdMs: createdMs,
+          txSeq: baseSeq,
+          origIdx: origIdx,
+          rawRow: row,
+          balColRef: det.balCol
+        });
+        return out;
+      }
 
       var normHist = getNormalizedRowPaymentHistory(row, det, bot, pAmt);
       var pDateTokens = pDateRaw ? splitPaymentDateTokens(pDateRaw) : [];
@@ -23093,8 +23205,12 @@
             typeLabel: 'Credit Sale',
             dateMeta: sMetaBoth,
             utcDayMs: Date.UTC(sMetaBoth.gy, sMetaBoth.gm - 1, sMetaBoth.gd),
+            openingAmount: 0,
             saleAmount: roundEtb2(sAmt),
             paidAmount: 0,
+            hasManualBalCell: false,
+            manualBalVal: 0,
+            isLedgerSource: isLedgerBot(bot) || det.isDedicatedLedger,
             note: noteRaw,
             allRowCols: saleCols,
             rawRowCols: rawRowCols,
@@ -23171,8 +23287,12 @@
             typeLabel: payLabel,
             dateMeta: pMetaPart,
             utcDayMs: Date.UTC(pMetaPart.gy, pMetaPart.gm - 1, pMetaPart.gd),
+            openingAmount: 0,
             saleAmount: 0,
             paidAmount: roundEtb2(phItem.amount),
+            hasManualBalCell: Boolean(hasBalCell && (!det.balCol || det.balCol.type !== 'formula') && sAmt === 0 && pi === 0),
+            manualBalVal: roundEtb2(rawBalVal),
+            isLedgerSource: isLedgerBot(bot) || det.isDedicatedLedger,
             note: payNoteText,
             allRowCols: payCols,
             rawRowCols: rawRowCols,
@@ -23193,6 +23313,12 @@
       var activeDateStr = isPaySingle ? (singleHistDate || pDateRaw || sDateRaw) : (sDateRaw || pDateRaw);
       var activeCol = isPaySingle ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
       var dMetaSingle = parseFlexibleDateMeta(activeDateStr, row._createdAt || bot.updatedAt, activeCol, preferEth);
+      var singleCols = cloneAllRowColsList(rawRowCols);
+      singleCols.forEach(function (rc) {
+        if (det.balCol && rc.colId === det.balCol.id) {
+          rc._isLedgerBalCol = true;
+        }
+      });
 
       out.push({
         entryId: row.id,
@@ -23206,11 +23332,15 @@
         typeLabel: isPaySingle ? 'Payment' : 'Credit Sale',
         dateMeta: dMetaSingle,
         utcDayMs: Date.UTC(dMetaSingle.gy, dMetaSingle.gm - 1, dMetaSingle.gd),
+        openingAmount: 0,
         saleAmount: isPaySingle ? 0 : roundEtb2(sAmt),
         paidAmount: isPaySingle ? roundEtb2(pAmt) : 0,
+        hasManualBalCell: Boolean(hasBalCell && (!det.balCol || det.balCol.type !== 'formula')),
+        manualBalVal: roundEtb2(rawBalVal),
+        isLedgerSource: isLedgerBot(bot) || det.isDedicatedLedger,
         note: noteRaw,
-        allRowCols: rawRowCols,
-        rawRowCols: rawRowCols,
+        allRowCols: singleCols,
+        rawRowCols: singleCols,
         allColsSummary: allColsSummary,
         kindOrder: isPaySingle ? 1 : 0,
         createdMs: createdMs,
@@ -23260,7 +23390,7 @@
         }
       });
 
-      // Strictly sort chronologically (oldest -> newest; Credit Sale before Payment on identical dates)
+      // Strictly sort chronologically (oldest -> newest; Opening Balance -> Credit Sale/Buye -> Payment)
       rawEntries.sort(function (a, b) {
         if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
         if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
@@ -23269,10 +23399,60 @@
         return a.origIdx - b.origIdx;
       });
 
+      // If a non-ledger custom table starts directly on a payment row with an explicit positive Balance cell (e.g., Paid 20,000 leaving 30,000 => initial balance was 50,000), capture that initial balance cleanly once
+      var seenCustFirst = {};
+      var inferredOpenings = [];
+      for (var fi = 0; fi < rawEntries.length; fi++) {
+        var fe = rawEntries[fi];
+        var fKey = fe.customerName.toLowerCase();
+        if (seenCustFirst[fKey]) continue;
+        seenCustFirst[fKey] = true;
+        if (!fe.isLedgerSource && fe.kind === 'payment' && fe.saleAmount === 0 && fe.paidAmount > 0 && fe.hasManualBalCell && fe.manualBalVal > 0) {
+          inferredOpenings.push({
+            entryId: fe.entryId + '_inferred_opening',
+            rowId: fe.rowId,
+            fileRowNum: fe.fileRowNum,
+            botId: fe.botId,
+            botName: fe.botName,
+            folder: fe.folder,
+            customerName: fe.customerName,
+            kind: 'opening',
+            typeLabel: 'Opening Balance',
+            isInferredOpening: true,
+            isUndatedOpening: true,
+            dateMeta: null,
+            utcDayMs: -8640000000000000,
+            openingAmount: roundEtb2(fe.manualBalVal + fe.paidAmount),
+            saleAmount: 0,
+            paidAmount: 0,
+            note: 'Initial / Opening Balance',
+            allRowCols: [],
+            rawRowCols: [],
+            allColsSummary: '',
+            kindOrder: -1,
+            createdMs: fe.createdMs,
+            txSeq: fe.txSeq - 0.5,
+            origIdx: fe.origIdx,
+            balColRef: fe.balColRef
+          });
+        }
+      }
+      if (inferredOpenings.length > 0) {
+        rawEntries = inferredOpenings.concat(rawEntries);
+        rawEntries.sort(function (a, b) {
+          if (a.utcDayMs !== b.utcDayMs) return a.utcDayMs - b.utcDayMs;
+          if (a.kindOrder !== b.kindOrder) return a.kindOrder - b.kindOrder;
+          if (a.createdMs !== b.createdMs) return a.createdMs - b.createdMs;
+          if (a.txSeq !== b.txSeq) return a.txSeq - b.txSeq;
+          return a.origIdx - b.origIdx;
+        });
+      }
+
       var viewFilter = (opts.viewFilter === 'credit' || opts.viewFilter === 'unpaid') ? opts.viewFilter : 'all';
 
-      // First pass: accumulate per-customer totals so Unpaid Balance / Credit filters know each customer's exact balance
+      // First pass: accumulate per-customer sequential balances so Unpaid Balance / Credit filters know each customer's exact balance
       var customerAllMap = {};
+      var allTimeOpening = 0;
       var allTimeCredit = 0;
       var allTimePaid = 0;
       for (var pIdx = 0; pIdx < rawEntries.length; pIdx++) {
@@ -23281,8 +23461,10 @@
         if (!customerAllMap[pKey]) {
           customerAllMap[pKey] = {
             customerName: pe.customerName,
+            openingBalance: 0,
             totalCredit: 0,
             totalPaid: 0,
+            runningBalance: 0,
             outstandingBalance: 0,
             txCount: 0,
             saleCount: 0,
@@ -23291,16 +23473,32 @@
           };
         }
         var pcs = customerAllMap[pKey];
-        pcs.totalCredit = roundEtb2(pcs.totalCredit + pe.saleAmount);
-        pcs.totalPaid = roundEtb2(pcs.totalPaid + pe.paidAmount);
-        pcs.outstandingBalance = roundEtb2(pcs.totalCredit - pcs.totalPaid);
-        pcs.txCount++;
-        if (pe.kind === 'sale') pcs.saleCount++;
-        else pcs.paymentCount++;
-        pcs.lastDateDisplay = formatLedgerDateDisplay(pe.dateMeta, calendarMode, 'short');
-        allTimeCredit = roundEtb2(allTimeCredit + pe.saleAmount);
-        allTimePaid = roundEtb2(allTimePaid + pe.paidAmount);
+        if (pe.kind === 'opening') {
+          pcs.openingBalance = roundEtb2(pcs.openingBalance + (pe.openingAmount || 0));
+          pcs.runningBalance = roundEtb2(pcs.runningBalance + (pe.openingAmount || 0));
+          allTimeOpening = roundEtb2(allTimeOpening + (pe.openingAmount || 0));
+        } else if (pe.kind === 'sale') {
+          pcs.totalCredit = roundEtb2(pcs.totalCredit + (pe.saleAmount || 0));
+          pcs.runningBalance = roundEtb2(pcs.runningBalance + (pe.saleAmount || 0));
+          pcs.saleCount++;
+          allTimeCredit = roundEtb2(allTimeCredit + (pe.saleAmount || 0));
+        } else {
+          pcs.totalPaid = roundEtb2(pcs.totalPaid + (pe.paidAmount || 0));
+          pcs.runningBalance = roundEtb2(pcs.runningBalance - (pe.paidAmount || 0));
+          pcs.paymentCount++;
+          allTimePaid = roundEtb2(allTimePaid + (pe.paidAmount || 0));
+        }
+        pcs.outstandingBalance = pcs.runningBalance;
+        if (!pe.isInferredOpening) pcs.txCount++;
+        if (pe.dateMeta) {
+          pcs.lastDateDisplay = formatLedgerDateDisplay(pe.dateMeta, calendarMode, 'short');
+        }
       }
+
+      var allTimeOutstanding = 0;
+      Object.keys(customerAllMap).forEach(function (ck) {
+        allTimeOutstanding = roundEtb2(allTimeOutstanding + customerAllMap[ck].outstandingBalance);
+      });
 
       var openingMap = {};
       var runningMap = {};
@@ -23324,19 +23522,34 @@
         );
         if (!matchesCust || !matchesSearch) continue;
 
+        if (e.isInferredOpening) {
+          openingMap[cKey] = roundEtb2((openingMap[cKey] || 0) + (e.openingAmount || 0));
+          runningMap[cKey] = openingMap[cKey];
+          continue;
+        }
+
         if (fromDayMs !== null && e.utcDayMs < fromDayMs) {
-          openingMap[cKey] = roundEtb2((openingMap[cKey] || 0) + e.saleAmount - e.paidAmount);
+          var preDelta = e.kind === 'opening' ? (e.openingAmount || 0) : (e.kind === 'sale' ? (e.saleAmount || 0) : -(e.paidAmount || 0));
+          openingMap[cKey] = roundEtb2((openingMap[cKey] || 0) + preDelta);
           runningMap[cKey] = openingMap[cKey];
           continue;
         }
         if (toDayMs !== null && e.utcDayMs > toDayMs) continue;
 
         var prevBal = Object.prototype.hasOwnProperty.call(runningMap, cKey) ? runningMap[cKey] : (openingMap[cKey] || 0);
-        var nextBal = roundEtb2(prevBal + e.saleAmount - e.paidAmount);
+        var nextBal = prevBal;
+        if (e.kind === 'opening') {
+          openingMap[cKey] = roundEtb2((openingMap[cKey] || 0) + (e.openingAmount || 0));
+          nextBal = roundEtb2(prevBal + (e.openingAmount || 0));
+        } else if (e.kind === 'sale') {
+          nextBal = roundEtb2(prevBal + (e.saleAmount || 0));
+        } else {
+          nextBal = roundEtb2(prevBal - (e.paidAmount || 0));
+        }
         runningMap[cKey] = nextBal;
 
-        var dateShort = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'short');
-        var dateNamed = formatLedgerDateDisplay(e.dateMeta, calendarMode, 'named');
+        var dateShort = e.dateMeta ? formatLedgerDateDisplay(e.dateMeta, calendarMode, 'short') : '—';
+        var dateNamed = e.dateMeta ? formatLedgerDateDisplay(e.dateMeta, calendarMode, 'named') : '';
         var hydratedRowCols = (e.allRowCols || []).map(function (rc) {
           var copy = Object.assign({}, rc);
           if (copy._isLedgerBalCol) {
@@ -23358,19 +23571,22 @@
           botName: e.botName,
           folder: e.folder,
           customerName: e.customerName,
+          customerKey: cKey,
           kind: e.kind,
           typeLabel: e.typeLabel,
           saleDateDisplay: e.kind === 'sale' ? dateShort : '—',
           saleDateNamed: e.kind === 'sale' ? dateNamed : '',
-          saleAmount: e.saleAmount,
+          openingAmount: e.openingAmount || 0,
+          saleAmount: e.saleAmount || 0,
           paymentDateDisplay: e.kind === 'payment' ? dateShort : '—',
           paymentDateNamed: e.kind === 'payment' ? dateNamed : '',
-          paidAmount: e.paidAmount,
+          paidAmount: e.paidAmount || 0,
           runningBalance: nextBal,
           note: e.note,
           allRowCols: hydratedRowCols,
-          rawRowCols: e.rawRowCols || hydratedRowCols,
+          rawRowCols: hydratedRowCols,
           allColsSummary: e.allColsSummary || '',
+          balColRef: e.balColRef || null,
           utcDayMs: e.utcDayMs
         });
       }
@@ -23382,11 +23598,24 @@
 
       var totalCredit = 0;
       var totalPaid = 0;
+      var rowCustKeys = {};
       statementRows.forEach(function (sr) {
-        totalCredit = roundEtb2(totalCredit + sr.saleAmount);
-        totalPaid = roundEtb2(totalPaid + sr.paidAmount);
+        totalCredit = roundEtb2(totalCredit + (sr.saleAmount || 0));
+        totalPaid = roundEtb2(totalPaid + (sr.paidAmount || 0));
+        rowCustKeys[sr.customerKey] = true;
       });
-      var outstandingBalance = roundEtb2(openingBalance + totalCredit - totalPaid);
+      var uniqueCustKeyList = Object.keys(rowCustKeys);
+      var outstandingBalance = 0;
+      if (statementRows.length > 0 && uniqueCustKeyList.length === 1) {
+        // Exact match with the last row's sequential Running Balance
+        outstandingBalance = roundEtb2(statementRows[statementRows.length - 1].runningBalance);
+      } else if (Object.keys(runningMap).length > 0) {
+        Object.keys(runningMap).forEach(function (ck) {
+          outstandingBalance = roundEtb2(outstandingBalance + runningMap[ck]);
+        });
+      } else {
+        outstandingBalance = openingBalance;
+      }
 
       var isMultiBotScope = scopeBots.length > 1;
       var sourceColumns = [];
@@ -23411,6 +23640,8 @@
       }
       var allColsTotals = {};
       var allColsKeyTotals = {};
+      var balanceColIds = {};
+      var balanceColKeys = {};
       var matchedRowNums = [];
       var seenRowNumKey = {};
       var countedRowIds = {};
@@ -23422,7 +23653,12 @@
           seenRowNumKey[uniqKey] = true;
           matchedRowNums.push(sr.fileRowNum);
         }
-        (sr.rawRowCols || sr.allRowCols || []).forEach(function (rc) {
+        (sr.allRowCols || []).forEach(function (rc) {
+          if (rc._isLedgerBalCol || (sr.balColRef && rc.colId === sr.balColRef.id) || isBalanceColName(rc.name)) {
+            balanceColIds[rc.colId] = true;
+            if (rc.colKey) balanceColKeys[rc.colKey] = true;
+            return;
+          }
           if (rc.isNumeric && rc.hasValue) {
             allColsTotals[rc.colId] = roundEtb2((allColsTotals[rc.colId] || 0) + (rc.numeric || 0));
             if (rc.colKey) {
@@ -23430,6 +23666,15 @@
             }
           }
         });
+      });
+      (sourceColumns || []).forEach(function (c) {
+        var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
+        if (!isNumC) return;
+        var cKey = c._colKey || String(c.name || 'Column').trim().toLowerCase();
+        if (balanceColIds[c.id] || balanceColKeys[cKey] || isBalanceColName(c.name)) {
+          allColsTotals[c.id] = outstandingBalance;
+          allColsKeyTotals[cKey] = outstandingBalance;
+        }
       });
 
       var customerSummaries = Object.keys(customerAllMap).map(function (ck) {
@@ -23458,6 +23703,7 @@
         calendarMode: calendarMode,
         hasDateFilter: Boolean(fromDayMs !== null || toDayMs !== null),
         hasFromFilter: fromDayMs !== null,
+        hasOpeningDisplay: Boolean(fromDayMs !== null || Math.abs(openingBalance) > 0.004),
         fromDateDisplay: fromMeta ? formatLedgerDateDisplay(fromMeta, calendarMode, 'short') : '',
         toDateDisplay: toMeta ? formatLedgerDateDisplay(toMeta, calendarMode, 'short') : '',
         openingBalance: openingBalance,
@@ -23465,10 +23711,11 @@
         totalPaid: totalPaid,
         outstandingBalance: outstandingBalance,
         allTime: {
+          openingBalance: allTimeOpening,
           totalCredit: allTimeCredit,
           totalPaid: allTimePaid,
-          outstandingBalance: roundEtb2(allTimeCredit - allTimePaid),
-          txCount: rawEntries.length
+          outstandingBalance: allTimeOutstanding,
+          txCount: rawEntries.filter(function (e) { return !e.isInferredOpening; }).length
         }
       };
     }
@@ -23482,14 +23729,14 @@
         : 'All Dates';
       var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
       var vfMode = filterInfo.viewFilter || data.viewFilter || 'all';
-      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
+      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Remaining Balance)' : 'All Data');
       var dateSlug = new Date().toISOString().slice(0, 10);
 
       var aoa = [
         ['Hiriya Salt Production PLC · MA’ED Table Salt — Customer Account Ledger Statement'],
         ['Folder:', folderTitle, 'Customer Filter:', custTitle, 'View:', viewLabel],
         ['Date Range:', rangeTitle, 'Calendar:', calTag],
-        ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Rominbalce (ETB):', data.outstandingBalance],
+        ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Remaining Balance (ETB):', data.outstandingBalance],
         [],
         ['Row', 'Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
       ];
@@ -23516,7 +23763,7 @@
         'TOTALS',
         custTitle,
         data.rows.length + ' tx',
-        data.hasFromFilter ? ('Opening: ' + formatEtbAmount(data.openingBalance)) : '',
+        data.hasOpeningDisplay ? ('Opening: ' + formatEtbAmount(data.openingBalance)) : '',
         data.totalCredit,
         '',
         data.totalPaid,
@@ -23526,7 +23773,7 @@
 
       var custAoa = [
         ['Customer Balances Summary (' + calTag + ' · ' + viewLabel + ')'],
-        ['Customer Name', 'Transactions', 'Sales Count', 'Payments Count', 'Total Credit (ETB)', 'Total Paid (ETB)', 'Rominbalce (ETB)', 'Last Activity']
+        ['Customer Name', 'Transactions', 'Sales Count', 'Payments Count', 'Total Credit (ETB)', 'Total Paid (ETB)', 'Remaining Balance (ETB)', 'Last Activity']
       ];
       data.customerSummaries.forEach(function (c) {
         custAoa.push([c.customerName, c.txCount, c.saleCount, c.paymentCount, c.totalCredit, c.totalPaid, c.outstandingBalance, c.lastDateDisplay]);
@@ -23596,7 +23843,7 @@
         : 'Complete History';
       var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
       var vfMode = filterInfo.viewFilter || data.viewFilter || 'all';
-      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
+      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Remaining Balance)' : 'All Data');
       var nowCtx = getReportNowContext(data.calendarMode !== 'gregorian');
       var genDate = data.calendarMode !== 'gregorian'
         ? (String(nowCtx.ec.day).padStart(2, '0') + '/' + String(nowCtx.ec.month).padStart(2, '0') + '/' + nowCtx.ec.year + ' EC')
@@ -23625,13 +23872,14 @@
                 var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
                 return '<td style="' + (isNumC ? 'text-align:right;font-family:monospace;' : '') + '">' + esc(cell && cell.hasValue ? cell.display : '') + '</td>';
               }).join('');
-              var isPayPdf = r.kind !== 'sale';
-              var rowBgStyle = isPayPdf ? ' style="background:#F0FDF4;"' : '';
+              var isPayPdf = r.kind === 'payment';
+              var isOpenPdf = r.kind === 'opening';
+              var rowBgStyle = isPayPdf ? ' style="background:#F0FDF4;"' : (isOpenPdf ? ' style="background:#F8FAFC;"' : '');
               return '<tr' + rowBgStyle + '>' +
                 '<td style="text-align:center;font-family:monospace;color:#475569;">#' + (r.fileRowNum || (idx + 1)) + '</td>' +
                 (data.isMultiBotScope ? ('<td>' + esc(r.botName || '') + '</td>') : '') +
                 colTds +
-                '<td style="font-weight:700;color:' + (isPayPdf ? '#047857' : '#1E40AF') + ';">' + esc(r.typeLabel) + '</td>' +
+                '<td style="font-weight:700;color:' + (isPayPdf ? '#047857' : (isOpenPdf ? '#334155' : '#1E40AF')) + ';">' + esc(r.typeLabel) + '</td>' +
                 '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;color:#047857;font-weight:700;">' + esc(r.kind === 'payment' ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;font-weight:800;">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
@@ -23657,11 +23905,12 @@
           : data.rows.map(function (r, idx) {
               var detNote = r.note || '';
               if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
-              var isPayPdf2 = r.kind !== 'sale';
-              return '<tr' + (isPayPdf2 ? ' style="background:#F0FDF4;"' : '') + '>' +
+              var isPayPdf2 = r.kind === 'payment';
+              var isOpenPdf2 = r.kind === 'opening';
+              return '<tr' + (isPayPdf2 ? ' style="background:#F0FDF4;"' : (isOpenPdf2 ? ' style="background:#F8FAFC;"' : '')) + '>' +
                 '<td style="text-align:center;font-family:monospace;color:#475569;">#' + (r.fileRowNum || (idx + 1)) + '</td>' +
                 '<td style="font-weight:700;">' + esc(r.customerName) + '</td>' +
-                '<td style="font-weight:700;color:' + (isPayPdf2 ? '#047857' : '#1E40AF') + ';">' + esc(r.typeLabel) + '</td>' +
+                '<td style="font-weight:700;color:' + (isPayPdf2 ? '#047857' : (isOpenPdf2 ? '#334155' : '#1E40AF')) + ';">' + esc(r.typeLabel) + '</td>' +
                 '<td>' + esc(r.kind === 'sale' ? r.saleDateDisplay : '') + '</td>' +
                 '<td style="text-align:right;font-family:monospace;color:#1E40AF;font-weight:700;">' + esc(r.kind === 'sale' ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
                 '<td>' + esc(r.kind === 'payment' ? r.paymentDateDisplay : '') + '</td>' +
@@ -23672,7 +23921,7 @@
             }).join('');
         tableHtml = '<table><thead><tr><th style="text-align:center;">Row</th><th>Customer Name</th><th>Type</th><th>Sale Date</th><th style="text-align:right;">Sale Amount (ETB)</th><th>Payment Date</th><th style="text-align:right;">Paid Amount (ETB)</th><th style="text-align:right;">Running Balance (ETB)</th><th>Reference / Row Data</th></tr></thead>' +
           '<tbody>' + rowsHtml + '</tbody>' +
-          '<tfoot><tr><td colspan="4">Statement Totals (' + data.rows.length + ' transactions' + (data.hasFromFilter ? ' · Opening ' + esc(formatEtbAmount(data.openingBalance)) : '') + ')</td>' +
+          '<tfoot><tr><td colspan="4">Statement Totals (' + data.rows.length + ' transactions' + (data.hasOpeningDisplay ? ' · Opening ' + esc(formatEtbAmount(data.openingBalance)) : '') + ')</td>' +
           '<td style="text-align:right;font-family:monospace;color:#1E40AF;">' + esc(formatStmtNumber(data.totalCredit)) + '</td><td></td>' +
           '<td style="text-align:right;font-family:monospace;color:#047857;">' + esc(formatStmtNumber(data.totalPaid)) + '</td>' +
           '<td style="text-align:right;font-family:monospace;">' + esc(formatStmtNumber(data.outstandingBalance)) + '</td><td></td></tr></tfoot></table>';
@@ -23689,10 +23938,10 @@
         '<h1>Hiriya Salt Production PLC &middot; MA’ED Table Salt</h1>' +
         '<div class="sub"><strong>Customer Account Ledger Statement</strong> &middot; Folder: <strong>' + esc(folderTitle) + '</strong> &middot; Customer: <strong>' + esc(custTitle) + '</strong> &middot; View: <strong>' + esc(viewLabel) + '</strong> &middot; Date Range: <strong>' + esc(rangeTitle) + '</strong> &middot; Calendar: ' + esc(calTag) + ' &middot; Generated: ' + esc(genDate) + '</div>' +
         '<div class="kpis">' +
-          (data.hasFromFilter ? '<div class="kpi"><div class="kpi-l">Opening Balance</div><div class="kpi-v">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
+          (data.hasOpeningDisplay ? '<div class="kpi"><div class="kpi-l">Opening Balance</div><div class="kpi-v">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
           '<div class="kpi"><div class="kpi-l">Total Credit</div><div class="kpi-v" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</div></div>' +
           '<div class="kpi"><div class="kpi-l">Total Paid</div><div class="kpi-v" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</div></div>' +
-          '<div class="kpi"><div class="kpi-l">Rominbalce</div><div class="kpi-v" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
+          '<div class="kpi"><div class="kpi-l">Remaining Balance</div><div class="kpi-v" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
         '</div>' +
         tableHtml +
         '</body></html>';
@@ -23707,16 +23956,16 @@
         : 'Complete History';
       var folderTitle = (!filterInfo.folder || filterInfo.folder === 'all') ? 'All Folders' : filterInfo.folder;
       var vfMode = filterInfo.viewFilter || data.viewFilter || 'all';
-      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
+      var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Remaining Balance)' : 'All Data');
       var useAllColsPdf = Boolean(filterInfo.showAllColumns && data.sourceColumns && data.sourceColumns.length > 0);
       var dateSlug = new Date().toISOString().slice(0, 10);
       var custSlug = custTitle.replace(/[^a-z0-9]+/gi, '_') || 'All_Customers';
 
       var kpis = [];
-      if (data.hasFromFilter) kpis.push({ label: 'Opening Balance', value: formatEtbAmount(data.openingBalance), color: '#0F172A' });
+      if (data.hasOpeningDisplay) kpis.push({ label: 'Opening Balance', value: formatEtbAmount(data.openingBalance), color: '#0F172A' });
       kpis.push({ label: 'Total Credit', value: formatEtbAmount(data.totalCredit), color: '#1E40AF' });
       kpis.push({ label: 'Total Paid', value: formatEtbAmount(data.totalPaid), color: '#047857' });
-      kpis.push({ label: 'Rominbalce', value: formatEtbAmount(data.outstandingBalance), color: '#B45309' });
+      kpis.push({ label: 'Remaining Balance', value: formatEtbAmount(data.outstandingBalance), color: '#B45309' });
 
       var cols = [];
       var pdfRows = [];
@@ -23776,7 +24025,7 @@
           { label: 'Sale Amount', align: 'right', weight: 1.0, isCreditColor: true, bold: true },
           { label: 'Paid Date', align: 'left', weight: 0.9 },
           { label: 'Paid Amount', align: 'right', weight: 1.0, isPayColor: true, bold: true },
-          { label: 'Rominbalce', align: 'right', weight: 1.05, bold: true },
+          { label: 'Running Balance', align: 'right', weight: 1.05, bold: true },
           { label: 'Note', align: 'left', weight: 1.5 }
         ];
         pdfRows = data.rows.map(function (r, idx) {
@@ -23939,7 +24188,7 @@
         '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
           '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(totalCreditVal)) + '</div></div>' +
           '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(totalPaidVal)) + '</div></div>' +
-          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(outstandingBalVal)) + '</div></div>' +
+          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Remaining Balance</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(outstandingBalVal)) + '</div></div>' +
         '</div>' +
       '</section>';
     }
@@ -24071,7 +24320,7 @@
       });
 
       var calMode = data.calendarMode;
-      var kpiColsCls = data.hasFromFilter ? 'cols-4' : 'cols-3';
+      var kpiColsCls = data.hasOpeningDisplay ? 'cols-4' : 'cols-3';
       var activeTargetBot = availableLedgers.find(function (b) { return b.id === activeBotId; }) || availableLedgers[0] || null;
       var targetFolderForCreate = m.folder !== 'all' ? m.folder : (state.adminConfig.telegramDefaultFolder || 'General');
       var hasSourceCols = Boolean(data.sourceColumns && data.sourceColumns.length > 0);
@@ -24137,7 +24386,7 @@
           '<div class="ledger-tab-bar" style="padding:2px;" title="Filter Statement View">' +
             '<button type="button" data-clg-vfilter="all" class="ledger-tab-btn' + (m.viewFilter === 'all' ? ' active-all' : '') + '" style="padding:5px 10px;font-size:11.5px;">All Data</button>' +
             '<button type="button" data-clg-vfilter="credit" class="ledger-tab-btn' + (m.viewFilter === 'credit' ? ' active-sale' : '') + '" style="padding:5px 10px;font-size:11.5px;">Credit</button>' +
-            '<button type="button" data-clg-vfilter="unpaid" class="ledger-tab-btn' + (m.viewFilter === 'unpaid' ? ' active-unpaid' : '') + '" style="padding:5px 10px;font-size:11.5px;">Unpaid Balance (Rominbalce)</button>' +
+            '<button type="button" data-clg-vfilter="unpaid" class="ledger-tab-btn' + (m.viewFilter === 'unpaid' ? ' active-unpaid' : '') + '" style="padding:5px 10px;font-size:11.5px;">Unpaid Balance (Remaining Balance)</button>' +
           '</div>' +
           (hasSourceCols ? '<div class="ledger-tab-bar" style="padding:2px;">' +
             '<button type="button" id="clg-view-allcols" class="ledger-tab-btn' + (showAllCols ? ' active-sale' : '') + '" style="padding:5px 10px;font-size:11.5px;">All Column Row Data + Balance</button>' +
@@ -24166,23 +24415,25 @@
         return;
       }
 
-      // KPI Summary Row (Opening Balance if From Date set, Total Credit, Total Paid, Rominbalce)
+      // KPI Summary Row (Opening Balance if present/filtered, Total Credit, Total Paid, Remaining Balance)
       html += '<div class="ledger-kpi-row ' + kpiColsCls + '" style="margin-bottom:0;">' +
-        (data.hasFromFilter ? '<div class="ledger-kpi-box opening"><div class="ledger-kpi-lbl">Opening Balance (Before ' + esc(data.fromDateDisplay) + ')</div><div class="ledger-kpi-val">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
+        (data.hasOpeningDisplay ? '<div class="ledger-kpi-box opening"><div class="ledger-kpi-lbl">' + (data.hasFromFilter && data.fromDateDisplay ? ('Opening Balance (Before ' + esc(data.fromDateDisplay) + ')') : 'Opening Balance') + '</div><div class="ledger-kpi-val">' + esc(formatEtbAmount(data.openingBalance)) + '</div></div>' : '') +
         '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit (Sales)</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</div></div>' +
         '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid (Payments)</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</div></div>' +
-        '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
+        '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Remaining Balance</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</div></div>' +
       '</div>';
 
-      // Transaction Recording Card (+ Record Sale / Credit OR + Record Payment on separate row)
+      // Transaction Recording Card (+ Record Sale / Credit, + Record Payment, + Opening Balance on separate row)
       if (canRecordDirectly) {
         var isPayMode = m.entryMode === 'payment';
+        var isOpenMode = m.entryMode === 'opening';
         var custPresetVal = m.txCustomer !== undefined ? m.txCustomer : (m.customerFilter !== 'all' ? m.customerFilter : '');
         html += '<form id="clg-tx-form" class="ledger-entry-card">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">' +
             '<div class="ledger-tab-bar">' +
-              '<button type="button" id="clg-mode-sale" class="ledger-tab-btn' + (!isPayMode ? ' active-sale' : '') + '">+ Record Sale / Credit</button>' +
+              '<button type="button" id="clg-mode-sale" class="ledger-tab-btn' + (!isPayMode && !isOpenMode ? ' active-sale' : '') + '">+ Record Sale / Credit</button>' +
               '<button type="button" id="clg-mode-pay" class="ledger-tab-btn' + (isPayMode ? ' active-pay' : '') + '">+ Record Payment</button>' +
+              '<button type="button" id="clg-mode-open" class="ledger-tab-btn' + (isOpenMode ? ' active-all' : '') + '">+ Opening Balance</button>' +
             '</div>' +
             '<span style="font-size:11.5px;color:#475569;font-weight:600;">Target Ledger: <strong>' + esc(activeTargetBot.name) + '</strong> &middot; Each transaction appends a separate row</span>' +
           '</div>' +
@@ -24193,23 +24444,23 @@
               '<datalist id="clg-cust-datalist">' + data.customerNames.map(function (cn) { return '<option value="' + esc(cn) + '">'; }).join('') + '</datalist>' +
             '</div>' +
             '<div>' +
-              '<label class="field-label" for="clg-tx-date">' + (isPayMode ? 'Payment Date' : 'Sale Date') + ' (' + (calMode === 'ethiopian' ? 'EC DD/MM/YYYY' : 'GC DD/MM/YYYY') + ')</label>' +
+              '<label class="field-label" for="clg-tx-date">' + (isOpenMode ? 'Opening Date (Optional)' : (isPayMode ? 'Payment Date' : 'Sale Date')) + ' (' + (calMode === 'ethiopian' ? 'EC DD/MM/YYYY' : 'GC DD/MM/YYYY') + ')</label>' +
               '<div style="display:flex;gap:5px;">' +
-                '<input id="clg-tx-date" class="form-input mono" value="' + esc(m.txDate || '') + '" placeholder="' + esc(todayDefaultStr) + '" required />' +
+                '<input id="clg-tx-date" class="form-input mono" value="' + esc(isOpenMode && m.txDate === todayDefaultStr && !m._openDateEdited ? '' : (m.txDate || '')) + '" placeholder="' + esc(isOpenMode ? 'Leave blank for Start' : todayDefaultStr) + '"' + (isOpenMode ? '' : ' required') + ' />' +
                 '<button type="button" id="clg-tx-today" class="btn btn-outline" style="padding:7px 9px;font-size:11px;white-space:nowrap;">Today</button>' +
               '</div>' +
             '</div>' +
             '<div>' +
-              '<label class="field-label" for="clg-tx-amt">' + (isPayMode ? 'Paid Amount (ETB)' : 'Sale Amount (ETB)') + '</label>' +
-              '<input id="clg-tx-amt" type="number" step="0.01" min="0.01" class="form-input mono" value="' + esc(m.txAmount || '') + '" placeholder="0.00" required />' +
+              '<label class="field-label" for="clg-tx-amt">' + (isOpenMode ? 'Opening Balance (ETB)' : (isPayMode ? 'Paid Amount (ETB)' : 'Sale Amount (ETB)')) + '</label>' +
+              '<input id="clg-tx-amt" type="number" step="0.01" min="' + (isOpenMode ? '0' : '0.01') + '" class="form-input mono" value="' + esc(m.txAmount || '') + '" placeholder="0.00" required />' +
             '</div>' +
             '<div>' +
               '<label class="field-label" for="clg-tx-note">Reference / Note (Optional)</label>' +
-              '<input id="clg-tx-note" class="form-input" value="' + esc(m.txNote || '') + '" placeholder="' + (isPayMode ? 'Cash / Bank transfer receipt' : 'Salt order / invoice #') + '" />' +
+              '<input id="clg-tx-note" class="form-input" value="' + esc(m.txNote || '') + '" placeholder="' + (isOpenMode ? 'Initial balance carried forward' : (isPayMode ? 'Cash / Bank transfer receipt' : 'Salt order / invoice #')) + '" />' +
             '</div>' +
             '<div>' +
-              '<button type="submit" class="btn ' + (isPayMode ? 'btn-green' : 'btn-primary') + '" style="width:100%;padding:10px 14px;">' +
-                icon('plus', 14) + '<span>' + (isPayMode ? 'Save Payment' : 'Save Credit Sale') + '</span>' +
+              '<button type="submit" class="btn ' + (isOpenMode ? 'btn-dark-blue' : (isPayMode ? 'btn-green' : 'btn-primary')) + '" style="width:100%;padding:10px 14px;">' +
+                icon('plus', 14) + '<span>' + (isOpenMode ? 'Save Opening Balance' : (isPayMode ? 'Save Payment' : 'Save Credit Sale')) + '</span>' +
               '</button>' +
             '</div>' +
           '</div>' +
@@ -24257,7 +24508,7 @@
           '</div>' +
           '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;max-height:175px;overflow-y:auto;">' +
             '<table class="ledger-stmt-table" style="min-width:600px;">' +
-              '<thead><tr><th>Customer Name</th><th class="num">Tx</th><th class="num">Total Credit (ETB)</th><th class="num">Total Paid (ETB)</th><th class="num">Rominbalce (ETB)</th><th>Last Date</th></tr></thead>' +
+              '<thead><tr><th>Customer Name</th><th class="num">Tx</th><th class="num">Total Credit (ETB)</th><th class="num">Total Paid (ETB)</th><th class="num">Remaining Balance (ETB)</th><th>Last Date</th></tr></thead>' +
               '<tbody>' +
                 data.customerSummaries.map(function (c) {
                   var isAct = normalizeCustomerLabel(m.customerFilter || '').toLowerCase() === c.customerName.toLowerCase();
@@ -24311,10 +24562,10 @@
           '</span>' +
         '</div>' +
         '<div class="ledger-stmt-summary-cols">' +
-          (data.hasFromFilter ? ('<span class="ledger-stmt-col-pill"><span style="color:#475569;font-weight:700;">Opening:</span><strong class="mono">' + esc(formatEtbAmount(data.openingBalance)) + '</strong></span>') : '') +
+          (data.hasOpeningDisplay ? ('<span class="ledger-stmt-col-pill"><span style="color:#475569;font-weight:700;">Opening:</span><strong class="mono">' + esc(formatEtbAmount(data.openingBalance)) + '</strong></span>') : '') +
           '<span class="ledger-stmt-col-pill" style="border-color:#BFDBFE;background:#EFF6FF;"><span style="color:#1E40AF;font-weight:700;">Credit:</span><strong class="mono" style="color:#1E40AF;">' + esc(formatEtbAmount(data.totalCredit)) + '</strong></span>' +
           '<span class="ledger-stmt-col-pill" style="border-color:#A7F3D0;background:#ECFDF5;"><span style="color:#047857;font-weight:700;">Paid:</span><strong class="mono" style="color:#047857;">' + esc(formatEtbAmount(data.totalPaid)) + '</strong></span>' +
-          '<span class="ledger-stmt-col-pill" style="border-color:#FDE68A;background:#FFFBEB;"><span style="color:#B45309;font-weight:700;">Rominbalce:</span><strong class="mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</strong></span>' +
+          '<span class="ledger-stmt-col-pill" style="border-color:#FDE68A;background:#FFFBEB;"><span style="color:#B45309;font-weight:700;">Remaining Balance:</span><strong class="mono" style="color:#B45309;">' + esc(formatEtbAmount(data.outstandingBalance)) + '</strong></span>' +
           summaryColPills +
         '</div>' +
       '</section>';
@@ -24344,6 +24595,8 @@
         } else {
           html += data.rows.map(function (r, idx) {
             var isSale = r.kind === 'sale';
+            var isPay = r.kind === 'payment';
+            var isOpen = r.kind === 'opening';
             var rcMap = {};
             var rcKeyMap = {};
             (r.allRowCols || []).forEach(function (rc) {
@@ -24364,15 +24617,17 @@
             }).join('');
             var rowLabel = '#' + (r.fileRowNum || (idx + 1));
             var typeDisplayLbl = (state && state.lang === 'am')
-              ? (isSale ? 'ሽያጭ / ብድር' : (r.typeLabel.replace(/^Payment/i, 'ክፍያ')))
+              ? (isOpen ? 'መነሻ ቀሪ' : (isSale ? 'ሽያጭ / ብድር' : (r.typeLabel.replace(/^Payment/i, 'ክፍያ'))))
               : r.typeLabel;
-            return '<tr class="' + (isSale ? 'ledger-row-sale' : 'ledger-row-payment') + '">' +
+            var rowCls = isOpen ? 'ledger-row-opening' : (isPay ? 'ledger-row-payment' : 'ledger-row-sale');
+            var pillCls = isOpen ? 'is-opening' : (isPay ? 'is-pay' : 'is-sale');
+            return '<tr class="' + rowCls + '">' +
               '<td style="text-align:center;white-space:nowrap;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to ' + rowLabel + ' in spreadsheet">' + rowLabel + '</button></td>' +
               (data.isMultiBotScope ? ('<td style="font-size:11.5px;color:#475569;white-space:nowrap;">' + esc(r.botName || '') + '</td>') : '') +
               colCellsHtml +
-              '<td style="white-space:nowrap;"><span class="ledger-type-pill ' + (isSale ? 'is-sale' : 'is-pay') + '">' + esc(typeDisplayLbl) + '</span></td>' +
+              '<td style="white-space:nowrap;"><span class="ledger-type-pill ' + pillCls + '">' + esc(typeDisplayLbl) + '</span></td>' +
               '<td class="num mono col-sale-amt">' + esc(isSale ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
-              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
+              '<td class="num mono col-paid-amt">' + esc(isPay ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
               '<td class="num mono col-run-bal">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
             '</tr>';
           }).join('');
@@ -24388,7 +24643,7 @@
               var hasTot = isNumC && (Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) || Object.prototype.hasOwnProperty.call(data.allColsKeyTotals || {}, cKey));
               var totV = Object.prototype.hasOwnProperty.call(data.allColsTotals, c.id) ? data.allColsTotals[c.id] : ((data.allColsKeyTotals || {})[cKey]);
               if (cIdx === 0 && !isNumC && !data.isMultiBotScope) {
-                return '<td>Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Open: ' + esc(formatStmtNumber(data.openingBalance))) : '') + ')</td>';
+                return '<td>Totals (' + data.rows.length + ' tx' + (data.hasOpeningDisplay ? (' · Open: ' + esc(formatStmtNumber(data.openingBalance))) : '') + ')</td>';
               }
               if (!hasTot) return '<td></td>';
               return '<td class="num mono">' + esc(formatNumericValue(totV, c)) + '</td>';
@@ -24420,20 +24675,24 @@
         } else {
           html += data.rows.map(function (r, idx) {
             var isSale = r.kind === 'sale';
+            var isPay = r.kind === 'payment';
+            var isOpen = r.kind === 'opening';
             var detNote = r.note || '';
             if (r.allColsSummary) detNote = detNote ? (detNote + ' · ' + r.allColsSummary) : r.allColsSummary;
             var rowLabel = '#' + (r.fileRowNum || (idx + 1));
             var typeDisplayLbl2 = (state && state.lang === 'am')
-              ? (isSale ? 'ሽያጭ / ብድር' : (r.typeLabel.replace(/^Payment/i, 'ክፍያ')))
+              ? (isOpen ? 'መነሻ ቀሪ' : (isSale ? 'ሽያጭ / ብድር' : (r.typeLabel.replace(/^Payment/i, 'ክፍያ'))))
               : r.typeLabel;
-            return '<tr class="' + (isSale ? 'ledger-row-sale' : 'ledger-row-payment') + '">' +
+            var rowCls2 = isOpen ? 'ledger-row-opening' : (isPay ? 'ledger-row-payment' : 'ledger-row-sale');
+            var pillCls2 = isOpen ? 'is-opening' : (isPay ? 'is-pay' : 'is-sale');
+            return '<tr class="' + rowCls2 + '">' +
               '<td style="text-align:center;white-space:nowrap;"><button type="button" class="ledger-cust-link mono" data-clg-jump-bot="' + esc(r.botId) + '" data-clg-jump-row="' + esc(r.rowId) + '" title="Jump to ' + rowLabel + ' in spreadsheet">' + rowLabel + '</button></td>' +
               '<td style="white-space:nowrap;"><button type="button" class="ledger-cust-link" data-clg-pick-cust="' + esc(r.customerName) + '">' + esc(r.customerName) + '</button></td>' +
-              '<td style="white-space:nowrap;"><span class="ledger-type-pill ' + (isSale ? 'is-sale' : 'is-pay') + '">' + esc(typeDisplayLbl2) + '</span></td>' +
+              '<td style="white-space:nowrap;"><span class="ledger-type-pill ' + pillCls2 + '">' + esc(typeDisplayLbl2) + '</span></td>' +
               '<td class="mono" style="font-size:12px;white-space:nowrap;">' + esc(isSale ? r.saleDateDisplay : '') + '</td>' +
               '<td class="num mono col-sale-amt">' + esc(isSale ? formatStmtNumber(r.saleAmount) : '') + '</td>' +
-              '<td class="mono" style="font-size:12px;white-space:nowrap;">' + esc(!isSale ? r.paymentDateDisplay : '') + '</td>' +
-              '<td class="num mono col-paid-amt">' + esc(!isSale ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
+              '<td class="mono" style="font-size:12px;white-space:nowrap;">' + esc(isPay ? r.paymentDateDisplay : '') + '</td>' +
+              '<td class="num mono col-paid-amt">' + esc(isPay ? formatStmtNumber(r.paidAmount) : '') + '</td>' +
               '<td class="num mono col-run-bal">' + esc(formatStmtNumber(r.runningBalance)) + '</td>' +
               '<td style="color:#475569;font-size:11.5px;">' + esc(detNote) + '</td>' +
             '</tr>';
@@ -24442,7 +24701,7 @@
 
         html += '</tbody>' +
           '<tfoot><tr>' +
-            '<td colspan="4">Totals (' + data.rows.length + ' tx' + (data.hasFromFilter ? (' · Opening: ' + esc(formatStmtNumber(data.openingBalance))) : '') + ')</td>' +
+            '<td colspan="4">Totals (' + data.rows.length + ' tx' + (data.hasOpeningDisplay ? (' · Opening: ' + esc(formatStmtNumber(data.openingBalance))) : '') + ')</td>' +
             '<td class="num mono" style="color:#1E40AF;">' + esc(formatStmtNumber(data.totalCredit)) + '</td>' +
             '<td></td>' +
             '<td class="num mono" style="color:#047857;">' + esc(formatStmtNumber(data.totalPaid)) + '</td>' +
@@ -24540,11 +24799,23 @@
         m.statusMsg = '';
         renderCustomerLedgerModal(m);
       };
+      var modeOpenBtn = document.getElementById('clg-mode-open');
+      if (modeOpenBtn) modeOpenBtn.onclick = function () {
+        m.entryMode = 'opening';
+        m.txCustomer = (document.getElementById('clg-tx-cust') || {}).value || '';
+        m.txDate = '';
+        m._openDateEdited = false;
+        m.txAmount = (document.getElementById('clg-tx-amt') || {}).value || '';
+        m.txNote = (document.getElementById('clg-tx-note') || {}).value || '';
+        m.statusMsg = '';
+        renderCustomerLedgerModal(m);
+      };
       var txTodayBtn = document.getElementById('clg-tx-today');
       if (txTodayBtn) txTodayBtn.onclick = function () {
         var dtInp = document.getElementById('clg-tx-date');
         if (dtInp) dtInp.value = todayDefaultStr;
         m.txDate = todayDefaultStr;
+        m._openDateEdited = true;
       };
 
       var txFormEl = document.getElementById('clg-tx-form');
@@ -24573,7 +24844,8 @@
           return;
         }
         m.statusType = 'success';
-        m.statusMsg = (m.entryMode === 'payment' ? 'Recorded Payment' : 'Recorded Credit Sale') + ' of ' + formatEtbAmount(parseNumSafe(amtVal)) + ' for "' + sanitizeUserText(custVal, 120) + '". Running balance updated.';
+        var modeVerb = m.entryMode === 'opening' ? 'Recorded Opening Balance' : (m.entryMode === 'payment' ? 'Recorded Payment' : 'Recorded Credit Sale');
+        m.statusMsg = modeVerb + ' of ' + formatEtbAmount(parseNumSafe(amtVal)) + ' for "' + sanitizeUserText(custVal, 120) + '". Running balance updated.';
         m.txCustomer = sanitizeUserText(custVal, 120);
         m.txDate = dtVal;
         m.txAmount = '';
