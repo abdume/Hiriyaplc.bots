@@ -598,7 +598,7 @@ ${periodFilteredItems.filter(i => i.remainingBalance > 0).slice(0, 5).map(i => `
               </div>
             </div>
 
-            {/* Total Remaining Balance */}
+            {/* Total Remaining Balance (Rominbalce) */}
             <div className="bg-white rounded-xl p-4 border border-orange-200 mat-shadow-1 flex flex-col justify-between bg-orange-50/20">
               <div className="flex items-center justify-between text-gray-500 mb-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#E65100]">Remaining Balance</span>
@@ -689,7 +689,7 @@ ${periodFilteredItems.filter(i => i.remainingBalance > 0).slice(0, 5).map(i => `
               <div>
                 <h3 className="font-bold text-sm text-[#0D47A1] flex items-center gap-2">
                   <Users size={18} />
-                  <span>Customer Ledger &amp; Remaining Balance</span>
+                  <span>Customer Ledger & Remaining Balance (Rominbalce)</span>
                 </h3>
                 <span className="text-xs text-gray-500">
                   Showing {periodFilteredItems.length} records matching current filter
@@ -772,7 +772,7 @@ ${periodFilteredItems.filter(i => i.remainingBalance > 0).slice(0, 5).map(i => `
                             ${item.paidAmount.toFixed(2)}
                           </td>
 
-                          {/* Remaining Balance */}
+                          {/* Remaining Balance (Rominbalce) */}
                           <td className="py-2.5 px-3 text-right font-mono font-bold">
                             {hasBalance ? (
                               <span className="text-[#E65100] bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
