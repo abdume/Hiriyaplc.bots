@@ -2392,6 +2392,7 @@
     var SESSION_LOCK_ATTEMPTS_KEY = 'tb_lock_attempts_v1';
     var SESSION_LOCK_UNTIL_KEY = 'tb_lock_until_v1';
     var SESSION_FOLDER_UNLOCKS_KEY = 'tablebot_folder_unlocks_v1';
+    var SESSION_BOT_UNLOCKS_KEY = 'tablebot_bot_unlocks_v1';
     var SESSION_CYBER_UNLOCK_KEY = 'tablebot_cyber_unlocked_v1';
     var SECURITY_BOT_ID = '__tablebot_security_config__';
     var CLIENT_SESSION_ID = 'sess_' + Math.random().toString(36).slice(2) + '_' + Date.now();
@@ -3249,6 +3250,7 @@
       blockStrictMode: true,
       telegramDefaultFolder: '',
       folderLocks: {},
+      botLocks: {},
       revokedUsers: {},
       telegramKnownChats: [],
       forceLockAt: null,
@@ -5127,6 +5129,7 @@
     }
     if (!state.adminConfig.cyberSecurityCode) state.adminConfig.cyberSecurityCode = getCyberSecurityCode();
     if (!state.adminConfig.folderLocks || typeof state.adminConfig.folderLocks !== 'object') state.adminConfig.folderLocks = {};
+    if (!state.adminConfig.botLocks || typeof state.adminConfig.botLocks !== 'object') state.adminConfig.botLocks = {};
 
     function saveDeletedTombstones() {
       try { localStorage.setItem(STORAGE_DELETED_TOMBSTONES, JSON.stringify(state.deletedTombstones)); } catch (e) {}
@@ -5297,6 +5300,7 @@
         adminEmail: state.adminConfig.adminEmail || 'umery1969@gmail.com',
         telegramDefaultFolder: state.adminConfig.telegramDefaultFolder || '',
         folderLocks: state.adminConfig.folderLocks || {},
+        botLocks: state.adminConfig.botLocks || {},
         revokedUsers: state.adminConfig.revokedUsers || {},
         telegramKnownChats: Array.isArray(state.adminConfig.telegramKnownChats) ? state.adminConfig.telegramKnownChats : [],
         deletedFolders: tomb.folders || {},
@@ -5349,7 +5353,11 @@
       if (typeof remote.cyberAlwaysAsk === 'boolean') state.adminConfig.cyberAlwaysAsk = remote.cyberAlwaysAsk;
       if (typeof remote.adminEmail === 'string' && remote.adminEmail.trim()) state.adminConfig.adminEmail = remote.adminEmail.trim();
       if (typeof remote.telegramDefaultFolder === 'string') state.adminConfig.telegramDefaultFolder = remote.telegramDefaultFolder;
+      var prevLocksJson = JSON.stringify({ f: state.adminConfig.folderLocks || {}, b: state.adminConfig.botLocks || {} });
       if (remote.folderLocks && typeof remote.folderLocks === 'object') state.adminConfig.folderLocks = remote.folderLocks;
+      if (remote.botLocks && typeof remote.botLocks === 'object') state.adminConfig.botLocks = remote.botLocks;
+      var locksChanged = JSON.stringify({ f: state.adminConfig.folderLocks || {}, b: state.adminConfig.botLocks || {} }) !== prevLocksJson;
+      if (locksChanged && typeof bumpAppPerfRev === 'function') bumpAppPerfRev();
       if (remote.revokedUsers && typeof remote.revokedUsers === 'object') state.adminConfig.revokedUsers = remote.revokedUsers;
       if (Array.isArray(remote.telegramKnownChats)) state.adminConfig.telegramKnownChats = remote.telegramKnownChats;
       if (remote.forceLockAt) state.adminConfig.forceLockAt = remote.forceLockAt;
@@ -5373,7 +5381,7 @@
         forceLogoutCurrentUser('Your account was blocked or logged out from another session.');
       }
 
-      if (!(opts && opts.silent) && (codeChanged || lockToggled || cyberChanged || forceLockTriggered || purgedFromTomb)) {
+      if (!(opts && opts.silent) && (codeChanged || lockToggled || cyberChanged || forceLockTriggered || purgedFromTomb || locksChanged)) {
         if (!isAccessUnlocked()) {
           if (codeChanged || lockToggled || forceLockTriggered || !document.getElementById('lock-form')) {
             renderLockScreen();
@@ -5384,7 +5392,7 @@
           if (codeChanged && fromOtherSession) showToast('Lock Screen code updated (' + remote.source + ')');
         }
       }
-      return codeChanged || lockToggled || cyberChanged || forceLockTriggered || purgedFromTomb;
+      return codeChanged || lockToggled || cyberChanged || forceLockTriggered || purgedFromTomb || locksChanged;
     }
 
     async function pushSharedSecurityState(reason) {
@@ -5425,7 +5433,7 @@
           } else {
             var localTs = state.adminConfig.securityUpdatedAt ? (Date.parse(state.adminConfig.securityUpdatedAt) || 0) : 0;
             var hasTombstones = state.deletedTombstones && (Object.keys(state.deletedTombstones.folders || {}).length > 0 || Object.keys(state.deletedTombstones.botIds || {}).length > 0);
-            if (localTs > 0 || getConfiguredAccessCode() !== '1234' || getCyberSecurityCode() !== '1234' || Object.keys(state.adminConfig.folderLocks || {}).length > 0 || hasTombstones) {
+            if (localTs > 0 || getConfiguredAccessCode() !== '1234' || getCyberSecurityCode() !== '1234' || Object.keys(state.adminConfig.folderLocks || {}).length > 0 || Object.keys(state.adminConfig.botLocks || {}).length > 0 || hasTombstones) {
               pushSharedSecurityState('seed_server');
             }
           }
@@ -5931,8 +5939,97 @@
         updatedAt: new Date().toISOString()
       };
       if (!enabled) lockFolderSession(key);
+      if (typeof bumpAppPerfRev === 'function') bumpAppPerfRev();
       if (!(opts && opts.skipSync)) pushSharedSecurityState('folder_lock');
       return state.adminConfig.folderLocks[key];
+    }
+
+    // Per-Table / Per-File Lock Helpers (inside folders or All Tables)
+    function getSessionBotUnlocks() {
+      try {
+        var raw = sessionStorage.getItem(SESSION_BOT_UNLOCKS_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) { return {}; }
+    }
+    function getBotIdFromRef(botOrId) {
+      if (!botOrId) return '';
+      return typeof botOrId === 'string' ? botOrId : (botOrId.id || '');
+    }
+    function getBotObjFromRef(botOrId) {
+      if (!botOrId) return null;
+      if (typeof botOrId === 'object' && botOrId.id) return botOrId;
+      var bid = String(botOrId);
+      return (state.bots || []).find(function (b) { return b && b.id === bid; }) || null;
+    }
+    function getBotLock(botOrId) {
+      var bid = getBotIdFromRef(botOrId);
+      if (!bid) return null;
+      var map = (state.adminConfig && state.adminConfig.botLocks) ? state.adminConfig.botLocks : {};
+      return map[bid] || null;
+    }
+    function isBotDirectlyLocked(botOrId) {
+      var bl = getBotLock(botOrId);
+      return Boolean(bl && bl.enabled && bl.code);
+    }
+    function isBotDirectlyUnlocked(botOrId) {
+      var bid = getBotIdFromRef(botOrId);
+      if (!bid || !isBotDirectlyLocked(bid)) return true;
+      var unlocks = getSessionBotUnlocks();
+      return Boolean(unlocks[bid]);
+    }
+    function isBotLocked(botOrId) {
+      if (isBotDirectlyLocked(botOrId)) return true;
+      var bObj = getBotObjFromRef(botOrId);
+      return Boolean(bObj && isFolderLocked(bObj.folder || 'General'));
+    }
+    function isBotUnlocked(botOrId) {
+      var bObj = getBotObjFromRef(botOrId);
+      if (bObj) {
+        var bf = bObj.folder || 'General';
+        if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return false;
+      }
+      if (isBotDirectlyLocked(botOrId) && !isBotDirectlyUnlocked(botOrId)) return false;
+      return true;
+    }
+    function unlockBotSession(botOrId, enteredCode) {
+      var bid = getBotIdFromRef(botOrId);
+      if (!bid) return true;
+      var bl = getBotLock(bid);
+      if (!bl || !bl.enabled) return true;
+      if (String(enteredCode || '').trim() !== String(bl.code || '').trim()) return false;
+      var unlocks = getSessionBotUnlocks();
+      unlocks[bid] = true;
+      try { sessionStorage.setItem(SESSION_BOT_UNLOCKS_KEY, JSON.stringify(unlocks)); } catch (e) {}
+      if (typeof bumpAppPerfRev === 'function') bumpAppPerfRev();
+      var bObj = getBotObjFromRef(bid);
+      recordAudit('AUTH', bObj || null, 'Unlocked table "' + (bObj ? bObj.name : bid) + '" with table lock code', { source: 'FolderLock' });
+      return true;
+    }
+    function lockBotSession(botOrId) {
+      var bid = getBotIdFromRef(botOrId);
+      if (!bid) return;
+      var unlocks = getSessionBotUnlocks();
+      if (Object.prototype.hasOwnProperty.call(unlocks, bid)) {
+        delete unlocks[bid];
+        try { sessionStorage.setItem(SESSION_BOT_UNLOCKS_KEY, JSON.stringify(unlocks)); } catch (e) {}
+      }
+      if (typeof bumpAppPerfRev === 'function') bumpAppPerfRev();
+    }
+    function setBotLock(botOrId, enabled, code, opts) {
+      var bid = getBotIdFromRef(botOrId);
+      if (!bid) return null;
+      if (!state.adminConfig.botLocks || typeof state.adminConfig.botLocks !== 'object') state.adminConfig.botLocks = {};
+      var prev = state.adminConfig.botLocks[bid];
+      var cleanCode = String(code || '').trim() || (prev && prev.code) || '1234';
+      state.adminConfig.botLocks[bid] = {
+        enabled: !!enabled,
+        code: cleanCode,
+        updatedAt: new Date().toISOString()
+      };
+      if (!enabled) lockBotSession(bid);
+      if (typeof bumpAppPerfRev === 'function') bumpAppPerfRev();
+      if (!(opts && opts.skipSync)) pushSharedSecurityState('bot_lock');
+      return state.adminConfig.botLocks[bid];
     }
 
     function toggleLanguage() {
@@ -6117,6 +6214,12 @@
       for (var j = 0; j < flKeys.length; j++) {
         var fk = flKeys[j];
         parts.push('fl:' + fk + ':' + (fl[fk] ? '1' : '0') + ':' + (isFolderUnlocked(fk) ? 'u' : 'l'));
+      }
+      var bl = (state.adminConfig && state.adminConfig.botLocks) ? state.adminConfig.botLocks : {};
+      var blKeys = Object.keys(bl);
+      for (var k = 0; k < blKeys.length; k++) {
+        var bk = blKeys[k];
+        parts.push('bl:' + bk + ':' + (bl[bk] && bl[bk].enabled ? '1' : '0') + ':' + (isBotDirectlyUnlocked(bk) ? 'u' : 'l'));
       }
       return parts.join('|');
     }
@@ -9483,17 +9586,22 @@
       function renderBotCardHtml(b, accentColor, inOpenFolder) {
         var bFolder = b.folder || 'General';
         var cardFolderLocked = isFolderLocked(bFolder) && !isFolderUnlocked(bFolder);
+        var cardBotLocked = isBotDirectlyLocked(b);
+        var cardBotUnlocked = isBotDirectlyUnlocked(b);
+        var cardAnyLockedNow = cardFolderLocked || (cardBotLocked && !cardBotUnlocked);
+        var cardAnyUnlocked = (!cardFolderLocked && isFolderLocked(bFolder)) || (cardBotLocked && cardBotUnlocked);
         var isCardMenuOpen = state.activeCardMenuId === b.id;
         var cardStamp = inOpenFolder ? formatFolderOpenTimestamp(b.updatedAt) : timeAgo(b.updatedAt);
         var cardIsDaily = inOpenFolder && isSameLocalDay(b.updatedAt);
         var cHtml = '<div class="bot-card' + (isCardMenuOpen ? ' is-menu-open' : '') + '" data-open-bot="' + esc(b.id) + '">' +
           '<div class="tn-card-top">' +
-            '<div class="bot-card-title">' + (cardFolderLocked ? '🔒 ' : '') + esc(b.name) + '</div>' +
+            '<div class="bot-card-title">' + (cardAnyLockedNow ? '🔒 ' : (cardAnyUnlocked ? '🔓 ' : '')) + esc(b.name) + '</div>' +
             '<button type="button" class="tn-dots-btn" data-card-menu="' + esc(b.id) + '" title="More options">' + icon('dotsV', 16) + '</button>';
 
         if (state.activeCardMenuId === b.id) {
           cHtml += '<div class="dropdown-menu" data-stop-card="1">' +
             (typeof isLedgerBot === 'function' && isLedgerBot(b) ? '<button type="button" class="dropdown-item" data-menu-action="ledger" data-bot-id="' + esc(b.id) + '">' + icon('ledger', 14) + '<span>Open Ledger Statement</span></button>' : '') +
+            '<button type="button" class="dropdown-item" data-menu-action="lock_bot" data-bot-id="' + esc(b.id) + '">' + icon('lock', 14) + '<span>' + (cardBotLocked ? 'Lock / Change Table Code' : 'Lock / Set Table Code') + '</span></button>' +
             '<button type="button" class="dropdown-item" data-menu-action="rename_quick" data-bot-id="' + esc(b.id) + '">' + icon('edit', 14) + '<span>Rename</span></button>' +
             '<button type="button" class="dropdown-item" data-menu-action="rename" data-bot-id="' + esc(b.id) + '">' + icon('settings', 14) + '<span>Table Settings</span></button>' +
             '<button type="button" class="dropdown-item" data-menu-action="dup" data-bot-id="' + esc(b.id) + '">' + icon('copy', 14) + '<span>Duplicate Table</span></button>' +
@@ -9511,7 +9619,7 @@
               '<span class="truncate">' + esc(cardStamp) + '</span>' +
               (cardIsDaily ? '<span class="daily-chip">Daily</span>' : '') +
             '</span>' +
-            '<span class="quick-table-btn" title="Open Table">' + icon(cardFolderLocked ? 'lock' : 'sheetNote', 16) + '</span>' +
+            '<span class="quick-table-btn" title="Open Table">' + icon(cardAnyLockedNow ? 'lock' : 'sheetNote', 16) + '</span>' +
           '</div></div>';
         return cHtml;
       }
@@ -10209,7 +10317,11 @@
           var candidate = state.bots.find(function (x) { return x.id === bid; });
           var bFolder = candidate ? (candidate.folder || 'General') : 'General';
           if (isFolderLocked(bFolder) && !isFolderUnlocked(bFolder)) {
-            openModal('folder_unlock_prompt', { folder: bFolder, pendingBotId: bid });
+            openModal('folder_unlock_prompt', { kind: 'folder', folder: bFolder, pendingBotId: bid });
+            return;
+          }
+          if (candidate && isBotDirectlyLocked(candidate) && !isBotDirectlyUnlocked(candidate)) {
+            openModal('folder_unlock_prompt', { kind: 'bot', botId: bid, botName: candidate.name, folder: bFolder, pendingBotId: bid });
             return;
           }
           state.activeBotId = bid;
@@ -10250,6 +10362,10 @@
           var bid = item.getAttribute('data-bot-id');
           state.activeCardMenuId = null;
           if (act === 'rename_quick') openModal('rename_item', { kind: 'bot', botId: bid });
+          else if (act === 'lock_bot') {
+            var bLk = state.bots.find(function (x) { return x.id === bid; });
+            openModal('folder_lock', { focusBotId: bid, focusFolder: bLk ? (bLk.folder || 'General') : '', createCodeMode: !isBotDirectlyLocked(bid) });
+          }
           else if (act === 'ledger') { var bL = state.bots.find(function (x) { return x.id === bid; }); openModal('customer_ledger', { folder: bL ? (bL.folder || 'General') : 'all', botId: bid }); }
           else if (act === 'history') openModal('file_history', { botId: bid });
           else if (act === 'rename') { var b = state.bots.find(function (x) { return x.id === bid; }); if (b) openModal('settings', { bot: b }); }
@@ -10964,6 +11080,35 @@
             renderTableView(bot);
           } else {
             state.folderUnlockError = 'Incorrect folder code for "' + botFolder + '".';
+            renderTableView(bot);
+          }
+        };
+        return;
+      }
+      if (isBotDirectlyLocked(bot) && !isBotDirectlyUnlocked(bot)) {
+        document.getElementById('app').innerHTML = '<div style="min-height:100vh;background:#F1F5F9;display:flex;flex-direction:column;">' +
+          '<header class="app-header"><div class="header-inner">' +
+            '<div class="header-left"><button class="icon-btn" id="tbl-bot-lock-back">' + icon('back', 22) + '</button><span style="font-weight:700;font-size:17px;">Table Locked</span></div>' +
+          '</div></header>' +
+          '<div style="padding:24px;"><div class="folder-locked-panel">' +
+            '<div class="lock-icon-ring" style="background:linear-gradient(135deg,#D97706,#B45309);margin-bottom:12px;">' + icon('lock', 30) + '</div>' +
+            '<h2 style="font-size:18px;font-weight:800;color:#0F172A;margin-bottom:6px;">"' + esc(bot.name) + '" is Locked</h2>' +
+            '<p style="font-size:12.5px;color:#64748B;margin-bottom:16px;">Enter the lock code to open "' + esc(bot.name) + '" (Folder: ' + esc(botFolder) + ').</p>' +
+            '<form id="tbl-bot-unlock-form" style="display:flex;flex-direction:column;gap:10px;" autocomplete="off">' +
+              '<input id="tbl-bot-code-inp" type="password" class="form-input mono" style="text-align:center;font-size:15px;letter-spacing:0.12em;" placeholder="Enter table code..." autofocus />' +
+              (state.folderUnlockError ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(state.folderUnlockError) + '</span></div>' : '') +
+              '<button type="submit" class="btn btn-dark-blue" style="width:100%;padding:11px;">' + icon('lock', 15) + '<span>Unlock &amp; Open Table</span></button>' +
+            '</form>' +
+          '</div></div></div>';
+        document.getElementById('tbl-bot-lock-back').onclick = function () { state.activeBotId = null; state.folderUnlockError = ''; renderApp(); };
+        document.getElementById('tbl-bot-unlock-form').onsubmit = function (e) {
+          e.preventDefault();
+          var code = (document.getElementById('tbl-bot-code-inp').value || '').trim();
+          if (unlockBotSession(bot.id, code)) {
+            state.folderUnlockError = '';
+            renderTableView(bot);
+          } else {
+            state.folderUnlockError = 'Incorrect lock code for "' + bot.name + '".';
             renderTableView(bot);
           }
         };
@@ -15214,19 +15359,22 @@
     }
 
     function renderFolderUnlockPromptModal(m) {
+      var isBotMode = m.kind === 'bot' && m.botId;
       var folder = m.folder || 'General';
+      var botObj = isBotMode ? getBotObjFromRef(m.botId) : null;
+      var targetLabel = isBotMode ? ((botObj && botObj.name) || m.botName || 'Table') : folder;
       var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:410px;" id="m-card">' +
         '<header class="modal-header" style="background:linear-gradient(135deg,#B45309,#D97706);">' +
-          '<div style="display:flex;align-items:center;gap:8px;">' + icon('lock', 19) + '<h2 style="font-size:15.5px;font-weight:700;">Folder Locked: ' + esc(folder) + '</h2></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;">' + icon('lock', 19) + '<h2 style="font-size:15.5px;font-weight:700;">' + (isBotMode ? 'Table Locked: ' : 'Folder Locked: ') + esc(targetLabel) + '</h2></div>' +
           '<button class="icon-btn" id="fup-close">' + icon('close', 18) + '</button>' +
         '</header>' +
         '<form id="fup-form" class="modal-body" style="display:flex;flex-direction:column;gap:12px;" autocomplete="off">' +
-          '<div style="font-size:12.5px;color:#475569;">Folder <strong>"' + esc(folder) + '"</strong> is protected by a folder lock code. Enter the folder code to unlock and open this table.</div>' +
-          '<input id="fup-code" type="password" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;text-align:center;" placeholder="Enter folder lock code..." autofocus />' +
+          '<div style="font-size:12.5px;color:#475569;">' + (isBotMode ? 'Table' : 'Folder') + ' <strong>"' + esc(targetLabel) + '"</strong> is protected by a lock code. Enter the code to unlock and open it.</div>' +
+          '<input id="fup-code" type="password" class="form-input mono" style="font-size:15px;letter-spacing:0.12em;text-align:center;" placeholder="Enter lock code..." autofocus />' +
           (m.error ? '<div class="lock-error-box" style="margin-top:0;">' + icon('ban', 14) + '<span>' + esc(m.error) + '</span></div>' : '') +
           '<div style="display:flex;gap:8px;">' +
             '<button type="button" id="fup-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
-            '<button type="submit" class="btn btn-dark-blue" style="flex:1.4;">Unlock Folder</button>' +
+            '<button type="submit" class="btn btn-dark-blue" style="flex:1.4;">' + (isBotMode ? 'Unlock Table' : 'Unlock Folder') + '</button>' +
           '</div>' +
         '</form></div></div>';
       document.getElementById('modal-root').innerHTML = html;
@@ -15239,12 +15387,26 @@
       document.getElementById('fup-form').onsubmit = function (e) {
         e.preventDefault();
         var code = (document.getElementById('fup-code').value || '').trim();
-        if (!unlockFolderSession(folder, code)) {
-          m.error = 'Incorrect folder code for "' + folder + '". Try again.';
-          renderFolderUnlockPromptModal(m);
-          return;
+        if (isBotMode) {
+          if (!unlockBotSession(m.botId, code)) {
+            m.error = 'Incorrect lock code for "' + targetLabel + '". Try again.';
+            renderFolderUnlockPromptModal(m);
+            return;
+          }
+        } else {
+          if (!unlockFolderSession(folder, code)) {
+            m.error = 'Incorrect folder code for "' + folder + '". Try again.';
+            renderFolderUnlockPromptModal(m);
+            return;
+          }
         }
         var bid = m.pendingBotId;
+        var nextCandidate = bid ? getBotObjFromRef(bid) : null;
+        if (!isBotMode && nextCandidate && isBotDirectlyLocked(nextCandidate) && !isBotDirectlyUnlocked(nextCandidate)) {
+          showToast('Unlocked folder "' + folder + '". Enter table lock code next.');
+          openModal('folder_unlock_prompt', { kind: 'bot', botId: bid, botName: nextCandidate.name, folder: folder, pendingBotId: bid });
+          return;
+        }
         closeModal();
         if (bid) {
           state.activeBotId = bid;
@@ -15258,7 +15420,7 @@
             if (state.supabaseConfig.isConnected) pullAndMergeSupabase('bot_open');
           }
         }
-        showToast('Unlocked folder "' + folder + '"');
+        showToast('Unlocked "' + targetLabel + '"');
         renderApp();
       };
     }
@@ -15270,39 +15432,74 @@
       if (m.focusFolder && folders.indexOf(m.focusFolder) === -1) {
         folders.unshift(m.focusFolder);
       }
+      var activeBots = (state.bots || []).filter(function (b) { return b && !isBotTombstoned(b); });
+      var botsByFolderKey = {};
+      activeBots.forEach(function (b) {
+        var fLow = normalizeFolderName(b.folder).toLowerCase();
+        if (!botsByFolderKey[fLow]) botsByFolderKey[fLow] = [];
+        botsByFolderKey[fLow].push(b);
+      });
+      Object.keys(botsByFolderKey).forEach(function (k) {
+        botsByFolderKey[k].sort(function (a, b) {
+          return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+        });
+      });
+
       if (!m.selectedFolders || typeof m.selectedFolders !== 'object') {
         m.selectedFolders = {};
-        if (m.focusFolder) {
+        if (m.focusFolder && !m.focusBotId) {
           m.selectedFolders[m.focusFolder] = true;
         }
       }
+      if (!m.selectedBots || typeof m.selectedBots !== 'object') {
+        m.selectedBots = {};
+        if (m.focusBotId) {
+          m.selectedBots[m.focusBotId] = true;
+        }
+      }
       if (m.folderFilter === undefined) m.folderFilter = '';
-      var selectedList = folders.filter(function (f) { return Boolean(m.selectedFolders[f]); });
-      var primarySel = selectedList.length === 1 ? selectedList[0] : (m.focusFolder && m.selectedFolders[m.focusFolder] ? m.focusFolder : '');
-      var singleLock = primarySel ? (getFolderLock(primarySel) || { enabled: false, code: '' }) : { enabled: false, code: '' };
+      var selectedFolderList = folders.filter(function (f) { return Boolean(m.selectedFolders[f]); });
+      var selectedBotList = activeBots.filter(function (b) { return Boolean(m.selectedBots[b.id]); });
+      var totalSelectedCount = selectedFolderList.length + selectedBotList.length;
+
+      var primaryFolder = (selectedFolderList.length === 1 && selectedBotList.length === 0) ? selectedFolderList[0] : '';
+      var primaryBot = (selectedBotList.length === 1 && selectedFolderList.length === 0) ? selectedBotList[0] : null;
+      var singleLock = primaryBot
+        ? (getBotLock(primaryBot.id) || { enabled: false, code: '' })
+        : (primaryFolder ? (getFolderLock(primaryFolder) || { enabled: false, code: '' }) : { enabled: false, code: '' });
 
       if (m.draftCode === undefined) {
-        m.draftCode = (selectedList.length === 1 && singleLock.enabled && !m.createCodeMode) ? (singleLock.code || '') : '';
+        m.draftCode = (totalSelectedCount === 1 && singleLock.enabled && !m.createCodeMode) ? (singleLock.code || '') : '';
       }
       if (m.draftConfirmCode === undefined) {
         m.draftConfirmCode = m.draftCode;
       }
       if (m.draftEnabled === undefined) {
-        m.draftEnabled = selectedList.length === 1 ? (m.createCodeMode ? true : (singleLock.enabled || true)) : true;
+        m.draftEnabled = totalSelectedCount === 1 ? (m.createCodeMode ? true : (singleLock.enabled || true)) : true;
       }
       if (m.showCodes === undefined) m.showCodes = false;
       var mgr = state.adminConfig.cyberSecurityManager || 'Abdulfeta';
       var qLower = String(m.folderFilter || '').trim().toLowerCase();
       var visibleFolders = qLower
-        ? folders.filter(function (f) { return f.toLowerCase().indexOf(qLower) !== -1; })
+        ? folders.filter(function (f) {
+            if (f.toLowerCase().indexOf(qLower) !== -1) return true;
+            var fb = botsByFolderKey[f.toLowerCase()] || [];
+            return fb.some(function (b) { return String(b.name || '').toLowerCase().indexOf(qLower) !== -1; });
+          })
         : folders;
-      var anySelectedLocked = selectedList.some(function (f) { return isFolderLocked(f); });
+      var anySelectedLocked = selectedFolderList.some(function (f) { return isFolderLocked(f); }) ||
+        selectedBotList.some(function (b) { return isBotDirectlyLocked(b.id); });
 
-      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:660px;" id="m-card">' +
+      var selCountParts = [];
+      if (selectedFolderList.length > 0) selCountParts.push(selectedFolderList.length + ' folder(s)');
+      if (selectedBotList.length > 0) selCountParts.push(selectedBotList.length + ' file/table(s)');
+      var selSummaryText = selCountParts.length > 0 ? (selCountParts.join(' + ') + ' chosen') : 'Choose folder(s) or file name(s) above';
+
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card wide" style="max-width:690px;" id="m-card">' +
         '<header class="modal-header" style="background:linear-gradient(135deg,#92400E,#D97706);">' +
           '<div style="display:flex;align-items:center;gap:9px;">' + icon('lock', 20) +
-            '<div><h2 style="font-size:15.5px;font-weight:700;">' + (m.createCodeMode ? 'Create / Set Folder Code' : 'Folder Lock &amp; Folder Code Selection') + '</h2>' +
-            '<div style="font-size:11px;color:#FEF3C7;">Choose any folder(s) from All Folders &amp; set lock code (Protected by ' + esc(mgr) + ' Cyber Code)</div></div>' +
+            '<div><h2 style="font-size:15.5px;font-weight:700;">' + (m.createCodeMode ? 'Create / Set Lock Code' : 'Folder &amp; File Name Lock Selection') + '</h2>' +
+            '<div style="font-size:11px;color:#FEF3C7;">Select any folder OR any table/file name inside a folder to lock with a code (Protected by ' + esc(mgr) + ')</div></div>' +
           '</div>' +
           '<button class="icon-btn" id="flm-close">' + icon('close', 18) + '</button>' +
         '</header>' +
@@ -15311,81 +15508,112 @@
           '<div style="border:1px solid #E2E8F0;border-radius:12px;padding:12px;background:#F8FAFC;display:flex;flex-direction:column;gap:9px;">' +
             '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
               '<div>' +
-                '<div style="font-size:13px;font-weight:800;color:#0F172A;">Step 1: Choose Folder(s) from All Folders (' + folders.length + ')</div>' +
-                '<div style="font-size:11px;color:#64748B;">Select one folder, multiple folders, or All Folders to lock or change code</div>' +
+                '<div style="font-size:13px;font-weight:800;color:#0F172A;">Step 1: Select Folder(s) or File Names Inside Folders</div>' +
+                '<div style="font-size:11px;color:#64748B;">Check a folder to lock the whole folder, or check specific table/file names inside it</div>' +
               '</div>' +
               '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-                '<button type="button" id="flm-sel-all" class="btn btn-outline" style="padding:5px 10px;font-size:11px;background:#fff;">Select All (' + folders.length + ')</button>' +
+                '<button type="button" id="flm-sel-all" class="btn btn-outline" style="padding:5px 10px;font-size:11px;background:#fff;">All Folders (' + folders.length + ')</button>' +
+                '<button type="button" id="flm-sel-all-bots" class="btn btn-outline" style="padding:5px 10px;font-size:11px;background:#fff;">All Files (' + activeBots.length + ')</button>' +
                 '<button type="button" id="flm-sel-none" class="btn btn-outline" style="padding:5px 10px;font-size:11px;background:#fff;">Clear</button>' +
               '</div>' +
             '</div>' +
-            (folders.length > 5
-              ? '<input id="flm-search" type="text" class="form-input" style="padding:7px 10px;font-size:12px;" placeholder="Filter folders by name..." value="' + esc(m.folderFilter) + '" />'
-              : '') +
-            '<div style="display:flex;flex-direction:column;gap:7px;max-height:220px;overflow-y:auto;">' +
+            '<input id="flm-search" type="text" class="form-input" style="padding:7px 10px;font-size:12px;" placeholder="Filter by folder name or table/file name..." value="' + esc(m.folderFilter) + '" />' +
+            '<div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;">' +
               (visibleFolders.length === 0
-                ? '<div style="padding:14px;text-align:center;color:#64748B;font-size:12px;background:#fff;border-radius:9px;border:1px dashed #CBD5E1;">No matching folders found.</div>'
+                ? '<div style="padding:14px;text-align:center;color:#64748B;font-size:12px;background:#fff;border-radius:9px;border:1px dashed #CBD5E1;">No matching folders or files found.</div>'
                 : visibleFolders.map(function (f) {
                     var fLocked = isFolderLocked(f);
                     var fOpenNow = isFolderUnlocked(f);
                     var isChecked = Boolean(m.selectedFolders[f]);
-                    var cnt = state.bots.filter(function (b) {
-                      return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === f.toLowerCase();
-                    }).length;
-                    return '<div style="padding:9px 11px;border:1px solid ' + (isChecked ? '#F59E0B;background:#FFFBEB' : (fLocked ? '#FDE68A;background:#FFFCF0' : '#E2E8F0;background:#fff')) + ';border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
-                      '<label style="display:flex;align-items:center;gap:9px;min-width:0;flex:1;cursor:pointer;">' +
-                        '<input type="checkbox" class="flm-chk" data-f="' + esc(f) + '" ' + (isChecked ? 'checked' : '') + ' style="width:17px;height:17px;accent-color:#B45309;flex-shrink:0;" />' +
-                        '<div style="min-width:0;flex:1;">' +
-                          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-                            '<span style="font-weight:800;font-size:13px;color:#0F172A;">' + (fLocked ? '🔒 ' : '📁 ') + esc(f) + '</span>' +
-                            '<span class="act-badge ' + (fLocked ? (fOpenNow ? 'act-auth' : 'act-block') : 'act-add') + '">' + (fLocked ? (fOpenNow ? 'LOCKED (SESSION OPEN)' : 'LOCKED') : 'OPEN') + '</span>' +
+                    var allFolderBots = botsByFolderKey[f.toLowerCase()] || [];
+                    var folderNameMatch = !qLower || f.toLowerCase().indexOf(qLower) !== -1;
+                    var shownFolderBots = folderNameMatch
+                      ? allFolderBots
+                      : allFolderBots.filter(function (b) { return String(b.name || '').toLowerCase().indexOf(qLower) !== -1; });
+                    var fHtml = '<div style="border:1px solid ' + (isChecked ? '#F59E0B' : '#E2E8F0') + ';border-radius:10px;background:#fff;overflow:hidden;">' +
+                      '<div style="padding:9px 11px;background:' + (isChecked ? '#FFFBEB' : (fLocked ? '#FFFCF0' : '#F8FAFC')) + ';display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                        '<label style="display:flex;align-items:center;gap:9px;min-width:0;flex:1;cursor:pointer;">' +
+                          '<input type="checkbox" class="flm-chk" data-f="' + esc(f) + '" ' + (isChecked ? 'checked' : '') + ' style="width:17px;height:17px;accent-color:#B45309;flex-shrink:0;" />' +
+                          '<div style="min-width:0;flex:1;">' +
+                            '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+                              '<span style="font-weight:800;font-size:13px;color:#0F172A;">' + (fLocked ? '🔒 ' : '📁 ') + esc(f) + '</span>' +
+                              '<span style="font-size:10.5px;color:#64748B;font-weight:700;">(' + allFolderBots.length + ' files)</span>' +
+                              '<span class="act-badge ' + (fLocked ? (fOpenNow ? 'act-auth' : 'act-block') : 'act-add') + '">' + (fLocked ? (fOpenNow ? 'FOLDER UNLOCKED' : 'FOLDER LOCKED') : 'OPEN') + '</span>' +
+                            '</div>' +
                           '</div>' +
-                          '<div style="font-size:11px;color:#64748B;margin-top:2px;">' + cnt + ' table(s) inside</div>' +
+                        '</label>' +
+                        '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
+                          '<button type="button" class="btn btn-outline flm-edit-btn" data-f="' + esc(f) + '" style="padding:4px 8px;font-size:10.5px;background:#fff;">' + (fLocked ? 'Change Code' : 'Select Folder') + '</button>' +
+                          (fLocked && fOpenNow ? '<button type="button" class="btn btn-outline flm-relock-btn" data-f="' + esc(f) + '" style="padding:4px 8px;font-size:10.5px;color:#B45309;border-color:#F59E0B;background:#fff;">Lock Now</button>' : '') +
+                          (fLocked ? '<button type="button" class="btn btn-red flm-disable-btn" data-f="' + esc(f) + '" style="padding:4px 8px;font-size:10.5px;">Unlock</button>' : '') +
                         '</div>' +
-                      '</label>' +
-                      '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
-                        '<button type="button" class="btn btn-outline flm-edit-btn" data-f="' + esc(f) + '" style="padding:4px 9px;font-size:11px;">' + (fLocked ? 'Change Code' : 'Select Only') + '</button>' +
-                        (fLocked && fOpenNow ? '<button type="button" class="btn btn-outline flm-relock-btn" data-f="' + esc(f) + '" style="padding:4px 9px;font-size:11px;color:#B45309;border-color:#F59E0B;">Lock Now</button>' : '') +
-                        (fLocked ? '<button type="button" class="btn btn-red flm-disable-btn" data-f="' + esc(f) + '" style="padding:4px 9px;font-size:11px;">Remove Lock</button>' : '') +
-                      '</div>' +
-                    '</div>';
+                      '</div>';
+                    if (shownFolderBots.length > 0) {
+                      fHtml += '<div style="padding:6px 10px 8px 26px;display:flex;flex-direction:column;gap:5px;border-top:1px solid #F1F5F9;background:#fff;">';
+                      shownFolderBots.forEach(function (b) {
+                        var bDirectLocked = isBotDirectlyLocked(b.id);
+                        var bDirectOpen = isBotDirectlyUnlocked(b.id);
+                        var bChecked = Boolean(m.selectedBots[b.id]);
+                        var bBadge = bDirectLocked
+                          ? ('<span class="act-badge ' + (bDirectOpen ? 'act-auth' : 'act-block') + '">' + (bDirectOpen ? 'UNLOCKED' : 'LOCKED') + '</span>')
+                          : (fLocked ? '<span class="act-badge act-auth" style="opacity:0.85;">VIA FOLDER</span>' : '<span class="act-badge act-add">OPEN</span>');
+                        fHtml += '<div style="padding:6px 9px;border:1px solid ' + (bChecked ? '#F59E0B;background:#FFFBEB' : (bDirectLocked ? '#FDE68A;background:#FFFCF5' : '#E2E8F0;background:#F8FAFC')) + ';border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+                          '<label style="display:flex;align-items:center;gap:8px;min-width:0;flex:1;cursor:pointer;">' +
+                            '<input type="checkbox" class="flm-bot-chk" data-bid="' + esc(b.id) + '" ' + (bChecked ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:#B45309;flex-shrink:0;" />' +
+                            '<span style="font-size:12.5px;font-weight:700;color:#0F172A;min-width:0;word-break:break-word;">' + (bDirectLocked ? '🔒 ' : '📄 ') + esc(b.name) + '</span>' +
+                            bBadge +
+                          '</label>' +
+                          '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+                            '<button type="button" class="btn btn-outline flm-bot-edit-btn" data-bid="' + esc(b.id) + '" style="padding:3px 8px;font-size:10.5px;background:#fff;">' + (bDirectLocked ? 'Change Code' : 'Set Code') + '</button>' +
+                            (bDirectLocked && bDirectOpen ? '<button type="button" class="btn btn-outline flm-bot-relock-btn" data-bid="' + esc(b.id) + '" style="padding:3px 8px;font-size:10.5px;color:#B45309;border-color:#F59E0B;background:#fff;">Lock Now</button>' : '') +
+                            (bDirectLocked ? '<button type="button" class="btn btn-red flm-bot-disable-btn" data-bid="' + esc(b.id) + '" style="padding:3px 8px;font-size:10.5px;">Remove</button>' : '') +
+                          '</div>' +
+                        '</div>';
+                      });
+                      fHtml += '</div>';
+                    }
+                    fHtml += '</div>';
+                    return fHtml;
                   }).join('')) +
             '</div>' +
           '</div>' +
           '<form id="flm-form" style="padding:14px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:12px;display:flex;flex-direction:column;gap:11px;" autocomplete="off">' +
             '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
-              '<div style="font-size:13px;font-weight:800;color:#92400E;">Step 2: Set Lock Option &amp; Folder Code</div>' +
-              '<span style="font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;' + (selectedList.length > 0 ? 'background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;' : 'background:#FEF2F2;color:#B91C1C;border:1px solid #FCA5A5;') + '">' +
-                (selectedList.length > 0 ? (selectedList.length + ' folder(s) chosen') : 'Choose folder(s) above') +
+              '<div style="font-size:13px;font-weight:800;color:#92400E;">Step 2: Set Lock Option &amp; Code</div>' +
+              '<span style="font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;' + (totalSelectedCount > 0 ? 'background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;' : 'background:#FEF2F2;color:#B91C1C;border:1px solid #FCA5A5;') + '">' +
+                esc(selSummaryText) +
               '</span>' +
             '</div>' +
-            (selectedList.length > 0
+            (totalSelectedCount > 0
               ? '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
-                  selectedList.slice(0, 12).map(function (sf) {
-                    return '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:7px;background:#fff;border:1px solid #FDE68A;color:#78350F;">' + esc(sf) + '</span>';
+                  selectedFolderList.slice(0, 6).map(function (sf) {
+                    return '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:7px;background:#fff;border:1px solid #FDE68A;color:#78350F;">📁 ' + esc(sf) + '</span>';
                   }).join('') +
-                  (selectedList.length > 12 ? '<span style="font-size:11px;font-weight:700;color:#92400E;">+' + (selectedList.length - 12) + ' more</span>' : '') +
+                  selectedBotList.slice(0, 8).map(function (sb) {
+                    return '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:7px;background:#fff;border:1px solid #F59E0B;color:#92400E;">📄 ' + esc(sb.name) + '</span>';
+                  }).join('') +
+                  (totalSelectedCount > 14 ? '<span style="font-size:11px;font-weight:700;color:#92400E;">+' + (totalSelectedCount - 14) + ' more</span>' : '') +
                 '</div>'
               : '') +
             '<label id="flm-enabled-wrap" style="display:flex;align-items:center;gap:8px;padding:9px 10px;background:#fff;border:1px solid #FDE68A;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700;color:#78350F;">' +
               '<input type="checkbox" id="flm-enabled" ' + (m.draftEnabled ? 'checked' : '') + ' style="width:17px;height:17px;accent-color:#B45309;" />' +
-              '<span>Enable Lock &amp; Require Code for Selected Folder(s)</span>' +
+              '<span>Enable Lock &amp; Require Code for Selected Folder(s) / File(s)</span>' +
             '</label>' +
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
               '<div>' +
                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
-                  '<label class="field-label" style="margin:0;" for="flm-code">Folder Code</label>' +
+                  '<label class="field-label" style="margin:0;" for="flm-code">Lock Code</label>' +
                   '<button type="button" id="flm-vis" style="font-size:11px;font-weight:700;color:#B45309;">' + (m.showCodes ? 'Hide' : 'Show') + '</button>' +
                 '</div>' +
-                '<input id="flm-code" type="' + (m.showCodes ? 'text' : 'password') + '" class="form-input mono" value="' + esc(m.draftCode) + '" placeholder="Enter folder code..." />' +
+                '<input id="flm-code" type="' + (m.showCodes ? 'text' : 'password') + '" class="form-input mono" value="' + esc(m.draftCode) + '" placeholder="Enter lock code..." />' +
               '</div>' +
               '<div>' +
-                '<label class="field-label" for="flm-code2">Confirm Folder Code</label>' +
-                '<input id="flm-code2" type="' + (m.showCodes ? 'text' : 'password') + '" class="form-input mono" value="' + esc(m.draftConfirmCode) + '" placeholder="Confirm folder code..." />' +
+                '<label class="field-label" for="flm-code2">Confirm Code</label>' +
+                '<input id="flm-code2" type="' + (m.showCodes ? 'text' : 'password') + '" class="form-input mono" value="' + esc(m.draftConfirmCode) + '" placeholder="Confirm lock code..." />' +
               '</div>' +
             '</div>' +
             '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-              '<button type="submit" class="btn btn-dark-blue" style="flex:1.5;">' + icon('shield', 14) + '<span>Save &amp; Apply to Selected (' + selectedList.length + ')</span></button>' +
+              '<button type="submit" class="btn btn-dark-blue" style="flex:1.5;">' + icon('shield', 14) + '<span>Save &amp; Apply (' + totalSelectedCount + ')</span></button>' +
               '<button type="button" id="flm-lock-now" class="btn btn-outline" style="flex:1;border-color:#F59E0B;color:#92400E;background:#fff;">' + icon('lock', 14) + '<span>Lock Selected Now</span></button>' +
               (anySelectedLocked ? '<button type="button" id="flm-remove-sel" class="btn btn-red" style="padding:9px 12px;">Unlock / Remove Lock</button>' : '') +
             '</div>' +
@@ -15424,9 +15652,19 @@
         m.statusMsg = null;
         renderFolderLockModal(m);
       };
+      var selAllBotsBtn = document.getElementById('flm-sel-all-bots');
+      if (selAllBotsBtn) {
+        selAllBotsBtn.onclick = function () {
+          syncDraftInputs();
+          activeBots.forEach(function (b) { m.selectedBots[b.id] = true; });
+          m.statusMsg = null;
+          renderFolderLockModal(m);
+        };
+      }
       document.getElementById('flm-sel-none').onclick = function () {
         syncDraftInputs();
         m.selectedFolders = {};
+        m.selectedBots = {};
         m.statusMsg = null;
         renderFolderLockModal(m);
       };
@@ -15441,6 +15679,17 @@
           renderFolderLockModal(m);
         };
       });
+      document.querySelectorAll('.flm-bot-chk').forEach(function (chk) {
+        chk.onchange = function () {
+          syncDraftInputs();
+          var bid = chk.getAttribute('data-bid');
+          if (!bid) return;
+          if (chk.checked) m.selectedBots[bid] = true;
+          else delete m.selectedBots[bid];
+          m.statusMsg = null;
+          renderFolderLockModal(m);
+        };
+      });
       document.getElementById('flm-vis').onclick = function () {
         syncDraftInputs();
         m.showCodes = !m.showCodes;
@@ -15448,48 +15697,60 @@
       };
       document.getElementById('flm-lock-now').onclick = function () {
         syncDraftInputs();
-        var chosen = folders.filter(function (f) { return Boolean(m.selectedFolders[f]); });
-        if (chosen.length === 0) {
+        var chosenFolders = folders.filter(function (f) { return Boolean(m.selectedFolders[f]); });
+        var chosenBots = activeBots.filter(function (b) { return Boolean(m.selectedBots[b.id]); });
+        var totChosen = chosenFolders.length + chosenBots.length;
+        if (totChosen === 0) {
           m.statusType = 'error';
-          m.statusMsg = 'Please select at least one folder you want to lock.';
+          m.statusMsg = 'Please select at least one folder or file/table name to lock.';
           renderFolderLockModal(m);
           return;
         }
         var c1 = (m.draftCode || '').trim();
         var c2 = (m.draftConfirmCode || '').trim();
-        var needCodeSetup = chosen.some(function (f) { return !isFolderLocked(f); });
+        var needCodeSetup = chosenFolders.some(function (f) { return !isFolderLocked(f); }) ||
+          chosenBots.some(function (b) { return !isBotDirectlyLocked(b.id); });
         if (needCodeSetup) {
           if (!c1) {
             m.statusType = 'error';
-            m.statusMsg = 'Enter a folder code before locking folder(s) without an existing code.';
+            m.statusMsg = 'Enter a lock code before locking item(s) without an existing code.';
             renderFolderLockModal(m);
             var inp = document.getElementById('flm-code'); if (inp) inp.focus();
             return;
           }
           if (c2 && c1 !== c2) {
             m.statusType = 'error';
-            m.statusMsg = 'Folder codes do not match.';
+            m.statusMsg = 'Lock codes do not match.';
             renderFolderLockModal(m);
             return;
           }
-          requireCyberAuth('Lock ' + chosen.length + ' Selected Folder(s)', function () {
-            chosen.forEach(function (fn) {
+          requireCyberAuth('Lock ' + totChosen + ' Selected Item(s)', function () {
+            chosenFolders.forEach(function (fn) {
               var existing = getFolderLock(fn);
               var useCode = c1 || (existing && existing.code) || '1234';
               setFolderLock(fn, true, useCode, { skipSync: true });
               lockFolderSession(fn);
             });
+            chosenBots.forEach(function (b) {
+              var existingB = getBotLock(b.id);
+              var useBCode = c1 || (existingB && existingB.code) || '1234';
+              setBotLock(b.id, true, useBCode, { skipSync: true });
+              lockBotSession(b.id);
+            });
             pushSharedSecurityState('folder_lock');
-            recordAudit('AUTH', null, 'Locked ' + chosen.length + ' folder(s): ' + chosen.join(', '), { source: 'FolderLock' });
+            var namesSummary = chosenFolders.concat(chosenBots.map(function (b) { return b.name; })).join(', ');
+            recordAudit('AUTH', null, 'Locked ' + totChosen + ' item(s): ' + namesSummary, { source: 'FolderLock' });
             m.statusType = 'success';
-            m.statusMsg = 'Locked ' + chosen.length + ' selected folder(s): ' + chosen.join(', ') + '.';
+            m.statusMsg = 'Locked ' + totChosen + ' selected item(s): ' + namesSummary + '.';
             renderApp();
             renderFolderLockModal(m);
           });
         } else {
-          chosen.forEach(function (fn) { lockFolderSession(fn); });
+          chosenFolders.forEach(function (fn) { lockFolderSession(fn); });
+          chosenBots.forEach(function (b) { lockBotSession(b.id); });
+          var lockedNames = chosenFolders.concat(chosenBots.map(function (b) { return b.name; })).join(', ');
           m.statusType = 'success';
-          m.statusMsg = 'Session lock applied for ' + chosen.length + ' folder(s): ' + chosen.join(', ') + '.';
+          m.statusMsg = 'Session lock applied for ' + totChosen + ' item(s): ' + lockedNames + '.';
           renderApp();
           renderFolderLockModal(m);
         }
@@ -15497,17 +15758,24 @@
       var remSelBtn = document.getElementById('flm-remove-sel');
       if (remSelBtn) {
         remSelBtn.onclick = function () {
-          var chosen = folders.filter(function (f) { return Boolean(m.selectedFolders[f]) && isFolderLocked(f); });
-          if (chosen.length === 0) return;
-          requireCyberAuth('Remove Folder Lock from ' + chosen.length + ' Selected Folder(s)', function () {
-            chosen.forEach(function (fn) {
+          var chosenFolders = folders.filter(function (f) { return Boolean(m.selectedFolders[f]) && isFolderLocked(f); });
+          var chosenBots = activeBots.filter(function (b) { return Boolean(m.selectedBots[b.id]) && isBotDirectlyLocked(b.id); });
+          var totRem = chosenFolders.length + chosenBots.length;
+          if (totRem === 0) return;
+          requireCyberAuth('Remove Lock from ' + totRem + ' Selected Item(s)', function () {
+            chosenFolders.forEach(function (fn) {
               var existing = getFolderLock(fn);
               setFolderLock(fn, false, existing ? existing.code : '1234', { skipSync: true });
             });
+            chosenBots.forEach(function (b) {
+              var existingB = getBotLock(b.id);
+              setBotLock(b.id, false, existingB ? existingB.code : '1234', { skipSync: true });
+            });
             pushSharedSecurityState('folder_lock');
-            recordAudit('AUTH', null, 'Removed folder lock for ' + chosen.join(', '), { source: 'FolderLock' });
+            var remNames = chosenFolders.concat(chosenBots.map(function (b) { return b.name; })).join(', ');
+            recordAudit('AUTH', null, 'Removed lock for ' + remNames, { source: 'FolderLock' });
             m.statusType = 'success';
-            m.statusMsg = 'Removed lock on ' + chosen.length + ' folder(s): ' + chosen.join(', ') + '.';
+            m.statusMsg = 'Removed lock on ' + totRem + ' item(s): ' + remNames + '.';
             renderApp();
             renderFolderLockModal(m);
           });
@@ -15515,12 +15783,14 @@
       }
       document.getElementById('flm-form').onsubmit = function (e) {
         e.preventDefault();
-        if (!guardWriteAction('Save Folder Lock')) return;
+        if (!guardWriteAction('Save Lock')) return;
         syncDraftInputs();
-        var chosen = folders.filter(function (f) { return Boolean(m.selectedFolders[f]); });
-        if (chosen.length === 0) {
+        var chosenFolders = folders.filter(function (f) { return Boolean(m.selectedFolders[f]); });
+        var chosenBots = activeBots.filter(function (b) { return Boolean(m.selectedBots[b.id]); });
+        var totChosen = chosenFolders.length + chosenBots.length;
+        if (totChosen === 0) {
           m.statusType = 'error';
-          m.statusMsg = 'Please choose at least one folder from All Folders above.';
+          m.statusMsg = 'Please choose at least one folder or file/table name above.';
           renderFolderLockModal(m);
           return;
         }
@@ -15529,32 +15799,39 @@
         var c2 = (document.getElementById('flm-code2').value || '').trim();
         if (en && !c1) {
           m.statusType = 'error';
-          m.statusMsg = 'Folder code cannot be empty when lock is enabled.';
+          m.statusMsg = 'Lock code cannot be empty when lock is enabled.';
           renderFolderLockModal(m);
           return;
         }
         if (en && c1 !== c2) {
           m.statusType = 'error';
-          m.statusMsg = 'Folder codes do not match.';
+          m.statusMsg = 'Lock codes do not match.';
           renderFolderLockModal(m);
           return;
         }
-        requireCyberAuth((en ? 'Set / Change Folder Lock Code' : 'Disable Folder Lock') + ' for ' + chosen.length + ' folder(s)', function () {
-          chosen.forEach(function (fn) {
+        requireCyberAuth((en ? 'Set / Change Lock Code' : 'Disable Lock') + ' for ' + totChosen + ' item(s)', function () {
+          chosenFolders.forEach(function (fn) {
             var existing = getFolderLock(fn);
             var finalCode = c1 || (existing && existing.code) || '1234';
             setFolderLock(fn, en, finalCode, { skipSync: true });
             if (en) lockFolderSession(fn);
           });
+          chosenBots.forEach(function (b) {
+            var existingB = getBotLock(b.id);
+            var finalBCode = c1 || (existingB && existingB.code) || '1234';
+            setBotLock(b.id, en, finalBCode, { skipSync: true });
+            if (en) lockBotSession(b.id);
+          });
           pushSharedSecurityState('folder_lock');
           m.draftCode = c1;
           m.draftConfirmCode = c1;
           m.draftEnabled = en;
-          recordAudit('AUTH', null, (en ? 'Set folder lock code' : 'Disabled folder lock') + ' for: ' + chosen.join(', '), { source: 'FolderLock' });
+          var savedNames = chosenFolders.concat(chosenBots.map(function (b) { return b.name; })).join(', ');
+          recordAudit('AUTH', null, (en ? 'Set lock code' : 'Disabled lock') + ' for: ' + savedNames, { source: 'FolderLock' });
           m.statusType = 'success';
           m.statusMsg = en
-            ? ('Locked & updated code for ' + chosen.length + ' folder(s): ' + chosen.join(', ') + '.')
-            : ('Folder lock disabled for ' + chosen.length + ' folder(s): ' + chosen.join(', ') + '.');
+            ? ('Locked & updated code for ' + totChosen + ' item(s): ' + savedNames + '.')
+            : ('Lock disabled for ' + totChosen + ' item(s): ' + savedNames + '.');
           renderApp();
           renderFolderLockModal(m);
         });
@@ -15564,8 +15841,10 @@
           var fn = b.getAttribute('data-f');
           if (!fn) return;
           m.selectedFolders = {};
+          m.selectedBots = {};
           m.selectedFolders[fn] = true;
           m.focusFolder = fn;
+          m.focusBotId = '';
           var cur = getFolderLock(fn);
           m.draftCode = (cur && cur.enabled && !m.createCodeMode) ? (cur.code || '') : '';
           m.draftConfirmCode = m.draftCode;
@@ -15576,6 +15855,24 @@
           if (codeInp) { try { codeInp.focus(); } catch (eF) {} }
         };
       });
+      document.querySelectorAll('.flm-bot-edit-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          var bid = btn.getAttribute('data-bid');
+          if (!bid) return;
+          m.selectedFolders = {};
+          m.selectedBots = {};
+          m.selectedBots[bid] = true;
+          m.focusBotId = bid;
+          var cur = getBotLock(bid);
+          m.draftCode = (cur && cur.enabled && !m.createCodeMode) ? (cur.code || '') : '';
+          m.draftConfirmCode = m.draftCode;
+          m.draftEnabled = true;
+          m.statusMsg = null;
+          renderFolderLockModal(m);
+          var codeInp = document.getElementById('flm-code');
+          if (codeInp) { try { codeInp.focus(); } catch (eF2) {} }
+        };
+      });
       document.querySelectorAll('.flm-relock-btn').forEach(function (b) {
         b.onclick = function () {
           syncDraftInputs();
@@ -15583,6 +15880,18 @@
           lockFolderSession(fn);
           m.statusType = 'success';
           m.statusMsg = 'Re-locked folder "' + fn + '".';
+          renderApp();
+          renderFolderLockModal(m);
+        };
+      });
+      document.querySelectorAll('.flm-bot-relock-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          syncDraftInputs();
+          var bid = btn.getAttribute('data-bid');
+          var bObj = getBotObjFromRef(bid);
+          lockBotSession(bid);
+          m.statusType = 'success';
+          m.statusMsg = 'Re-locked file "' + (bObj ? bObj.name : bid) + '".';
           renderApp();
           renderFolderLockModal(m);
         };
@@ -15597,6 +15906,23 @@
             recordAudit('AUTH', null, 'Removed folder lock for "' + fn + '"', { source: 'FolderLock' });
             m.statusType = 'success';
             m.statusMsg = 'Removed lock on folder "' + fn + '".';
+            renderApp();
+            renderFolderLockModal(m);
+          });
+        };
+      });
+      document.querySelectorAll('.flm-bot-disable-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          syncDraftInputs();
+          var bid = btn.getAttribute('data-bid');
+          var bObj = getBotObjFromRef(bid);
+          var bName = bObj ? bObj.name : bid;
+          requireCyberAuth('Remove Lock from "' + bName + '"', function () {
+            var existing = getBotLock(bid);
+            setBotLock(bid, false, existing ? existing.code : '1234');
+            recordAudit('AUTH', bObj || null, 'Removed table lock for "' + bName + '"', { source: 'FolderLock' });
+            m.statusType = 'success';
+            m.statusMsg = 'Removed lock on "' + bName + '".';
             renderApp();
             renderFolderLockModal(m);
           });
@@ -17549,6 +17875,9 @@
             '<input id="set-access-code" type="text" class="form-input mono" value="' + esc(curCode) + '" placeholder="e.g. 1234" required />' +
             '<div style="font-size:11px;color:#475569;">Required whenever a new browser session opens the app.</div>' +
           '</div>' +
+          (bot
+            ? '<button type="button" id="set-bot-lock-btn" class="btn btn-outline" style="width:100%;justify-content:center;border-color:#F59E0B;color:#92400E;background:#FFFBEB;">' + icon('lock', 14) + '<span>' + (isBotDirectlyLocked(bot.id) ? 'Manage Table Lock Code ("' + esc(bot.name) + '")' : 'Lock / Set Code for "' + esc(bot.name) + '"') + '</span></button>'
+            : '') +
           '<div style="display:flex;gap:8px;padding-top:4px;">' +
             '<button type="button" id="set-cancel" class="btn btn-outline" style="flex:1;">Cancel</button>' +
             '<button type="submit" class="btn btn-dark-blue" style="flex:1;">Save Settings</button>' +
@@ -17559,6 +17888,12 @@
       document.getElementById('set-close').onclick = closeModal;
       document.getElementById('set-cancel').onclick = closeModal;
       document.getElementById('set-lock-now').onclick = lockAppNow;
+      var setBotLockBtn = document.getElementById('set-bot-lock-btn');
+      if (setBotLockBtn && bot) {
+        setBotLockBtn.onclick = function () {
+          openModal('folder_lock', { focusBotId: bot.id, focusFolder: bot.folder || 'General', createCodeMode: !isBotDirectlyLocked(bot.id) });
+        };
+      }
       document.getElementById('set-form').onsubmit = function (e) {
         e.preventDefault();
         if (!guardWriteAction('Save Settings')) return;
@@ -18258,7 +18593,7 @@
         if (isBotTombstoned(bot)) return;
         if (botFilterId && botFilterId !== 'all' && bot.id !== botFilterId) return;
         var folderName = bot.folder || 'General';
-        if (isFolderLocked(folderName) && !isFolderUnlocked(folderName)) return;
+        if (!isBotUnlocked(bot)) return;
 
         var findCol = function (preds, excludeMap, numericPreferred) {
           for (var pi = 0; pi < preds.length; pi++) {
@@ -18921,7 +19256,7 @@
       state.bots.forEach(function (b) {
         if (isBotTombstoned(b)) return;
         var bf = b.folder || 'General';
-        if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return;
+        if (!isBotUnlocked(b)) return;
         if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return;
         if (!isAllFolders && bf !== fld) return;
         var bNameCnt = {};
@@ -18962,7 +19297,7 @@
       var folderBots = state.bots.filter(function (b) {
         if (isBotTombstoned(b)) return false;
         var bf = b.folder || 'General';
-        if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return false;
+        if (!isBotUnlocked(b)) return false;
         if (botFilterId && botFilterId !== 'all' && b.id !== botFilterId) return false;
         return isAllFolders || bf === fld;
       });
@@ -19214,7 +19549,7 @@
       var folderBotsAll = state.bots.filter(function (b) {
         if (isBotTombstoned(b)) return false;
         var bf = b.folder || 'General';
-        if (isFolderLocked(bf) && !isFolderUnlocked(bf)) return false;
+        if (!isBotUnlocked(b)) return false;
         return isAllFoldersScope || bf === m.folder;
       });
       if (m.botId !== 'all' && !folderBotsAll.some(function (b) { return b.id === m.botId; })) {
@@ -22902,6 +23237,7 @@
 
       var scopeBots = (state.bots || []).filter(function (b) {
         if (!b || isBotTombstoned(b)) return false;
+        if (!isBotUnlocked(b)) return false;
         if (botIdFilter && botIdFilter !== 'all') return b.id === botIdFilter;
         if (opts.includeAllCustomerTables) {
           if (!hasCustomerStatementSupport(b)) return false;
@@ -23503,6 +23839,7 @@
         var folderLedgers = getFolderLedgerBots(scopeFld);
         var folderCustTables = (state.bots || []).filter(function (b) {
           if (!hasCustomerStatementSupport(b)) return false;
+          if (!isBotUnlocked(b)) return false;
           if (!isAllScope) {
             return normalizeFolderName(b.folder).toLowerCase() === String(scopeFld).trim().toLowerCase();
           }
