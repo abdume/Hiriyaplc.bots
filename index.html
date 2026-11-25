@@ -4980,6 +4980,7 @@
       _scrollAnchorRowId: null,
       _pendingScrollToRowId: null,
       _pendingBgTableRefresh: false,
+      tableWindowByBot: {},
       // Drawer & Modals
       drawerOpen: false,
       modal: null, // { type: 'column'|'settings'|'reports'|'telegram'|'supabase'|'pivot'|'filter'|'help'|'admin'|'cyber_control'|'folder_lock'|'folder_unlock_prompt', ... }
@@ -6084,17 +6085,66 @@
       };
     }
 
+    var _appPerfRev = 1;
+    function bumpAppPerfRev() {
+      _appPerfRev++;
+    }
+    function getBotsPerfFingerprint() {
+      var bots = state.bots || [];
+      var parts = [
+        _appPerfRev,
+        bots.length,
+        (state.customFolders || []).join(','),
+        state.lang || 'en',
+        state.reportCalendarMode || 'ethiopian',
+        getLocalYmd(new Date())
+      ];
+      for (var i = 0; i < bots.length; i++) {
+        var b = bots[i];
+        if (!b) continue;
+        parts.push(
+          b.id,
+          b._rev || 0,
+          b.updatedAt || '',
+          b.folder || '',
+          b.rows ? b.rows.length : 0,
+          b.columns ? b.columns.length : 0,
+          b.isDeleted ? '1' : '0'
+        );
+      }
+      var fl = (state.adminConfig && state.adminConfig.folderLocks) ? state.adminConfig.folderLocks : {};
+      var flKeys = Object.keys(fl);
+      for (var j = 0; j < flKeys.length; j++) {
+        var fk = flKeys[j];
+        parts.push('fl:' + fk + ':' + (fl[fk] ? '1' : '0') + ':' + (isFolderUnlocked(fk) ? 'u' : 'l'));
+      }
+      return parts.join('|');
+    }
+
     function saveBotsLocal() {
       try { localStorage.setItem(STORAGE_BOTS, JSON.stringify(state.bots)); } catch (e) {}
     }
 
-    function saveAdminState() {
+    var _saveAdminTimer = null;
+    function flushAdminStateNow() {
+      if (_saveAdminTimer) {
+        clearTimeout(_saveAdminTimer);
+        _saveAdminTimer = null;
+      }
       try {
         localStorage.setItem(STORAGE_AUDIT_LOGS, JSON.stringify(state.auditLogs.slice(0, 250)));
         localStorage.setItem(STORAGE_USERS, JSON.stringify(state.workspaceUsers));
         localStorage.setItem(STORAGE_ADMIN_CFG, JSON.stringify(state.adminConfig));
         localStorage.setItem(STORAGE_TG_OFFSET, JSON.stringify(state.tgOffsets));
       } catch (e) {}
+    }
+    function saveAdminState(opts) {
+      if (opts && opts.defer) {
+        if (_saveAdminTimer) return;
+        _saveAdminTimer = setTimeout(flushAdminStateNow, 250);
+        return;
+      }
+      flushAdminStateNow();
     }
 
     function broadcastLocalSync(reason) {
@@ -6475,7 +6525,7 @@
       state.auditLogs.unshift(entry);
       if (state.auditLogs.length > 250) state.auditLogs = state.auditLogs.slice(0, 250);
       touchWorkspaceUser(actor, action, source, bName, entry);
-      saveAdminState();
+      saveAdminState({ defer: true });
       pushAuditLogToSupabase(entry);
       pushActivityLogToServer(entry);
     }
@@ -7031,9 +7081,19 @@
       return parseNumSafe(row[oc.id]);
     }
 
-    function resolveFormulaColumnRefs(expr, col, bot, getColReplacementFn) {
-      var resolved = normalizeFormulaOperators(expr);
-      if (!bot || !bot.columns) return resolved;
+    var _formulaColsMetaCache = {};
+    function getFormulaCompiledCols(col, bot) {
+      if (!bot || !Array.isArray(bot.columns)) return [];
+      var selfId = col ? col.id : '';
+      var sigParts = new Array(bot.columns.length);
+      for (var i = 0; i < bot.columns.length; i++) {
+        var c0 = bot.columns[i];
+        sigParts[i] = (c0.id || '') + ':' + (c0.name || '');
+      }
+      var sig = sigParts.join('|');
+      var cKey = String(bot.id || '') + '::' + String(selfId);
+      var hit = _formulaColsMetaCache[cKey];
+      if (hit && hit.sig === sig && hit.colsRef === bot.columns) return hit.entries;
       var byLowerName = {};
       bot.columns.forEach(function (oc) {
         if ((col && oc.id === col.id) || !oc.name) return;
@@ -7047,13 +7107,23 @@
       entries.sort(function (a, b) { return b.name.length - a.name.length; });
       entries.forEach(function (entry) {
         var escName = entry.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        var repVal = getColReplacementFn(entry.cols);
-        resolved = resolved.replace(new RegExp('\\{\\s*' + escName + '\\s*\\}', 'gi'), repVal);
-        resolved = resolved.replace(
-          new RegExp('(^|[^A-Za-z0-9_\\u00C0-\\uFFFF])' + escName + '(?=$|[^A-Za-z0-9_\\u00C0-\\uFFFF])', 'gi'),
-          '$1' + repVal
-        );
+        entry.braceRe = new RegExp('\\{\\s*' + escName + '\\s*\\}', 'gi');
+        entry.bareRe = new RegExp('(^|[^A-Za-z0-9_\\u00C0-\\uFFFF])' + escName + '(?=$|[^A-Za-z0-9_\\u00C0-\\uFFFF])', 'gi');
       });
+      _formulaColsMetaCache[cKey] = { sig: sig, colsRef: bot.columns, entries: entries };
+      return entries;
+    }
+
+    function resolveFormulaColumnRefs(expr, col, bot, getColReplacementFn) {
+      var resolved = normalizeFormulaOperators(expr);
+      if (!bot || !bot.columns) return resolved;
+      var entries = getFormulaCompiledCols(col, bot);
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        var repVal = getColReplacementFn(entry.cols);
+        resolved = resolved.replace(entry.braceRe, repVal);
+        resolved = resolved.replace(entry.bareRe, '$1' + repVal);
+      }
       return resolved;
     }
 
@@ -7124,9 +7194,17 @@
       return { valid: true, reason: '' };
     }
 
+    var _activeFormulaEvalCache = null;
+
     function evalFormulaCell(row, col, bot, depth) {
       var d = depth || 0;
       if (d > 4) return NaN;
+      var cacheKey = (_activeFormulaEvalCache && d === 0 && row && col && row.id && col.id)
+        ? (String(bot && bot.id || '') + '::' + String(row.id) + '::' + String(col.id))
+        : '';
+      if (cacheKey && Object.prototype.hasOwnProperty.call(_activeFormulaEvalCache, cacheKey)) {
+        return _activeFormulaEvalCache[cacheKey];
+      }
       var raw = row ? row[col.id] : undefined;
       var rawStr = (raw !== undefined && raw !== null) ? String(raw).trim() : '';
       var expr = '';
@@ -7135,7 +7213,9 @@
       } else if (col && col.formulaExpr && String(col.formulaExpr).trim()) {
         expr = String(col.formulaExpr).trim().replace(/^=+/, '').trim();
       } else {
-        return parseNumSafe(raw);
+        var pRes = parseNumSafe(raw);
+        if (cacheKey) _activeFormulaEvalCache[cacheKey] = pRes;
+        return pRes;
       }
       expr = normalizeFormulaOperators(expr);
       if (!expr) return NaN;
@@ -7143,28 +7223,37 @@
       if (upper === 'SUM_ALL' || upper === 'SUM(*)' || upper === 'SUM(ALL)') {
         var rowTotal = 0, anyVal = false;
         if (bot && bot.columns && row) {
-          bot.columns.forEach(function (oc) {
+          for (var si = 0; si < bot.columns.length; si++) {
+            var oc = bot.columns[si];
             if (oc.id !== col.id && (oc.type === 'amount' || oc.type === 'number')) {
               var v = parseNumSafe(row[oc.id]);
               if (!isNaN(v)) { rowTotal += v; anyVal = true; }
             }
-          });
+          }
         }
-        return anyVal ? rowTotal : NaN;
+        var sumAllOut = anyVal ? rowTotal : NaN;
+        if (cacheKey) _activeFormulaEvalCache[cacheKey] = sumAllOut;
+        return sumAllOut;
       }
       if (rawStr.charAt(0) !== '=' && bot && bot.columns && row) {
-        var hasAnyNumInput = bot.columns.some(function (oc) {
-          if (oc.id === col.id) return false;
-          if (oc.type === 'amount' || oc.type === 'number') return !isNaN(parseNumSafe(row[oc.id]));
-          if (oc.type === 'formula') {
-            var ov = row[oc.id];
-            if (ov !== undefined && ov !== null && String(ov).trim() !== '') return true;
-            return !isNaN(evalFormulaCell(row, oc, bot, d + 1));
+        var hasAnyNumInput = false;
+        for (var hi = 0; hi < bot.columns.length; hi++) {
+          var oc2 = bot.columns[hi];
+          if (oc2.id === col.id) continue;
+          if (oc2.type === 'amount' || oc2.type === 'number') {
+            if (!isNaN(parseNumSafe(row[oc2.id]))) { hasAnyNumInput = true; break; }
+          } else if (oc2.type === 'formula') {
+            var ov = row[oc2.id];
+            if (ov !== undefined && ov !== null && String(ov).trim() !== '') { hasAnyNumInput = true; break; }
+            if (!isNaN(evalFormulaCell(row, oc2, bot, d + 1))) { hasAnyNumInput = true; break; }
+          } else if (!isNaN(parseNumSafe(row[oc2.id]))) {
+            hasAnyNumInput = true; break;
           }
-          if (!isNaN(parseNumSafe(row[oc.id]))) return true;
-          return false;
-        });
-        if (!hasAnyNumInput) return NaN;
+        }
+        if (!hasAnyNumInput) {
+          if (cacheKey) _activeFormulaEvalCache[cacheKey] = NaN;
+          return NaN;
+        }
       }
       var resolved = resolveFormulaColumnRefs(expr, col, bot, function (sameNameCols) {
         for (var i = 0; i < sameNameCols.length; i++) {
@@ -7188,7 +7277,9 @@
           return s < 0 ? ('(' + String(s) + ')') : String(s);
         });
       } while (resolved !== prevResolved);
-      return evalSafeArithmetic(resolved);
+      var outNum = evalSafeArithmetic(resolved);
+      if (cacheKey) _activeFormulaEvalCache[cacheKey] = outNum;
+      return outNum;
     }
 
     function getRowColNumeric(row, col, bot, depth) {
@@ -7553,9 +7644,28 @@
           }
         });
 
-        state.bots = merged.map(sanitizeBotForSave);
+        var prevBotsSig = (state.bots || []).map(function (b) {
+          return b ? (b.id + ':' + (b.updatedAt || '') + ':' + (b.rows ? b.rows.length : 0) + ':' + (b.columns ? b.columns.length : 0) + ':' + (b.folder || '') + ':' + (b.name || '')) : '';
+        }).join('|');
+        var prevCustomFoldersSig = (state.customFolders || []).join('|');
+
+        var nextBots = merged.map(sanitizeBotForSave);
+        var nextBotsSig = nextBots.map(function (b) {
+          return b ? (b.id + ':' + (b.updatedAt || '') + ':' + (b.rows ? b.rows.length : 0) + ':' + (b.columns ? b.columns.length : 0) + ':' + (b.folder || '') + ':' + (b.name || '')) : '';
+        }).join('|');
+        var botsActuallyChanged = prevBotsSig !== nextBotsSig;
+
+        state.bots = nextBots;
         purgeTombstonedDataFromState();
-        refreshAllBotUndoBases();
+        if (botsActuallyChanged) {
+          bumpAppPerfRev();
+          var prevById = {};
+          (state.bots || []).forEach(function (nb) {
+            if (nb && nb.id && (!botUndoBaseMap[nb.id] || botUndoBaseMap[nb.id].rev !== Number(nb._rev || 0))) {
+              botUndoBaseMap[nb.id] = cloneBotSnap(nb);
+            }
+          });
+        }
         var folderSeen = {};
         (state.customFolders || []).forEach(function (fn) {
           var c = sanitizeUserText(fn, 80);
@@ -7566,8 +7676,9 @@
           if (bf && !isFolderTombstoned(bf)) folderSeen[bf.toLowerCase()] = bf;
         });
         state.customFolders = Object.keys(folderSeen).map(function (k) { return folderSeen[k]; });
-        saveCustomFolders();
-        saveBotsLocal();
+        var foldersChanged = prevCustomFoldersSig !== state.customFolders.join('|');
+        if (foldersChanged) saveCustomFolders();
+        if (botsActuallyChanged) saveBotsLocal();
 
         for (var di = 0; di < toDeleteRemoteIds.length; di++) {
           try { await client.from('user_bots').delete().eq('id', toDeleteRemoteIds[di]); } catch (eDel) {}
@@ -7588,17 +7699,21 @@
           if (!logRes.error && Array.isArray(logRes.data) && logRes.data.length) {
             var existingIds = {};
             state.auditLogs.forEach(function (l) { existingIds[l.id] = true; });
+            var addedLog = false;
             logRes.data.forEach(function (rl) {
               if (!existingIds[rl.id]) {
+                addedLog = true;
                 state.auditLogs.push({
                   id: rl.id, timestamp: rl.created_at, actor: rl.actor, action: rl.action,
                   source: rl.source || 'Cloud', botId: rl.bot_id, botName: rl.bot_name, summary: rl.summary
                 });
               }
             });
-            state.auditLogs.sort(function (a, b) { return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); });
-            if (state.auditLogs.length > 250) state.auditLogs = state.auditLogs.slice(0, 250);
-            saveAdminState();
+            if (addedLog) {
+              state.auditLogs.sort(function (a, b) { return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); });
+              if (state.auditLogs.length > 250) state.auditLogs = state.auditLogs.slice(0, 250);
+              saveAdminState({ defer: true });
+            }
           }
         } catch (e2) {}
 
@@ -7619,6 +7734,7 @@
                 if (isBotTombstoned(up)) return;
                 var idx = state.bots.findIndex(function (b) { return b.id === up.id; });
                 if (idx >= 0) state.bots[idx] = up; else state.bots.unshift(up);
+                bumpAppPerfRev();
                 resetBotUndoBase(up);
                 saveBotsLocal();
                 state.lastSyncAt = new Date().toISOString();
@@ -7627,6 +7743,7 @@
               } else if (payload.eventType === 'DELETE' && payload.old && payload.old.id) {
                 if (payload.old.id === SECURITY_BOT_ID) return;
                 state.bots = state.bots.filter(function (b) { return b.id !== payload.old.id; });
+                bumpAppPerfRev();
                 saveBotsLocal();
                 renderApp();
               }
@@ -7635,11 +7752,18 @@
           state.sbUnsub = function () { client.removeChannel(ch); };
         }
         if (reason === 'manual') showToast('Synced with Supabase Cloud!');
+        state.syncInFlight = false;
+        if (botsActuallyChanged || foldersChanged || reason === 'init' || reason === 'manual') {
+          renderApp();
+        } else {
+          renderHeaderSyncOnly();
+        }
+        return;
       } catch (e) {
         state.syncStatus = 'error';
       }
       state.syncInFlight = false;
-      renderApp();
+      renderHeaderSyncOnly();
     }
 
     async function initSupabaseCloud() {
@@ -8087,7 +8211,6 @@
         if (b && b.id) botUndoBaseMap[b.id] = cloneBotSnap(b);
       });
     }
-    refreshAllBotUndoBases();
 
     function getUndoCount(botId) {
       var st = state.undoStacks && state.undoStacks[botId];
@@ -8258,15 +8381,15 @@
       _pendingPersistTimer = setTimeout(function () {
         _pendingPersistTimer = null;
         flushPendingPersist();
-      }, 24);
+      }, 120);
     }
 
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-      window.addEventListener('pagehide', flushPendingPersist);
-      window.addEventListener('beforeunload', flushPendingPersist);
+      window.addEventListener('pagehide', function () { flushPendingPersist(); flushAdminStateNow(); });
+      window.addEventListener('beforeunload', function () { flushPendingPersist(); flushAdminStateNow(); });
       if (typeof document !== 'undefined') {
         document.addEventListener('visibilitychange', function () {
-          if (document.hidden) flushPendingPersist();
+          if (document.hidden) { flushPendingPersist(); flushAdminStateNow(); }
         });
       }
     }
@@ -8274,6 +8397,7 @@
     function updateBot(updated, auditAction, auditSummary, opts) {
       opts = opts || {};
       if (!guardWriteAction(auditSummary || 'Edit Bot')) return false;
+      bumpAppPerfRev();
       if (updated && typeof isLedgerBot === 'function' && isLedgerBot(updated) && typeof recalculateLedgerBotBalances === 'function' && !opts.skipLedgerRecalc && !window._tbIsUndoRedo) {
         recalculateLedgerBotBalances(updated);
       }
@@ -9040,10 +9164,22 @@
     function renderDashboard() {
       var folders = getAllFolders();
       var q = state.searchQuery.toLowerCase();
-      var filtered = state.bots.filter(function (b) {
-        if (isBotTombstoned(b)) return false;
+      var botsByFolderLower = {};
+      var activeAllBots = [];
+      var totalRowsCount = 0;
+      for (var bi = 0; bi < (state.bots || []).length; bi++) {
+        var bItem = state.bots[bi];
+        if (!bItem || isBotTombstoned(bItem)) continue;
+        activeAllBots.push(bItem);
+        totalRowsCount += (bItem.rows ? bItem.rows.length : 0);
+        var fLow = normalizeFolderName(bItem.folder).toLowerCase();
+        if (!botsByFolderLower[fLow]) botsByFolderLower[fLow] = [];
+        botsByFolderLower[fLow].push(bItem);
+      }
+      var selFolderLower = String(state.selectedFolder || '').trim().toLowerCase();
+      var filtered = activeAllBots.filter(function (b) {
         var f = normalizeFolderName(b.folder);
-        if (state.selectedFolder !== 'all' && f.toLowerCase() !== String(state.selectedFolder || '').trim().toLowerCase()) return false;
+        if (state.selectedFolder !== 'all' && f.toLowerCase() !== selFolderLower) return false;
         if (q && b.name.toLowerCase().indexOf(q) === -1 && (b.description || '').toLowerCase().indexOf(q) === -1 && f.toLowerCase().indexOf(q) === -1) return false;
         if (state.filterType === 'favorites') return !!b.isFavorite;
         if (state.filterType === 'online') return b.botStatus === 'online';
@@ -9051,14 +9187,11 @@
         return true;
       }).sort(function (a, b) {
         if (state.sortOrder === 'name') return a.name.localeCompare(b.name);
-        if (state.sortOrder === 'rows') return b.rows.length - a.rows.length;
+        if (state.sortOrder === 'rows') return (b.rows ? b.rows.length : 0) - (a.rows ? a.rows.length : 0);
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       });
 
-      var totalTablesCount = state.bots.filter(function (b) { return !isBotTombstoned(b); }).length;
-      var totalRowsCount = state.bots.reduce(function (acc, b) {
-        return acc + (isBotTombstoned(b) ? 0 : (b.rows ? b.rows.length : 0));
-      }, 0);
+      var totalTablesCount = activeAllBots.length;
 
       var dotCls = state.syncStatus === 'synced' ? 'dot-synced' : state.syncStatus === 'syncing' ? 'dot-syncing' : (state.syncStatus === 'error' || state.syncStatus === 'auth_required') ? 'dot-error' : 'dot-local';
       var dotTxt = state.syncStatus === 'synced' ? 'Live Cloud' : state.syncStatus === 'syncing' ? 'Syncing...' : state.syncStatus === 'auth_required' ? 'Sign In Req' : state.syncStatus === 'error' ? 'Sync Error' : 'Live Cloud';
@@ -9139,7 +9272,7 @@
         '<div class="desk-sb-nav">' +
           folders.map(function (fn) {
             var fnLower = fn.toLowerCase();
-            var fnCount = state.bots.filter(function (b) { return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === fnLower; }).length;
+            var fnCount = (botsByFolderLower[fnLower] || []).length;
             var fnLocked = isFolderLocked(fn);
             var fnUnlocked = isFolderUnlocked(fn);
             var isAct = String(state.selectedFolder || '').toLowerCase() === fnLower;
@@ -9165,7 +9298,8 @@
       var greetUser = getActiveGreetingUser();
       var greetName = (greetUser && greetUser.displayName) ? greetUser.displayName : 'Onelove A';
       var dp = getDailyAmharicWorkPrompt();
-      warmDailyVoiceCache(dp.spokenText, dp.dayIndex);
+      if (window._tbWarmVoiceTimer) clearTimeout(window._tbWarmVoiceTimer);
+      window._tbWarmVoiceTimer = setTimeout(function () { warmDailyVoiceCache(dp.spokenText, dp.dayIndex); }, 180);
       var heroPlayLabel = _dailyVoiceCtrl.status === 'loading'
         ? (state.lang === 'am' ? '🔊 በመክፈት ላይ...' : '🔊 Starting...')
         : (_dailyVoiceCtrl.status === 'playing'
@@ -9204,20 +9338,17 @@
         '</div>' +
       '</section>';
 
-      var healthSummary = analyzeFolderHealth().summary;
       function renderFolderCardHtml(f) {
         var fLower = f.toLowerCase();
-        var folderBotsAll = state.bots.filter(function (b) {
-          return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === fLower;
-        });
+        var folderBotsAll = botsByFolderLower[fLower] || [];
         var fLocked = isFolderLocked(f);
         var fUnlocked = isFolderUnlocked(f);
         var needsUnlock = fLocked && !fUnlocked;
         var isSel = state.selectedFolder === f;
-        var fUndoTarget = getFolderUndoTarget(f);
-        var fRedoTarget = getFolderRedoTarget(f);
-
         var isMenuOpen = state.activeFolderMenuId === f;
+        var fUndoTarget = isMenuOpen ? getFolderUndoTarget(f) : null;
+        var fRedoTarget = isMenuOpen ? getFolderRedoTarget(f) : null;
+
         var fHtml = '<div class="folder-grid-card' + (isSel ? ' is-selected' : '') + (isMenuOpen ? ' is-menu-open' : '') + '" data-folder="' + esc(f) + '">' +
           '<div class="tn-card-top">' +
             '<div class="tn-title-group">' +
@@ -9226,7 +9357,7 @@
             '</div>' +
             '<button type="button" class="tn-dots-btn" data-folder-menu="' + esc(f) + '" title="Folder options">' + icon('dotsV', 16) + '</button>';
 
-        if (state.activeFolderMenuId === f) {
+        if (isMenuOpen) {
           fHtml += '<div class="dropdown-menu" data-stop-card="1">' +
             '<button type="button" class="dropdown-item" data-folder-menu-act="open" data-folder-name="' + esc(f) + '">' + icon('folder', 14) + '<span>Open Folder (' + folderBotsAll.length + ')</span></button>' +
             '<button type="button" class="dropdown-item" data-folder-menu-act="rename" data-folder-name="' + esc(f) + '">' + icon('edit', 14) + '<span>Rename Folder</span></button>' +
@@ -9430,9 +9561,7 @@
         }) : filtered;
         var selFolderRows = folderFiltered.reduce(function (acc, b) { return acc + (b.rows ? b.rows.length : 0); }, 0);
         var selIsEth = isFolderEthiopianCalendar(selFolder);
-        var folderAllBots = state.bots.filter(function (b) {
-          return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === String(selFolder).trim().toLowerCase();
-        });
+        var folderAllBots = botsByFolderLower[String(selFolder).trim().toLowerCase()] || [];
         if (!state.folderOpenedAt[selFolder]) {
           state.folderOpenedAt[selFolder] = new Date().toISOString();
         }
@@ -10090,13 +10219,16 @@
           state.selectedRowIds = {};
           state.editingCell = null;
           state.tableSearchQuery = '';
+          renderApp();
           var targetBot = getActiveBot();
           if (targetBot) {
-            recordAudit('OPEN', targetBot, 'Opened table "' + targetBot.name + '"', { source: 'Browser' });
-            if (targetBot.telegramToken) syncTelegramBot(targetBot, true);
-            if (state.supabaseConfig.isConnected) pullAndMergeSupabase('bot_open');
+            if (window._tbPostOpenSyncTimer) clearTimeout(window._tbPostOpenSyncTimer);
+            window._tbPostOpenSyncTimer = setTimeout(function () {
+              recordAudit('OPEN', targetBot, 'Opened table "' + targetBot.name + '"', { source: 'Browser' });
+              if (targetBot.telegramToken) syncTelegramBot(targetBot, true);
+              if (state.supabaseConfig.isConnected) pullAndMergeSupabase('bot_open');
+            }, 90);
           }
-          renderApp();
         };
       });
       document.querySelectorAll('[data-card-menu]').forEach(function (btn) {
@@ -10558,7 +10690,7 @@
       return { pastedCount: pastedCount, addedRows: addedRows, addedCols: addedCols };
     }
 
-    function renderTableRowHtml(bot, row, idx, selBounds) {
+    function renderTableRowHtml(bot, row, idx, selBounds, preCtx) {
       var isSel = !!state.selectedRowIds[row.id];
       var rowHtml = '<tr data-row-id="' + esc(row.id) + '" class="' + (isSel ? 'selected' : '') + '">' +
         '<td class="frozen-col" data-row-id="' + esc(row.id) + '"><div style="display:flex;align-items:center;justify-content:center;gap:3px;">' +
@@ -10568,7 +10700,8 @@
         '</div></td>';
 
       var cols = bot.columns || [];
-      var rowDet = (typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null;
+      var rowDet = preCtx ? preCtx.rowDet : ((typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null);
+      var custColMatchPre = preCtx ? preCtx.custColMatch : (rowDet ? rowDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null));
       var rowPayHist = Array.isArray(row._paymentHistory)
         ? row._paymentHistory.filter(function (ph) { return ph && Number(ph.amount) > 0; })
         : [];
@@ -10633,7 +10766,7 @@
           var fs = st.italic ? 'italic' : 'normal';
           var cellFontSize = (st.fontSize && Number(st.fontSize) >= 10) ? Math.min(32, Number(st.fontSize)) : 13;
           var dispCellTxt = formatCell(val, col, row, bot);
-          var custColMatch = rowDet ? rowDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null);
+          var custColMatch = custColMatchPre;
           var cleanCustCell = (typeof normalizeCustomerLabel === 'function') ? normalizeCustomerLabel(dispCellTxt) : String(dispCellTxt || '').trim();
           var isCustNameCell = Boolean(custColMatch && custColMatch.id === col.id && cleanCustCell !== '');
           var isPayCellWithHist = Boolean(
@@ -10847,14 +10980,17 @@
         });
       });
 
+      var prevFormulaCache = _activeFormulaEvalCache;
+      _activeFormulaEvalCache = {};
+      try {
       var colSums = {};
       bot.columns.forEach(function (c) {
         if (c.type === 'amount' || c.type === 'number' || c.type === 'formula') {
           var s = 0;
-          visibleRows.forEach(function (r) {
-            var n = getRowColNumeric(r, c, bot, 0);
+          for (var riSum = 0; riSum < visibleRows.length; riSum++) {
+            var n = getRowColNumeric(visibleRows[riSum], c, bot, 0);
             if (!isNaN(n)) s += n;
-          });
+          }
           colSums[c.id] = s;
         }
       });
@@ -11028,9 +11164,46 @@
 
       var selectedCellsMeta = getSelectedCellsMeta();
 
-      var rowHtmlParts = new Array(visibleRows.length);
-      for (var rIdxHtml = 0; rIdxHtml < visibleRows.length; rIdxHtml++) {
-        rowHtmlParts[rIdxHtml] = renderTableRowHtml(bot, visibleRows[rIdxHtml], rIdxHtml, selBounds);
+      var DEFAULT_WIN_SIZE = 150;
+      if (!state.tableWindowByBot) state.tableWindowByBot = {};
+      var tblWin = state.tableWindowByBot[bot.id];
+      if (!tblWin) {
+        tblWin = { start: 0, size: DEFAULT_WIN_SIZE, showAll: false };
+        state.tableWindowByBot[bot.id] = tblWin;
+      }
+      var totalVisRows = visibleRows.length;
+      var winStart = 0;
+      var winEnd = totalVisRows;
+      if (!tblWin.showAll && totalVisRows > DEFAULT_WIN_SIZE) {
+        var winSize = Math.max(DEFAULT_WIN_SIZE, tblWin.size || DEFAULT_WIN_SIZE);
+        winStart = Math.max(0, Math.min(tblWin.start || 0, Math.max(0, totalVisRows - winSize)));
+        var focusTargetRowId = pendingScrollRowId || preferAnchorRowId || (state.editingCell && state.editingCell.rowId) || null;
+        var focusTargetIdx = -1;
+        if (focusTargetRowId) {
+          for (var fti = 0; fti < totalVisRows; fti++) {
+            if (visibleRows[fti].id === focusTargetRowId) { focusTargetIdx = fti; break; }
+          }
+        } else if (selBounds && selBounds.anchorR >= 0 && selBounds.anchorR < totalVisRows) {
+          focusTargetIdx = selBounds.anchorR;
+        }
+        if (focusTargetIdx !== -1 && (focusTargetIdx < winStart || focusTargetIdx >= winStart + winSize)) {
+          winStart = Math.max(0, Math.min(Math.max(0, totalVisRows - winSize), Math.floor(focusTargetIdx / winSize) * winSize));
+        }
+        tblWin.start = winStart;
+        tblWin.size = winSize;
+        winEnd = Math.min(totalVisRows, winStart + winSize);
+      } else {
+        tblWin.start = 0;
+      }
+      var isTableWindowed = !tblWin.showAll && totalVisRows > DEFAULT_WIN_SIZE;
+      var preRowDet = (typeof detectLedgerColumns === 'function') ? detectLedgerColumns(bot) : null;
+      var preCustCol = preRowDet ? preRowDet.custCol : ((typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null);
+      var preRowCtx = { rowDet: preRowDet, custColMatch: preCustCol };
+
+      var renderSliceLen = Math.max(0, winEnd - winStart);
+      var rowHtmlParts = new Array(renderSliceLen);
+      for (var rIdxHtml = winStart; rIdxHtml < winEnd; rIdxHtml++) {
+        rowHtmlParts[rIdxHtml - winStart] = renderTableRowHtml(bot, visibleRows[rIdxHtml], rIdxHtml, selBounds, preRowCtx);
       }
       html += rowHtmlParts.join('') + '</tbody>';
 
@@ -11059,8 +11232,24 @@
       });
       html += '<td></td></tr></tfoot></table>';
 
-      html += '<div class="table-below-sticky">' +
-        '<div class="add-row-bar" style="flex-wrap:wrap;gap:10px;">' +
+      html += '<div class="table-below-sticky">';
+      if (totalVisRows > DEFAULT_WIN_SIZE) {
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 14px;background:#EFF6FF;border-bottom:1px solid #BFDBFE;font-size:12px;">' +
+          '<span class="num-tab" style="font-weight:700;color:#1E3A8A;">' +
+            (isTableWindowed
+              ? ('Showing rows ' + (winStart + 1) + '–' + winEnd + ' of ' + totalVisRows + ' (fast PC view · Σ totals include all ' + totalVisRows + ' rows)')
+              : ('Showing all ' + totalVisRows + ' rows')) +
+          '</span>' +
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            (isTableWindowed ? ('<button type="button" id="tbl-win-prev" class="btn btn-outline" style="padding:4px 10px;font-size:11.5px;background:#fff;"' + (winStart <= 0 ? ' disabled' : '') + '>Prev</button>') : '') +
+            (isTableWindowed ? ('<button type="button" id="tbl-win-next" class="btn btn-outline" style="padding:4px 10px;font-size:11.5px;background:#fff;"' + (winEnd >= totalVisRows ? ' disabled' : '') + '>Next</button>') : '') +
+            (isTableWindowed ? ('<button type="button" id="tbl-win-last" class="btn btn-outline" style="padding:4px 10px;font-size:11.5px;background:#fff;"' + (winEnd >= totalVisRows ? ' disabled' : '') + '>Latest Rows</button>') : '') +
+            (isTableWindowed ? ('<button type="button" id="tbl-win-more" class="btn btn-primary" style="padding:4px 10px;font-size:11.5px;">+150 More</button>') : '') +
+            '<button type="button" id="tbl-win-all" class="btn btn-outline" style="padding:4px 10px;font-size:11.5px;background:#fff;border-color:#93C5FD;color:#0D47A1;">' + (isTableWindowed ? ('Show All (' + totalVisRows + ')') : ('Fast View (' + DEFAULT_WIN_SIZE + ' rows)')) + '</button>' +
+          '</div>' +
+        '</div>';
+      }
+      html += '<div class="add-row-bar" style="flex-wrap:wrap;gap:10px;">' +
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
           '<button class="btn btn-primary" id="btn-add-row" style="padding:7px 14px;font-size:12px;" title="Append Row">' + icon('plus', 15) + '<span>Add Row</span></button>' +
           '<button type="button" class="btn btn-outline" id="btn-bar-add-col" style="padding:7px 12px;font-size:12px;border-color:#93C5FD;color:#0D47A1;background:#EFF6FF;">' + icon('plus', 14) + '<span>Add Column</span></button>' +
@@ -11355,6 +11544,10 @@
         }
       }
 
+      } finally {
+        _activeFormulaEvalCache = prevFormulaCache;
+      }
+
       document.getElementById('app').innerHTML = html;
       var newTableWrapEl = document.querySelector('.table-wrap');
       restoreTableScrollAnchor(newTableWrapEl, capturedScroll, pendingScrollRowId);
@@ -11591,14 +11784,74 @@
       };
       if (tblPrevPageBtn) tblPrevPageBtn.onclick = function () { switchTableFolderPage(-1); };
       if (tblNextPageBtn) tblNextPageBtn.onclick = function () { switchTableFolderPage(1); };
+      var clearWinNavSelection = function () {
+        state.editingCell = null;
+        state.selectedRange = null;
+        state.extraCells = {};
+        state._scrollAnchorRowId = null;
+        state._pendingScrollToRowId = null;
+        state._resetTableScroll = true;
+      };
+      var tblWinPrevBtn = document.getElementById('tbl-win-prev');
+      if (tblWinPrevBtn) tblWinPrevBtn.onclick = function () {
+        var tw = state.tableWindowByBot && state.tableWindowByBot[bot.id];
+        if (!tw) return;
+        tw.start = Math.max(0, (tw.start || 0) - (tw.size || 150));
+        clearWinNavSelection();
+        renderTableView(bot);
+      };
+      var tblWinNextBtn = document.getElementById('tbl-win-next');
+      if (tblWinNextBtn) tblWinNextBtn.onclick = function () {
+        var tw = state.tableWindowByBot && state.tableWindowByBot[bot.id];
+        if (!tw) return;
+        tw.start = (tw.start || 0) + (tw.size || 150);
+        clearWinNavSelection();
+        renderTableView(bot);
+      };
+      var tblWinLastBtn = document.getElementById('tbl-win-last');
+      if (tblWinLastBtn) tblWinLastBtn.onclick = function () {
+        var tw = state.tableWindowByBot && state.tableWindowByBot[bot.id];
+        if (!tw) return;
+        tw.start = Math.max(0, visibleRows.length - (tw.size || 150));
+        clearWinNavSelection();
+        renderTableView(bot);
+      };
+      var tblWinMoreBtn = document.getElementById('tbl-win-more');
+      if (tblWinMoreBtn) tblWinMoreBtn.onclick = function () {
+        var tw = state.tableWindowByBot && state.tableWindowByBot[bot.id];
+        if (!tw) return;
+        tw.size = (tw.size || 150) + 150;
+        renderTableView(bot);
+      };
+      var tblWinAllBtn = document.getElementById('tbl-win-all');
+      if (tblWinAllBtn) tblWinAllBtn.onclick = function () {
+        if (!state.tableWindowByBot) state.tableWindowByBot = {};
+        var tw = state.tableWindowByBot[bot.id] || { start: 0, size: 150, showAll: false };
+        tw.showAll = !tw.showAll;
+        if (!tw.showAll) { tw.start = 0; tw.size = 150; }
+        state.tableWindowByBot[bot.id] = tw;
+        renderTableView(bot);
+      };
+
       document.getElementById('btn-table-search').onclick = function () {
         state.tableSearchOpen = !state.tableSearchOpen; renderTableView(bot);
         var i = document.getElementById('inp-table-search'); if (i) i.focus();
       };
+      var debouncedTableSearch = debounce(function (nextQ, pos) {
+        state.tableSearchQuery = nextQ;
+        if (state.tableWindowByBot && state.tableWindowByBot[bot.id]) {
+          state.tableWindowByBot[bot.id].start = 0;
+        }
+        renderTableView(bot);
+        var el = document.getElementById('inp-table-search');
+        if (el) {
+          el.focus();
+          try { el.setSelectionRange(pos, pos); } catch (eRng) {}
+        }
+      }, 180);
       var tInp = document.getElementById('inp-table-search');
       if (tInp) tInp.oninput = function (e) {
-        var pos = e.target.selectionStart; state.tableSearchQuery = e.target.value; renderTableView(bot);
-        var el = document.getElementById('inp-table-search'); if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+        debouncedTableSearch(e.target.value, e.target.selectionStart);
       };
       var tClr = document.getElementById('btn-clear-table-search');
       if (tClr) tClr.onclick = function () { state.tableSearchQuery = ''; renderTableView(bot); };
@@ -11700,25 +11953,29 @@
         if (!state.tableSearchQuery && tbodyElNow && wrapElNow && !(hasPresetValues && typeof isLedgerBot === 'function' && isLedgerBot(bot))) {
           visibleRows.push(nr);
           var newIdx = visibleRows.length - 1;
-          var rowHtml = renderTableRowHtml(bot, nr, newIdx, null);
-          tbodyElNow.insertAdjacentHTML('beforeend', rowHtml);
-          refreshTableHeaderStats(visibleRows);
-          if (hasPresetValues) {
-            bot.columns.forEach(function (sumCol) {
-              if (sumCol.type !== 'amount' && sumCol.type !== 'number' && sumCol.type !== 'formula') return;
-              var el = document.querySelector('[data-sum-val-col="' + sumCol.id + '"]');
-              if (!el) return;
-              var total = 0;
-              for (var ri = 0; ri < visibleRows.length; ri++) {
-                var n = getRowColNumeric(visibleRows[ri], sumCol, bot, 0);
-                if (!isNaN(n)) total += n;
-              }
-              el.textContent = formatNumericValue(total, sumCol);
-            });
+          var twAppend = state.tableWindowByBot && state.tableWindowByBot[bot.id];
+          var isWindowTailVisible = !twAppend || twAppend.showAll || (visibleRows.length <= 150) || ((twAppend.start || 0) + (twAppend.size || 150) >= newIdx);
+          if (isWindowTailVisible) {
+            var rowHtml = renderTableRowHtml(bot, nr, newIdx, null);
+            tbodyElNow.insertAdjacentHTML('beforeend', rowHtml);
+            refreshTableHeaderStats(visibleRows);
+            if (hasPresetValues) {
+              bot.columns.forEach(function (sumCol) {
+                if (sumCol.type !== 'amount' && sumCol.type !== 'number' && sumCol.type !== 'formula') return;
+                var el = document.querySelector('[data-sum-val-col="' + sumCol.id + '"]');
+                if (!el) return;
+                var total = 0;
+                for (var ri = 0; ri < visibleRows.length; ri++) {
+                  var n = getRowColNumeric(visibleRows[ri], sumCol, bot, 0);
+                  if (!isNaN(n)) total += n;
+                }
+                el.textContent = formatNumericValue(total, sumCol);
+              });
+            }
+            var newTrEl = findTableRowElById(wrapElNow, nr.id) || tbodyElNow.lastElementChild;
+            if (newTrEl) scrollRowIntoTableView(wrapElNow, newTrEl, true, true);
+            return;
           }
-          var newTrEl = findTableRowElById(wrapElNow, nr.id) || tbodyElNow.lastElementChild;
-          if (newTrEl) scrollRowIntoTableView(wrapElNow, newTrEl, true, true);
-          return;
         }
         state._pendingScrollToRowId = nr.id;
         renderTableView(bot);
@@ -12521,20 +12778,34 @@
       var ftbEl = document.getElementById('floating-cell-toolbar');
       var positionExcelFloatingToolbar = function () {
         if (!ftbEl) return;
-        var selEls = Array.prototype.slice.call(document.querySelectorAll('.sheet-table tbody td.cell-selected'));
+        var selEls = document.querySelectorAll('.sheet-table tbody td.cell-selected');
         if (!selEls || selEls.length === 0) return;
         var minTop = Infinity, maxBottom = -Infinity, minLeft = Infinity, maxRight = -Infinity;
         var anyRect = false;
-        selEls.forEach(function (el) {
-          if (!el.getBoundingClientRect) return;
-          var r = el.getBoundingClientRect();
-          if (r.width === 0 && r.height === 0) return;
-          anyRect = true;
-          if (r.top < minTop) minTop = r.top;
-          if (r.bottom > maxBottom) maxBottom = r.bottom;
-          if (r.left < minLeft) minLeft = r.left;
-          if (r.right > maxRight) maxRight = r.right;
-        });
+        if (selEls.length > 16) {
+          var endpoints = [selEls[0], selEls[selEls.length - 1]];
+          for (var ei = 0; ei < endpoints.length; ei++) {
+            var rE = endpoints[ei].getBoundingClientRect ? endpoints[ei].getBoundingClientRect() : null;
+            if (!rE || (rE.width === 0 && rE.height === 0)) continue;
+            anyRect = true;
+            if (rE.top < minTop) minTop = rE.top;
+            if (rE.bottom > maxBottom) maxBottom = rE.bottom;
+            if (rE.left < minLeft) minLeft = rE.left;
+            if (rE.right > maxRight) maxRight = rE.right;
+          }
+        } else {
+          for (var si = 0; si < selEls.length; si++) {
+            var el = selEls[si];
+            if (!el.getBoundingClientRect) continue;
+            var r = el.getBoundingClientRect();
+            if (r.width === 0 && r.height === 0) continue;
+            anyRect = true;
+            if (r.top < minTop) minTop = r.top;
+            if (r.bottom > maxBottom) maxBottom = r.bottom;
+            if (r.left < minLeft) minLeft = r.left;
+            if (r.right > maxRight) maxRight = r.right;
+          }
+        }
         if (!anyRect) return;
         var vw = window.innerWidth || 800;
         var vh = window.innerHeight || 700;
@@ -12919,10 +13190,15 @@
       var paintDragPreview = function (aR, aC, fR, fC) {
         var minR = Math.min(aR, fR), maxR = Math.max(aR, fR);
         var minC = Math.min(aC, fC), maxC = Math.max(aC, fC);
+        var paintKey = aR + ':' + aC + ':' + fR + ':' + fC;
+        if (dragCtx && dragCtx._lastPaintKey === paintKey) return;
+        if (dragCtx) dragCtx._lastPaintKey = paintKey;
         if (!dragCellEls && sheetTableEl) {
           dragCellEls = Array.prototype.slice.call(sheetTableEl.querySelectorAll('td.cell-selectable'));
         }
-        (dragCellEls || []).forEach(function (cellEl) {
+        var cellsArr = dragCellEls || [];
+        for (var dci = 0; dci < cellsArr.length; dci++) {
+          var cellEl = cellsArr[dci];
           var cr = parseInt(cellEl.getAttribute('data-r-idx'), 10);
           var cc = parseInt(cellEl.getAttribute('data-c-idx'), 10);
           var inside = cr >= minR && cr <= maxR && cc >= minC && cc <= maxC;
@@ -12932,7 +13208,7 @@
           cellEl.classList.toggle('cell-sel-edge-b', inside && cr === maxR);
           cellEl.classList.toggle('cell-sel-edge-l', inside && cc === minC);
           cellEl.classList.toggle('cell-sel-edge-r', inside && cc === maxC);
-        });
+        }
         var labelTxt = formatSelPreviewText(aR, aC, fR, fC);
         var infoEl = document.getElementById('ftb-sel-info');
         if (infoEl) infoEl.textContent = labelTxt;
@@ -17959,10 +18235,25 @@
       return (gcShort[ctx.gm - 1] || '') + ' ' + ctx.gy;
     }
 
+    var _reportItemsMemo = { fp: '', entries: {} };
+    var _liveReportSummaryMemo = { fp: '', entries: {} };
+
     function buildReportItems(botFilterId, useEthReportCal) {
+      var preferEth = useEthReportCal !== undefined ? Boolean(useEthReportCal) : (state ? state.reportCalendarMode !== 'gregorian' : true);
+      var fp = getBotsPerfFingerprint();
+      if (_reportItemsMemo.fp !== fp) {
+        _reportItemsMemo.fp = fp;
+        _reportItemsMemo.entries = {};
+      }
+      var cacheKey = String(botFilterId || 'all') + '::' + (preferEth ? '1' : '0');
+      if (_reportItemsMemo.entries[cacheKey]) {
+        return _reportItemsMemo.entries[cacheKey];
+      }
       var items = [];
       var daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      var preferEth = useEthReportCal !== undefined ? Boolean(useEthReportCal) : (state ? state.reportCalendarMode !== 'gregorian' : true);
+      var prevFCache = _activeFormulaEvalCache;
+      _activeFormulaEvalCache = {};
+      try {
       state.bots.forEach(function (bot) {
         if (isBotTombstoned(bot)) return;
         if (botFilterId && botFilterId !== 'all' && bot.id !== botFilterId) return;
@@ -18266,6 +18557,10 @@
           });
         });
       });
+      } finally {
+        _activeFormulaEvalCache = prevFCache;
+      }
+      _reportItemsMemo.entries[cacheKey] = items;
       return items;
     }
 
@@ -18478,14 +18773,28 @@
 
     function calculateLiveReportSummary(period, folderFilter, statusFilter, search, botFilterId) {
       var per = period || 'all';
-      var folders = getAllFolders();
       var isAllFolders = (!folderFilter || folderFilter === 'all');
       var fld = isAllFolders ? 'all' : folderFilter;
       var stF = statusFilter || 'all';
       var q = (search || '').trim().toLowerCase();
       var useEthCal = isFolderEthiopianCalendar(fld, botFilterId);
-      var allItems = buildReportItems(botFilterId, useEthCal);
       var nowCtx = getReportNowContext(useEthCal);
+      var fpRep = getBotsPerfFingerprint();
+      if (_liveReportSummaryMemo.fp !== fpRep) {
+        _liveReportSummaryMemo.fp = fpRep;
+        _liveReportSummaryMemo.entries = {};
+      }
+      var repCacheKey = !q ? (per + '::' + String(fld).toLowerCase() + '::' + stF + '::' + String(botFilterId || 'all') + '::' + (useEthCal ? '1' : '0')) : '';
+      if (repCacheKey && _liveReportSummaryMemo.entries[repCacheKey]) {
+        var repHit = _liveReportSummaryMemo.entries[repCacheKey];
+        repHit.refNow = nowCtx.now;
+        repHit.nowCtx = nowCtx;
+        repHit.liveClockLabel = nowCtx.liveClockLabel;
+        repHit.todayDisplayLabel = formatReportDateChip(nowCtx, useEthCal, state && state.lang);
+        return repHit;
+      }
+      var folders = getAllFolders();
+      var allItems = buildReportItems(botFilterId, useEthCal);
       var refNow = nowCtx.now;
       var todayYmd = nowCtx.ymd;
       var nowEc = nowCtx.ec;
@@ -18700,7 +19009,7 @@
         };
       });
 
-      return {
+      var cacheOut = {
         period: per,
         folder: fld,
         refNow: refNow,
@@ -18718,6 +19027,8 @@
         tableSummaries: tableSummaries,
         columnSummaries: columnSummaries
       };
+      if (repCacheKey) _liveReportSummaryMemo.entries[repCacheKey] = cacheOut;
+      return cacheOut;
     }
 
     function renderColorfulSummaryCard(title, badge, data, perKey, cardCls, dataAttr) {
@@ -21607,8 +21918,20 @@
       return parseFlexibleDateMeta(s, null, { calendarType: preferEth ? 'ethiopian' : 'gregorian' }, preferEth);
     }
 
+    var _detectLedgerColsCache = {};
     function detectLedgerColumns(bot) {
       var cols = Array.isArray(bot && bot.columns) ? bot.columns : [];
+      var cacheId = bot && bot.id ? String(bot.id) : '';
+      var sigParts = new Array(cols.length);
+      for (var si = 0; si < cols.length; si++) {
+        var sc = cols[si];
+        sigParts[si] = (sc.id || '') + ':' + (sc.name || '') + ':' + (sc.type || '');
+      }
+      var colSig = sigParts.join('|');
+      var hitDet = cacheId ? _detectLedgerColsCache[cacheId] : null;
+      if (hitDet && hitDet.colsRef === cols && hitDet.sig === colSig) {
+        return hitDet.res;
+      }
       var findCol = function (exactNames, fuzzyPatterns, excludeMap, skipDateType) {
         for (var i = 0; i < exactNames.length; i++) {
           var target = exactNames[i].toLowerCase();
@@ -21699,7 +22022,7 @@
 
       var hasDedicatedCols = Boolean(custCol && saleDateCol && saleAmtCol && payDateCol && payAmtCol && balCol);
       var hasBalanceSignal = Boolean(custCol && (balCol || (saleAmtCol && payAmtCol) || (genericTotalCol && payAmtCol)));
-      return {
+      var detOut = {
         custCol: custCol,
         typeCol: typeCol,
         saleDateCol: saleDateCol,
@@ -21714,6 +22037,10 @@
         hasBalanceSignal: hasBalanceSignal,
         hasCustomerColumn: Boolean(custCol)
       };
+      if (cacheId) {
+        _detectLedgerColsCache[cacheId] = { colsRef: cols, sig: colSig, res: detOut };
+      }
+      return detOut;
     }
 
     function getTableCustomerCol(bot) {
@@ -23149,31 +23476,84 @@
       });
     }
 
+    var _dashLedgerSummaryMemo = { fp: '', entries: {} };
     function renderFolderLedgerDashboardCard(folderName) {
       var scopeFld = folderName || 'all';
       var isAllScope = scopeFld === 'all';
-      var folderLedgers = getFolderLedgerBots(scopeFld);
-      var folderCustTables = (state.bots || []).filter(function (b) {
-        if (!hasCustomerStatementSupport(b)) return false;
-        if (!isAllScope) {
-          return normalizeFolderName(b.folder).toLowerCase() === String(scopeFld).trim().toLowerCase();
+      var calMode = state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      var fp = getBotsPerfFingerprint();
+      if (_dashLedgerSummaryMemo.fp !== fp) {
+        _dashLedgerSummaryMemo.fp = fp;
+        _dashLedgerSummaryMemo.entries = {};
+      }
+      var dashMemoKey = String(scopeFld).toLowerCase() + '::' + calMode;
+      var cachedSummary = _dashLedgerSummaryMemo.entries[dashMemoKey];
+      var statementTables, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal;
+
+      if (cachedSummary) {
+        statementTables = cachedSummary.statementTables;
+        primaryLedger = cachedSummary.primaryLedger;
+        canRecordQuick = cachedSummary.canRecordQuick;
+        custCount = cachedSummary.custCount;
+        txCount = cachedSummary.txCount;
+        totalCreditVal = cachedSummary.totalCreditVal;
+        totalPaidVal = cachedSummary.totalPaidVal;
+        outstandingBalVal = cachedSummary.outstandingBalVal;
+      } else {
+        var folderLedgers = getFolderLedgerBots(scopeFld);
+        var folderCustTables = (state.bots || []).filter(function (b) {
+          if (!hasCustomerStatementSupport(b)) return false;
+          if (!isAllScope) {
+            return normalizeFolderName(b.folder).toLowerCase() === String(scopeFld).trim().toLowerCase();
+          }
+          return true;
+        });
+        var seenSummaryBots = {};
+        statementTables = [];
+        folderLedgers.forEach(function (b) {
+          if (b && !seenSummaryBots[b.id]) {
+            seenSummaryBots[b.id] = true;
+            statementTables.push(b);
+          }
+        });
+        folderCustTables.forEach(function (b) {
+          if (b && !seenSummaryBots[b.id]) {
+            seenSummaryBots[b.id] = true;
+            statementTables.push(b);
+          }
+        });
+        primaryLedger = folderLedgers[0] || statementTables[0] || null;
+        canRecordQuick = Boolean(primaryLedger && (isLedgerBot(primaryLedger) || (function () {
+          var dCheck = detectLedgerColumns(primaryLedger);
+          var sWritable = !dCheck.saleAmtCol || dCheck.saleAmtCol.type !== 'formula';
+          var pWritable = !dCheck.payAmtCol || dCheck.payAmtCol.type !== 'formula';
+          return Boolean(dCheck.custCol && dCheck.balCol && sWritable && pWritable);
+        })()));
+        if (statementTables.length > 0) {
+          var ledgerData = buildCustomerLedgerData({
+            folder: scopeFld,
+            includeAllCustomerTables: true,
+            calendarMode: calMode
+          });
+          custCount = ledgerData.customerSummaries.length;
+          txCount = ledgerData.rows.length;
+          totalCreditVal = ledgerData.totalCredit;
+          totalPaidVal = ledgerData.totalPaid;
+          outstandingBalVal = ledgerData.outstandingBalance;
+        } else {
+          custCount = 0; txCount = 0; totalCreditVal = 0; totalPaidVal = 0; outstandingBalVal = 0;
         }
-        return true;
-      });
-      var seenSummaryBots = {};
-      var statementTables = [];
-      folderLedgers.forEach(function (b) {
-        if (b && !seenSummaryBots[b.id]) {
-          seenSummaryBots[b.id] = true;
-          statementTables.push(b);
-        }
-      });
-      folderCustTables.forEach(function (b) {
-        if (b && !seenSummaryBots[b.id]) {
-          seenSummaryBots[b.id] = true;
-          statementTables.push(b);
-        }
-      });
+        _dashLedgerSummaryMemo.entries[dashMemoKey] = {
+          statementTables: statementTables,
+          primaryLedger: primaryLedger,
+          canRecordQuick: canRecordQuick,
+          custCount: custCount,
+          txCount: txCount,
+          totalCreditVal: totalCreditVal,
+          totalPaidVal: totalPaidVal,
+          outstandingBalVal: outstandingBalVal
+        };
+      }
 
       if (statementTables.length === 0) {
         var createLabel = isAllScope ? 'Create Customer Ledger' : ('Create Ledger in "' + esc(scopeFld) + '"');
@@ -23194,19 +23574,6 @@
         '</section>';
       }
 
-      var primaryLedger = folderLedgers[0] || statementTables[0];
-      var canRecordQuick = Boolean(primaryLedger && (isLedgerBot(primaryLedger) || (function () {
-        var dCheck = detectLedgerColumns(primaryLedger);
-        var sWritable = !dCheck.saleAmtCol || dCheck.saleAmtCol.type !== 'formula';
-        var pWritable = !dCheck.payAmtCol || dCheck.payAmtCol.type !== 'formula';
-        return Boolean(dCheck.custCol && dCheck.balCol && sWritable && pWritable);
-      })()));
-      var calMode = state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
-      var ledgerData = buildCustomerLedgerData({
-        folder: scopeFld,
-        includeAllCustomerTables: true,
-        calendarMode: calMode
-      });
       var cardTitle = isAllScope
         ? 'Customer Statement Summary &mdash; All Folders'
         : ('Customer Statement Summary &mdash; ' + esc(scopeFld));
@@ -23217,7 +23584,7 @@
             '<span style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">' + icon('ledger', 18) + '</span>' +
             '<div style="min-width:0;">' +
               '<div style="font-size:14px;font-weight:800;color:#0F172A;">' + cardTitle + '</div>' +
-              '<div class="num-tab" style="font-size:11.5px;color:#64748B;">' + statementTables.length + ' table' + (statementTables.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.customerSummaries.length + ' customer' + (ledgerData.customerSummaries.length === 1 ? '' : 's') + ' &middot; ' + ledgerData.rows.length + ' transaction' + (ledgerData.rows.length === 1 ? '' : 's') + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
+              '<div class="num-tab" style="font-size:11.5px;color:#64748B;">' + statementTables.length + ' table' + (statementTables.length === 1 ? '' : 's') + ' &middot; ' + custCount + ' customer' + (custCount === 1 ? '' : 's') + ' &middot; ' + txCount + ' transaction' + (txCount === 1 ? '' : 's') + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
@@ -23233,9 +23600,9 @@
           '</div>' +
         '</div>' +
         '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
-          '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(ledgerData.totalCredit)) + '</div></div>' +
-          '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(ledgerData.totalPaid)) + '</div></div>' +
-          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(ledgerData.outstandingBalance)) + '</div></div>' +
+          '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(totalCreditVal)) + '</div></div>' +
+          '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(totalPaidVal)) + '</div></div>' +
+          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(outstandingBalVal)) + '</div></div>' +
         '</div>' +
       '</section>';
     }
