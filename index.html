@@ -18612,18 +18612,34 @@
         var cnameCol = findCol(['customer', 'user', 'name', 'client', 'buyer', 'col_cname', 'col_user', 'col_buyer']) || textCols[0];
         var qtyCol = findCol(['quantity', 'qty', 'count', 'pcs', 'kg', 'bag', 'bags', 'unit', 'units', 'col_qty', 'col_quantity'], null, true);
         var qualCol = findCol(['quality', 'item', 'message', 'pair', 'inquiry', 'product', 'col_quality', 'col_item', 'quantity']) || (textCols[1] && textCols[1].id !== (cnameCol && cnameCol.id) ? textCols[1] : null);
-        var balCol = findCol(['remaining', 'remain', 'balance', 'rominbalce', 'reminbalce', 'romin', 'remin', 'balce', 'balnce', 'due', 'unpaid', 'owed', 'debt', 'ቀሪ', 'col_balance'], null, true);
+        var detRep = typeof detectLedgerColumns === 'function' ? detectLedgerColumns(bot) : null;
+        var repPriceId = detRep && detRep.priceCol ? detRep.priceCol.id : '';
+        var repProdMap = {};
+        if (detRep && Array.isArray(detRep.productCols)) {
+          detRep.productCols.forEach(function (pc) { if (pc && pc.id) repProdMap[pc.id] = true; });
+        }
+        var balCol = (detRep && detRep.balCol) || findCol(['remaining', 'remain', 'balance', 'rominbalce', 'reminbalce', 'reamingbalce', 'romin', 'remin', 'balce', 'balnce', 'due', 'unpaid', 'owed', 'debt', 'ቀሪ', 'col_balance'], null, true);
         var exclPaidTot = {};
         if (balCol) exclPaidTot[balCol.id] = true;
+        if (repPriceId) exclPaidTot[repPriceId] = true;
+        Object.keys(repProdMap).forEach(function (pid) { exclPaidTot[pid] = true; });
         bot.columns.forEach(function (c) {
           if (c.type === 'date' || isPaidColName(c.name)) exclPaidTot[c.id] = true;
         });
-        var totCol = findCol(['total', 'grand', 'invoice', 'sale', 'credit', 'debit', 'gross', 'subtotal', 'ጠቅላላ', 'col_total', 'formula'], exclPaidTot, true);
+        var totCol = (detRep && detRep.saleAmtCol) || findCol(['total', 'grand', 'invoice', 'sale', 'credit', 'debit', 'gross', 'subtotal', 'ጠቅላላ', 'col_total', 'formula'], exclPaidTot, true);
         var exclPaid = {};
         if (balCol) exclPaid[balCol.id] = true;
         if (totCol) exclPaid[totCol.id] = true;
-        var paidCol = findCol(['paid', 'payment', 'received', 'deposit', 'pay', 'የተከፈለ', 'col_paid', 'price', 'target', 'amount', 'col_amount'], exclPaid, true) ||
-          findCol(['paid', 'col_paid', 'amount', 'price', 'target', 'col_amount'], balCol ? (function () { var m = {}; m[balCol.id] = true; return m; }()) : null, true);
+        if (repPriceId) exclPaid[repPriceId] = true;
+        Object.keys(repProdMap).forEach(function (pid) { exclPaid[pid] = true; });
+        var paidCol = (detRep && detRep.payAmtCol) || findCol(['paid', 'payment', 'received', 'deposit', 'pay', 'የተከፈለ', 'col_paid', 'target', 'amount', 'col_amount'], exclPaid, true) ||
+          findCol(['paid', 'col_paid', 'amount', 'target', 'col_amount'], (function () {
+            var m = {};
+            if (balCol) m[balCol.id] = true;
+            if (repPriceId) m[repPriceId] = true;
+            Object.keys(repProdMap).forEach(function (pid) { m[pid] = true; });
+            return m;
+          }()), true);
         var allDateCols = bot.columns.filter(function (c) { return c.type === 'date'; });
         var textDateCols = bot.columns.filter(function (c) { return c.type !== 'date' && /date|time|ቀን|eth|day/i.test(String(c.name || '')); });
         var otherTextCols = bot.columns.filter(function (c) {
@@ -18845,14 +18861,23 @@
             });
           });
 
+          var prodCalcRep = (typeof computeRowProductCredit === 'function' && detRep)
+            ? computeRowProductCredit(row, detRep, bot)
+            : { hasProductPrice: false, qtySum: 0, credit: 0 };
+          if (qtyVal <= 0 && prodCalcRep.qtySum > 0) qtyVal = prodCalcRep.qtySum;
+
           var totVal = colNum(totCol);
+          if (totVal <= 0 && prodCalcRep.hasProductPrice && row._ledgerKind !== 'payment') {
+            totVal = prodCalcRep.credit;
+          }
           var paidVal = colNum(paidCol);
-          var balVal = (balCol && (row[balCol.id] !== undefined && row[balCol.id] !== '' || balCol.type === 'formula'))
+          var hasBalCell = Boolean(balCol && (row[balCol.id] !== undefined && row[balCol.id] !== '' || balCol.type === 'formula'));
+          var balVal = hasBalCell
             ? colNum(balCol)
-            : (totVal > 0 && paidCol && (!totCol || totCol.id !== paidCol.id) ? Math.max(0, totVal - paidVal) : 0);
+            : (totVal > 0 && (paidCol || prodCalcRep.hasProductPrice) && (!totCol || !paidCol || totCol.id !== paidCol.id) ? Math.max(0, roundEtb2(totVal - paidVal)) : 0);
           if (totVal <= 0 && !balCol) totVal = paidVal > 0 ? paidVal : rowNumFormulaSum;
-          if (totVal <= 0 && balCol) totVal = paidVal + balVal;
-          if (paidVal <= 0 && totVal > 0 && !balCol) paidVal = totVal;
+          if (totVal <= 0 && balCol) totVal = roundEtb2(paidVal + balVal);
+          if (paidVal <= 0 && totVal > 0 && !balCol && !paidCol && !prodCalcRep.hasProductPrice) paidVal = totVal;
           var st = balVal > 0.01 && paidVal > 0 ? 'Partial' : balVal > 0.01 ? 'Unpaid' : 'Paid in Full';
 
           items.push({
@@ -22294,8 +22319,8 @@
       );
       var typeCol = findCol(['type', 'tx type', 'transaction type', 'entry type'], [/\btype\b/i]);
       var balCol = findCol(
-        ['running balance', 'outstanding balance', 'remaining balance', 'romainbalce', 'romain balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
-        [/running\s*bal|remaining\s*bal|outstanding|romain|\bbalance\b|balce|balnce|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b|ቀሪ/i],
+        ['running balance', 'outstanding balance', 'remaining balance', 'romainbalce', 'rominbalce', 'reminbalce', 'reamingbalce', 'reaming balance', 'romain balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
+        [/running\s*bal|remaining\s*bal|reaming\s*bal|outstanding|romain|rominbalce|reminbalce|reamingbalce|\bbalance\b|balce|balnce|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b|ቀሪ/i],
         null,
         true
       );
@@ -22328,15 +22353,56 @@
       if (saleDateCol) exclPayBal[saleDateCol.id] = true;
 
       var saleAmtCol = findCol(
-        ['sale amount', 'credit amount', 'sale / credit', 'credit'],
-        [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount)?/i],
+        ['sale amount', 'credit amount', 'sale / credit', 'credit', 'total credit', 'ክሬዲት', 'ብድር'],
+        [/sale\s*(?:amt|amount)|credit\s*(?:amt|amount)?|\btotal\s*credit\b|ክሬዲት|ብድር/i],
         exclPayBal,
         true
       );
+
+      var exclForPrice = Object.assign({}, exclPayBal);
+      if (saleAmtCol) exclForPrice[saleAmtCol.id] = true;
+      if (typeCol) exclForPrice[typeCol.id] = true;
+      cols.forEach(function (c) {
+        var nm = String(c.name || '').trim().toLowerCase();
+        if (/\btotal\s*price\b|\bgrand\b|\bcredit\b|\bsale\s*amount\b/i.test(nm)) exclForPrice[c.id] = true;
+      });
+      var priceCol = findCol(
+        ['unit price', 'price', 'rate', 'selling price', 'sale price', 'price per unit', 'unit rate', 'ዋጋ', 'የአንዱ ዋጋ', 'ያንዱ ዋጋ'],
+        [/^(?:unit|selling|sale)?\s*price$/i, /\bunit\s*price\b|\bselling\s*price\b|\bprice\b|\brate\b|የአንዱ\s*ዋጋ|^ዋጋ$/i],
+        exclForPrice,
+        true
+      );
+
+      var exclForProd = Object.assign({}, exclPayBal);
+      if (typeCol) exclForProd[typeCol.id] = true;
+      if (saleAmtCol) exclForProd[saleAmtCol.id] = true;
+      if (priceCol) exclForProd[priceCol.id] = true;
+      var prodNameRe = /miyaw|miyawa|ሚያው|ሜያው|ሚያዋ|mad\s*\d+|mad\d+|ma['’]?ed\s*\d+|kuntal|quintal|ኩንታል|sack|sacks|bag|bags|qty|quantity|pcs|pieces|kg|unit|units|pack|carton|product|3a|salt|lomi|ሎሚ|ጨው|ብዛት/i;
+      var nonProdNameRe = /date|ቀን|bal|remain|romin|remin|reaming|paid|\bpay\b|payment|credit|total|price|rate|note|remark|ref|cust|buyer|client|type/i;
+      var productCols = cols.filter(function (c) {
+        if (!c || exclForProd[c.id]) return false;
+        if (c.type === 'date' || c.type === 'checkbox') return false;
+        var nm = String(c.name || '').trim();
+        if (!nm || nonProdNameRe.test(nm)) return false;
+        return prodNameRe.test(nm);
+      });
+      if (productCols.length === 0 && priceCol) {
+        productCols = cols.filter(function (c) {
+          if (!c || exclForProd[c.id]) return false;
+          if (c.type !== 'number') return false;
+          var nm = String(c.name || '').trim();
+          return nm && !nonProdNameRe.test(nm) && !/amount|birr|etb|sum/i.test(nm);
+        });
+      }
+
+      var exclForNoteAndTotal = Object.assign({}, exclPayBal);
+      if (priceCol) exclForNoteAndTotal[priceCol.id] = true;
+      productCols.forEach(function (pc) { exclForNoteAndTotal[pc.id] = true; });
+
       var noteCol = findCol(
         ['reference / note', 'note', 'notes', 'description', 'remark', 'quality / quantity'],
-        [/note|remark|ref|desc|item|detail/i],
-        exclPayBal
+        [/note|remark|ref|desc|detail/i],
+        exclForNoteAndTotal
       );
 
       // Fallback general date / total amount (supporting formula & amount columns on standard tables)
@@ -22349,14 +22415,15 @@
       var genericTotalCol = saleAmtCol || findCol(
         ['total amount', 'grand total', 'total price', 'total sales', 'invoice', 'total', 'sales', 'sale', 'debit', 'amount', 'birr', 'etb', 'sum'],
         [/\btotal\b|grand|invoice|\bamount\b|\bsum\b/i, /\bdebit\b|\bbirr\b|\betb\b/i],
-        exclPayBal,
+        exclForNoteAndTotal,
         true
       ) || cols.find(function (c) {
-        return !exclPayBal[c.id] && (c.type === 'formula' || c.type === 'amount');
+        return !exclForNoteAndTotal[c.id] && (c.type === 'formula' || c.type === 'amount');
       }) || null;
 
+      var hasProductPriceCols = Boolean(priceCol && productCols.length > 0);
       var hasDedicatedCols = Boolean(custCol && saleDateCol && saleAmtCol && payDateCol && payAmtCol && balCol);
-      var hasBalanceSignal = Boolean(custCol && (balCol || (saleAmtCol && payAmtCol) || (genericTotalCol && payAmtCol)));
+      var hasBalanceSignal = Boolean(custCol && (balCol || (saleAmtCol && payAmtCol) || (genericTotalCol && payAmtCol) || hasProductPriceCols));
       var detOut = {
         custCol: custCol,
         typeCol: typeCol,
@@ -22365,6 +22432,9 @@
         payDateCol: payDateCol,
         payAmtCol: payAmtCol,
         balCol: balCol,
+        priceCol: priceCol,
+        productCols: productCols,
+        hasProductPriceCols: hasProductPriceCols,
         noteCol: noteCol,
         genericDateCol: genericDateCol,
         genericTotalCol: genericTotalCol,
@@ -22376,6 +22446,34 @@
         _detectLedgerColsCache[cacheId] = { colsRef: cols, sig: colSig, res: detOut };
       }
       return detOut;
+    }
+
+    function computeRowProductCredit(row, det, bot) {
+      if (!row || !det || !det.priceCol || !Array.isArray(det.productCols) || det.productCols.length === 0) {
+        return { hasProductPrice: false, qtySum: 0, unitPrice: 0, credit: 0, items: [] };
+      }
+      var unitPrice = readLedgerNumericCell(row, det.priceCol, bot);
+      var qtySum = 0;
+      var hasAnyQty = false;
+      var items = [];
+      for (var i = 0; i < det.productCols.length; i++) {
+        var pc = det.productCols[i];
+        var qv = readLedgerNumericCell(row, pc, bot);
+        if (!isNaN(qv) && isFinite(qv) && qv !== 0) {
+          hasAnyQty = true;
+          qtySum = roundEtb2(qtySum + qv);
+          items.push({ col: pc, name: pc.name || 'Product', qty: qv });
+        }
+      }
+      var hasPrice = !isNaN(unitPrice) && isFinite(unitPrice) && unitPrice > 0;
+      var credit = (hasAnyQty && hasPrice) ? roundEtb2(qtySum * unitPrice) : 0;
+      return {
+        hasProductPrice: Boolean(hasAnyQty && hasPrice),
+        qtySum: qtySum,
+        unitPrice: hasPrice ? unitPrice : 0,
+        credit: credit,
+        items: items
+      };
     }
 
     function getTableCustomerCol(bot) {
@@ -22420,8 +22518,9 @@
       return list;
     }
 
-    function createLedgerBotInFolder(folderName, tableName, calendarMode, skipOpenModal) {
+    function createLedgerBotInFolder(folderName, tableName, calendarMode, skipOpenModal, options) {
       if (!guardWriteAction('Create Customer Account Ledger')) return null;
+      options = options || {};
       var cleanFolder = sanitizeUserText(normalizeFolderName(folderName || ((state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : (state.adminConfig.telegramDefaultFolder || 'General'))), 80) || 'General';
       if (cleanFolder.toLowerCase() === 'all') cleanFolder = 'General';
       var existingFld = getAllFolders().find(function (f) { return f.toLowerCase() === cleanFolder.toLowerCase(); });
@@ -22444,13 +22543,75 @@
       }
 
       var calMode = calendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      var templateMode = options.template === 'standard' ? 'standard' : 'product_price';
+      var rawProdList = Array.isArray(options.products) && options.products.length > 0
+        ? options.products
+        : ['Miyawa', 'Mad250', 'Mad500', 'Kuntal'];
+      var seenProdNames = {};
+      var prodNames = [];
+      rawProdList.forEach(function (pn) {
+        var cleanP = sanitizeUserText(pn, 40).replace(/[{}]/g, '').trim();
+        if (!cleanP) return;
+        var pk = cleanP.toLowerCase();
+        if (!seenProdNames[pk]) {
+          seenProdNames[pk] = true;
+          prodNames.push(cleanP);
+        }
+      });
+      if (prodNames.length === 0) prodNames = ['Miyawa', 'Mad250', 'Mad500', 'Kuntal'];
+
       var id = Date.now() + Math.floor(Math.random() * 100);
       var actor = getCurrentActor();
       var nowIso = new Date().toISOString();
+      var columns;
+      if (templateMode === 'product_price') {
+        var prodSumExpr = prodNames.map(function (pn) { return '{' + pn + '}'; }).join(' + ');
+        var creditFormula = '=(' + prodSumExpr + ') * {Price}';
+        columns = [
+          { id: 'col_l_cust_' + id, name: 'Customer Name', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0F172A', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_type_' + id, name: 'Type', type: 'text', widthMultiplier: 0.9, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'center', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_sdate_' + id, name: 'Sale Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E40AF', bgColor: '#FFFFFF' }, includeInGraph: false }
+        ];
+        prodNames.forEach(function (pn, pIdx) {
+          columns.push({
+            id: 'col_l_prod_' + pIdx + '_' + id,
+            name: pn,
+            type: 'number',
+            widthMultiplier: 0.88,
+            currency: 'None',
+            thousandSeparator: true,
+            decimals: 0,
+            style: { bold: true, italic: false, align: 'right', color: '#0F172A', bgColor: '#FFFFFF' },
+            includeInGraph: true
+          });
+        });
+        columns.push(
+          { id: 'col_l_price_' + id, name: 'Price', type: 'amount', widthMultiplier: 0.95, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#334155', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_samt_' + id, name: 'Credit', type: 'formula', formulaExpr: creditFormula, widthMultiplier: 1.15, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#1E40AF', bgColor: '#EFF6FF' }, includeInGraph: true },
+          { id: 'col_l_pdate_' + id, name: 'Payment Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_pamt_' + id, name: 'Paid', type: 'amount', widthMultiplier: 1.1, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_rbal_' + id, name: 'Remaining Balance', type: 'amount', widthMultiplier: 1.25, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#B45309', bgColor: '#FFFBEB' }, includeInGraph: true },
+          { id: 'col_l_note_' + id, name: 'Reference / Note', type: 'text', widthMultiplier: 1.35, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#475569', bgColor: '#FFFFFF' }, includeInGraph: false }
+        );
+      } else {
+        columns = [
+          { id: 'col_l_cust_' + id, name: 'Customer Name', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0F172A', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_type_' + id, name: 'Type', type: 'text', widthMultiplier: 0.9, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'center', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_sdate_' + id, name: 'Sale Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E40AF', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_samt_' + id, name: 'Sale Amount', type: 'amount', widthMultiplier: 1.15, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#1E40AF', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_pdate_' + id, name: 'Payment Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: false },
+          { id: 'col_l_pamt_' + id, name: 'Paid Amount', type: 'amount', widthMultiplier: 1.15, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: true },
+          { id: 'col_l_rbal_' + id, name: 'Running Balance', type: 'amount', widthMultiplier: 1.25, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#0F172A', bgColor: '#F8FAFC' }, includeInGraph: true },
+          { id: 'col_l_note_' + id, name: 'Reference / Note', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#475569', bgColor: '#FFFFFF' }, includeInGraph: false }
+        ];
+      }
+
       var ledgerBot = {
         id: 'bot_ledger_' + id,
         name: finalName,
-        description: 'Customer Account Ledger with separate Sale/Payment columns & automatic ETB Running Balance',
+        description: templateMode === 'product_price'
+          ? ('Product × Price Customer Statement (' + prodNames.join(', ') + ' × Price -> Credit & Remaining Balance)')
+          : 'Customer Account Ledger with separate Sale/Payment columns & automatic ETB Running Balance',
         folder: cleanFolder,
         isLedgerTable: true,
         ledgerCalendarMode: calMode,
@@ -22463,16 +22624,7 @@
         createdBy: actor,
         lastEditedBy: actor,
         updatedAt: nowIso,
-        columns: [
-          { id: 'col_l_cust_' + id, name: 'Customer Name', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'left', color: '#0F172A', bgColor: '#FFFFFF' }, includeInGraph: true },
-          { id: 'col_l_type_' + id, name: 'Type', type: 'text', widthMultiplier: 0.9, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: true, italic: false, align: 'center', color: '#0D47A1', bgColor: '#FFFFFF' }, includeInGraph: false },
-          { id: 'col_l_sdate_' + id, name: 'Sale Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#1E40AF', bgColor: '#FFFFFF' }, includeInGraph: false },
-          { id: 'col_l_samt_' + id, name: 'Sale Amount', type: 'amount', widthMultiplier: 1.15, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#1E40AF', bgColor: '#FFFFFF' }, includeInGraph: true },
-          { id: 'col_l_pdate_' + id, name: 'Payment Date', type: 'date', calendarType: calMode, dateFormat: 'dmy', autoInsertDate: false, widthMultiplier: 1.05, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: false },
-          { id: 'col_l_pamt_' + id, name: 'Paid Amount', type: 'amount', widthMultiplier: 1.15, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#047857', bgColor: '#FFFFFF' }, includeInGraph: true },
-          { id: 'col_l_rbal_' + id, name: 'Running Balance', type: 'amount', widthMultiplier: 1.25, currency: 'ETB', thousandSeparator: true, decimals: 2, style: { bold: true, italic: false, align: 'right', color: '#0F172A', bgColor: '#F8FAFC' }, includeInGraph: true },
-          { id: 'col_l_note_' + id, name: 'Reference / Note', type: 'text', widthMultiplier: 1.4, currency: 'None', thousandSeparator: false, decimals: 0, style: { bold: false, italic: false, align: 'left', color: '#475569', bgColor: '#FFFFFF' }, includeInGraph: false }
-        ],
+        columns: columns,
         rows: []
       };
 
@@ -22495,14 +22647,18 @@
       var typeRaw = det.typeCol ? String(row[det.typeCol.id] || '').trim() : '';
       var sDateRaw = det.saleDateCol ? String(row[det.saleDateCol.id] || '').trim() : (det.genericDateCol ? String(row[det.genericDateCol.id] || '').trim() : '');
       var pDateRaw = det.payDateCol ? String(row[det.payDateCol.id] || '').trim() : '';
-      var sAmtRaw = det.saleAmtCol ? row[det.saleAmtCol.id] : (det.genericTotalCol ? row[det.genericTotalCol.id] : '');
-      var pAmtRaw = det.payAmtCol ? row[det.payAmtCol.id] : '';
-      var sAmt = (sAmtRaw !== '' && sAmtRaw !== null && sAmtRaw !== undefined) ? parseNumSafe(sAmtRaw) : 0;
-      var pAmt = (pAmtRaw !== '' && pAmtRaw !== null && pAmtRaw !== undefined) ? parseNumSafe(pAmtRaw) : 0;
+      var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+      var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+      var pAmt = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
       if (isNaN(sAmt)) sAmt = 0;
       if (isNaN(pAmt)) pAmt = 0;
 
-      var hasAnyVal = Boolean(custRaw || sDateRaw || pDateRaw || sAmt !== 0 || pAmt !== 0);
+      var prodCalc = computeRowProductCredit(row, det, bot);
+      if (sAmt === 0 && row._ledgerKind !== 'payment' && prodCalc.hasProductPrice) {
+        sAmt = prodCalc.credit;
+      }
+
+      var hasAnyVal = Boolean(custRaw || sDateRaw || pDateRaw || sAmt !== 0 || pAmt !== 0 || prodCalc.qtySum !== 0);
       if (!hasAnyVal) return null;
 
       var isPayment = row._ledgerKind === 'payment' || /^payment/i.test(typeRaw) || (pAmt !== 0 && sAmt === 0 && !sDateRaw) || (Boolean(pDateRaw) && !sDateRaw && sAmt === 0);
@@ -22591,11 +22747,35 @@
       var custName = sanitizeUserText((tx && tx.customerName) || '', 120);
       if (!custName) return { ok: false, error: 'Customer Name is required.' };
 
+      var prodVals = (tx && tx.productValues && typeof tx.productValues === 'object') ? tx.productValues : null;
+      var priceRaw = (tx && tx.price !== undefined && tx.price !== null && tx.price !== '') ? sanitizeNumericInput(tx.price) : '';
+      var unitPriceNum = (priceRaw !== '' && !isNaN(Number(priceRaw))) ? roundEtb2(Number(priceRaw)) : 0;
+      var prodQtySum = 0;
+      var prodPartsLabel = [];
+      if (kind === 'sale' && prodVals && det.productCols && det.productCols.length > 0) {
+        det.productCols.forEach(function (pc) {
+          var pvRaw = prodVals[pc.id];
+          if (pvRaw === undefined || pvRaw === null || pvRaw === '') return;
+          var pvNum = parseNumSafe(pvRaw);
+          if (!isNaN(pvNum) && isFinite(pvNum) && pvNum > 0) {
+            prodQtySum = roundEtb2(prodQtySum + pvNum);
+            prodPartsLabel.push(pc.name + ' ' + pvNum);
+          }
+        });
+      }
+      var computedProdCredit = (kind === 'sale' && prodQtySum > 0 && unitPriceNum > 0) ? roundEtb2(prodQtySum * unitPriceNum) : 0;
+
       var amtNum = sanitizeNumericInput(tx && tx.amount);
+      if ((amtNum === '' || isNaN(Number(amtNum)) || Number(amtNum) <= 0) && computedProdCredit > 0) {
+        amtNum = computedProdCredit;
+      }
       if (amtNum === '' || isNaN(Number(amtNum)) || Number(amtNum) <= 0) {
-        return { ok: false, error: 'Please enter a valid positive amount in ETB (> 0).' };
+        return { ok: false, error: (kind === 'sale' && det.hasProductPriceCols) ? 'Please enter Product quantities & Price (or Credit amount > 0).' : 'Please enter a valid positive amount in ETB (> 0).' };
       }
       amtNum = roundEtb2(Number(amtNum));
+
+      var paidNowRaw = (kind === 'sale' && tx && tx.paidNow !== undefined && tx.paidNow !== null && tx.paidNow !== '') ? sanitizeNumericInput(tx.paidNow) : '';
+      var paidNowNum = (paidNowRaw !== '' && !isNaN(Number(paidNowRaw)) && Number(paidNowRaw) > 0) ? roundEtb2(Number(paidNowRaw)) : 0;
 
       var calMode = (tx && tx.calendarMode) || bot.ledgerCalendarMode || 'ethiopian';
       var targetDateCol = kind === 'payment' ? (det.payDateCol || det.saleDateCol || det.genericDateCol) : (det.saleDateCol || det.genericDateCol || det.payDateCol);
@@ -22630,10 +22810,52 @@
       if (kind === 'sale') {
         if (det.saleDateCol) nr[det.saleDateCol.id] = storedDateStr;
         else if (det.genericDateCol) nr[det.genericDateCol.id] = storedDateStr;
-        if (det.saleAmtCol) nr[det.saleAmtCol.id] = amtNum;
-        else if (det.genericTotalCol) nr[det.genericTotalCol.id] = amtNum;
+
+        if (det.productCols && det.productCols.length > 0 && prodVals) {
+          det.productCols.forEach(function (pc) {
+            var pvRaw = prodVals[pc.id];
+            var pvNum = (pvRaw !== undefined && pvRaw !== null && pvRaw !== '') ? parseNumSafe(pvRaw) : NaN;
+            if (!isNaN(pvNum) && isFinite(pvNum) && pvNum > 0) nr[pc.id] = pvNum;
+          });
+        }
+        if (det.priceCol && unitPriceNum > 0) {
+          nr[det.priceCol.id] = unitPriceNum;
+        }
+
+        var targetSaleCol = det.saleAmtCol || det.genericTotalCol;
+        if (targetSaleCol) {
+          if (targetSaleCol.type === 'formula') {
+            nr[targetSaleCol.id] = (computedProdCredit > 0 && Math.abs(computedProdCredit - amtNum) < 0.01) ? '' : ('=' + amtNum);
+          } else {
+            nr[targetSaleCol.id] = amtNum;
+          }
+        }
         if (det.payDateCol) nr[det.payDateCol.id] = '';
         if (det.payAmtCol) nr[det.payAmtCol.id] = '';
+
+        bot.rows.push(nr);
+
+        if (paidNowNum > 0 && det.payAmtCol) {
+          if (isLedgerBot(bot)) {
+            var nrPay = buildBlankRowForBot(bot);
+            nrPay.id = 'ltxp_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+            nrPay._createdAt = nowIso;
+            nrPay._updatedAt = nowIso;
+            nrPay._actor = getCurrentActor();
+            nrPay._ledgerKind = 'payment';
+            nrPay._txSeq = maxSeq + 2;
+            nrPay[det.custCol.id] = custName;
+            if (det.typeCol) nrPay[det.typeCol.id] = 'Payment';
+            if (det.noteCol) nrPay[det.noteCol.id] = noteVal ? (noteVal + ' (Initial Paid)') : 'Initial Paid';
+            if (det.payDateCol) nrPay[det.payDateCol.id] = storedDateStr;
+            else if (det.genericDateCol) nrPay[det.genericDateCol.id] = storedDateStr;
+            if (det.payAmtCol.type !== 'formula') nrPay[det.payAmtCol.id] = paidNowNum;
+            bot.rows.push(nrPay);
+          } else {
+            if (det.payAmtCol.type !== 'formula') nr[det.payAmtCol.id] = paidNowNum;
+            if (det.payDateCol) nr[det.payDateCol.id] = storedDateStr;
+          }
+        }
       } else {
         // Record payment strictly on its own separate row — NEVER combine with sale or prior payment dates
         if (det.saleDateCol) nr[det.saleDateCol.id] = '';
@@ -22641,13 +22863,15 @@
         if (det.payDateCol) nr[det.payDateCol.id] = storedDateStr;
         else if (det.genericDateCol) nr[det.genericDateCol.id] = storedDateStr;
         if (det.payAmtCol) nr[det.payAmtCol.id] = amtNum;
+        bot.rows.push(nr);
       }
 
-      bot.rows.push(nr);
       recalculateLedgerBotBalances(bot);
       bot.updatedAt = nowIso;
-      updateBot(bot, 'ADD', (kind === 'payment' ? 'Payment' : 'Credit Sale') + ' for "' + custName + '" (' + formatEtbAmount(amtNum) + ' on ' + storedDateStr + ')');
-      return { ok: true, row: nr, bot: bot };
+      var auditExtra = prodPartsLabel.length > 0 && unitPriceNum > 0 ? (' [' + prodPartsLabel.join(', ') + ' × ' + unitPriceNum + ']') : '';
+      var paidAuditExtra = paidNowNum > 0 ? (' · Paid ' + formatEtbAmount(paidNowNum)) : '';
+      updateBot(bot, 'ADD', (kind === 'payment' ? 'Payment' : 'Credit Sale') + ' for "' + custName + '" (' + formatEtbAmount(amtNum) + auditExtra + paidAuditExtra + ' on ' + storedDateStr + ')');
+      return { ok: true, row: nr, bot: bot, creditAmount: amtNum, paidNow: paidNowNum };
     }
 
     function getFallbackPaymentDateStr(row, det, bot) {
@@ -22747,10 +22971,45 @@
     function syncRowPaymentHistoryOnEdit(bot, row, col, prevVal, newVal, nowIso) {
       if (!bot || !row || !col || typeof detectLedgerColumns !== 'function') return;
       var det = detectLedgerColumns(bot);
-      if (!det || !det.payAmtCol) return;
+      if (!det) return;
 
       var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+      var isProdOrPriceEdit = Boolean((det.priceCol && col.id === det.priceCol.id) || (Array.isArray(det.productCols) && det.productCols.some(function (pc) { return pc.id === col.id; })));
+      var isSaleColEdit = Boolean(activeSaleCol && col.id === activeSaleCol.id);
+      var prodCalcEdit = computeRowProductCredit(row, det, bot);
+
+      if (isProdOrPriceEdit || isSaleColEdit) {
+        var computedCredit = prodCalcEdit.hasProductPrice ? prodCalcEdit.credit : 0;
+        if (isProdOrPriceEdit && det.saleAmtCol && det.saleAmtCol.type !== 'formula' && prodCalcEdit.hasProductPrice) {
+          var rawSC = row[det.saleAmtCol.id];
+          var isEmptySC = (rawSC === undefined || rawSC === null || String(rawSC).trim() === '');
+          if (isEmptySC || row._autoSyncedCredit) {
+            row[det.saleAmtCol.id] = computedCredit;
+            row._autoSyncedCredit = true;
+          }
+        }
+        var effSaleAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+        if (effSaleAmt === 0 && row._ledgerKind !== 'payment' && computedCredit > 0) {
+          effSaleAmt = computedCredit;
+        }
+        if (det.balCol && det.balCol.type !== 'formula' && effSaleAmt >= 0 && (effSaleAmt > 0 || row._autoSyncedBal)) {
+          var curPaidEdit = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
+          var curBalRawE = row[det.balCol.id];
+          var curBalStrE = (curBalRawE === undefined || curBalRawE === null) ? '' : String(curBalRawE).trim();
+          if (curBalStrE === '' || row._autoSyncedBal) {
+            row[det.balCol.id] = effSaleAmt > 0 ? roundEtb2(effSaleAmt - Math.max(0, curPaidEdit)) : '';
+            row._autoSyncedBal = true;
+          }
+        }
+        return;
+      }
+
+      if (!det.payAmtCol) return;
+
       var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+      if (sAmt === 0 && row._ledgerKind !== 'payment' && prodCalcEdit.hasProductPrice) {
+        sAmt = prodCalcEdit.credit;
+      }
       if (row._ledgerKind === 'payment' && sAmt === 0) return;
 
       var ts = nowIso || new Date().toISOString();
@@ -22819,8 +23078,9 @@
           var curBalStr = (curBalRaw === undefined || curBalRaw === null) ? '' : String(curBalRaw).trim();
           var curBalNum = curBalStr !== '' ? parseNumSafe(curBalRaw) : NaN;
           var expectedPrevBal = roundEtb2(sAmt - prevPaid);
-          if (curBalStr === '' || (!isNaN(curBalNum) && Math.abs(curBalNum - expectedPrevBal) <= 0.05)) {
+          if (curBalStr === '' || row._autoSyncedBal || (!isNaN(curBalNum) && Math.abs(curBalNum - expectedPrevBal) <= 0.05)) {
             row[det.balCol.id] = roundEtb2(sAmt - Math.max(0, newPaid));
+            row._autoSyncedBal = true;
           }
         }
         return;
@@ -22967,6 +23227,10 @@
 
       var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
       var sAmt = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+      var prodCalcExt = computeRowProductCredit(row, det, bot);
+      if (sAmt === 0 && row._ledgerKind !== 'payment' && prodCalcExt.hasProductPrice) {
+        sAmt = prodCalcExt.credit;
+      }
       var pAmt = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
       if (pAmt === 0 && pDateRaw && (!det.payDateCol || det.payDateCol.type !== 'date') && typeof extractAmountFromMixedCell === 'function') {
         var pInlineAmt = extractAmountFromMixedCell(pDateRaw, det.payDateCol, row, bot);
@@ -23003,6 +23267,10 @@
           ? (rawCell ? 'Yes' : 'No')
           : formatCell(rawCell, colObj, row, bot);
         var dispClean = dispCell !== undefined && dispCell !== null ? String(dispCell).trim() : '';
+        if (activeSaleCol && colObj.id === activeSaleCol.id && dispClean === '' && prodCalcExt.hasProductPrice && row._ledgerKind !== 'payment') {
+          numCellVal = prodCalcExt.credit;
+          dispClean = formatNumericValue(prodCalcExt.credit, colObj);
+        }
         var hasVal = colObj.type === 'checkbox'
           ? Boolean(rawCell)
           : (colObj.type === 'formula'
@@ -23862,7 +24130,7 @@
         primaryLedger = folderLedgers[0] || statementTables[0] || null;
         canRecordQuick = Boolean(primaryLedger && (isLedgerBot(primaryLedger) || (function () {
           var dCheck = detectLedgerColumns(primaryLedger);
-          var sWritable = !dCheck.saleAmtCol || dCheck.saleAmtCol.type !== 'formula';
+          var sWritable = !dCheck.saleAmtCol || dCheck.saleAmtCol.type !== 'formula' || dCheck.hasProductPriceCols;
           var pWritable = !dCheck.payAmtCol || dCheck.payAmtCol.type !== 'formula';
           return Boolean(dCheck.custCol && dCheck.balCol && sWritable && pWritable);
         })()));
@@ -23949,14 +24217,16 @@
       var defaultFld = (m && m.folder && m.folder !== 'all') ? m.folder : ((state.selectedFolder && state.selectedFolder !== 'all') ? state.selectedFolder : (state.adminConfig.telegramDefaultFolder || 'General'));
       var defaultName = m.name || (defaultFld + ' Customer Ledger');
       var calMode = m.calendarMode || (state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian');
+      var defaultTemplate = m.template === 'standard' ? 'standard' : 'product_price';
+      var presetProducts = ['Miyawa', 'Mad250', 'Mad500', 'Kuntal'];
 
-      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:460px;" id="m-card">' +
+      var html = '<div class="modal-backdrop" id="m-bg"><div class="modal-card narrow" style="max-width:520px;" id="m-card">' +
         '<header class="modal-header" style="background:linear-gradient(135deg,#065F46,#0F766E);">' +
           '<div style="display:flex;align-items:center;gap:8px;">' + icon('ledger', 20) + '<h2 style="font-size:15.5px;font-weight:700;">Create Customer Account Ledger</h2></div>' +
           '<button class="icon-btn" id="cl-close">' + icon('close', 18) + '</button>' +
         '</header>' +
-        '<form id="cl-form" class="modal-body" style="display:flex;flex-direction:column;gap:13px;">' +
-          '<p style="font-size:12px;color:#475569;line-height:1.45;">Creates a dedicated ledger table inside a Dashboard folder with separate Sale Date / Sale Amount, Payment Date / Paid Amount, and automatic ETB Running Balance columns.</p>' +
+        '<form id="cl-form" class="modal-body" style="display:flex;flex-direction:column;gap:12px;">' +
+          '<p style="font-size:12px;color:#475569;line-height:1.45;">Creates a Customer Statement table with automatic <strong>Credit = (Products) &times; Price</strong> and <strong>Remaining Balance = Credit &minus; Paid</strong> calculations.</p>' +
           '<div>' +
             '<label class="field-label" for="cl-folder">Folder (Pick Existing or Type New Folder)</label>' +
             '<input id="cl-folder" class="form-input" list="cl-folder-list" value="' + esc(defaultFld) + '" placeholder="e.g. Sales, Customer Accounts..." required />' +
@@ -23965,6 +24235,29 @@
           '<div>' +
             '<label class="field-label" for="cl-name">Ledger Table Name</label>' +
             '<input id="cl-name" class="form-input" value="' + esc(defaultName) + '" placeholder="e.g. Customer Account Ledger" required />' +
+          '</div>' +
+          '<div>' +
+            '<label class="field-label" for="cl-template">Statement Calculation Mode</label>' +
+            '<select id="cl-template" class="form-select">' +
+              '<option value="product_price"' + (defaultTemplate === 'product_price' ? ' selected' : '') + '>Product &times; Price Statement (Miyawa, Mad250, Mad500, Kuntal &times; Price &rarr; Credit &amp; Remaining Balance)</option>' +
+              '<option value="standard"' + (defaultTemplate === 'standard' ? ' selected' : '') + '>Standard Ledger (Direct Sale Amount, Paid Amount, Running Balance)</option>' +
+            '</select>' +
+          '</div>' +
+          '<div id="cl-prod-section" style="padding:10px 12px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px;display:' + (defaultTemplate === 'product_price' ? 'flex' : 'none') + ';flex-direction:column;gap:8px;">' +
+            '<div style="font-size:11.5px;font-weight:800;color:#0F172A;">Product Columns (Each &times; Price = Credit)</div>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+              presetProducts.map(function (pn) {
+                return '<label style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid #CBD5E1;border-radius:8px;background:#fff;font-size:12px;font-weight:700;cursor:pointer;">' +
+                  '<input type="checkbox" class="cl-prod-chk" value="' + esc(pn) + '" checked />' +
+                  '<span>' + esc(pn) + '</span>' +
+                '</label>';
+              }).join('') +
+            '</div>' +
+            '<div>' +
+              '<label class="field-label" for="cl-custom-prods" style="margin-bottom:3px;">Extra Product Headers (Optional, comma-separated)</label>' +
+              '<input id="cl-custom-prods" class="form-input" style="padding:7px 10px;font-size:12px;" placeholder="e.g. Lomi, Salt 3A" />' +
+            '</div>' +
+            '<div id="cl-formula-preview" class="mono" style="font-size:11px;color:#065F46;font-weight:700;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:7px;padding:6px 8px;"></div>' +
           '</div>' +
           '<div>' +
             '<label class="field-label" for="cl-cal">Default Date Display</label>' +
@@ -23999,12 +24292,50 @@
         };
       }
 
+      var collectSelectedProducts = function () {
+        var list = [];
+        document.querySelectorAll('.cl-prod-chk:checked').forEach(function (chk) {
+          if (chk.value) list.push(chk.value);
+        });
+        var customRaw = (document.getElementById('cl-custom-prods') || {}).value || '';
+        customRaw.split(/[,;]+/).forEach(function (part) {
+          var clean = String(part || '').trim();
+          if (clean && !list.some(function (x) { return x.toLowerCase() === clean.toLowerCase(); })) {
+            list.push(clean);
+          }
+        });
+        return list.length > 0 ? list : presetProducts.slice();
+      };
+
+      var updateProdPreview = function () {
+        var tplEl = document.getElementById('cl-template');
+        var secEl = document.getElementById('cl-prod-section');
+        var prevEl = document.getElementById('cl-formula-preview');
+        var isProdTpl = !tplEl || tplEl.value !== 'standard';
+        if (secEl) secEl.style.display = isProdTpl ? 'flex' : 'none';
+        if (prevEl && isProdTpl) {
+          var pList = collectSelectedProducts();
+          prevEl.textContent = 'Credit = (' + pList.join(' + ') + ') × Price  |  Remaining Balance = Credit - Paid';
+        }
+      };
+
+      var tplSel = document.getElementById('cl-template');
+      if (tplSel) tplSel.onchange = updateProdPreview;
+      document.querySelectorAll('.cl-prod-chk').forEach(function (chk) { chk.onchange = updateProdPreview; });
+      var customProdsInp = document.getElementById('cl-custom-prods');
+      if (customProdsInp) customProdsInp.oninput = updateProdPreview;
+      updateProdPreview();
+
       document.getElementById('cl-form').onsubmit = function (e) {
         e.preventDefault();
         var fld = document.getElementById('cl-folder').value;
         var nm = document.getElementById('cl-name').value;
         var cal = document.getElementById('cl-cal').value;
-        createLedgerBotInFolder(fld, nm, cal, false);
+        var tpl = (document.getElementById('cl-template') || {}).value || 'product_price';
+        createLedgerBotInFolder(fld, nm, cal, false, {
+          template: tpl,
+          products: collectSelectedProducts()
+        });
       };
     }
 
@@ -24079,9 +24410,11 @@
         m.showAllColumns = hasSourceCols;
       }
       var showAllCols = Boolean(m.showAllColumns && hasSourceCols);
+      var detActiveTarget = activeTargetBot ? detectLedgerColumns(activeTargetBot) : null;
+      var hasProdPriceCols = Boolean(detActiveTarget && detActiveTarget.hasProductPriceCols);
       var canRecordDirectly = Boolean(activeTargetBot && (isLedgerBot(activeTargetBot) || (function () {
-        var dCheck = detectLedgerColumns(activeTargetBot);
-        var sWritable = !dCheck.saleAmtCol || dCheck.saleAmtCol.type !== 'formula';
+        var dCheck = detActiveTarget;
+        var sWritable = !dCheck.saleAmtCol || dCheck.saleAmtCol.type !== 'formula' || hasProdPriceCols;
         var pWritable = !dCheck.payAmtCol || dCheck.payAmtCol.type !== 'formula';
         return Boolean(dCheck.custCol && dCheck.balCol && sWritable && pWritable);
       })()));
@@ -24178,6 +24511,34 @@
       if (canRecordDirectly) {
         var isPayMode = m.entryMode === 'payment';
         var custPresetVal = m.txCustomer !== undefined ? m.txCustomer : (m.customerFilter !== 'all' ? m.customerFilter : '');
+        var showProdCalcRow = Boolean(!isPayMode && hasProdPriceCols && detActiveTarget);
+        var savedProdVals = (m.txProdValues && typeof m.txProdValues === 'object') ? m.txProdValues : {};
+        var prodInputsHtml = '';
+        if (showProdCalcRow) {
+          prodInputsHtml = '<div style="margin-bottom:10px;padding:9px 10px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:10px;">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:7px;">' +
+              '<span style="font-size:11px;font-weight:800;color:#1E40AF;text-transform:uppercase;">Product &times; Price Calculator (Credit = Product &times; Price)</span>' +
+              '<span id="clg-tx-prod-calc" class="mono" style="font-size:11.5px;font-weight:800;color:#065F46;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:7px;padding:3px 8px;"></span>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px;align-items:end;">' +
+              detActiveTarget.productCols.map(function (pc) {
+                var pv = savedProdVals[pc.id] !== undefined ? savedProdVals[pc.id] : '';
+                return '<div>' +
+                  '<label class="field-label" style="font-size:10.5px;">' + esc(pc.name) + '</label>' +
+                  '<input type="number" step="0.01" min="0" class="form-input mono clg-prod-inp" data-clg-prod-col="' + esc(pc.id) + '" value="' + esc(pv) + '" placeholder="0" style="padding:6px 8px;font-size:12.5px;" />' +
+                '</div>';
+              }).join('') +
+              '<div>' +
+                '<label class="field-label" for="clg-tx-price" style="font-size:10.5px;">' + esc(detActiveTarget.priceCol.name || 'Price') + ' (ETB)</label>' +
+                '<input id="clg-tx-price" type="number" step="0.01" min="0" class="form-input mono" value="' + esc(m.txPrice || '') + '" placeholder="e.g. 50" style="padding:6px 8px;font-size:12.5px;" />' +
+              '</div>' +
+              (detActiveTarget.payAmtCol ? ('<div>' +
+                '<label class="field-label" for="clg-tx-paid-now" style="font-size:10.5px;">Paid Now (Optional)</label>' +
+                '<input id="clg-tx-paid-now" type="number" step="0.01" min="0" class="form-input mono" value="' + esc(m.txPaidNow || '') + '" placeholder="0.00" style="padding:6px 8px;font-size:12.5px;" />' +
+              '</div>') : '') +
+            '</div>' +
+          '</div>';
+        }
         html += '<form id="clg-tx-form" class="ledger-entry-card">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">' +
             '<div class="ledger-tab-bar">' +
@@ -24186,6 +24547,7 @@
             '</div>' +
             '<span style="font-size:11.5px;color:#475569;font-weight:600;">Target Ledger: <strong>' + esc(activeTargetBot.name) + '</strong> &middot; Each transaction appends a separate row</span>' +
           '</div>' +
+          prodInputsHtml +
           '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:9px;align-items:end;">' +
             '<div>' +
               '<label class="field-label" for="clg-tx-cust">Customer Name</label>' +
@@ -24200,7 +24562,7 @@
               '</div>' +
             '</div>' +
             '<div>' +
-              '<label class="field-label" for="clg-tx-amt">' + (isPayMode ? 'Paid Amount (ETB)' : 'Sale Amount (ETB)') + '</label>' +
+              '<label class="field-label" for="clg-tx-amt">' + (isPayMode ? 'Paid Amount (ETB)' : (showProdCalcRow ? 'Credit = Product &times; Price (ETB)' : 'Sale Amount (ETB)')) + '</label>' +
               '<input id="clg-tx-amt" type="number" step="0.01" min="0.01" class="form-input mono" value="' + esc(m.txAmount || '') + '" placeholder="0.00" required />' +
             '</div>' +
             '<div>' +
@@ -24520,23 +24882,87 @@
         };
       }
 
+      var captureProdFormInputs = function () {
+        var prodVals = {};
+        document.querySelectorAll('[data-clg-prod-col]').forEach(function (inp) {
+          var cid = inp.getAttribute('data-clg-prod-col');
+          if (cid && inp.value !== '') prodVals[cid] = inp.value;
+        });
+        var pInp = document.getElementById('clg-tx-price');
+        var paidInp = document.getElementById('clg-tx-paid-now');
+        return {
+          prodVals: prodVals,
+          price: pInp ? pInp.value : '',
+          paidNow: paidInp ? paidInp.value : ''
+        };
+      };
+      var syncProdCalcLive = function (fromAmtEdit) {
+        var previewEl = document.getElementById('clg-tx-prod-calc');
+        var priceEl = document.getElementById('clg-tx-price');
+        var amtEl = document.getElementById('clg-tx-amt');
+        var paidNowEl = document.getElementById('clg-tx-paid-now');
+        if (!previewEl && !priceEl) return;
+        var qtySum = 0;
+        document.querySelectorAll('[data-clg-prod-col]').forEach(function (inp) {
+          var v = parseNumSafe(inp.value);
+          if (!isNaN(v) && isFinite(v) && v > 0) qtySum = roundEtb2(qtySum + v);
+        });
+        var unitPrice = priceEl ? parseNumSafe(priceEl.value) : NaN;
+        var hasPrice = !isNaN(unitPrice) && isFinite(unitPrice) && unitPrice > 0;
+        var calcCredit = (qtySum > 0 && hasPrice) ? roundEtb2(qtySum * unitPrice) : 0;
+        if (!fromAmtEdit && amtEl && calcCredit > 0) {
+          amtEl.value = String(calcCredit);
+        }
+        var effCredit = calcCredit > 0 ? calcCredit : (amtEl ? (parseNumSafe(amtEl.value) || 0) : 0);
+        var paidNowVal = paidNowEl ? (parseNumSafe(paidNowEl.value) || 0) : 0;
+        if (isNaN(paidNowVal) || paidNowVal < 0) paidNowVal = 0;
+        if (previewEl) {
+          if (calcCredit > 0) {
+            var remPreview = roundEtb2(effCredit - paidNowVal);
+            previewEl.textContent = formatStmtNumber(qtySum) + ' × ' + formatStmtNumber(unitPrice) + ' = Credit ' + formatEtbAmount(calcCredit) + (paidNowVal > 0 ? (' · Remaining: ' + formatEtbAmount(remPreview)) : '');
+          } else if (effCredit > 0 && paidNowVal > 0) {
+            previewEl.textContent = 'Credit ' + formatEtbAmount(effCredit) + ' · Remaining: ' + formatEtbAmount(roundEtb2(effCredit - paidNowVal));
+          } else {
+            previewEl.textContent = 'Enter Product qty & Price';
+          }
+        }
+      };
+      document.querySelectorAll('[data-clg-prod-col]').forEach(function (inp) {
+        inp.oninput = function () { syncProdCalcLive(false); };
+      });
+      var clgTxPriceEl = document.getElementById('clg-tx-price');
+      if (clgTxPriceEl) clgTxPriceEl.oninput = function () { syncProdCalcLive(false); };
+      var clgTxPaidNowEl = document.getElementById('clg-tx-paid-now');
+      if (clgTxPaidNowEl) clgTxPaidNowEl.oninput = function () { syncProdCalcLive(true); };
+      var clgTxAmtEl = document.getElementById('clg-tx-amt');
+      if (clgTxAmtEl && clgTxPriceEl) clgTxAmtEl.oninput = function () { syncProdCalcLive(true); };
+      if (clgTxPriceEl) syncProdCalcLive(true);
+
       var modeSaleBtn = document.getElementById('clg-mode-sale');
       if (modeSaleBtn) modeSaleBtn.onclick = function () {
+        var cap = captureProdFormInputs();
         m.entryMode = 'sale';
         m.txCustomer = (document.getElementById('clg-tx-cust') || {}).value || '';
         m.txDate = (document.getElementById('clg-tx-date') || {}).value || todayDefaultStr;
         m.txAmount = (document.getElementById('clg-tx-amt') || {}).value || '';
         m.txNote = (document.getElementById('clg-tx-note') || {}).value || '';
+        m.txProdValues = cap.prodVals;
+        m.txPrice = cap.price;
+        m.txPaidNow = cap.paidNow;
         m.statusMsg = '';
         renderCustomerLedgerModal(m);
       };
       var modePayBtn = document.getElementById('clg-mode-pay');
       if (modePayBtn) modePayBtn.onclick = function () {
+        var cap = captureProdFormInputs();
         m.entryMode = 'payment';
         m.txCustomer = (document.getElementById('clg-tx-cust') || {}).value || '';
         m.txDate = (document.getElementById('clg-tx-date') || {}).value || todayDefaultStr;
         m.txAmount = (document.getElementById('clg-tx-amt') || {}).value || '';
         m.txNote = (document.getElementById('clg-tx-note') || {}).value || '';
+        m.txProdValues = cap.prodVals;
+        m.txPrice = cap.price;
+        m.txPaidNow = cap.paidNow;
         m.statusMsg = '';
         renderCustomerLedgerModal(m);
       };
@@ -24554,11 +24980,15 @@
         var dtVal = document.getElementById('clg-tx-date').value;
         var amtVal = document.getElementById('clg-tx-amt').value;
         var noteVal = document.getElementById('clg-tx-note').value;
+        var cap = captureProdFormInputs();
         var res = recordLedgerTransaction(activeTargetBot.id, {
           kind: m.entryMode,
           customerName: custVal,
           txDateStr: dtVal,
           amount: amtVal,
+          productValues: cap.prodVals,
+          price: cap.price,
+          paidNow: cap.paidNow,
           note: noteVal,
           calendarMode: calMode
         });
@@ -24569,15 +24999,23 @@
           m.txDate = dtVal;
           m.txAmount = amtVal;
           m.txNote = noteVal;
+          m.txProdValues = cap.prodVals;
+          m.txPrice = cap.price;
+          m.txPaidNow = cap.paidNow;
           renderCustomerLedgerModal(m);
           return;
         }
+        var savedCredit = res.creditAmount || parseNumSafe(amtVal) || 0;
+        var savedPaidNow = res.paidNow || 0;
         m.statusType = 'success';
-        m.statusMsg = (m.entryMode === 'payment' ? 'Recorded Payment' : 'Recorded Credit Sale') + ' of ' + formatEtbAmount(parseNumSafe(amtVal)) + ' for "' + sanitizeUserText(custVal, 120) + '". Running balance updated.';
+        m.statusMsg = (m.entryMode === 'payment' ? 'Recorded Payment' : 'Recorded Credit Sale') + ' of ' + formatEtbAmount(savedCredit) + (savedPaidNow > 0 ? (' (Paid ' + formatEtbAmount(savedPaidNow) + ', Remaining ' + formatEtbAmount(roundEtb2(savedCredit - savedPaidNow)) + ')') : '') + ' for "' + sanitizeUserText(custVal, 120) + '". Running balance updated.';
         m.txCustomer = sanitizeUserText(custVal, 120);
         m.txDate = dtVal;
         m.txAmount = '';
         m.txNote = '';
+        m.txProdValues = {};
+        m.txPrice = '';
+        m.txPaidNow = '';
         renderCustomerLedgerModal(m);
         if (!state.activeBotId) renderDashboard();
       };
