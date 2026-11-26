@@ -22622,7 +22622,7 @@
       var typeCol = findCol(['type', 'tx type', 'transaction type', 'entry type'], [/\btype\b/i]);
       var balCol = findCol(
         ['running balance', 'outstanding balance', 'remaining balance', 'romainbalce', 'rominbalce', 'reminbalce', 'reamingbalce', 'reaming balance', 'romain balance', 'remain', 'remaining', 'balance', 'due', 'owed', 'unpaid'],
-        [/running\s*bal|remaining\s*bal|reaming\s*bal|outstanding|romain|rominbalce|reminbalce|reamingbalce|\bbalance\b|balce|balnce|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b|ቀሪ/i],
+        [/running\s*bal|remaining\s*bal|reaming\s*bal|outstanding|romain|romin\w*bal\w*|remin\w*bal\w*|reaming\w*bal\w*|\bbalance\b|balce|balnce|\bremain(?:ing)?\b|\bromin\b|\bremin\b|\bowed\b|\bunpaid\b|ቀሪ/i],
         null,
         true
       );
@@ -23539,8 +23539,10 @@
         if (!isNaN(pInlineAmt) && pInlineAmt > 0) pAmt = pInlineAmt;
       }
 
-      // Only when a regular table lacks ANY Sale/Total column (Paid + Balance only), infer Total = Paid + Balance
-      if (!det.isDedicatedLedger && !activeSaleCol && sAmt === 0 && det.balCol) {
+      var explicitKindPre = row._ledgerKind === 'payment' || /^payment/i.test(typeRaw) ? 'payment'
+        : (row._ledgerKind === 'sale' || /^credit|^sale/i.test(typeRaw) ? 'sale' : '');
+      // When a regular table row has 0 detected sale amount but has a direct Remaining Balance / Rominbalce column value, infer Total = Paid + Balance
+      if (!det.isDedicatedLedger && explicitKindPre !== 'payment' && sAmt === 0 && det.balCol) {
         var bVal = readLedgerNumericCell(row, det.balCol, bot);
         if (bVal > 0 || (pAmt > 0 && bVal !== 0)) {
           sAmt = roundEtb2(pAmt + bVal);
@@ -24388,7 +24390,130 @@
       });
     }
 
-    function computeMatchedFoldersRemainingBalance(defaultLabel, exactNormalizedNames, fuzzyRegex, calMode) {
+    function computeDirectBotRominbalce(bot) {
+      if (!bot || isBotTombstoned(bot) || !isBotUnlocked(bot)) return 0;
+      var det = detectLedgerColumns(bot);
+      var rows = Array.isArray(bot.rows) ? bot.rows : [];
+      var sumBal = 0;
+      if (det.balCol) {
+        for (var i = 0; i < rows.length; i++) {
+          var v = readLedgerNumericCell(rows[i], det.balCol, bot);
+          if (typeof v === 'number' && isFinite(v)) sumBal = roundEtb2(sumBal + v);
+        }
+        return sumBal;
+      }
+      var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+      if ((activeSaleCol || det.hasProductPriceCols) && det.payAmtCol) {
+        for (var j = 0; j < rows.length; j++) {
+          var r = rows[j];
+          var sV = activeSaleCol ? readLedgerNumericCell(r, activeSaleCol, bot) : 0;
+          if (sV === 0 && r._ledgerKind !== 'payment' && det.hasProductPriceCols) {
+            var pc = computeRowProductCredit(r, det, bot);
+            if (pc.hasProductPrice) sV = pc.credit;
+          }
+          var pV = readLedgerNumericCell(r, det.payAmtCol, bot);
+          sumBal = roundEtb2(sumBal + sV - pV);
+        }
+        return sumBal;
+      }
+      return 0;
+    }
+
+    function computeBotRominbalceSummary(bot, calMode) {
+      if (!bot || isBotTombstoned(bot) || !isBotUnlocked(bot)) {
+        return { supported: false, credit: 0, paid: 0, remaining: 0, custCount: 0, txCount: 0 };
+      }
+      var det = detectLedgerColumns(bot);
+      if (hasCustomerStatementSupport(bot)) {
+        var d = buildCustomerLedgerData({
+          folder: normalizeFolderName(bot.folder),
+          botId: bot.id,
+          includeAllCustomerTables: true,
+          calendarMode: calMode
+        });
+        var bal = Number(d.outstandingBalance) || 0;
+        var cred = Number(d.totalCredit) || 0;
+        var paid = Number(d.totalPaid) || 0;
+        if (bal === 0 && det.balCol) {
+          var directBal = computeDirectBotRominbalce(bot);
+          if (directBal !== 0) {
+            bal = directBal;
+            if (cred === 0) cred = roundEtb2(paid + directBal);
+          }
+        }
+        return {
+          supported: true,
+          credit: cred,
+          paid: paid,
+          remaining: roundEtb2(bal),
+          custCount: d.customerSummaries ? d.customerSummaries.length : 0,
+          txCount: d.rows ? d.rows.length : 0
+        };
+      }
+      var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+      if (det.balCol || ((activeSaleCol || det.hasProductPriceCols) && det.payAmtCol)) {
+        var directR = computeDirectBotRominbalce(bot);
+        var sumC = 0;
+        var sumP = 0;
+        var rows = Array.isArray(bot.rows) ? bot.rows : [];
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          var cVal = activeSaleCol ? readLedgerNumericCell(row, activeSaleCol, bot) : 0;
+          if (cVal === 0 && row._ledgerKind !== 'payment' && det.hasProductPriceCols) {
+            var pCalc = computeRowProductCredit(row, det, bot);
+            if (pCalc.hasProductPrice) cVal = pCalc.credit;
+          }
+          var pVal = det.payAmtCol ? readLedgerNumericCell(row, det.payAmtCol, bot) : 0;
+          sumC = roundEtb2(sumC + cVal);
+          sumP = roundEtb2(sumP + pVal);
+        }
+        if (sumC === 0 && directR !== 0) sumC = roundEtb2(sumP + directR);
+        return {
+          supported: true,
+          credit: sumC,
+          paid: sumP,
+          remaining: roundEtb2(directR),
+          custCount: 0,
+          txCount: rows.length
+        };
+      }
+      return { supported: false, credit: 0, paid: 0, remaining: 0, custCount: 0, txCount: 0 };
+    }
+
+    function computeSingleFolderRominbalce(folderName, calMode) {
+      var cleanF = normalizeFolderName(folderName);
+      var mfLower = cleanF.toLowerCase();
+      var allFolderBots = (state.bots || []).filter(function (b) {
+        return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === mfLower;
+      });
+      var unlockedBots = allFolderBots.filter(function (b) { return isBotUnlocked(b); });
+      var isLockedOnly = allFolderBots.length > 0 && unlockedBots.length === 0;
+      var totalCredit = 0;
+      var totalPaid = 0;
+      var totalRemaining = 0;
+      var supportedCount = 0;
+      unlockedBots.forEach(function (b) {
+        var bs = computeBotRominbalceSummary(b, calMode);
+        if (bs.supported) {
+          supportedCount++;
+          totalCredit = roundEtb2(totalCredit + bs.credit);
+          totalPaid = roundEtb2(totalPaid + bs.paid);
+          totalRemaining = roundEtb2(totalRemaining + bs.remaining);
+        }
+      });
+      return {
+        folder: cleanF,
+        botCount: allFolderBots.length,
+        unlockedCount: unlockedBots.length,
+        supportedCount: supportedCount,
+        isLockedOnly: isLockedOnly,
+        totalCredit: totalCredit,
+        totalPaid: totalPaid,
+        remainingBalance: totalRemaining
+      };
+    }
+
+    function computeAllFoldersRominbalceList(calMode) {
       var folderCandidates = [];
       var seenF = {};
       var addCand = function (fName) {
@@ -24404,46 +24529,76 @@
       (state.bots || []).forEach(function (b) {
         if (b && !isBotTombstoned(b)) addCand(b.folder);
       });
+      return folderCandidates.map(function (fn) {
+        return computeSingleFolderRominbalce(fn, calMode);
+      });
+    }
 
-      var exactMatches = folderCandidates.filter(function (fn) {
-        var norm = fn.toLowerCase().replace(/[\s_\-]+/g, '');
+    function computeMatchedFoldersRemainingBalance(defaultLabel, exactNormalizedNames, fuzzyRegex, calMode, allFoldersSummary) {
+      var list = Array.isArray(allFoldersSummary) ? allFoldersSummary : computeAllFoldersRominbalceList(calMode);
+      var exactMatches = list.filter(function (item) {
+        var norm = item.folder.toLowerCase().replace(/[\s_\-]+/g, '');
         return exactNormalizedNames.indexOf(norm) !== -1;
       });
-      var matchedFolders = exactMatches.length > 0
-        ? exactMatches
-        : folderCandidates.filter(function (fn) { return fuzzyRegex.test(fn); });
+      var exactWithTables = exactMatches.filter(function (item) { return item.botCount > 0; });
+      var fuzzyMatches = list.filter(function (item) { return fuzzyRegex.test(item.folder); });
+      var fuzzyWithTables = fuzzyMatches.filter(function (item) { return item.botCount > 0; });
 
-      var totalRemaining = 0;
-      var tableCount = 0;
-      var anyLockedOnly = false;
-      matchedFolders.forEach(function (mf) {
-        var mfLower = mf.toLowerCase();
-        var mfBots = (state.bots || []).filter(function (b) {
-          return b && !isBotTombstoned(b) && hasCustomerStatementSupport(b) && normalizeFolderName(b.folder).toLowerCase() === mfLower;
+      var matched = exactWithTables.length > 0
+        ? exactWithTables
+        : (fuzzyWithTables.length > 0
+          ? fuzzyWithTables
+          : (exactMatches.length > 0 ? exactMatches : fuzzyMatches));
+
+      if (matched.length > 0) {
+        var totalRemaining = 0;
+        var totalTables = 0;
+        var allLocked = matched.every(function (m) { return m.isLockedOnly; });
+        matched.forEach(function (m) {
+          totalTables += m.unlockedCount;
+          totalRemaining = roundEtb2(totalRemaining + (Number(m.remainingBalance) || 0));
         });
-        var unlockedMfBots = mfBots.filter(function (b) { return isBotUnlocked(b); });
-        if (mfBots.length > 0 && unlockedMfBots.length === 0) {
-          anyLockedOnly = true;
-          return;
-        }
-        tableCount += unlockedMfBots.length;
-        if (unlockedMfBots.length > 0) {
-          var d = buildCustomerLedgerData({
-            folder: mf,
-            includeAllCustomerTables: true,
-            calendarMode: calMode
-          });
-          totalRemaining = roundEtb2(totalRemaining + (Number(d.outstandingBalance) || 0));
+        return {
+          label: defaultLabel,
+          matchedFolder: matched[0].folder,
+          matchedCount: matched.length,
+          tableCount: totalTables,
+          isLockedOnly: allLocked && totalTables === 0,
+          remainingBalance: totalRemaining
+        };
+      }
+
+      // Fallback: if no folder name matched, sum unlocked tables whose table name matches
+      var botMatches = (state.bots || []).filter(function (b) {
+        return b && !isBotTombstoned(b) && fuzzyRegex.test(String(b.name || ''));
+      });
+      var unlockedBotMatches = botMatches.filter(function (b) { return isBotUnlocked(b); });
+      if (botMatches.length > 0 && unlockedBotMatches.length === 0) {
+        return {
+          label: defaultLabel,
+          matchedFolder: normalizeFolderName(botMatches[0].folder),
+          matchedCount: 0,
+          tableCount: 0,
+          isLockedOnly: true,
+          remainingBalance: 0
+        };
+      }
+      var botRemSum = 0;
+      var botSupported = 0;
+      unlockedBotMatches.forEach(function (b) {
+        var bs = computeBotRominbalceSummary(b, calMode);
+        if (bs.supported) {
+          botSupported++;
+          botRemSum = roundEtb2(botRemSum + bs.remaining);
         }
       });
-
       return {
         label: defaultLabel,
-        matchedFolder: matchedFolders[0] || '',
-        matchedCount: matchedFolders.length,
-        tableCount: tableCount,
-        isLockedOnly: anyLockedOnly && tableCount === 0,
-        remainingBalance: totalRemaining
+        matchedFolder: unlockedBotMatches[0] ? normalizeFolderName(unlockedBotMatches[0].folder) : '',
+        matchedCount: 0,
+        tableCount: botSupported,
+        isLockedOnly: false,
+        remainingBalance: botRemSum
       };
     }
 
@@ -24461,7 +24616,7 @@
       var unlockedBotSig = Object.keys(state.unlockedBots || {}).sort().join(',');
       var dashMemoKey = String(scopeFld).toLowerCase() + '::' + calMode + '::' + unlockedFldSig + '::' + unlockedBotSig;
       var cachedSummary = _dashLedgerSummaryMemo.entries[dashMemoKey];
-      var statementTables, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal, shmseInfo, sisayiInfo;
+      var statementTables, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal, shmseInfo, sisayiInfo, allFoldersSummary;
 
       if (cachedSummary) {
         statementTables = cachedSummary.statementTables;
@@ -24474,15 +24629,15 @@
         outstandingBalVal = cachedSummary.outstandingBalVal;
         shmseInfo = cachedSummary.shmseInfo;
         sisayiInfo = cachedSummary.sisayiInfo;
+        allFoldersSummary = cachedSummary.allFoldersSummary;
       } else {
         var folderLedgers = getFolderLedgerBots(scopeFld);
         var folderCustTables = (state.bots || []).filter(function (b) {
-          if (!hasCustomerStatementSupport(b)) return false;
-          if (!isBotUnlocked(b)) return false;
-          if (!isAllScope) {
-            return normalizeFolderName(b.folder).toLowerCase() === String(scopeFld).trim().toLowerCase();
-          }
-          return true;
+          if (!b || isBotTombstoned(b) || !isBotUnlocked(b)) return false;
+          if (!isAllScope && normalizeFolderName(b.folder).toLowerCase() !== String(scopeFld).trim().toLowerCase()) return false;
+          if (hasCustomerStatementSupport(b)) return true;
+          var d = detectLedgerColumns(b);
+          return Boolean(d.balCol || ((d.saleAmtCol || d.genericTotalCol || d.hasProductPriceCols) && d.payAmtCol));
         });
         var seenSummaryBots = {};
         statementTables = [];
@@ -24505,6 +24660,7 @@
           var pWritable = !dCheck.payAmtCol || dCheck.payAmtCol.type !== 'formula';
           return Boolean(dCheck.custCol && dCheck.balCol && sWritable && pWritable);
         })()));
+        allFoldersSummary = computeAllFoldersRominbalceList(calMode);
         if (statementTables.length > 0) {
           var ledgerData = buildCustomerLedgerData({
             folder: scopeFld,
@@ -24515,21 +24671,30 @@
           txCount = ledgerData.rows.length;
           totalCreditVal = ledgerData.totalCredit;
           totalPaidVal = ledgerData.totalPaid;
-          outstandingBalVal = ledgerData.outstandingBalance;
+          if (isAllScope) {
+            outstandingBalVal = roundEtb2(allFoldersSummary.reduce(function (acc, item) {
+              return acc + (Number(item.remainingBalance) || 0);
+            }, 0));
+          } else {
+            var scopeSumObj = computeSingleFolderRominbalce(scopeFld, calMode);
+            outstandingBalVal = scopeSumObj.remainingBalance;
+          }
         } else {
           custCount = 0; txCount = 0; totalCreditVal = 0; totalPaidVal = 0; outstandingBalVal = 0;
         }
         shmseInfo = computeMatchedFoldersRemainingBalance(
-          'shmsesale',
-          ['shmsesale', 'shmsesales', 'shmesesale', 'shemsesale', 'shimsesale', 'shmsesal'],
-          /sh[eu]?ms[aei]?|shmese|shimse|ሽምሴ/i,
-          calMode
+          'Shmsesale',
+          ['shmsesale', 'shmsesales', 'shmesesale', 'shemsesale', 'shimsesale', 'shmsesal', 'shmsisale', 'shmsesel', 'shmse'],
+          /(?:sh[aeiu]?m[sz][aei]?|shmese|shimse|shemse|ሽምሴ)/i,
+          calMode,
+          allFoldersSummary
         );
         sisayiInfo = computeMatchedFoldersRemainingBalance(
-          'sisayisale',
-          ['sisayisale', 'sisayisales', 'sisaysale', 'sisaysales', 'sisayesale'],
-          /sisay[ei]?|ሲሳይ/i,
-          calMode
+          'sisaisale',
+          ['sisaisale', 'sisaisales', 'sisayisale', 'sisayisales', 'sisaysale', 'sisaysales', 'sisayesale', 'sisaesale', 'sisaisel', 'sisai', 'sisayi'],
+          /(?:sis[ae][yi]?|ሲሳይ)/i,
+          calMode,
+          allFoldersSummary
         );
         _dashLedgerSummaryMemo.entries[dashMemoKey] = {
           statementTables: statementTables,
@@ -24541,7 +24706,8 @@
           totalPaidVal: totalPaidVal,
           outstandingBalVal: outstandingBalVal,
           shmseInfo: shmseInfo,
-          sisayiInfo: sisayiInfo
+          sisayiInfo: sisayiInfo,
+          allFoldersSummary: allFoldersSummary
         };
       }
 
@@ -24569,11 +24735,30 @@
         : ('Customer Statement Summary &mdash; ' + esc(scopeFld));
 
       var shmseTitle = (shmseInfo && shmseInfo.matchedFolder && shmseInfo.matchedFolder.toLowerCase() !== 'shmsesale')
-        ? ('shmsesale (' + esc(shmseInfo.matchedFolder) + ') Rominbalce')
-        : 'shmsesale Rominbalce';
-      var sisayiTitle = (sisayiInfo && sisayiInfo.matchedFolder && sisayiInfo.matchedFolder.toLowerCase() !== 'sisayisale')
-        ? ('sisayisale (' + esc(sisayiInfo.matchedFolder) + ') Rominbalce')
-        : 'sisayisale Rominbalce';
+        ? ('Shmsesale (' + esc(shmseInfo.matchedFolder) + ') Rominbalce')
+        : 'Shmsesale Rominbalce';
+      var sisayiTitle = (sisayiInfo && sisayiInfo.matchedFolder && sisayiInfo.matchedFolder.toLowerCase() !== 'sisaisale')
+        ? ('sisaisale (' + esc(sisayiInfo.matchedFolder) + ') Rominbalce')
+        : 'sisaisale Rominbalce';
+      var totalScopeLbl = isAllScope ? 'All Folders Rominbalce (Sum)' : (esc(scopeFld) + ' Rominbalce');
+
+      var activeFolderPills = (allFoldersSummary || []).filter(function (f) {
+        return f.botCount > 0 && (f.supportedCount > 0 || f.isLockedOnly || f.remainingBalance !== 0);
+      }).slice().sort(function (a, b) {
+        return Math.abs(b.remainingBalance || 0) - Math.abs(a.remainingBalance || 0);
+      });
+      var folderBreakdownHtml = (isAllScope && activeFolderPills.length > 0)
+        ? ('<div style="margin-top:10px;padding-top:9px;border-top:1px dashed #E2E8F0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<span style="font-size:10.5px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:0.03em;margin-right:2px;">All Folders Rominbalce:</span>' +
+            activeFolderPills.map(function (f) {
+              var valStr = f.isLockedOnly ? '🔒 Locked' : formatEtbAmount(f.remainingBalance);
+              return '<button type="button" class="ledger-stmt-col-pill" data-dash-folder-stmt="' + esc(f.folder) + '" style="cursor:pointer;border-color:#CBD5E1;background:#F8FAFC;" title="Open ' + esc(f.folder) + ' Statement">' +
+                '<span style="font-weight:700;color:#334155;">📁 ' + esc(f.folder) + ':</span>' +
+                '<strong class="mono" style="color:' + (f.remainingBalance > 0 ? '#B45309' : '#047857') + ';">' + esc(valStr) + '</strong>' +
+              '</button>';
+            }).join('') +
+          '</div>')
+        : '';
 
       return '<section class="ledger-folder-panel" aria-label="Folder Customer Statement Summary">' +
         '<div class="ledger-folder-head">' +
@@ -24599,8 +24784,9 @@
         '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
           '<div class="ledger-kpi-box credit"' + (shmseInfo && shmseInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(shmseInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(shmseInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + shmseTitle + '</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(shmseInfo && shmseInfo.isLockedOnly ? '🔒 Locked' : formatEtbAmount(shmseInfo ? shmseInfo.remainingBalance : 0)) + '</div></div>' +
           '<div class="ledger-kpi-box paid"' + (sisayiInfo && sisayiInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(sisayiInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(sisayiInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + sisayiTitle + '</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(sisayiInfo && sisayiInfo.isLockedOnly ? '🔒 Locked' : formatEtbAmount(sisayiInfo ? sisayiInfo.remainingBalance : 0)) + '</div></div>' +
-          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(outstandingBalVal)) + '</div></div>' +
+          '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">' + totalScopeLbl + '</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(outstandingBalVal)) + '</div></div>' +
         '</div>' +
+        folderBreakdownHtml +
       '</section>';
     }
 
