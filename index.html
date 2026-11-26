@@ -8946,13 +8946,23 @@
       showToast('Downloaded full bots JSON backup');
     }
 
+    function uint8ToBase64(bytes) {
+      var bin = '';
+      var chunkSize = 0x8000;
+      for (var i = 0; i < bytes.length; i += chunkSize) {
+        var sub = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+        bin += String.fromCharCode.apply(null, sub);
+      }
+      return btoa(bin);
+    }
+
     function downloadBlob(content, filename, mime) {
+      var mimeStr = mime || 'application/octet-stream';
+      var payload = content;
+      if (typeof payload === 'string' && /^text\/csv/i.test(mimeStr) && payload.charCodeAt(0) !== 0xFEFF) {
+        payload = '\uFEFF' + payload;
+      }
       try {
-        var mimeStr = mime || 'application/octet-stream';
-        var payload = content;
-        if (typeof payload === 'string' && /^text\/csv/i.test(mimeStr) && payload.charCodeAt(0) !== 0xFEFF) {
-          payload = '\uFEFF' + payload;
-        }
         var blob = (typeof Blob !== 'undefined' && payload instanceof Blob)
           ? payload
           : new Blob([payload], { type: mimeStr });
@@ -8977,10 +8987,13 @@
         return true;
       } catch (err) {
         try {
-          var fallbackMime = mime || 'application/octet-stream';
-          var fallbackHref = typeof content === 'string'
-            ? ('data:' + fallbackMime + ';charset=utf-8,' + encodeURIComponent(content))
-            : null;
+          var fallbackHref = null;
+          if (typeof payload === 'string') {
+            fallbackHref = 'data:' + mimeStr + ';charset=utf-8,' + encodeURIComponent(payload);
+          } else if (payload instanceof Uint8Array || payload instanceof ArrayBuffer) {
+            var u8 = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
+            fallbackHref = 'data:' + mimeStr + ';base64,' + uint8ToBase64(u8);
+          }
           if (fallbackHref) {
             var a2 = document.createElement('a');
             a2.href = fallbackHref;
@@ -9026,8 +9039,17 @@
         wsXml + '</Workbook>';
     }
 
+    function sanitizeExportFilenamePart(raw, fallback) {
+      var cleaned = String(raw || '').trim()
+        .replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_')
+        .replace(/\s+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      return cleaned || (fallback || 'TableBot_Export');
+    }
+
     function downloadWorkbookAsExcel(sheets, baseFilename) {
-      var safeBase = String(baseFilename || 'TableBot_Export').replace(/[^a-z0-9\-_]+/gi, '_').replace(/^_+|_+$/g, '') || 'TableBot_Export';
+      var safeBase = sanitizeExportFilenamePart(baseFilename, 'TableBot_Export');
       var list = Array.isArray(sheets) ? sheets : [];
       if (window.XLSX && window.XLSX.utils && typeof window.XLSX.write === 'function') {
         try {
@@ -10355,6 +10377,18 @@
         var fArg = fldOpenLedgerBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
         openModal('customer_ledger', { folder: fArg, botId: fldOpenLedgerBtn.getAttribute('data-bot-id') || '' });
       };
+      document.querySelectorAll('[data-dash-folder-stmt]').forEach(function (kpiBox) {
+        kpiBox.onclick = function () {
+          var targetFld = kpiBox.getAttribute('data-dash-folder-stmt') || '';
+          if (!targetFld) return;
+          if (isFolderLocked(targetFld) && !isFolderUnlocked(targetFld)) {
+            state.selectedFolder = targetFld;
+            renderDashboard();
+            return;
+          }
+          openModal('customer_ledger', { folder: targetFld });
+        };
+      });
       document.querySelectorAll('[data-fld-ledger-vf]').forEach(function (vfBtn) {
         vfBtn.onclick = function () {
           var fArg = vfBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
@@ -15075,7 +15109,12 @@
               '<button type="submit" id="lock-submit-btn" class="btn btn-dark-blue" style="width:100%;margin-top:16px;padding:12px 16px;font-size:14px;"' + (isLockedOut ? ' disabled' : '') + '>' +
                 icon('shield', 16) + '<span>' + esc(isLockedOut ? ('Locked (' + remLockSec + 's)') : btnTxt) + '</span>' +
               '</button>' +
-              '<div style="margin-top:14px;font-size:11px;color:#64748B;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px dashed #E2E8F0;padding-top:10px;">' +
+              '<div id="lock-support-phone" style="margin-top:12px;padding:8px 12px;border-radius:10px;background:#EFF6FF;border:1px solid #BFDBFE;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:12.5px;font-weight:700;color:#1E3A8A;">' +
+                '<span>📞</span>' +
+                '<span>' + (isAm ? 'ስልክ:' : 'Phone:') + '</span>' +
+                '<a href="tel:0927267750" class="mono" style="color:#0D47A1;font-weight:800;text-decoration:none;letter-spacing:0.03em;">0927 267 750</a>' +
+              '</div>' +
+              '<div style="margin-top:12px;font-size:11px;color:#64748B;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px dashed #E2E8F0;padding-top:10px;">' +
                 '<span style="display:inline-flex;align-items:center;gap:4px;">' + icon('shield', 12) + '<span>Session-protected access · 5 failed attempts = 60s lock</span></span>' +
                 '<button type="button" id="lock-sync-btn" style="font-size:11px;font-weight:800;color:#0D47A1;text-decoration:underline;">' + (isAm ? 'ኮድ አዘምን (Sync)' : 'Sync Latest Code') + '</button>' +
               '</div>' +
@@ -23919,17 +23958,18 @@
       });
       var outstandingBalance = roundEtb2(openingBalance + totalCredit - totalPaid);
 
-      var isMultiBotScope = scopeBots.length > 1;
+      var activeBotIdsMap = {};
+      statementRows.forEach(function (sr) { activeBotIdsMap[sr.botId] = true; });
+      var activeBotIdsList = Object.keys(activeBotIdsMap);
+      var isMultiBotScope = activeBotIdsList.length > 1 || (statementRows.length === 0 && scopeBots.length > 1);
       var sourceColumns = [];
-      if (scopeBots.length === 1 && Array.isArray(scopeBots[0].columns)) {
-        sourceColumns = scopeBots[0].columns.slice();
-      } else if (scopeBots.length > 1) {
+      var botsForCols = activeBotIdsList.length > 0
+        ? scopeBots.filter(function (b) { return activeBotIdsMap[b.id]; })
+        : scopeBots;
+      if (botsForCols.length === 1 && Array.isArray(botsForCols[0].columns)) {
+        sourceColumns = botsForCols[0].columns.slice();
+      } else if (botsForCols.length > 1) {
         var seenUnionCols = {};
-        var activeBotIdsMap = {};
-        statementRows.forEach(function (sr) { activeBotIdsMap[sr.botId] = true; });
-        var botsForCols = Object.keys(activeBotIdsMap).length > 0
-          ? scopeBots.filter(function (b) { return activeBotIdsMap[b.id]; })
-          : scopeBots;
         botsForCols.forEach(function (b) {
           (b.columns || []).forEach(function (c) {
             var cKey = String(c.name || 'Column').trim().toLowerCase();
@@ -24015,72 +24055,17 @@
       var vfMode = filterInfo.viewFilter || data.viewFilter || 'all';
       var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
       var dateSlug = new Date().toISOString().slice(0, 10);
+      var useAllColsXlsx = Boolean(filterInfo.showAllColumns && data.sourceColumns && data.sourceColumns.length > 0);
+      var sheets = [];
 
-      var aoa = [
-        ['Hiriya Salt Production PLC · MA’ED Table Salt — Customer Account Ledger Statement'],
-        ['Folder:', folderTitle, 'Customer Filter:', custTitle, 'View:', viewLabel],
-        ['Date Range:', rangeTitle, 'Calendar:', calTag],
-        ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Rominbalce (ETB):', data.outstandingBalance],
-        [],
-        ['Row', 'Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
-      ];
-
-      data.rows.forEach(function (r, idx) {
-        var noteCell = r.note || '';
-        if (r.allColsSummary) {
-          noteCell = noteCell ? (noteCell + ' | ' + r.allColsSummary) : r.allColsSummary;
-        }
-        aoa.push([
-          '#' + (r.fileRowNum || (idx + 1)),
-          r.customerName,
-          r.typeLabel,
-          r.kind === 'sale' ? r.saleDateDisplay : '',
-          r.kind === 'sale' ? r.saleAmount : '',
-          r.kind === 'payment' ? r.paymentDateDisplay : '',
-          r.kind === 'payment' ? r.paidAmount : '',
-          r.runningBalance,
-          noteCell
-        ]);
-      });
-
-      aoa.push([
-        'TOTALS',
-        custTitle,
-        data.rows.length + ' tx',
-        data.hasFromFilter ? ('Opening: ' + formatEtbAmount(data.openingBalance)) : '',
-        data.totalCredit,
-        '',
-        data.totalPaid,
-        data.outstandingBalance,
-        'Currency: ETB'
-      ]);
-
-      var custAoa = [
-        ['Customer Balances Summary (' + calTag + ' · ' + viewLabel + ')'],
-        ['Customer Name', 'Transactions', 'Sales Count', 'Payments Count', 'Total Credit (ETB)', 'Total Paid (ETB)', 'Rominbalce (ETB)', 'Last Activity']
-      ];
-      data.customerSummaries.forEach(function (c) {
-        custAoa.push([c.customerName, c.txCount, c.saleCount, c.paymentCount, c.totalCredit, c.totalPaid, c.outstandingBalance, c.lastDateDisplay]);
-      });
-      custAoa.push(['TOTAL', data.allTime.txCount, '', '', data.allTime.totalCredit, data.allTime.totalPaid, data.allTime.outstandingBalance, '']);
-
-      var sheets = [
-        {
-          name: 'Account Statement',
-          aoa: aoa,
-          cols: [{ wch: 8 }, { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }]
-        },
-        {
-          name: 'Customer Balances',
-          aoa: custAoa,
-          cols: [{ wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 16 }]
-        }
-      ];
-
-      if (data.sourceColumns && data.sourceColumns.length > 0) {
+      if (useAllColsXlsx) {
         var fullHdr = ['Row'].concat(data.isMultiBotScope ? ['File'] : []).concat(data.sourceColumns.map(function (c) { return c.name || 'Column'; })).concat(['Type', 'Credit (ETB)', 'Paid (ETB)', 'Running Balance (ETB)']);
         var fullAoa = [
-          ['All Column Row Data & Running Balance — ' + custTitle + ' (' + viewLabel + ')'],
+          ['Hiriya Salt Production PLC · MA’ED Table Salt — Customer Account Statement'],
+          ['Folder:', folderTitle, 'Customer Filter:', custTitle, 'View:', viewLabel],
+          ['Date Range:', rangeTitle, 'Calendar:', calTag],
+          ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Rominbalce (ETB):', data.outstandingBalance],
+          [],
           fullHdr
         ];
         data.rows.forEach(function (r, idx) {
@@ -24095,7 +24080,12 @@
           data.sourceColumns.forEach(function (col) {
             var cKey = col._colKey || String(col.name || 'Column').trim().toLowerCase();
             var cell = rcMap[col.id] || rcKeyMap[cKey];
-            rowArr.push(cell && cell.hasValue ? (cell.isNumeric ? cell.numeric : cell.display) : '');
+            if (cell && cell.hasValue) {
+              var useNum = cell.isNumeric && typeof cell.numeric === 'number' && isFinite(cell.numeric);
+              rowArr.push(useNum ? cell.numeric : (cell.display || ''));
+            } else {
+              rowArr.push('');
+            }
           });
           rowArr.push(r.typeLabel, r.kind === 'sale' ? r.saleAmount : '', r.kind === 'payment' ? r.paidAmount : '', r.runningBalance);
           fullAoa.push(rowArr);
@@ -24111,10 +24101,65 @@
         });
         fullTot.push(data.rows.length + ' tx', data.totalCredit, data.totalPaid, data.outstandingBalance);
         fullAoa.push(fullTot);
-        sheets.push({ name: 'All Column Row Data', aoa: fullAoa });
+
+        var fullColWidths = [{ wch: 8 }].concat(data.isMultiBotScope ? [{ wch: 20 }] : []).concat(data.sourceColumns.map(function (c) {
+          var isNumC = (c.type === 'amount' || c.type === 'number' || c.type === 'formula');
+          return { wch: isNumC ? 15 : 20 };
+        })).concat([{ wch: 13 }, { wch: 16 }, { wch: 16 }, { wch: 20 }]);
+
+        sheets.push({
+          name: 'Customer Statement',
+          aoa: fullAoa,
+          cols: fullColWidths
+        });
+      } else {
+        var aoa = [
+          ['Hiriya Salt Production PLC · MA’ED Table Salt — Customer Account Statement'],
+          ['Folder:', folderTitle, 'Customer Filter:', custTitle, 'View:', viewLabel],
+          ['Date Range:', rangeTitle, 'Calendar:', calTag],
+          ['Opening Balance (ETB):', data.openingBalance, 'Total Credit (ETB):', data.totalCredit, 'Total Paid (ETB):', data.totalPaid, 'Rominbalce (ETB):', data.outstandingBalance],
+          [],
+          ['Row', 'Customer Name', 'Type', 'Sale Date', 'Sale Amount (ETB)', 'Payment Date', 'Paid Amount (ETB)', 'Running Balance (ETB)', 'Reference / Note']
+        ];
+
+        data.rows.forEach(function (r, idx) {
+          var noteCell = r.note || '';
+          if (r.allColsSummary) {
+            noteCell = noteCell ? (noteCell + ' | ' + r.allColsSummary) : r.allColsSummary;
+          }
+          aoa.push([
+            '#' + (r.fileRowNum || (idx + 1)),
+            r.customerName,
+            r.typeLabel,
+            r.kind === 'sale' ? r.saleDateDisplay : '',
+            r.kind === 'sale' ? r.saleAmount : '',
+            r.kind === 'payment' ? r.paymentDateDisplay : '',
+            r.kind === 'payment' ? r.paidAmount : '',
+            r.runningBalance,
+            noteCell
+          ]);
+        });
+
+        aoa.push([
+          'TOTALS',
+          custTitle,
+          data.rows.length + ' tx',
+          data.hasFromFilter ? ('Opening: ' + formatEtbAmount(data.openingBalance)) : '',
+          data.totalCredit,
+          '',
+          data.totalPaid,
+          data.outstandingBalance,
+          'Currency: ETB'
+        ]);
+
+        sheets.push({
+          name: 'Customer Statement',
+          aoa: aoa,
+          cols: [{ wch: 8 }, { wch: 24 }, { wch: 13 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 36 }]
+        });
       }
 
-      var baseName = 'Customer_Ledger_' + custTitle.replace(/[^a-z0-9]+/gi, '_') + '_' + dateSlug;
+      var baseName = 'Customer_Statement_' + sanitizeExportFilenamePart(custTitle, 'All_Customers') + '_' + dateSlug;
       return downloadWorkbookAsExcel(sheets, baseName);
     }
 
@@ -24241,7 +24286,7 @@
       var viewLabel = vfMode === 'credit' ? 'Credit Only' : (vfMode === 'unpaid' ? 'Unpaid Balance (Rominbalce)' : 'All Data');
       var useAllColsPdf = Boolean(filterInfo.showAllColumns && data.sourceColumns && data.sourceColumns.length > 0);
       var dateSlug = new Date().toISOString().slice(0, 10);
-      var custSlug = custTitle.replace(/[^a-z0-9]+/gi, '_') || 'All_Customers';
+      var custSlug = sanitizeExportFilenamePart(custTitle, 'All_Customers');
 
       var kpis = [];
       if (data.hasFromFilter) kpis.push({ label: 'Opening Balance', value: formatEtbAmount(data.openingBalance), color: '#0F172A' });
@@ -24343,6 +24388,65 @@
       });
     }
 
+    function computeMatchedFoldersRemainingBalance(defaultLabel, exactNormalizedNames, fuzzyRegex, calMode) {
+      var folderCandidates = [];
+      var seenF = {};
+      var addCand = function (fName) {
+        var cleanF = normalizeFolderName(fName);
+        if (!cleanF) return;
+        var low = cleanF.toLowerCase();
+        if (!seenF[low]) {
+          seenF[low] = true;
+          folderCandidates.push(cleanF);
+        }
+      };
+      getAllFolders().forEach(addCand);
+      (state.bots || []).forEach(function (b) {
+        if (b && !isBotTombstoned(b)) addCand(b.folder);
+      });
+
+      var exactMatches = folderCandidates.filter(function (fn) {
+        var norm = fn.toLowerCase().replace(/[\s_\-]+/g, '');
+        return exactNormalizedNames.indexOf(norm) !== -1;
+      });
+      var matchedFolders = exactMatches.length > 0
+        ? exactMatches
+        : folderCandidates.filter(function (fn) { return fuzzyRegex.test(fn); });
+
+      var totalRemaining = 0;
+      var tableCount = 0;
+      var anyLockedOnly = false;
+      matchedFolders.forEach(function (mf) {
+        var mfLower = mf.toLowerCase();
+        var mfBots = (state.bots || []).filter(function (b) {
+          return b && !isBotTombstoned(b) && hasCustomerStatementSupport(b) && normalizeFolderName(b.folder).toLowerCase() === mfLower;
+        });
+        var unlockedMfBots = mfBots.filter(function (b) { return isBotUnlocked(b); });
+        if (mfBots.length > 0 && unlockedMfBots.length === 0) {
+          anyLockedOnly = true;
+          return;
+        }
+        tableCount += unlockedMfBots.length;
+        if (unlockedMfBots.length > 0) {
+          var d = buildCustomerLedgerData({
+            folder: mf,
+            includeAllCustomerTables: true,
+            calendarMode: calMode
+          });
+          totalRemaining = roundEtb2(totalRemaining + (Number(d.outstandingBalance) || 0));
+        }
+      });
+
+      return {
+        label: defaultLabel,
+        matchedFolder: matchedFolders[0] || '',
+        matchedCount: matchedFolders.length,
+        tableCount: tableCount,
+        isLockedOnly: anyLockedOnly && tableCount === 0,
+        remainingBalance: totalRemaining
+      };
+    }
+
     var _dashLedgerSummaryMemo = { fp: '', entries: {} };
     function renderFolderLedgerDashboardCard(folderName) {
       var scopeFld = folderName || 'all';
@@ -24353,9 +24457,11 @@
         _dashLedgerSummaryMemo.fp = fp;
         _dashLedgerSummaryMemo.entries = {};
       }
-      var dashMemoKey = String(scopeFld).toLowerCase() + '::' + calMode;
+      var unlockedFldSig = Object.keys(state.unlockedFolders || {}).sort().join(',');
+      var unlockedBotSig = Object.keys(state.unlockedBots || {}).sort().join(',');
+      var dashMemoKey = String(scopeFld).toLowerCase() + '::' + calMode + '::' + unlockedFldSig + '::' + unlockedBotSig;
       var cachedSummary = _dashLedgerSummaryMemo.entries[dashMemoKey];
-      var statementTables, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal;
+      var statementTables, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal, shmseInfo, sisayiInfo;
 
       if (cachedSummary) {
         statementTables = cachedSummary.statementTables;
@@ -24366,6 +24472,8 @@
         totalCreditVal = cachedSummary.totalCreditVal;
         totalPaidVal = cachedSummary.totalPaidVal;
         outstandingBalVal = cachedSummary.outstandingBalVal;
+        shmseInfo = cachedSummary.shmseInfo;
+        sisayiInfo = cachedSummary.sisayiInfo;
       } else {
         var folderLedgers = getFolderLedgerBots(scopeFld);
         var folderCustTables = (state.bots || []).filter(function (b) {
@@ -24411,6 +24519,18 @@
         } else {
           custCount = 0; txCount = 0; totalCreditVal = 0; totalPaidVal = 0; outstandingBalVal = 0;
         }
+        shmseInfo = computeMatchedFoldersRemainingBalance(
+          'shmsesale',
+          ['shmsesale', 'shmsesales', 'shmesesale', 'shemsesale', 'shimsesale', 'shmsesal'],
+          /sh[eu]?ms[aei]?|shmese|shimse|ሽምሴ/i,
+          calMode
+        );
+        sisayiInfo = computeMatchedFoldersRemainingBalance(
+          'sisayisale',
+          ['sisayisale', 'sisayisales', 'sisaysale', 'sisaysales', 'sisayesale'],
+          /sisay[ei]?|ሲሳይ/i,
+          calMode
+        );
         _dashLedgerSummaryMemo.entries[dashMemoKey] = {
           statementTables: statementTables,
           primaryLedger: primaryLedger,
@@ -24419,7 +24539,9 @@
           txCount: txCount,
           totalCreditVal: totalCreditVal,
           totalPaidVal: totalPaidVal,
-          outstandingBalVal: outstandingBalVal
+          outstandingBalVal: outstandingBalVal,
+          shmseInfo: shmseInfo,
+          sisayiInfo: sisayiInfo
         };
       }
 
@@ -24446,6 +24568,13 @@
         ? 'Customer Statement Summary &mdash; All Folders'
         : ('Customer Statement Summary &mdash; ' + esc(scopeFld));
 
+      var shmseTitle = (shmseInfo && shmseInfo.matchedFolder && shmseInfo.matchedFolder.toLowerCase() !== 'shmsesale')
+        ? ('shmsesale (' + esc(shmseInfo.matchedFolder) + ') Rominbalce')
+        : 'shmsesale Rominbalce';
+      var sisayiTitle = (sisayiInfo && sisayiInfo.matchedFolder && sisayiInfo.matchedFolder.toLowerCase() !== 'sisayisale')
+        ? ('sisayisale (' + esc(sisayiInfo.matchedFolder) + ') Rominbalce')
+        : 'sisayisale Rominbalce';
+
       return '<section class="ledger-folder-panel" aria-label="Folder Customer Statement Summary">' +
         '<div class="ledger-folder-head">' +
           '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
@@ -24468,8 +24597,8 @@
           '</div>' +
         '</div>' +
         '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
-          '<div class="ledger-kpi-box credit"><div class="ledger-kpi-lbl">Total Credit</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(totalCreditVal)) + '</div></div>' +
-          '<div class="ledger-kpi-box paid"><div class="ledger-kpi-lbl">Total Paid</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(totalPaidVal)) + '</div></div>' +
+          '<div class="ledger-kpi-box credit"' + (shmseInfo && shmseInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(shmseInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(shmseInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + shmseTitle + '</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(shmseInfo && shmseInfo.isLockedOnly ? '🔒 Locked' : formatEtbAmount(shmseInfo ? shmseInfo.remainingBalance : 0)) + '</div></div>' +
+          '<div class="ledger-kpi-box paid"' + (sisayiInfo && sisayiInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(sisayiInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(sisayiInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + sisayiTitle + '</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(sisayiInfo && sisayiInfo.isLockedOnly ? '🔒 Locked' : formatEtbAmount(sisayiInfo ? sisayiInfo.remainingBalance : 0)) + '</div></div>' +
           '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">Rominbalce</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(outstandingBalVal)) + '</div></div>' +
         '</div>' +
       '</section>';
