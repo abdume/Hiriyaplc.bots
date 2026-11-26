@@ -1017,6 +1017,52 @@
       color: #475569; min-height: 16px;
     }
     .tb-pad-hint.is-error { color: #DC2626; }
+    .tb-pad-predict-bar {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 2px 2px 4px;
+      scrollbar-width: thin;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tb-pad-predict-lbl {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #64748B;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .tb-pad-predict-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 11px;
+      border-radius: 9px;
+      border: 1px solid #CBD5E1;
+      background: #F8FAFC;
+      color: #0F172A;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.25;
+      cursor: pointer;
+      flex-shrink: 0;
+      max-width: 210px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: background 0.14s, border-color 0.14s, color 0.14s;
+    }
+    .tb-pad-predict-chip:hover { background: #EFF6FF; border-color: #93C5FD; color: #0B57D0; }
+    .tb-pad-predict-chip.is-top {
+      background: #EFF6FF;
+      border-color: #93C5FD;
+      color: #0B57D0;
+      font-weight: 700;
+    }
     .tb-pad-foot {
       margin-top: 18px; display: flex; align-items: center; justify-content: flex-end; gap: 10px;
     }
@@ -3233,6 +3279,159 @@
         if (raw) return JSON.parse(raw);
       } catch (e) {}
       return fallback;
+    }
+
+    function isPredictiveTextColumn(col) {
+      if (!col) return false;
+      return col.type !== 'date' && col.type !== 'checkbox' && col.type !== 'number' && col.type !== 'amount' && col.type !== 'formula';
+    }
+
+    function isCustomerOrNameColumn(bot, col) {
+      if (!bot || !col || !isPredictiveTextColumn(col)) return false;
+      var detCol = (typeof getTableCustomerCol === 'function') ? getTableCustomerCol(bot) : null;
+      if (detCol && detCol.id === col.id) return true;
+      var nm = String(col.name || '').trim();
+      if (!nm || /item\s*name|product\s*name|folder\s*name|file\s*name/i.test(nm)) return false;
+      return /^(?:customer|client|buyer|name|full\s*name|user|account\s*name)$/i.test(nm) ||
+        /\bname\b|customer|client|buyer|ስም|ደንበኛ/i.test(nm);
+    }
+
+    function getPredictiveTextCandidates(bot, col, queryText, maxItems) {
+      var cap = typeof maxItems === 'number' && maxItems > 0 ? maxItems : 6;
+      if (!bot || !col || !isPredictiveTextColumn(col)) return [];
+      var entryMap = {};
+      var wordMap = {};
+      var addSample = function (rawVal, recencyScore, weight) {
+        var txt = String(rawVal === undefined || rawVal === null ? '' : rawVal).replace(/[\r\n\t]+/g, ' ').trim();
+        if (!txt) return;
+        var key = txt.toLowerCase();
+        if (!entryMap[key]) {
+          entryMap[key] = { text: txt, freq: 0, lastIdx: recencyScore };
+        }
+        entryMap[key].freq += (weight || 1);
+        if (recencyScore >= entryMap[key].lastIdx) {
+          entryMap[key].lastIdx = recencyScore;
+          entryMap[key].text = txt;
+        }
+        var words = txt.split(/\s+/);
+        for (var wi = 0; wi < words.length; wi++) {
+          var w = words[wi].trim();
+          if (w.length < 2) continue;
+          var wk = w.toLowerCase();
+          if (!wordMap[wk]) wordMap[wk] = { word: w, freq: 0, lastIdx: recencyScore };
+          wordMap[wk].freq += (weight || 1);
+          if (recencyScore >= wordMap[wk].lastIdx) {
+            wordMap[wk].lastIdx = recencyScore;
+            wordMap[wk].word = w;
+          }
+        }
+      };
+
+      var rows = Array.isArray(bot.rows) ? bot.rows : [];
+      for (var ri = 0; ri < rows.length; ri++) {
+        if (!rows[ri]) continue;
+        addSample(rows[ri][col.id], ri, 2);
+      }
+
+      if (isCustomerOrNameColumn(bot, col) && typeof state !== 'undefined' && state && Array.isArray(state.bots)) {
+        var curFolder = typeof normalizeFolderName === 'function' ? normalizeFolderName(bot.folder).toLowerCase() : String(bot.folder || 'General').trim().toLowerCase();
+        for (var bi = 0; bi < state.bots.length; bi++) {
+          var ob = state.bots[bi];
+          if (!ob || ob.id === bot.id) continue;
+          if (typeof isBotTombstoned === 'function' && isBotTombstoned(ob)) continue;
+          var obFolder = typeof normalizeFolderName === 'function' ? normalizeFolderName(ob.folder).toLowerCase() : String(ob.folder || 'General').trim().toLowerCase();
+          if (obFolder !== curFolder) continue;
+          var obCustCol = (typeof getTableCustomerCol === 'function') ? getTableCustomerCol(ob) : null;
+          if (!obCustCol) continue;
+          var obRows = Array.isArray(ob.rows) ? ob.rows : [];
+          for (var ori = 0; ori < obRows.length; ori++) {
+            if (!obRows[ori]) continue;
+            addSample(obRows[ori][obCustCol.id], -1000 + ori, 1);
+          }
+        }
+      }
+
+      var rawStr = String(queryText === undefined || queryText === null ? '' : queryText);
+      var q = rawStr.trim().toLowerCase();
+      var candidates = Object.keys(entryMap).map(function (k) { return entryMap[k]; });
+      if (candidates.length === 0) return [];
+
+      var scored = [];
+      for (var ci = 0; ci < candidates.length; ci++) {
+        var item = candidates[ci];
+        var low = item.text.toLowerCase();
+        if (q && low === q) continue;
+        var tier = 0;
+        if (!q) {
+          tier = 1;
+        } else if (low.indexOf(q) === 0) {
+          tier = 3;
+        } else {
+          var wordsSplit = low.split(/\s+/);
+          var wordHit = false;
+          for (var wj = 0; wj < wordsSplit.length; wj++) {
+            if (wordsSplit[wj].indexOf(q) === 0) { wordHit = true; break; }
+          }
+          if (wordHit) tier = 2;
+          else if (low.indexOf(q) !== -1) tier = 1;
+        }
+        if (tier > 0) {
+          scored.push({
+            text: item.text,
+            tier: tier,
+            freq: item.freq,
+            lastIdx: item.lastIdx
+          });
+        }
+      }
+
+      scored.sort(function (a, b) {
+        if (b.tier !== a.tier) return b.tier - a.tier;
+        if (b.freq !== a.freq) return b.freq - a.freq;
+        if (b.lastIdx !== a.lastIdx) return b.lastIdx - a.lastIdx;
+        return a.text.length - b.text.length;
+      });
+
+      var out = [];
+      var seenOut = {};
+      for (var oi = 0; oi < scored.length && out.length < cap; oi++) {
+        var okKey = scored[oi].text.toLowerCase();
+        if (!seenOut[okKey]) {
+          seenOut[okKey] = true;
+          out.push(scored[oi].text);
+        }
+      }
+
+      // Word-level predictive completion when user is typing a multi-word phrase
+      if (out.length < cap && /\s/.test(rawStr) && rawStr.trim() !== '') {
+        var lastSpaceIdx = rawStr.search(/\S+$/);
+        var hasTrailingSpace = /\s$/.test(rawStr);
+        var prefixBase = hasTrailingSpace ? rawStr : (lastSpaceIdx >= 0 ? rawStr.slice(0, lastSpaceIdx) : '');
+        var curToken = hasTrailingSpace ? '' : (lastSpaceIdx >= 0 ? rawStr.slice(lastSpaceIdx).toLowerCase() : '');
+        var wordList = Object.keys(wordMap).map(function (wk) { return wordMap[wk]; });
+        var wMatches = [];
+        for (var wi2 = 0; wi2 < wordList.length; wi2++) {
+          var wm = wordList[wi2];
+          var wl = wm.word.toLowerCase();
+          if (curToken && (wl === curToken || wl.indexOf(curToken) !== 0)) continue;
+          var composed = prefixBase + wm.word;
+          if (composed.toLowerCase() === q) continue;
+          wMatches.push({ text: composed, freq: wm.freq, lastIdx: wm.lastIdx });
+        }
+        wMatches.sort(function (a, b) {
+          if (b.freq !== a.freq) return b.freq - a.freq;
+          return b.lastIdx - a.lastIdx;
+        });
+        for (var wmi = 0; wmi < wMatches.length && out.length < cap; wmi++) {
+          var wkOut = wMatches[wmi].text.toLowerCase();
+          if (!seenOut[wkOut]) {
+            seenOut[wkOut] = true;
+            out.push(wMatches[wmi].text);
+          }
+        }
+      }
+
+      return out;
     }
 
     var DEFAULT_ADMIN_CFG = {
@@ -14218,15 +14417,21 @@
 
           var colTitleTxt = editColNorm ? editColNorm.name : 'Edit Value';
           var isNumCol = Boolean(editColNorm && (editColNorm.type === 'amount' || editColNorm.type === 'number'));
+          var isPredTextCol = isPredictiveTextColumn(editColNorm);
+          var isNameEditCol = isCustomerOrNameColumn(bot, editColNorm);
           var padInputMode = isNumCol ? ' inputmode="decimal"' : '';
           var padPlaceholder = (editColNorm && editColNorm.type === 'formula') ? '=Amount*2 or number' : '';
+          var padPredictAttrs = isPredTextCol
+            ? (' autocomplete="on" autocorrect="on" spellcheck="true" autocapitalize="' + (isNameEditCol ? 'words' : 'sentences') + '"')
+            : ' autocomplete="off"';
 
           padCard.innerHTML =
             '<div class="tb-pad-head">' +
               '<div class="tb-pad-title" id="tb-pad-title">' + esc(colTitleTxt) + '</div>' +
               '<button type="button" class="tb-pad-mic" id="tb-pad-mic" title="Voice input">' + icon('mic', 18) + '</button>' +
             '</div>' +
-            '<input id="tb-pad-input" class="tb-pad-input" type="text"' + padInputMode + ' value="' + esc(activeInp.value || '') + '" placeholder="' + esc(padPlaceholder) + '" autocomplete="off" />' +
+            '<input id="tb-pad-input" class="tb-pad-input" type="text"' + padInputMode + ' value="' + esc(activeInp.value || '') + '" placeholder="' + esc(padPlaceholder) + '"' + padPredictAttrs + ' />' +
+            '<div id="tb-pad-predict-bar" class="tb-pad-predict-bar" style="display:none;"></div>' +
             '<div id="tb-pad-hint" class="tb-pad-hint" style="display:none;"></div>' +
             '<div class="tb-pad-foot">' +
               '<button type="button" id="tb-pad-cancel" class="tb-pad-cancel">Cancel</button>' +
@@ -14238,9 +14443,60 @@
 
           var padInp = document.getElementById('tb-pad-input');
           var padHintEl = document.getElementById('tb-pad-hint');
+          var padPredictBarEl = document.getElementById('tb-pad-predict-bar');
           var padMicBtn = document.getElementById('tb-pad-mic');
           var padCancelBtn = document.getElementById('tb-pad-cancel');
           var padSaveBtn = document.getElementById('tb-pad-save');
+          var topPredictiveSuggestion = '';
+
+          var applyPredictiveSelection = function (pickedText) {
+            if (!padInp || !pickedText) return;
+            padInp.value = pickedText;
+            activeInp.value = pickedText;
+            applyFormulaBorderValidation();
+            updateLiveFooterTotalsInPlace();
+            refreshPredictiveBar();
+            try {
+              padInp.focus();
+              var endPos = padInp.value.length;
+              padInp.setSelectionRange(endPos, endPos);
+            } catch (errCur) {}
+          };
+
+          var refreshPredictiveBar = function () {
+            if (!padPredictBarEl || !isPredTextCol) {
+              topPredictiveSuggestion = '';
+              if (padPredictBarEl) padPredictBarEl.style.display = 'none';
+              return;
+            }
+            var curQuery = padInp ? padInp.value : '';
+            var list = getPredictiveTextCandidates(bot, editColNorm, curQuery, 6);
+            topPredictiveSuggestion = list.length > 0 ? list[0] : '';
+            if (list.length === 0) {
+              padPredictBarEl.style.display = 'none';
+              padPredictBarEl.innerHTML = '';
+              return;
+            }
+            var hasTyped = String(curQuery || '').trim() !== '';
+            var chipsHtml = '<span class="tb-pad-predict-lbl">Predict:</span>';
+            for (var pi = 0; pi < list.length; pi++) {
+              chipsHtml += '<button type="button" class="tb-pad-predict-chip' + (hasTyped && pi === 0 ? ' is-top' : '') + '" data-pred-idx="' + pi + '" title="Tap to fill &quot;' + esc(list[pi]) + '&quot;">' + esc(list[pi]) + '</button>';
+            }
+            padPredictBarEl.innerHTML = chipsHtml;
+            padPredictBarEl.style.display = 'flex';
+            padPredictBarEl.querySelectorAll('.tb-pad-predict-chip').forEach(function (chipBtn) {
+              chipBtn.onmousedown = function (e) { e.preventDefault(); e.stopPropagation(); };
+              chipBtn.ontouchstart = function (e) { e.stopPropagation(); };
+              chipBtn.onclick = function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var idxP = parseInt(chipBtn.getAttribute('data-pred-idx'), 10);
+                if (!isNaN(idxP) && list[idxP]) {
+                  applyPredictiveSelection(list[idxP]);
+                }
+              };
+            });
+          };
 
           var updateLiveFooterTotalsInPlace = function () {
             if (!state.editingCell || !editColNorm) return;
@@ -14304,10 +14560,12 @@
 
           if (padInp) {
             applyFormulaBorderValidation();
+            refreshPredictiveBar();
             padInp.oninput = function () {
               activeInp.value = padInp.value;
               applyFormulaBorderValidation();
               updateLiveFooterTotalsInPlace();
+              refreshPredictiveBar();
             };
             padInp.onpaste = function (e) {
               var cd = e.clipboardData || window.clipboardData;
@@ -14356,11 +14614,15 @@
                   activeInp.value = padInp.value;
                   applyFormulaBorderValidation();
                   updateLiveFooterTotalsInPlace();
+                  refreshPredictiveBar();
                 }
               }, 0);
             };
             padInp.onkeydown = function (e) {
-              if (e.key === 'Enter') {
+              if (e.key === 'Tab' && !e.shiftKey && isPredTextCol && topPredictiveSuggestion && String(padInp.value || '').trim() !== '') {
+                e.preventDefault();
+                applyPredictiveSelection(topPredictiveSuggestion);
+              } else if (e.key === 'Enter') {
                 e.preventDefault();
                 commitActiveCell(padInp.value, false);
               } else if (e.key === 'Escape') {
@@ -14404,6 +14666,7 @@
                     activeInp.value = padInp.value;
                     applyFormulaBorderValidation();
                     updateLiveFooterTotalsInPlace();
+                    refreshPredictiveBar();
                   }
                 };
                 rec.onerror = function () {
