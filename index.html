@@ -10389,6 +10389,22 @@
           openModal('customer_ledger', { folder: targetFld });
         };
       });
+      document.querySelectorAll('[data-dash-weekly-seller]').forEach(function (wkCard) {
+        wkCard.onclick = function () {
+          var sellerKey = wkCard.getAttribute('data-dash-weekly-seller') || '';
+          var matchedFld = wkCard.getAttribute('data-folder') || 'all';
+          if (matchedFld && matchedFld !== 'all' && isFolderLocked(matchedFld) && !isFolderUnlocked(matchedFld)) {
+            state.selectedFolder = matchedFld;
+            renderDashboard();
+            return;
+          }
+          openModal('reports', {
+            period: 'weekly',
+            folder: matchedFld || 'all',
+            search: (matchedFld === 'all' || !matchedFld || matchedFld === 'General') ? sellerKey : ''
+          });
+        };
+      });
       document.querySelectorAll('[data-fld-ledger-vf]').forEach(function (vfBtn) {
         vfBtn.onclick = function () {
           var fArg = vfBtn.getAttribute('data-folder') || state.selectedFolder || 'all';
@@ -23812,7 +23828,7 @@
 
       var scopeBots = (state.bots || []).filter(function (b) {
         if (!b || isBotTombstoned(b)) return false;
-        if (!isBotUnlocked(b)) return false;
+        if (!opts.includeLocked && !isBotUnlocked(b)) return false;
         if (botIdFilter && botIdFilter !== 'all') return b.id === botIdFilter;
         if (opts.includeAllCustomerTables) {
           if (!hasCustomerStatementSupport(b)) return false;
@@ -24417,8 +24433,8 @@
       });
     }
 
-    function computeDirectBotRominbalce(bot) {
-      if (!bot || isBotTombstoned(bot) || !isBotUnlocked(bot)) return 0;
+    function computeDirectBotRominbalce(bot, includeLocked) {
+      if (!bot || isBotTombstoned(bot) || (!includeLocked && !isBotUnlocked(bot))) return 0;
       var det = detectLedgerColumns(bot);
       if (isStockOrProductionOnlyBot(bot, det)) return 0;
       var rows = Array.isArray(bot.rows) ? bot.rows : [];
@@ -24464,8 +24480,8 @@
       return 0;
     }
 
-    function computeBotRominbalceSummary(bot, calMode) {
-      if (!bot || isBotTombstoned(bot) || !isBotUnlocked(bot)) {
+    function computeBotRominbalceSummary(bot, calMode, includeLocked) {
+      if (!bot || isBotTombstoned(bot) || (!includeLocked && !isBotUnlocked(bot))) {
         return { supported: false, credit: 0, paid: 0, remaining: 0, custCount: 0, txCount: 0 };
       }
       var det = detectLedgerColumns(bot);
@@ -24481,6 +24497,7 @@
           folder: normalizeFolderName(bot.folder),
           botId: bot.id,
           includeAllCustomerTables: true,
+          includeLocked: Boolean(includeLocked),
           calendarMode: calMode
         });
         var cred = Number(d.totalCredit) || 0;
@@ -24488,7 +24505,7 @@
         var bal = 0;
 
         if (!hasRunningBalCol && det.balCol) {
-          bal = computeDirectBotRominbalce(bot);
+          bal = computeDirectBotRominbalce(bot, includeLocked);
           if (cred === 0 && bal !== 0) cred = roundEtb2(paid + bal);
         } else if (Array.isArray(d.customerSummaries) && d.customerSummaries.length > 0) {
           d.customerSummaries.forEach(function (cs) {
@@ -24513,7 +24530,7 @@
       }
 
       if (det.balCol || det.saleAmtCol || ((det.genericTotalCol || det.hasProductPriceCols) && det.payAmtCol)) {
-        var directR = computeDirectBotRominbalce(bot);
+        var directR = computeDirectBotRominbalce(bot, includeLocked);
         var sumC = 0;
         var sumP = 0;
         for (var i = 0; i < rows.length; i++) {
@@ -24541,20 +24558,22 @@
       return { supported: false, credit: 0, paid: 0, remaining: 0, custCount: 0, txCount: 0 };
     }
 
-    function computeSingleFolderRominbalce(folderName, calMode) {
+    function computeSingleFolderRominbalce(folderName, calMode, includeLocked) {
       var cleanF = normalizeFolderName(folderName);
       var mfLower = cleanF.toLowerCase();
       var allFolderBots = (state.bots || []).filter(function (b) {
         return b && !isBotTombstoned(b) && normalizeFolderName(b.folder).toLowerCase() === mfLower;
       });
       var unlockedBots = allFolderBots.filter(function (b) { return isBotUnlocked(b); });
+      var targetBots = includeLocked ? allFolderBots : unlockedBots;
       var isLockedOnly = allFolderBots.length > 0 && unlockedBots.length === 0;
+      var hasLockedBots = allFolderBots.length > unlockedBots.length || (isFolderLocked(cleanF) && !isFolderUnlocked(cleanF));
       var totalCredit = 0;
       var totalPaid = 0;
       var totalRemaining = 0;
       var supportedCount = 0;
-      unlockedBots.forEach(function (b) {
-        var bs = computeBotRominbalceSummary(b, calMode);
+      targetBots.forEach(function (b) {
+        var bs = computeBotRominbalceSummary(b, calMode, includeLocked);
         if (bs.supported) {
           supportedCount++;
           totalCredit = roundEtb2(totalCredit + bs.credit);
@@ -24568,13 +24587,14 @@
         unlockedCount: unlockedBots.length,
         supportedCount: supportedCount,
         isLockedOnly: isLockedOnly,
+        hasLockedBots: hasLockedBots,
         totalCredit: totalCredit,
         totalPaid: totalPaid,
         remainingBalance: totalRemaining
       };
     }
 
-    function computeAllFoldersRominbalceList(calMode) {
+    function computeAllFoldersRominbalceList(calMode, includeLocked) {
       var folderCandidates = [];
       var seenF = {};
       var addCand = function (fName) {
@@ -24591,12 +24611,12 @@
         if (b && !isBotTombstoned(b)) addCand(b.folder);
       });
       return folderCandidates.map(function (fn) {
-        return computeSingleFolderRominbalce(fn, calMode);
+        return computeSingleFolderRominbalce(fn, calMode, includeLocked);
       });
     }
 
-    function computeMatchedFoldersRemainingBalance(defaultLabel, exactNormalizedNames, fuzzyRegex, calMode, allFoldersSummary) {
-      var list = Array.isArray(allFoldersSummary) ? allFoldersSummary : computeAllFoldersRominbalceList(calMode);
+    function computeMatchedFoldersRemainingBalance(defaultLabel, exactNormalizedNames, fuzzyRegex, calMode, allFoldersSummary, includeLocked) {
+      var list = Array.isArray(allFoldersSummary) ? allFoldersSummary : computeAllFoldersRominbalceList(calMode, includeLocked);
       var exactMatches = list.filter(function (item) {
         var norm = item.folder.toLowerCase().replace(/[\s_\-]+/g, '');
         return exactNormalizedNames.indexOf(norm) !== -1;
@@ -24615,8 +24635,9 @@
         var totalRemaining = 0;
         var totalTables = 0;
         var allLocked = matched.every(function (m) { return m.isLockedOnly; });
+        var anyLocked = matched.some(function (m) { return m.hasLockedBots || m.isLockedOnly; });
         matched.forEach(function (m) {
-          totalTables += m.unlockedCount;
+          totalTables += (includeLocked ? m.botCount : m.unlockedCount);
           totalRemaining = roundEtb2(totalRemaining + (Number(m.remainingBalance) || 0));
         });
         return {
@@ -24625,29 +24646,32 @@
           matchedCount: matched.length,
           tableCount: totalTables,
           isLockedOnly: allLocked && totalTables === 0,
+          hasLockedData: anyLocked,
           remainingBalance: totalRemaining
         };
       }
 
-      // Fallback: if no folder name matched, sum unlocked sale/credit tables whose table name matches
+      // Fallback: if no folder name matched, sum sale/credit tables whose table name matches
       var botMatches = (state.bots || []).filter(function (b) {
         return b && !isBotTombstoned(b) && fuzzyRegex.test(String(b.name || '')) && !isStockOrProductionOnlyBot(b);
       });
-      var unlockedBotMatches = botMatches.filter(function (b) { return isBotUnlocked(b); });
-      if (botMatches.length > 0 && unlockedBotMatches.length === 0) {
+      var targetBotMatches = includeLocked ? botMatches : botMatches.filter(function (b) { return isBotUnlocked(b); });
+      var anyLockedBots = botMatches.some(function (b) { return !isBotUnlocked(b); });
+      if (botMatches.length > 0 && targetBotMatches.length === 0) {
         return {
           label: defaultLabel,
           matchedFolder: normalizeFolderName(botMatches[0].folder),
           matchedCount: 0,
           tableCount: 0,
           isLockedOnly: true,
+          hasLockedData: true,
           remainingBalance: 0
         };
       }
       var botRemSum = 0;
       var botSupported = 0;
-      unlockedBotMatches.forEach(function (b) {
-        var bs = computeBotRominbalceSummary(b, calMode);
+      targetBotMatches.forEach(function (b) {
+        var bs = computeBotRominbalceSummary(b, calMode, includeLocked);
         if (bs.supported) {
           botSupported++;
           botRemSum = roundEtb2(botRemSum + bs.remaining);
@@ -24655,11 +24679,155 @@
       });
       return {
         label: defaultLabel,
-        matchedFolder: unlockedBotMatches[0] ? normalizeFolderName(unlockedBotMatches[0].folder) : '',
+        matchedFolder: targetBotMatches[0] ? normalizeFolderName(targetBotMatches[0].folder) : '',
         matchedCount: 0,
         tableCount: botSupported,
         isLockedOnly: false,
+        hasLockedData: anyLockedBots,
         remainingBalance: botRemSum
+      };
+    }
+
+    function computeSellerWeeklyProductSales(sellerRegex, sellerLabel, searchKeyword, calMode, includeLocked) {
+      var useEth = calMode !== 'gregorian';
+      var nowCtx = getReportNowContext(useEth);
+      var todayUtcMs = nowCtx.utcDayMs;
+      var weekLabel = formatReportWeekLabel(nowCtx, useEth, state && state.lang);
+      var prodFallbackRe = /miyaw|miyawa|ሚያው|ሜያው|ሚያዋ|mad\s*\d+|mad\d+|ma['’]?ed\s*\d+|kuntal|quintal|ኩንታል|sack|sacks|bag|bags|qty|quantity|pcs|pieces|kg|unit|units|pack|carton|product|3a|salt|lomi|ሎሚ|ጨው|ብዛት/i;
+      var nonProdRe = /date|ቀን|bal|remain|romin|remin|reaming|paid|\bpay\b|payment|credit|total|price|rate|note|remark|ref|cust|buyer|client|type/i;
+
+      var matchedBots = (state.bots || []).filter(function (b) {
+        if (!b || isBotTombstoned(b)) return false;
+        if (!includeLocked && !isBotUnlocked(b)) return false;
+        if (isStockOrProductionOnlyBot(b)) return false;
+        var nm = String(b.name || '');
+        var fld = normalizeFolderName(b.folder);
+        return sellerRegex.test(nm) || sellerRegex.test(fld);
+      });
+
+      var totalAmount = 0;
+      var totalQty = 0;
+      var txCount = 0;
+      var productTotals = {};
+      var matchedFolder = '';
+      var matchedFolderCounts = {};
+
+      matchedBots.forEach(function (bot) {
+        var det = detectLedgerColumns(bot);
+        var cols = Array.isArray(bot.columns) ? bot.columns : [];
+        var prodCols = (det.productCols && det.productCols.length > 0) ? det.productCols.slice() : cols.filter(function (c) {
+          if (!c || c.type === 'date' || c.type === 'checkbox') return false;
+          if (det.balCol && c.id === det.balCol.id) return false;
+          if (det.payAmtCol && c.id === det.payAmtCol.id) return false;
+          if (det.saleAmtCol && c.id === det.saleAmtCol.id) return false;
+          if (det.priceCol && c.id === det.priceCol.id) return false;
+          var cn = String(c.name || '').trim();
+          return cn && !nonProdRe.test(cn) && prodFallbackRe.test(cn);
+        });
+        var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
+        if (!activeSaleCol && !det.hasProductPriceCols && prodCols.length === 0 && !det.balCol) return;
+
+        var fName = normalizeFolderName(bot.folder);
+        matchedFolderCounts[fName] = (matchedFolderCounts[fName] || 0) + 1;
+
+        var allDateCols = cols.filter(function (c) { return c.type === 'date'; });
+        var saleDateCol = det.saleDateCol || det.genericDateCol || allDateCols.find(function (c) {
+          return !det.payDateCol || c.id !== det.payDateCol.id;
+        }) || null;
+        var qtyFallbackCol = cols.find(function (c) {
+          if (!c || c.type === 'date' || c.type === 'checkbox') return false;
+          var cn = String(c.name || '').trim().toLowerCase();
+          return /\b(?:qty|quantity|kuntal|quintal|bag|bags|pcs|kg)\b|ብዛት|ኩንታል/i.test(cn);
+        }) || null;
+        var itemTextCol = cols.find(function (c) {
+          if (!c || (c.type && c.type !== 'text')) return false;
+          if (det.custCol && c.id === det.custCol.id) return false;
+          var cn = String(c.name || '').trim().toLowerCase();
+          return /item|product|quality|salt|ምርት|አይነት/i.test(cn);
+        }) || null;
+
+        var rows = Array.isArray(bot.rows) ? bot.rows : [];
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i];
+          if (!r) continue;
+          var typeRaw = det.typeCol ? String(r[det.typeCol.id] || '').trim() : '';
+          if (r._ledgerKind === 'payment' || /^payment/i.test(typeRaw)) continue;
+
+          var sAmt = activeSaleCol ? readLedgerNumericCell(r, activeSaleCol, bot) : 0;
+          if (sAmt === 0 && det.hasProductPriceCols) {
+            var pcCalc = computeRowProductCredit(r, det, bot);
+            if (pcCalc.hasProductPrice) sAmt = pcCalc.credit;
+          }
+          if (sAmt === 0 && det.balCol) {
+            var pTemp = det.payAmtCol ? readLedgerNumericCell(r, det.payAmtCol, bot) : 0;
+            var bTemp = readLedgerNumericCell(r, det.balCol, bot);
+            if (bTemp > 0) sAmt = roundEtb2(pTemp + bTemp);
+          }
+
+          var rowQty = 0;
+          var rowProdHits = [];
+          for (var pi = 0; pi < prodCols.length; pi++) {
+            var pc = prodCols[pi];
+            var qv = readLedgerNumericCell(r, pc, bot);
+            if (typeof qv === 'number' && isFinite(qv) && qv > 0) {
+              rowQty = roundEtb2(rowQty + qv);
+              rowProdHits.push({ name: String(pc.name || 'Product').trim(), qty: qv });
+            }
+          }
+          if (rowQty === 0 && qtyFallbackCol) {
+            var qf = readLedgerNumericCell(r, qtyFallbackCol, bot);
+            if (typeof qf === 'number' && isFinite(qf) && qf > 0) {
+              rowQty = roundEtb2(qf);
+              var qLbl = (itemTextCol && String(r[itemTextCol.id] || '').trim()) || String(qtyFallbackCol.name || 'Qty').trim();
+              rowProdHits.push({ name: qLbl, qty: qf });
+            }
+          }
+
+          if (rowQty <= 0 && sAmt <= 0) continue;
+
+          var rawDateStr = saleDateCol ? String(r[saleDateCol.id] || '').trim() : '';
+          var fbIso = r._updatedAt || r._createdAt || bot.updatedAt || '';
+          var dMeta = parseFlexibleDateMeta(rawDateStr, fbIso, saleDateCol, useEth);
+          if (!dMeta || (!dMeta.parsedFromString && !fbIso)) continue;
+          var rowUtcMs = Date.UTC(dMeta.gy, dMeta.gm - 1, dMeta.gd);
+          var dayDiff = Math.round((todayUtcMs - rowUtcMs) / 86400000);
+          if (dayDiff < -1 || dayDiff > 6) continue;
+
+          txCount++;
+          totalAmount = roundEtb2(totalAmount + Math.max(0, sAmt));
+          totalQty = roundEtb2(totalQty + rowQty);
+          rowProdHits.forEach(function (ph) {
+            var pKey = ph.name.toLowerCase();
+            if (!productTotals[pKey]) {
+              productTotals[pKey] = { name: ph.name, qty: 0 };
+            }
+            productTotals[pKey].qty = roundEtb2(productTotals[pKey].qty + ph.qty);
+          });
+        }
+      });
+
+      var fldKeys = Object.keys(matchedFolderCounts);
+      if (fldKeys.length === 1) {
+        matchedFolder = fldKeys[0];
+      } else if (fldKeys.length > 1) {
+        var exactSellerFld = fldKeys.find(function (fk) { return sellerRegex.test(fk); });
+        matchedFolder = exactSellerFld || 'all';
+      }
+
+      var products = Object.keys(productTotals).map(function (k) { return productTotals[k]; }).sort(function (a, b) {
+        return b.qty - a.qty;
+      });
+
+      return {
+        label: sellerLabel,
+        searchKeyword: searchKeyword,
+        matchedFolder: matchedFolder || 'all',
+        weekLabel: weekLabel,
+        tableCount: matchedBots.length,
+        txCount: txCount,
+        totalAmount: totalAmount,
+        totalQty: totalQty,
+        products: products
       };
     }
 
@@ -24677,10 +24845,11 @@
       var unlockedBotSig = Object.keys(state.unlockedBots || {}).sort().join(',');
       var dashMemoKey = String(scopeFld).toLowerCase() + '::' + calMode + '::' + unlockedFldSig + '::' + unlockedBotSig;
       var cachedSummary = _dashLedgerSummaryMemo.entries[dashMemoKey];
-      var statementTables, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal, shmseInfo, sisayiInfo, allFoldersSummary;
+      var statementTables, anyBalanceTablesCount, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal, shmseInfo, sisayiInfo, allFoldersSummary, shmseWeeklySales, sisayiWeeklySales;
 
       if (cachedSummary) {
         statementTables = cachedSummary.statementTables;
+        anyBalanceTablesCount = cachedSummary.anyBalanceTablesCount;
         primaryLedger = cachedSummary.primaryLedger;
         canRecordQuick = cachedSummary.canRecordQuick;
         custCount = cachedSummary.custCount;
@@ -24691,6 +24860,8 @@
         shmseInfo = cachedSummary.shmseInfo;
         sisayiInfo = cachedSummary.sisayiInfo;
         allFoldersSummary = cachedSummary.allFoldersSummary;
+        shmseWeeklySales = cachedSummary.shmseWeeklySales;
+        sisayiWeeklySales = cachedSummary.sisayiWeeklySales;
       } else {
         var prevDashFCache = _activeFormulaEvalCache;
         _activeFormulaEvalCache = {};
@@ -24725,11 +24896,15 @@
             var pWritable = !dCheck.payAmtCol || dCheck.payAmtCol.type !== 'formula';
             return Boolean(dCheck.custCol && dCheck.balCol && sWritable && pWritable);
           })()));
-          allFoldersSummary = computeAllFoldersRominbalceList(calMode);
-          if (statementTables.length > 0) {
+          allFoldersSummary = computeAllFoldersRominbalceList(calMode, true);
+          anyBalanceTablesCount = allFoldersSummary.reduce(function (acc, item) {
+            return acc + (item.supportedCount || 0);
+          }, 0);
+          if (statementTables.length > 0 || anyBalanceTablesCount > 0) {
             var ledgerData = buildCustomerLedgerData({
               folder: scopeFld,
               includeAllCustomerTables: true,
+              includeLocked: true,
               calendarMode: calMode
             });
             custCount = ledgerData.customerSummaries.length;
@@ -24741,7 +24916,7 @@
                 return acc + (Number(item.remainingBalance) || 0);
               }, 0));
             } else {
-              var scopeSumObj = computeSingleFolderRominbalce(scopeFld, calMode);
+              var scopeSumObj = computeSingleFolderRominbalce(scopeFld, calMode, true);
               outstandingBalVal = scopeSumObj.remainingBalance;
             }
           } else {
@@ -24749,20 +24924,37 @@
           }
           shmseInfo = computeMatchedFoldersRemainingBalance(
             'Shmsesale',
-            ['shmsesale', 'shmsesales', 'shmesesale', 'shemsesale', 'shimsesale', 'shmsesal', 'shmsisale', 'shmsesel', 'shmse'],
-            /(?:sh[aeiu]?m[sz][aei]?|shmese|shimse|shemse|ሽምሴ)/i,
+            ['shmsesale', 'shmsesales', 'shmesesale', 'shemsesale', 'shimsesale', 'shmsesal', 'shmsisale', 'shmsesel', 'shmse', 'smse', 'smsesale'],
+            /(?:sh[aeiu]?m[sz][aei]?|shmese|shimse|shemse|smse|ሽምሴ)/i,
             calMode,
-            allFoldersSummary
+            allFoldersSummary,
+            true
           );
           sisayiInfo = computeMatchedFoldersRemainingBalance(
-            'sisaisale',
+            'Sisayisale',
             ['sisaisale', 'sisaisales', 'sisayisale', 'sisayisales', 'sisaysale', 'sisaysales', 'sisayesale', 'sisaesale', 'sisaisel', 'sisai', 'sisayi'],
             /(?:sis[ae][yi]?|ሲሳይ)/i,
             calMode,
-            allFoldersSummary
+            allFoldersSummary,
+            true
+          );
+          shmseWeeklySales = computeSellerWeeklyProductSales(
+            /(?:sh[aeiu]?m[sz][aei]?|shmese|shimse|shemse|smse|ሽምሴ)/i,
+            'Shmse / Smse · ሽምሴ',
+            'shmse',
+            calMode,
+            true
+          );
+          sisayiWeeklySales = computeSellerWeeklyProductSales(
+            /(?:sis[ae][yi]?|ሲሳይ)/i,
+            'Sisayi · ሲሳይ',
+            'sisay',
+            calMode,
+            true
           );
           _dashLedgerSummaryMemo.entries[dashMemoKey] = {
             statementTables: statementTables,
+            anyBalanceTablesCount: anyBalanceTablesCount,
             primaryLedger: primaryLedger,
             canRecordQuick: canRecordQuick,
             custCount: custCount,
@@ -24772,14 +24964,16 @@
             outstandingBalVal: outstandingBalVal,
             shmseInfo: shmseInfo,
             sisayiInfo: sisayiInfo,
-            allFoldersSummary: allFoldersSummary
+            allFoldersSummary: allFoldersSummary,
+            shmseWeeklySales: shmseWeeklySales,
+            sisayiWeeklySales: sisayiWeeklySales
           };
         } finally {
           _activeFormulaEvalCache = prevDashFCache;
         }
       }
 
-      if (statementTables.length === 0) {
+      if (statementTables.length === 0 && anyBalanceTablesCount === 0) {
         var createLabel = isAllScope ? 'Create Customer Ledger' : ('Create Ledger in "' + esc(scopeFld) + '"');
         var descTxt = isAllScope
           ? 'Track customer credit sales, payments, Ethiopian Calendar dates & ETB running balances in one live Statement card.'
@@ -24799,16 +24993,18 @@
       }
 
       var cardTitle = isAllScope
-        ? 'Customer Statement Summary &mdash; All Folders'
-        : ('Customer Statement Summary &mdash; ' + esc(scopeFld));
+        ? 'Customer Statement &amp; Rominbalce &middot; የሁሉም ፎልደር ቀሪ ሂሳብ'
+        : ('Customer Statement &amp; Rominbalce &mdash; ' + esc(scopeFld) + ' ቀሪ ያለበት');
 
       var shmseTitle = (shmseInfo && shmseInfo.matchedFolder && shmseInfo.matchedFolder.toLowerCase() !== 'shmsesale')
-        ? ('Shmsesale (' + esc(shmseInfo.matchedFolder) + ') Rominbalce')
-        : 'Shmsesale Rominbalce';
-      var sisayiTitle = (sisayiInfo && sisayiInfo.matchedFolder && sisayiInfo.matchedFolder.toLowerCase() !== 'sisaisale')
-        ? ('sisaisale (' + esc(sisayiInfo.matchedFolder) + ') Rominbalce')
-        : 'sisaisale Rominbalce';
-      var totalScopeLbl = isAllScope ? 'All Folders Rominbalce (Sum)' : (esc(scopeFld) + ' Rominbalce');
+        ? ('Shmsesale (' + esc(shmseInfo.matchedFolder) + ') &middot; ሽምሴ ቀሪ ያለበት')
+        : 'Shmsesale &middot; ሽምሴ ቀሪ ያለበት';
+      var sisayiTitle = (sisayiInfo && sisayiInfo.matchedFolder && !/^sis[ae]y?isale$/i.test(sisayiInfo.matchedFolder))
+        ? ('Sisayisale (' + esc(sisayiInfo.matchedFolder) + ') &middot; ሲሳይ ቀሪ ያለበት')
+        : 'Sisayisale &middot; ሲሳይ ቀሪ ያለበት';
+      var totalScopeLbl = isAllScope
+        ? 'All Folders Rominbalce (Sum) &middot; የሁሉም ፎልደር ቀሪ ድምር'
+        : (esc(scopeFld) + ' Rominbalce &middot; ' + esc(scopeFld) + ' ቀሪ ያለበት');
 
       var activeFolderPills = (allFoldersSummary || []).filter(function (f) {
         return f.botCount > 0 && (f.supportedCount > 0 || f.isLockedOnly || f.remainingBalance !== 0);
@@ -24817,44 +25013,84 @@
       });
       var folderBreakdownHtml = (isAllScope && activeFolderPills.length > 0)
         ? ('<div style="margin-top:10px;padding-top:9px;border-top:1px dashed #E2E8F0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-            '<span style="font-size:10.5px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:0.03em;margin-right:2px;">All Folders Rominbalce:</span>' +
+            '<span style="font-size:10.5px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:0.03em;margin-right:2px;">All Folders Rominbalce &middot; የሁሉም ፎልደር ቀሪ:</span>' +
             activeFolderPills.map(function (f) {
-              var valStr = f.isLockedOnly ? '🔒 Locked' : formatEtbAmount(f.remainingBalance);
-              return '<button type="button" class="ledger-stmt-col-pill" data-dash-folder-stmt="' + esc(f.folder) + '" style="cursor:pointer;border-color:#CBD5E1;background:#F8FAFC;" title="Open ' + esc(f.folder) + ' Statement">' +
-                '<span style="font-weight:700;color:#334155;">📁 ' + esc(f.folder) + ':</span>' +
+              var valStr = formatEtbAmount(f.remainingBalance);
+              var lockBadge = f.hasLockedBots ? '🔒 ' : '';
+              return '<button type="button" class="ledger-stmt-col-pill" data-dash-folder-stmt="' + esc(f.folder) + '" style="cursor:pointer;border-color:' + (f.hasLockedBots ? '#FCD34D' : '#CBD5E1') + ';background:' + (f.hasLockedBots ? '#FFFBEB' : '#F8FAFC') + ';" title="Open ' + esc(f.folder) + ' Statement / Unlock">' +
+                '<span style="font-weight:700;color:#334155;">' + lockBadge + '📁 ' + esc(f.folder) + ' (ቀሪ):</span>' +
                 '<strong class="mono" style="color:' + (f.remainingBalance > 0 ? '#B45309' : '#047857') + ';">' + esc(valStr) + '</strong>' +
               '</button>';
             }).join('') +
           '</div>')
         : '';
 
+      var renderWeeklySellerCard = function (wkData, accentBg, accentBorder, accentText) {
+        var wkProdsHtml = (wkData.products && wkData.products.length > 0)
+          ? wkData.products.slice(0, 6).map(function (pr) {
+              var qDisp = Number.isInteger(pr.qty) ? String(pr.qty) : pr.qty.toFixed(2).replace(/\.00$/, '');
+              return '<span class="ledger-stmt-col-pill" style="background:#fff;border-color:' + accentBorder + ';padding:2px 7px;font-size:10.5px;">' +
+                '<span style="color:#475569;font-weight:700;">' + esc(pr.name) + ':</span>' +
+                '<strong class="mono" style="color:' + accentText + ';">' + esc(qDisp) + '</strong>' +
+              '</span>';
+            }).join('')
+          : '<span style="font-size:11px;color:#64748B;">No product sales in last 7 days &middot; በ7 ቀን ሽያጭ የለም</span>';
+        var qtySummaryDisp = Number.isInteger(wkData.totalQty) ? String(wkData.totalQty) : wkData.totalQty.toFixed(2).replace(/\.00$/, '');
+        return '<div data-dash-weekly-seller="' + esc(wkData.searchKeyword) + '" data-folder="' + esc(wkData.matchedFolder || 'all') + '" style="cursor:pointer;background:' + accentBg + ';border:1px solid ' + accentBorder + ';border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:5px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+            '<span style="font-size:11.5px;font-weight:800;color:#0F172A;">' + esc(wkData.label) + ' <span style="font-weight:700;color:#64748B;">(1 Week &middot; 1 ሳምንት)</span></span>' +
+            '<span class="mono" style="font-size:10.5px;font-weight:700;color:' + accentText + ';background:#fff;border:1px solid ' + accentBorder + ';border-radius:999px;padding:1px 7px;">' + esc(qtySummaryDisp) + ' Qty &middot; ' + wkData.txCount + ' tx</span>' +
+          '</div>' +
+          '<div class="mono" style="font-size:15px;font-weight:800;color:' + accentText + ';">' + esc(formatEtbAmount(wkData.totalAmount)) + '</div>' +
+          '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">' + wkProdsHtml + '</div>' +
+        '</div>';
+      };
+      var combinedWeekAmt = roundEtb2((shmseWeeklySales ? shmseWeeklySales.totalAmount : 0) + (sisayiWeeklySales ? sisayiWeeklySales.totalAmount : 0));
+      var combinedWeekQty = roundEtb2((shmseWeeklySales ? shmseWeeklySales.totalQty : 0) + (sisayiWeeklySales ? sisayiWeeklySales.totalQty : 0));
+      var combinedWeekQtyDisp = Number.isInteger(combinedWeekQty) ? String(combinedWeekQty) : combinedWeekQty.toFixed(2).replace(/\.00$/, '');
+      var weeklyProductSalesHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #E2E8F0;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:7px;">' +
+          '<div style="font-size:11.5px;font-weight:800;color:#0F172A;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+            '<span>📅 1-Week Product Sales &middot; የ1 ሳምንት የምርት ሽያጭ (Smse / Shmse &amp; Sisayi)</span>' +
+            '<span class="mono" style="font-size:10px;font-weight:700;color:#475569;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:999px;padding:1px 7px;">' + esc((shmseWeeklySales && shmseWeeklySales.weekLabel) || 'Last 7 Days') + '</span>' +
+          '</div>' +
+          '<span class="mono" style="font-size:11px;font-weight:800;color:#0D47A1;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:999px;padding:2px 8px;">Total 1W: ' + esc(formatEtbAmount(combinedWeekAmt)) + ' &middot; ' + esc(combinedWeekQtyDisp) + ' Qty</span>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px;">' +
+          renderWeeklySellerCard(shmseWeeklySales, '#F0F9FF', '#BAE6FD', '#0369A1') +
+          renderWeeklySellerCard(sisayiWeeklySales, '#ECFDF5', '#A7F3D0', '#047857') +
+        '</div>' +
+      '</div>';
+
+      var botIdNavArg = statementTables.length > 1 ? 'all' : (primaryLedger ? primaryLedger.id : 'all');
       return '<section class="ledger-folder-panel" aria-label="Folder Customer Statement Summary">' +
         '<div class="ledger-folder-head">' +
           '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
             '<span style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">' + icon('ledger', 18) + '</span>' +
             '<div style="min-width:0;">' +
               '<div style="font-size:14px;font-weight:800;color:#0F172A;">' + cardTitle + '</div>' +
-              '<div class="num-tab" style="font-size:11.5px;color:#64748B;">' + statementTables.length + ' table' + (statementTables.length === 1 ? '' : 's') + ' &middot; ' + custCount + ' customer' + (custCount === 1 ? '' : 's') + ' &middot; ' + txCount + ' transaction' + (txCount === 1 ? '' : 's') + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
+              '<div class="num-tab" style="font-size:11.5px;color:#64748B;">' + (statementTables.length || anyBalanceTablesCount) + ' table' + ((statementTables.length || anyBalanceTablesCount) === 1 ? '' : 's') + ' &middot; ' + custCount + ' customer' + (custCount === 1 ? '' : 's') + ' &middot; ' + txCount + ' transaction' + (txCount === 1 ? '' : 's') + ' &middot; ' + (calMode === 'ethiopian' ? 'Ethiopian Calendar (EC)' : 'Gregorian (GC)') + '</div>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-            '<div class="ledger-tab-bar" style="padding:2px;">' +
-              '<button type="button" data-fld-ledger-vf="all" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="ledger-tab-btn active-all" style="padding:4px 9px;font-size:11px;">All Data</button>' +
-              '<button type="button" data-fld-ledger-vf="credit" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="ledger-tab-btn" style="padding:4px 9px;font-size:11px;color:#1E40AF;">Credit</button>' +
-              '<button type="button" data-fld-ledger-vf="unpaid" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="ledger-tab-btn" style="padding:4px 9px;font-size:11px;color:#B45309;">Unpaid Balance</button>' +
-            '</div>' +
+            (statementTables.length > 0 ? '<div class="ledger-tab-bar" style="padding:2px;">' +
+              '<button type="button" data-fld-ledger-vf="all" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(botIdNavArg) + '" class="ledger-tab-btn active-all" style="padding:4px 9px;font-size:11px;">All Data</button>' +
+              '<button type="button" data-fld-ledger-vf="credit" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(botIdNavArg) + '" class="ledger-tab-btn" style="padding:4px 9px;font-size:11px;color:#1E40AF;">Credit</button>' +
+              '<button type="button" data-fld-ledger-vf="unpaid" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(botIdNavArg) + '" class="ledger-tab-btn" style="padding:4px 9px;font-size:11px;color:#B45309;">Unpaid Balance</button>' +
+            '</div>' : '') +
             (canRecordQuick ? '<button type="button" id="btn-fld-add-sale" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-primary" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Sale</span></button>' : '') +
             (canRecordQuick ? '<button type="button" id="btn-fld-add-pay" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(primaryLedger.id) + '" class="btn btn-green" style="padding:6px 11px;font-size:11.5px;">' + icon('plus', 13) + '<span>Record Payment</span></button>' : '') +
-            '<button type="button" id="btn-fld-open-ledger" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(statementTables.length > 1 ? 'all' : primaryLedger.id) + '" class="btn btn-dark-blue" style="padding:6px 12px;font-size:11.5px;">' + icon('ledger', 13) + '<span>Open Statement</span></button>' +
+            (statementTables.length > 0 ? '<button type="button" id="btn-fld-open-ledger" data-folder="' + esc(scopeFld) + '" data-bot-id="' + esc(botIdNavArg) + '" class="btn btn-dark-blue" style="padding:6px 12px;font-size:11.5px;">' + icon('ledger', 13) + '<span>Open Statement</span></button>' : '') +
             '<button type="button" id="btn-fld-create-ledger" data-folder="' + esc(scopeFld) + '" class="btn btn-outline" style="padding:6px 10px;font-size:11.5px;" title="Create another Ledger table inside a folder">' + icon('plus', 12) + '<span>New Ledger</span></button>' +
           '</div>' +
         '</div>' +
         '<div class="ledger-kpi-row cols-3" style="margin-bottom:0;">' +
-          '<div class="ledger-kpi-box credit"' + (shmseInfo && shmseInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(shmseInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(shmseInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + shmseTitle + '</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(shmseInfo && shmseInfo.isLockedOnly ? '🔒 Locked' : formatEtbAmount(shmseInfo ? shmseInfo.remainingBalance : 0)) + '</div></div>' +
-          '<div class="ledger-kpi-box paid"' + (sisayiInfo && sisayiInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(sisayiInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(sisayiInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + sisayiTitle + '</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(sisayiInfo && sisayiInfo.isLockedOnly ? '🔒 Locked' : formatEtbAmount(sisayiInfo ? sisayiInfo.remainingBalance : 0)) + '</div></div>' +
+          '<div class="ledger-kpi-box credit"' + (shmseInfo && shmseInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(shmseInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(shmseInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + (shmseInfo && shmseInfo.hasLockedData ? '🔒 ' : '') + shmseTitle + '</div><div class="ledger-kpi-val" style="color:#1E40AF;">' + esc(formatEtbAmount(shmseInfo ? shmseInfo.remainingBalance : 0)) + '</div></div>' +
+          '<div class="ledger-kpi-box paid"' + (sisayiInfo && sisayiInfo.matchedFolder ? (' data-dash-folder-stmt="' + esc(sisayiInfo.matchedFolder) + '" style="cursor:pointer;" title="Open ' + esc(sisayiInfo.matchedFolder) + ' Statement"') : '') + '><div class="ledger-kpi-lbl">' + (sisayiInfo && sisayiInfo.hasLockedData ? '🔒 ' : '') + sisayiTitle + '</div><div class="ledger-kpi-val" style="color:#047857;">' + esc(formatEtbAmount(sisayiInfo ? sisayiInfo.remainingBalance : 0)) + '</div></div>' +
           '<div class="ledger-kpi-box balance"><div class="ledger-kpi-lbl">' + totalScopeLbl + '</div><div class="ledger-kpi-val" style="color:#B45309;">' + esc(formatEtbAmount(outstandingBalVal)) + '</div></div>' +
         '</div>' +
         folderBreakdownHtml +
+        weeklyProductSalesHtml +
       '</section>';
     }
 
