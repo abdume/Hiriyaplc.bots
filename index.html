@@ -2267,6 +2267,61 @@
       line-height: 1.2;
       font-variant-numeric: tabular-nums;
     }
+    .weekly-seller-card.folder {
+      background: linear-gradient(145deg, #FFFFFF 0%, #FFFBEB 55%, #FEF3C7 100%);
+      border: 1.5px solid #FBBF24;
+      box-shadow: 0 6px 16px rgba(217, 119, 6, 0.10);
+    }
+    .weekly-seller-card.folder:hover {
+      box-shadow: 0 10px 22px rgba(217, 119, 6, 0.17);
+    }
+    .weekly-seller-icon.folder {
+      background: linear-gradient(135deg, #F59E0B 0%, #B45309 100%);
+      box-shadow: 0 3px 8px rgba(180, 83, 9, 0.24);
+    }
+    .weekly-seller-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .weekly-metric-tile {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 10px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .weekly-metric-tile.income {
+      background: linear-gradient(145deg, #FFFFFF 0%, #ECFDF5 100%);
+      border-color: #6EE7B7;
+    }
+    .weekly-metric-lbl {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #475569;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .weekly-metric-val {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .weekly-metric-sub {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748B;
+    }
     .weekly-seller-products {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
@@ -24830,28 +24885,33 @@
       };
     }
 
-    function computeSellerWeeklyProductSales(sellerRegex, sellerLabel, searchKeyword, calMode, includeLocked) {
+    function computeSellerWeeklyProductSales(sellerRegex, sellerLabel, searchKeyword, calMode, includeLocked, folderFilter) {
       var useEth = calMode !== 'gregorian';
       var nowCtx = getReportNowContext(useEth);
       var todayUtcMs = nowCtx.utcDayMs;
       var weekLabel = formatReportWeekLabel(nowCtx, useEth, state && state.lang);
       var prodFallbackRe = /miyaw|miyawa|ሚያው|ሜያው|ሚያዋ|mad\s*\d+|mad\d+|ma['’]?ed\s*\d+|kuntal|quintal|ኩንታል|sack|sacks|bag|bags|qty|quantity|pcs|pieces|kg|unit|units|pack|carton|product|3a|salt|lomi|ሎሚ|ጨው|ብዛት/i;
       var nonProdRe = /date|ቀን|bal|remain|romin|remin|reaming|paid|\bpay\b|payment|credit|total|price|rate|note|remark|ref|cust|buyer|client|type/i;
+      var targetFldLow = (folderFilter && folderFilter !== 'all') ? normalizeFolderName(folderFilter).toLowerCase() : '';
 
       var allSellerBots = (state.bots || []).filter(function (b) {
         if (!b || isBotTombstoned(b)) return false;
         if (isStockOrProductionOnlyBot(b)) return false;
         var nm = String(b.name || '');
         var fld = normalizeFolderName(b.folder);
-        return sellerRegex.test(nm) || sellerRegex.test(fld);
+        if (targetFldLow && fld.toLowerCase() !== targetFldLow) return false;
+        if (sellerRegex) return sellerRegex.test(nm) || sellerRegex.test(fld);
+        return Boolean(targetFldLow);
       });
       var matchedBots = includeLocked ? allSellerBots : allSellerBots.filter(function (b) { return isBotUnlocked(b); });
       var hasLockedSellerData = allSellerBots.some(function (b) { return !isBotUnlocked(b); });
       var isLockedSellerOnly = !includeLocked && allSellerBots.length > 0 && matchedBots.length === 0;
 
       var totalAmount = 0;
+      var totalPaid = 0;
       var totalQty = 0;
       var txCount = 0;
+      var paidTxCount = 0;
       var productTotals = {};
       var matchedFolder = '';
       var matchedFolderCounts = {};
@@ -24868,8 +24928,10 @@
           var cn = String(c.name || '').trim();
           return cn && !nonProdRe.test(cn) && prodFallbackRe.test(cn);
         });
-        var activeSaleCol = det.saleAmtCol || det.genericTotalCol;
-        if (!activeSaleCol && !det.hasProductPriceCols && prodCols.length === 0 && !det.balCol) return;
+        var isCollectionBot = Boolean(!det.payAmtCol && !det.saleAmtCol && !det.hasProductPriceCols && det.genericTotalCol && /የተሰበሰበ|collect|ገቢ|cash|receipt|income|paid/i.test(String(bot.name || '')));
+        var effectivePayCol = det.payAmtCol || (isCollectionBot ? det.genericTotalCol : null);
+        var activeSaleCol = isCollectionBot ? null : (det.saleAmtCol || det.genericTotalCol);
+        if (!activeSaleCol && !det.hasProductPriceCols && prodCols.length === 0 && !det.balCol && !effectivePayCol) return;
 
         var fName = normalizeFolderName(bot.folder);
         matchedFolderCounts[fName] = (matchedFolderCounts[fName] || 0) + 1;
@@ -24878,6 +24940,7 @@
         var saleDateCol = det.saleDateCol || det.genericDateCol || allDateCols.find(function (c) {
           return !det.payDateCol || c.id !== det.payDateCol.id;
         }) || null;
+        var payDateCol = det.payDateCol || det.genericDateCol || det.saleDateCol || allDateCols[0] || null;
         var qtyFallbackCol = cols.find(function (c) {
           if (!c || c.type === 'date' || c.type === 'checkbox') return false;
           var cn = String(c.name || '').trim().toLowerCase();
@@ -24895,7 +24958,52 @@
           var r = rows[i];
           if (!r) continue;
           var typeRaw = det.typeCol ? String(r[det.typeCol.id] || '').trim() : '';
-          if (r._ledgerKind === 'payment' || /^payment/i.test(typeRaw)) continue;
+
+          // 1) 1-Week Paid Income (የሳምንት ገቢ) calculation
+          if (Array.isArray(r._paymentHistory) && r._paymentHistory.length > 0 && typeof getNormalizedRowPaymentHistory === 'function') {
+            var payHist = getNormalizedRowPaymentHistory(r, det, bot);
+            for (var phi = 0; phi < payHist.length; phi++) {
+              var pe = payHist[phi];
+              if (!pe || !(pe.amount > 0)) continue;
+              var peFbIso = pe.isoAt || r._updatedAt || r._createdAt || bot.updatedAt || '';
+              var dmPayH = parseFlexibleDateMeta(pe.dateStr || '', peFbIso, payDateCol, useEth);
+              if (!dmPayH || (!dmPayH.parsedFromString && !peFbIso)) continue;
+              var peUtcMs = Date.UTC(dmPayH.gy, dmPayH.gm - 1, dmPayH.gd);
+              var peDayDiff = Math.round((todayUtcMs - peUtcMs) / 86400000);
+              if (peDayDiff >= -1 && peDayDiff <= 6) {
+                paidTxCount++;
+                totalPaid = roundEtb2(totalPaid + Math.max(0, pe.amount));
+              }
+            }
+          } else {
+            var pAmtRow = effectivePayCol ? readLedgerNumericCell(r, effectivePayCol, bot) : 0;
+            var pDateRaw = det.payDateCol ? String(r[det.payDateCol.id] || '').trim() : '';
+            if (pAmtRow === 0 && pDateRaw && (!det.payDateCol || det.payDateCol.type !== 'date') && typeof extractAmountFromMixedCell === 'function') {
+              var payDateOnlyFlag = typeof hasExplicitDatePattern === 'function' && hasExplicitDatePattern(pDateRaw) && !/(?:etb|birr|paid\s*[:=]|pay\s*[:=]|amt\s*[:=]|ብር)/i.test(pDateRaw);
+              if (!payDateOnlyFlag) {
+                var pInlineVal = extractAmountFromMixedCell(pDateRaw, det.payDateCol, r, bot);
+                if (!isNaN(pInlineVal) && pInlineVal > 0) pAmtRow = pInlineVal;
+              }
+            }
+            if (pAmtRow > 0) {
+              var rawPayDateEff = (payDateCol ? String(r[payDateCol.id] || '').trim() : '') ||
+                (det.genericDateCol ? String(r[det.genericDateCol.id] || '').trim() : '') ||
+                (det.saleDateCol ? String(r[det.saleDateCol.id] || '').trim() : '');
+              var payFbIso = r._updatedAt || r._createdAt || bot.updatedAt || '';
+              var dmPayRow = parseFlexibleDateMeta(rawPayDateEff, payFbIso, payDateCol, useEth);
+              if (dmPayRow && (dmPayRow.parsedFromString || payFbIso)) {
+                var payUtcMs = Date.UTC(dmPayRow.gy, dmPayRow.gm - 1, dmPayRow.gd);
+                var payDayDiff = Math.round((todayUtcMs - payUtcMs) / 86400000);
+                if (payDayDiff >= -1 && payDayDiff <= 6) {
+                  paidTxCount++;
+                  totalPaid = roundEtb2(totalPaid + Math.max(0, pAmtRow));
+                }
+              }
+            }
+          }
+
+          // 2) 1-Week Product Sales calculation (skip pure payment rows / collection bots)
+          if (isCollectionBot || r._ledgerKind === 'payment' || /^payment/i.test(typeRaw)) continue;
 
           var sAmt = activeSaleCol ? readLedgerNumericCell(r, activeSaleCol, bot) : 0;
           if (sAmt === 0 && det.hasProductPriceCols) {
@@ -24903,7 +25011,7 @@
             if (pcCalc.hasProductPrice) sAmt = pcCalc.credit;
           }
           if (sAmt === 0 && det.balCol) {
-            var pTemp = det.payAmtCol ? readLedgerNumericCell(r, det.payAmtCol, bot) : 0;
+            var pTemp = effectivePayCol ? readLedgerNumericCell(r, effectivePayCol, bot) : 0;
             var bTemp = readLedgerNumericCell(r, det.balCol, bot);
             if (bTemp > 0) sAmt = roundEtb2(pTemp + bTemp);
           }
@@ -24951,10 +25059,12 @@
       });
 
       var fldKeys = Object.keys(matchedFolderCounts);
-      if (fldKeys.length === 1) {
+      if (targetFldLow && folderFilter) {
+        matchedFolder = normalizeFolderName(folderFilter);
+      } else if (fldKeys.length === 1) {
         matchedFolder = fldKeys[0];
       } else if (fldKeys.length > 1) {
-        var exactSellerFld = fldKeys.find(function (fk) { return sellerRegex.test(fk); });
+        var exactSellerFld = sellerRegex ? fldKeys.find(function (fk) { return sellerRegex.test(fk); }) : '';
         matchedFolder = exactSellerFld || 'all';
       }
 
@@ -24965,13 +25075,15 @@
       return {
         label: sellerLabel,
         searchKeyword: searchKeyword,
-        matchedFolder: matchedFolder || (isLockedSellerOnly && allSellerBots[0] ? normalizeFolderName(allSellerBots[0].folder) : 'all'),
+        matchedFolder: matchedFolder || (isLockedSellerOnly && allSellerBots[0] ? normalizeFolderName(allSellerBots[0].folder) : (folderFilter || 'all')),
         weekLabel: weekLabel,
         tableCount: matchedBots.length,
         hasLockedData: hasLockedSellerData,
         isLockedOnly: isLockedSellerOnly,
         txCount: txCount,
+        paidTxCount: paidTxCount,
         totalAmount: totalAmount,
+        totalPaid: totalPaid,
         totalQty: totalQty,
         products: products
       };
@@ -24991,7 +25103,7 @@
       var unlockedBotSig = Object.keys(state.unlockedBots || {}).sort().join(',');
       var dashMemoKey = String(scopeFld).toLowerCase() + '::' + calMode + '::' + unlockedFldSig + '::' + unlockedBotSig;
       var cachedSummary = _dashLedgerSummaryMemo.entries[dashMemoKey];
-      var statementTables, anyBalanceTablesCount, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal, shmseInfo, sisayiInfo, allFoldersSummary, shmseWeeklySales, sisayiWeeklySales;
+      var statementTables, anyBalanceTablesCount, primaryLedger, canRecordQuick, custCount, txCount, totalCreditVal, totalPaidVal, outstandingBalVal, shmseInfo, sisayiInfo, allFoldersSummary, shmseWeeklySales, sisayiWeeklySales, folderWeeklySales;
 
       if (cachedSummary) {
         statementTables = cachedSummary.statementTables;
@@ -25008,6 +25120,7 @@
         allFoldersSummary = cachedSummary.allFoldersSummary;
         shmseWeeklySales = cachedSummary.shmseWeeklySales;
         sisayiWeeklySales = cachedSummary.sisayiWeeklySales;
+        folderWeeklySales = cachedSummary.folderWeeklySales;
       } else {
         var prevDashFCache = _activeFormulaEvalCache;
         _activeFormulaEvalCache = {};
@@ -25098,6 +25211,17 @@
             calMode,
             false
           );
+          folderWeeklySales = (!isAllScope &&
+            !/(?:sh[aeiu]?m[sz][aei]?|shmese|shimse|shemse|smse|ሽምሴ|sis[ae][yi]?|ሲሳይ)/i.test(String(scopeFld || '')))
+            ? computeSellerWeeklyProductSales(
+                null,
+                scopeFld,
+                scopeFld,
+                calMode,
+                false,
+                scopeFld
+              )
+            : null;
           _dashLedgerSummaryMemo.entries[dashMemoKey] = {
             statementTables: statementTables,
             anyBalanceTablesCount: anyBalanceTablesCount,
@@ -25112,7 +25236,8 @@
             sisayiInfo: sisayiInfo,
             allFoldersSummary: allFoldersSummary,
             shmseWeeklySales: shmseWeeklySales,
-            sisayiWeeklySales: sisayiWeeklySales
+            sisayiWeeklySales: sisayiWeeklySales,
+            folderWeeklySales: folderWeeklySales
           };
         } finally {
           _activeFormulaEvalCache = prevDashFCache;
@@ -25180,7 +25305,7 @@
           '</div>')
         : '';
 
-      var renderWeeklySellerCard = function (wkData, variantCls, badgeTxt, accentBorder, accentText) {
+      var renderWeeklySellerCard = function (wkData, variantCls, badgeTxt, shortIncomeName, accentBorder, accentText) {
         var isLockedCard = Boolean(wkData && wkData.isLockedOnly);
         var wkProdsHtml = isLockedCard
           ? '<span style="font-size:13px;font-weight:700;color:#92400E;">🔒 Locked Folder &middot; የተቆለፈ ፎልደር (Tap to unlock)</span>'
@@ -25197,7 +25322,10 @@
         var metaText = isLockedCard
           ? '1 Week · 1 ሳምንት · 🔒 Locked'
           : ('1 Week · 1 ሳምንት · ' + qtySummaryDisp + ' Qty · ' + wkData.txCount + ' tx');
-        var mainAmtText = isLockedCard ? '🔒 Locked · ተቆልፏል' : formatEtbAmount(wkData.totalAmount);
+        var mainSalesText = isLockedCard ? '🔒 Locked' : formatEtbAmount(wkData.totalAmount);
+        var mainPaidText = isLockedCard ? '🔒 Locked' : formatEtbAmount(wkData.totalPaid || 0);
+        var paidSubText = isLockedCard ? 'ተቆልፏል' : ((wkData.paidTxCount || 0) + ' paid · ገቢ');
+        var incomeBoxTitle = (shortIncomeName || wkData.label) + ' የሳምንት ገቢ';
         return '<div class="weekly-seller-card ' + variantCls + '" data-dash-weekly-seller="' + esc(wkData.searchKeyword) + '" data-folder="' + esc(wkData.matchedFolder || 'all') + '">' +
           '<div class="weekly-seller-top">' +
             '<div class="weekly-seller-id">' +
@@ -25208,24 +25336,42 @@
               '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="weekly-seller-amt mono" style="color:' + (isLockedCard ? '#B45309' : accentText) + ';">' + esc(mainAmtText) + '</div>' +
+          '<div class="weekly-seller-metrics">' +
+            '<div class="weekly-metric-tile" style="border-color:' + accentBorder + ';">' +
+              '<div class="weekly-metric-lbl">1W Sales &middot; የሳምንት ሽያጭ</div>' +
+              '<div class="weekly-metric-val mono" style="color:' + (isLockedCard ? '#B45309' : accentText) + ';">' + esc(mainSalesText) + '</div>' +
+              '<div class="weekly-metric-sub">' + esc(qtySummaryDisp) + ' Qty &middot; ' + (wkData.txCount || 0) + ' sales</div>' +
+            '</div>' +
+            '<div class="weekly-metric-tile income">' +
+              '<div class="weekly-metric-lbl" style="color:#065F46;">' + esc(incomeBoxTitle) + '</div>' +
+              '<div class="weekly-metric-val mono" style="color:' + (isLockedCard ? '#B45309' : '#047857') + ';">' + esc(mainPaidText) + '</div>' +
+              '<div class="weekly-metric-sub" style="color:#059669;">' + esc(paidSubText) + '</div>' +
+            '</div>' +
+          '</div>' +
           '<div class="weekly-seller-products">' + wkProdsHtml + '</div>' +
         '</div>';
       };
       var combinedWeekAmt = roundEtb2((shmseWeeklySales ? shmseWeeklySales.totalAmount : 0) + (sisayiWeeklySales ? sisayiWeeklySales.totalAmount : 0));
+      var combinedWeekPaid = roundEtb2((shmseWeeklySales ? (shmseWeeklySales.totalPaid || 0) : 0) + (sisayiWeeklySales ? (sisayiWeeklySales.totalPaid || 0) : 0));
       var combinedWeekQty = roundEtb2((shmseWeeklySales ? shmseWeeklySales.totalQty : 0) + (sisayiWeeklySales ? sisayiWeeklySales.totalQty : 0));
       var combinedWeekQtyDisp = Number.isInteger(combinedWeekQty) ? String(combinedWeekQty) : combinedWeekQty.toFixed(2).replace(/\.00$/, '');
+      var weeklyCardsHtml =
+        renderWeeklySellerCard(shmseWeeklySales, 'shmse', 'SH', 'Shmse', '#93C5FD', '#1D4ED8') +
+        renderWeeklySellerCard(sisayiWeeklySales, 'sisayi', 'SS', 'Sisayi', '#6EE7B7', '#047857') +
+        (folderWeeklySales ? renderWeeklySellerCard(folderWeeklySales, 'folder', 'FL', folderWeeklySales.label, '#FCD34D', '#B45309') : '');
       var weeklyProductSalesHtml = '<div class="weekly-prod-panel">' +
         '<div class="weekly-prod-head">' +
           '<div style="min-width:0;">' +
-            '<div class="weekly-prod-title">1-Week Product Sales &middot; የ1 ሳምንት የምርት ሽያጭ</div>' +
+            '<div class="weekly-prod-title">1-Week Product Sales &amp; Paid &middot; የ1 ሳምንት ሽያጭ እና የሳምንት ገቢ</div>' +
             '<div class="weekly-prod-sub">Smse / Shmse &amp; Sisayi &middot; ' + esc((shmseWeeklySales && shmseWeeklySales.weekLabel) || 'Last 7 Days') + '</div>' +
           '</div>' +
-          '<div class="weekly-prod-total-box mono">Total 1W: ' + esc(formatEtbAmount(combinedWeekAmt)) + ' &middot; ' + esc(combinedWeekQtyDisp) + ' Qty</div>' +
+          '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
+            '<div class="weekly-prod-total-box mono">1W ሽያጭ: ' + esc(formatEtbAmount(combinedWeekAmt)) + ' &middot; ' + esc(combinedWeekQtyDisp) + ' Qty</div>' +
+            '<div class="weekly-prod-total-box mono" style="border-color:#6EE7B7;background:#ECFDF5;color:#065F46;">1W የሳምንት ገቢ: ' + esc(formatEtbAmount(combinedWeekPaid)) + '</div>' +
+          '</div>' +
         '</div>' +
         '<div class="weekly-seller-grid">' +
-          renderWeeklySellerCard(shmseWeeklySales, 'shmse', 'SH', '#93C5FD', '#1D4ED8') +
-          renderWeeklySellerCard(sisayiWeeklySales, 'sisayi', 'SS', '#6EE7B7', '#047857') +
+          weeklyCardsHtml +
         '</div>' +
       '</div>';
 
