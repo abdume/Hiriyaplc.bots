@@ -1168,47 +1168,190 @@
       color: #fff; border-radius: 18px; padding: 18px 18px 16px; margin-bottom: 16px;
       box-shadow: 0 12px 30px rgba(6, 95, 70, 0.22);
       border: 1px solid rgba(255,255,255,0.18);
-      display: flex; flex-direction: column; gap: 12px;
+      display: flex; flex-direction: column; gap: 14px;
     }
-    .hero-main-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-    .hero-cal-col { min-width: 0; }
+    .hero-main-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .hero-showcase-col { min-width: 0; }
     @media (min-width: 1024px) {
       .welcome-hero-card {
         display: grid;
-        grid-template-columns: minmax(0, 1.35fr) minmax(350px, 1fr);
+        grid-template-columns: minmax(0, 1.28fr) minmax(340px, 1fr);
         gap: 20px;
-        align-items: center;
+        align-items: stretch;
         padding: 20px 24px;
-      }
-      .hero-cal-col {
-        background: rgba(15, 23, 42, 0.18);
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        border-radius: 14px;
-        padding: 12px;
-      }
-      .hero-cal-col .week-strip {
-        display: grid;
-        grid-template-columns: repeat(7, minmax(0, 1fr));
-        gap: 6px;
-        overflow: visible;
-        padding-bottom: 0;
-      }
-      .hero-cal-col .day-chip {
-        min-width: 0;
-        padding: 8px 4px;
       }
     }
     .hero-top-brand {
       font-size: 12.5px; font-weight: 800; color: #A7F3D0; letter-spacing: 0.01em;
     }
-    .hero-single-date-pill {
-      display: inline-flex; align-items: center; gap: 6px; width: fit-content;
-      background: rgba(15, 23, 42, 0.28); border: 1px solid rgba(255,255,255,0.22);
-      color: #F8FAFC; font-size: 12px; font-weight: 700;
-      padding: 4px 12px; border-radius: 999px; font-variant-numeric: tabular-nums;
-    }
     .hero-greeting-title {
-      font-size: 21px; font-weight: 800; color: #FFFFFF; line-height: 1.25; letter-spacing: -0.015em;
+      font-size: 22px; font-weight: 800; color: #FFFFFF; line-height: 1.25; letter-spacing: -0.015em;
+    }
+    .hero-slide-stage {
+      position: relative;
+      height: 204px;
+      border-radius: 15px;
+      overflow: hidden;
+      background: #0F172A;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      box-shadow: 0 10px 26px rgba(6, 78, 59, 0.32);
+    }
+    @media (min-width: 1024px) {
+      .hero-slide-stage { height: 100%; min-height: 200px; }
+    }
+    .hero-slide-item {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transform: scale(1.03) translateX(14px);
+      transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .hero-slide-item.is-active {
+      opacity: 1;
+      transform: scale(1) translateX(0);
+      pointer-events: auto;
+      z-index: 2;
+    }
+    .hero-slide-photo-bg {
+      width: 100%; height: 100%; object-fit: cover; object-position: center 20%;
+      display: block; will-change: transform;
+    }
+    .hero-slide-item.is-active .hero-slide-photo-bg {
+      animation: heroKenBurns 6.5s ease-out forwards;
+    }
+    .hero-slide-crest-wrap {
+      width: 100%; height: 100%;
+      background: radial-gradient(circle at 50% 42%, #FFFFFF 0%, #ECFDF5 62%, #A7F3D0 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 14px 18px 44px; position: relative;
+    }
+    .hero-slide-crest-img {
+      max-height: 142px; max-width: 82%; object-fit: contain;
+      filter: drop-shadow(0 8px 16px rgba(15, 23, 42, 0.18));
+      will-change: transform;
+    }
+    .hero-slide-item.is-active .hero-slide-crest-img {
+      animation: heroCrestFloat 3.6s ease-in-out infinite;
+    }
+    .hero-slide-sheen {
+      position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.52) 50%, transparent 65%);
+      transform: translateX(-120%);
+    }
+    .hero-slide-item.is-active .hero-slide-sheen {
+      animation: heroSheen 2.4s ease-in-out 0.3s 1;
+    }
+    .hero-slide-art {
+      width: 100%; height: 100%;
+      padding: 16px 18px 46px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      position: relative; overflow: hidden;
+    }
+    .hero-slide-art-sapphire {
+      background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 56%, #0F766E 100%);
+    }
+    .hero-slide-art-gold {
+      background: linear-gradient(135deg, #064E3B 0%, #047857 52%, #B45309 100%);
+    }
+    .hero-slide-item.is-active .hero-art-float {
+      animation: heroArtDrift 4.2s ease-in-out infinite;
+    }
+    .hero-slide-scrim {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      padding: 26px 14px 36px;
+      background: linear-gradient(to top, rgba(15, 23, 42, 0.88) 0%, rgba(15, 23, 42, 0.45) 60%, transparent 100%);
+      display: flex; flex-direction: column; gap: 2px;
+      pointer-events: none;
+    }
+    .hero-slide-kicker {
+      font-size: 11px; font-weight: 700; color: #A7F3D0; letter-spacing: 0.02em;
+    }
+    .hero-slide-caption {
+      font-size: 14px; font-weight: 800; color: #FFFFFF; line-height: 1.25;
+    }
+    .hero-slide-controls {
+      position: absolute; left: 12px; right: 12px; bottom: 9px; z-index: 5;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .hero-slide-indicators {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .hero-slide-dot {
+      position: relative; width: 14px; height: 6px; border-radius: 999px;
+      background: rgba(255, 255, 255, 0.34); border: none; padding: 0; cursor: pointer;
+      overflow: hidden; transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s;
+    }
+    .hero-slide-dot.is-active {
+      width: 34px; background: rgba(255, 255, 255, 0.36);
+    }
+    .hero-slide-dot-fill {
+      position: absolute; inset: 0; width: 0%; border-radius: 999px;
+      background: linear-gradient(90deg, #FCD34D 0%, #34D399 100%);
+    }
+    .hero-slide-dot.is-active .hero-slide-dot-fill {
+      animation: heroSlideProgress 4.8s linear forwards;
+    }
+    .hero-slide-nav-group {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .hero-slide-nav-btn {
+      width: 26px; height: 26px; border-radius: 999px;
+      background: rgba(15, 23, 42, 0.56); border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #FFFFFF; font-size: 14px; font-weight: 800; line-height: 1;
+      display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .hero-slide-nav-btn:hover { background: rgba(15, 23, 42, 0.82); transform: scale(1.06); }
+    @keyframes heroKenBurns {
+      0% { transform: scale(1) translate3d(0, 0, 0); }
+      100% { transform: scale(1.07) translate3d(-1.5%, -1%, 0); }
+    }
+    @keyframes heroCrestFloat {
+      0%, 100% { transform: translateY(0px) scale(1); }
+      50% { transform: translateY(-5px) scale(1.03); }
+    }
+    @keyframes heroSheen {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(130%); }
+    }
+    @keyframes heroArtDrift {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-4px) rotate(1.5deg); }
+    }
+    @keyframes heroSlideProgress {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+    .hero-slide-art-emerald {
+      background: linear-gradient(135deg, #0F172A 0%, #065F46 52%, #1E40AF 100%);
+    }
+    .hero-good-sales-bar {
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.28) 0%, rgba(245, 158, 11, 0.28) 100%);
+      border: 1px solid rgba(253, 230, 138, 0.52);
+      border-radius: 9px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #FEF3C7;
+      line-height: 1.3;
+    }
+    .weekly-good-sales-banner {
+      background: linear-gradient(90deg, #ECFDF5 0%, #FEF3C7 100%);
+      border: 1px solid #F59E0B;
+      border-radius: 9px;
+      padding: 6px 10px;
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #065F46;
+      line-height: 1.35;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-slide-item, .hero-slide-photo-bg, .hero-slide-crest-img, .hero-slide-sheen, .hero-art-float, .hero-slide-dot-fill {
+        animation: none !important; transition: none !important;
+      }
+      .hero-slide-dot.is-active .hero-slide-dot-fill { width: 100%; }
     }
     .cyber-badge {
       display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -1247,32 +1390,6 @@
       border: 2px solid #FCD34D; transition: transform 0.15s;
     }
     .maed-logo-box:hover, .maed-poster-box:hover { transform: scale(1.04); }
-
-    /* Horizontal Scrollable 7-Day Calendar Row */
-    .week-strip {
-      display: flex; align-items: center; gap: 8px;
-      flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px;
-      -webkit-overflow-scrolling: touch; scrollbar-width: none;
-    }
-    .week-strip::-webkit-scrollbar { display: none; }
-    .day-chip {
-      display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-      min-width: 72px; flex-shrink: 0; padding: 7px 10px; border-radius: 12px;
-      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
-      color: #E2E8F0; font-size: 10.5px; font-weight: 700; cursor: pointer;
-      transition: background 0.15s, transform 0.15s, border-color 0.15s;
-      font-variant-numeric: tabular-nums;
-    }
-    .day-chip:hover { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
-    .day-chip.today {
-      background: #F59E0B;
-      border-color: #FDE68A; color: #FFFFFF;
-      box-shadow: 0 4px 12px rgba(245,158,11,0.38);
-    }
-    .day-chip.preview {
-      background: #10B981; border-color: #A7F3D0; color: #fff;
-    }
-    .day-chip-num { font-size: 13px; font-weight: 800; line-height: 1.2; }
     .folder-summary-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
     .dash-summary-wrap {
       background: #fff; border: 1px solid #CBD5E1; border-radius: 20px;
@@ -9813,9 +9930,8 @@
 
       html += '<main class="dashboard-main">';
 
-      var dayInfo = getWelcomeDayInfo(state.lang, state.previewDayOffset);
+      state.previewDayOffset = 0;
       state.lastRenderedYmd = state.reportCalendarMode !== 'gregorian' ? getReportNowContext(true).ymd : getLocalYmd(new Date());
-      var weekDays = getWeekCalendarStrip(state.lang, state.previewDayOffset);
       var greetUser = getActiveGreetingUser();
       var greetName = (greetUser && greetUser.displayName) ? greetUser.displayName : 'Onelove A';
       var dp = getDailyAmharicWorkPrompt();
@@ -9826,35 +9942,134 @@
         : (_dailyVoiceCtrl.status === 'playing'
           ? (state.lang === 'am' ? '🔊 በመናገር ላይ...' : '🔊 Speaking...')
           : (state.lang === 'am' ? '🔊 ድምፅ አዳምጥ' : '🔊 Play Voice'));
+      var curSlideIdx = (typeof state.heroSlideIndex === 'number' && state.heroSlideIndex >= 0 && state.heroSlideIndex < 5) ? state.heroSlideIndex : 0;
+      state.heroSlideIndex = curSlideIdx;
+      var heroCalMode = state.reportCalendarMode === 'gregorian' ? 'gregorian' : 'ethiopian';
+      var heroWkShmse = typeof computeSellerWeeklyProductSales === 'function'
+        ? computeSellerWeeklyProductSales(/(?:sh[aeiu]?m[sz][aei]?|shmese|shimse|shemse|smse|ሽምሴ)/i, 'Shmse / ሽምሴ', 'shmse', heroCalMode, false)
+        : { totalAmount: 0, totalPaid: 0, isLockedOnly: false };
+      var heroWkSisayi = typeof computeSellerWeeklyProductSales === 'function'
+        ? computeSellerWeeklyProductSales(/(?:sis[ae][yi]?|ሲሳይ)/i, 'Sisayi / ሲሳይ', 'sisay', heroCalMode, false)
+        : { totalAmount: 0, totalPaid: 0, isLockedOnly: false };
+      var heroShmseAmtDisp = heroWkShmse.isLockedOnly ? '🔒 Locked' : formatEtbAmount(heroWkShmse.totalAmount || 0);
+      var heroSisayiAmtDisp = heroWkSisayi.isLockedOnly ? '🔒 Locked' : formatEtbAmount(heroWkSisayi.totalAmount || 0);
+      var heroShmseGood = !heroWkShmse.isLockedOnly && (Number(heroWkShmse.totalAmount) || 0) >= 50000;
+      var heroSisayiGood = !heroWkSisayi.isLockedOnly && (Number(heroWkSisayi.totalAmount) || 0) >= 50000;
+      var heroCombinedGood = heroShmseGood || heroSisayiGood || ((Number(heroWkShmse.totalAmount) || 0) + (Number(heroWkSisayi.totalAmount) || 0)) >= 50000;
 
       html += '<section class="welcome-hero-card">' +
         '<div class="hero-main-col">' +
           '<div class="hero-top-brand">Hiriya Salt Production PLC &middot; MA’ED Table Salt</div>' +
-          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-            '<span class="hero-single-date-pill" id="hero-date-pill">' + esc(dayInfo.singlePill) + '</span>' +
-            (!dayInfo.isLiveToday ? '<button type="button" id="hero-reset-today" class="lang-toggle-btn" style="background:#F59E0B;border-color:#FDE68A;font-size:10.5px;padding:3px 9px;">' + esc(t('reset_today')) + '</button>' : '') +
-          '</div>' +
           '<h1 class="hero-greeting-title" id="hero-welcome-headline">እንኳን ደህና መጡ, ' + esc(greetName) + '!</h1>' +
           '<div class="hero-daily-checkin" id="hero-daily-checkin">' +
             '<div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">' +
-              '<span style="font-size:14px;font-weight:700;color:#fff;line-height:1.4;">' + esc(dp.displayText) + '</span>' +
+              '<span style="font-size:14.5px;font-weight:700;color:#fff;line-height:1.45;">' + esc(dp.displayText) + '</span>' +
             '</div>' +
             '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-              '<button type="button" id="hero-voice-name-btn" class="lang-toggle-btn" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.35);font-size:11.5px;padding:6px 10px;white-space:nowrap;">' + (dp.userName ? ('👤 ' + esc(dp.userName)) : '👤 Set Name') + '</button>' +
+              '<button type="button" id="hero-voice-name-btn" class="lang-toggle-btn" style="background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.35);font-size:12px;padding:6px 11px;white-space:nowrap;">' + (dp.userName ? ('👤 ' + esc(dp.userName)) : '👤 Set Name') + '</button>' +
               '<button type="button" id="hero-voice-play-btn" class="lang-toggle-btn" style="background:rgba(16,185,129,0.32);border-color:rgba(167,243,208,0.65);font-size:12px;padding:6px 12px;white-space:nowrap;">' + heroPlayLabel + '</button>' +
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="hero-cal-col">' +
-          '<div class="week-strip">' +
-            weekDays.map(function (wd) {
-              var cls = wd.isToday ? 'today' : (wd.isSelected ? 'preview' : '');
-              return '<button type="button" class="day-chip ' + cls + '" data-day-offset="' + wd.offset + '" title="' + (wd.isToday ? 'Live Today' : 'Preview +' + wd.offset + ' day(s)') + '">' +
-                '<span style="font-size:9.5px;opacity:0.95;font-weight:800;">' + (wd.isToday ? (state.lang === 'am' ? 'ዛሬ' : 'TODAY') : esc(wd.label)) + '</span>' +
-                '<span class="day-chip-num">' + esc(wd.label) + ' ' + wd.dayNum + '</span>' +
-                '<span style="font-size:9px;opacity:0.9;" class="mono">' + String(wd.ecDay).padStart(2, '0') + '/' + String(wd.ecMonth).padStart(2, '0') + ' EC</span>' +
-              '</button>';
-            }).join('') +
+        '<div class="hero-showcase-col">' +
+          '<div class="hero-slide-stage" id="hero-slide-stage" role="region" aria-roledescription="carousel" aria-label="Hiriya Featured Slideshow">' +
+            '<div class="hero-slide-item' + (curSlideIdx === 0 ? ' is-active' : '') + '" data-hero-slide="0" style="background:linear-gradient(135deg,#0F172A,#065F46);">' +
+              '<img src="/assets/aistudio/file_00000000e35c71f4857624f1eaa8ba78_52983220.png" alt="Featured workspace portrait" referrerpolicy="no-referrer" class="hero-slide-photo-bg" onerror="this.style.display=\'none\'" />' +
+              '<div class="hero-slide-scrim">' +
+                '<div class="hero-slide-kicker">Hiriya Salt Production PLC</div>' +
+                '<div class="hero-slide-caption">' + esc(greetName) + ' &mdash; Daily Sales &amp; Ledger Control</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="hero-slide-item' + (curSlideIdx === 1 ? ' is-active' : '') + '" data-hero-slide="1">' +
+              '<div class="hero-slide-crest-wrap">' +
+                '<img src="/assets/aistudio/file_000000003a3c8210ac093d7bf55b2a9c_7f2565a5.png" alt="MA\'ED Salt Miyaw 3A Brand" referrerpolicy="no-referrer" class="hero-slide-crest-img" onerror="this.style.display=\'none\'" />' +
+                '<div class="hero-slide-sheen"></div>' +
+              '</div>' +
+              '<div class="hero-slide-scrim" style="background:linear-gradient(to top, rgba(6,78,59,0.92) 0%, rgba(6,78,59,0.48) 65%, transparent 100%);">' +
+                '<div class="hero-slide-kicker">Hiriya Salt Production PLC &middot; MA’ED Table Salt</div>' +
+                '<div class="hero-slide-caption">MIYAW &middot; 3A Pure Refined Ethiopian Salt</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="hero-slide-item' + (curSlideIdx === 2 ? ' is-active' : '') + '" data-hero-slide="2">' +
+              '<div class="hero-slide-art hero-slide-art-emerald">' +
+                '<div>' +
+                  '<div style="font-size:11px;font-weight:700;color:#A7F3D0;">Hiriya Salt Production PLC &middot; የ1 ሳምንት ሽያጭ (1-Week Sales)</div>' +
+                  '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:7px;">' +
+                    '<div style="background:rgba(255,255,255,0.13);border:1px solid rgba(147,197,253,0.42);border-radius:10px;padding:7px 9px;">' +
+                      '<div style="font-size:11px;font-weight:800;color:#BFDBFE;">Shmse &middot; ሽምሴ</div>' +
+                      '<div class="mono" style="font-size:15px;font-weight:800;color:#FFFFFF;margin-top:2px;">' + esc(heroShmseAmtDisp) + '</div>' +
+                      (heroShmseGood ? '<div style="font-size:10px;font-weight:800;color:#FDE68A;margin-top:2px;">በዚህ ሳምንት ጥሩ ነው ሽያጭሽ</div>' : '') +
+                    '</div>' +
+                    '<div style="background:rgba(255,255,255,0.13);border:1px solid rgba(110,231,183,0.45);border-radius:10px;padding:7px 9px;">' +
+                      '<div style="font-size:11px;font-weight:800;color:#A7F3D0;">Sisayi &middot; ሲሳይ</div>' +
+                      '<div class="mono" style="font-size:15px;font-weight:800;color:#FFFFFF;margin-top:2px;">' + esc(heroSisayiAmtDisp) + '</div>' +
+                      (heroSisayiGood ? '<div style="font-size:10px;font-weight:800;color:#FDE68A;margin-top:2px;">በዚህ ሳምንት ጥሩ ነው ሽያጭሽ</div>' : '') +
+                    '</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="hero-good-sales-bar">' +
+                  (heroCombinedGood
+                    ? 'በዚህ ሳምንት ጥሩ ነው ሽያጭሽ &middot; Great Sales This Week! (&ge; 50,000 ETB)'
+                    : '1-Week Target: 50,000 ETB &middot; የሳምንቱ ግብ: 50,000 ብር') +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="hero-slide-item' + (curSlideIdx === 3 ? ' is-active' : '') + '" data-hero-slide="3">' +
+              '<div class="hero-slide-art hero-slide-art-sapphire">' +
+                '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
+                  '<div>' +
+                    '<div style="font-size:11.5px;font-weight:700;color:#93C5FD;">Hiriya Salt Production PLC &middot; የምርት አይነቶች</div>' +
+                    '<div style="font-size:17px;font-weight:800;color:#FFFFFF;margin-top:3px;line-height:1.25;">Miyawa &middot; Mad250 &middot; Mad500 &middot; Kuntal</div>' +
+                  '</div>' +
+                  '<svg class="hero-art-float" width="54" height="54" viewBox="0 0 64 64" fill="none" aria-hidden="true">' +
+                    '<polygon points="32,4 58,20 50,54 14,54 6,20" fill="rgba(59,130,246,0.28)" stroke="#93C5FD" stroke-width="2.2"/>' +
+                    '<polygon points="32,12 48,24 42,48 22,48 16,24" fill="rgba(167,243,208,0.28)" stroke="#6EE7B7" stroke-width="1.8"/>' +
+                    '<circle cx="32" cy="30" r="5" fill="#FDE68A"/>' +
+                  '</svg>' +
+                '</div>' +
+                '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;">' +
+                  '<div style="background:rgba(255,255,255,0.12);border:1px solid rgba(147,197,253,0.32);border-radius:9px;padding:7px 10px;">' +
+                    '<div style="font-size:11px;color:#BFDBFE;font-weight:700;">1-Week Tracking</div>' +
+                    '<div style="font-size:13px;color:#FFFFFF;font-weight:800;">Shmse &amp; Sisayi</div>' +
+                  '</div>' +
+                  '<div style="background:rgba(16,185,129,0.2);border:1px solid rgba(110,231,183,0.4);border-radius:9px;padding:7px 10px;">' +
+                    '<div style="font-size:11px;color:#A7F3D0;font-weight:700;">Live Credit &times; Price</div>' +
+                    '<div style="font-size:13px;color:#FFFFFF;font-weight:800;">Auto Rominbalce</div>' +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="hero-slide-item' + (curSlideIdx === 4 ? ' is-active' : '') + '" data-hero-slide="4">' +
+              '<div class="hero-slide-art hero-slide-art-gold">' +
+                '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">' +
+                  '<div>' +
+                    '<div style="font-size:11.5px;font-weight:700;color:#FDE68A;">Hiriya Salt Production PLC &middot; የሂሳብ ቁጥጥር</div>' +
+                    '<div style="font-size:17px;font-weight:800;color:#FFFFFF;margin-top:3px;line-height:1.25;">Customer Statements &amp; Weekly Income</div>' +
+                  '</div>' +
+                  '<svg class="hero-art-float" width="54" height="54" viewBox="0 0 64 64" fill="none" aria-hidden="true">' +
+                    '<circle cx="32" cy="32" r="24" stroke="rgba(253,230,138,0.55)" stroke-width="2" stroke-dasharray="6 4"/>' +
+                    '<circle cx="32" cy="32" r="15" fill="rgba(16,185,129,0.35)" stroke="#6EE7B7" stroke-width="2"/>' +
+                    '<path d="M23 33 L29 39 L42 25" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+                  '</svg>' +
+                '</div>' +
+                '<div style="background:rgba(15,23,42,0.36);border:1px solid rgba(253,230,138,0.38);border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:700;color:#FEF3C7;">' +
+                  'Locked Folder Privacy &middot; Real-Time Statements &amp; 1W ገቢ' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="hero-slide-controls">' +
+              '<div class="hero-slide-indicators" id="hero-slide-indicators">' +
+                [0, 1, 2, 3, 4].map(function (si) {
+                  return '<button type="button" class="hero-slide-dot' + (curSlideIdx === si ? ' is-active' : '') + '" data-hero-dot="' + si + '" aria-label="Slide ' + (si + 1) + '">' +
+                    '<span class="hero-slide-dot-fill"></span>' +
+                  '</button>';
+                }).join('') +
+              '</div>' +
+              '<div class="hero-slide-nav-group">' +
+                '<button type="button" class="hero-slide-nav-btn" id="hero-slide-prev" aria-label="Previous slide">&lsaquo;</button>' +
+                '<button type="button" class="hero-slide-nav-btn" id="hero-slide-next" aria-label="Next slide">&rsaquo;</button>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</section>';
@@ -10336,12 +10551,49 @@
           }
         });
       };
-      var heroResetBtn = document.getElementById('hero-reset-today');
-      if (heroResetBtn) heroResetBtn.onclick = function () { state.previewDayOffset = 0; renderDashboard(); };
-      document.querySelectorAll('.day-chip[data-day-offset]').forEach(function (btn) {
-        btn.onclick = function () {
-          state.previewDayOffset = parseInt(btn.getAttribute('data-day-offset'), 10) || 0;
-          renderDashboard();
+      var setHeroSlideDom = function (targetIdx, restartTimer) {
+        var stage = document.getElementById('hero-slide-stage');
+        if (!stage) return;
+        var slides = stage.querySelectorAll('[data-hero-slide]');
+        var total = slides.length || 5;
+        var nextIdx = ((targetIdx % total) + total) % total;
+        state.heroSlideIndex = nextIdx;
+        slides.forEach(function (sl) {
+          var sIdx = parseInt(sl.getAttribute('data-hero-slide'), 10);
+          sl.classList.toggle('is-active', sIdx === nextIdx);
+        });
+        stage.querySelectorAll('[data-hero-dot]').forEach(function (dt) {
+          var dIdx = parseInt(dt.getAttribute('data-hero-dot'), 10);
+          var isAct = dIdx === nextIdx;
+          dt.classList.remove('is-active');
+          if (isAct) {
+            void dt.offsetWidth;
+            dt.classList.add('is-active');
+          }
+        });
+        if (restartTimer) {
+          if (window._tbHeroSlideTimer) clearInterval(window._tbHeroSlideTimer);
+          window._tbHeroSlideTimer = setInterval(function () {
+            if (!document.getElementById('hero-slide-stage')) {
+              clearInterval(window._tbHeroSlideTimer);
+              window._tbHeroSlideTimer = null;
+              return;
+            }
+            if (!document.hidden && !state.modal) {
+              setHeroSlideDom((state.heroSlideIndex || 0) + 1, false);
+            }
+          }, 4800);
+        }
+      };
+      setHeroSlideDom(state.heroSlideIndex || 0, true);
+      var slidePrevBtn = document.getElementById('hero-slide-prev');
+      if (slidePrevBtn) slidePrevBtn.onclick = function () { setHeroSlideDom((state.heroSlideIndex || 0) - 1, true); };
+      var slideNextBtn = document.getElementById('hero-slide-next');
+      if (slideNextBtn) slideNextBtn.onclick = function () { setHeroSlideDom((state.heroSlideIndex || 0) + 1, true); };
+      document.querySelectorAll('[data-hero-dot]').forEach(function (dotBtn) {
+        dotBtn.onclick = function () {
+          var targetIdx = parseInt(dotBtn.getAttribute('data-hero-dot'), 10) || 0;
+          setHeroSlideDom(targetIdx, true);
         };
       });
       var syncPillBtn = document.getElementById('sync-pill-badge');
@@ -25326,6 +25578,10 @@
         var mainPaidText = isLockedCard ? '🔒 Locked' : formatEtbAmount(wkData.totalPaid || 0);
         var paidSubText = isLockedCard ? 'ተቆልፏል' : ((wkData.paidTxCount || 0) + ' paid · ገቢ');
         var incomeBoxTitle = (shortIncomeName || wkData.label) + ' የሳምንት ገቢ';
+        var isGoodWeekSales = !isLockedCard && (Number(wkData.totalAmount) || 0) >= 50000;
+        var goodWeekBadgeHtml = isGoodWeekSales
+          ? '<div class="weekly-good-sales-banner">በዚህ ሳምንት ጥሩ ነው ሽያጭሽ &middot; Great Sales This Week! (&ge; 50,000 ETB)</div>'
+          : '';
         return '<div class="weekly-seller-card ' + variantCls + '" data-dash-weekly-seller="' + esc(wkData.searchKeyword) + '" data-folder="' + esc(wkData.matchedFolder || 'all') + '">' +
           '<div class="weekly-seller-top">' +
             '<div class="weekly-seller-id">' +
@@ -25348,6 +25604,7 @@
               '<div class="weekly-metric-sub" style="color:#059669;">' + esc(paidSubText) + '</div>' +
             '</div>' +
           '</div>' +
+          goodWeekBadgeHtml +
           '<div class="weekly-seller-products">' + wkProdsHtml + '</div>' +
         '</div>';
       };
@@ -25355,6 +25612,9 @@
       var combinedWeekPaid = roundEtb2((shmseWeeklySales ? (shmseWeeklySales.totalPaid || 0) : 0) + (sisayiWeeklySales ? (sisayiWeeklySales.totalPaid || 0) : 0));
       var combinedWeekQty = roundEtb2((shmseWeeklySales ? shmseWeeklySales.totalQty : 0) + (sisayiWeeklySales ? sisayiWeeklySales.totalQty : 0));
       var combinedWeekQtyDisp = Number.isInteger(combinedWeekQty) ? String(combinedWeekQty) : combinedWeekQty.toFixed(2).replace(/\.00$/, '');
+      var anyGoodWeekSales = combinedWeekAmt >= 50000 ||
+        (shmseWeeklySales && !shmseWeeklySales.isLockedOnly && shmseWeeklySales.totalAmount >= 50000) ||
+        (sisayiWeeklySales && !sisayiWeeklySales.isLockedOnly && sisayiWeeklySales.totalAmount >= 50000);
       var weeklyCardsHtml =
         renderWeeklySellerCard(shmseWeeklySales, 'shmse', 'SH', 'Shmse', '#93C5FD', '#1D4ED8') +
         renderWeeklySellerCard(sisayiWeeklySales, 'sisayi', 'SS', 'Sisayi', '#6EE7B7', '#047857') +
@@ -25362,8 +25622,10 @@
       var weeklyProductSalesHtml = '<div class="weekly-prod-panel">' +
         '<div class="weekly-prod-head">' +
           '<div style="min-width:0;">' +
-            '<div class="weekly-prod-title">1-Week Product Sales &amp; Paid &middot; የ1 ሳምንት ሽያጭ እና የሳምንት ገቢ</div>' +
-            '<div class="weekly-prod-sub">Smse / Shmse &amp; Sisayi &middot; ' + esc((shmseWeeklySales && shmseWeeklySales.weekLabel) || 'Last 7 Days') + '</div>' +
+            '<div class="weekly-prod-title">Hiriya Salt Production PLC &middot; 1-Week Sales &amp; Paid (የ1 ሳምንት ሽያጭ እና ገቢ)</div>' +
+            '<div class="weekly-prod-sub">Smse / Shmse &amp; Sisayi &middot; ' + esc((shmseWeeklySales && shmseWeeklySales.weekLabel) || 'Last 7 Days') +
+              (anyGoodWeekSales ? ' &middot; <span style="color:#047857;font-weight:800;">በዚህ ሳምንት ጥሩ ነው ሽያጭሽ (Great Sales &ge; 50,000 ETB)</span>' : '') +
+            '</div>' +
           '</div>' +
           '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">' +
             '<div class="weekly-prod-total-box mono">1W ሽያጭ: ' + esc(formatEtbAmount(combinedWeekAmt)) + ' &middot; ' + esc(combinedWeekQtyDisp) + ' Qty</div>' +
