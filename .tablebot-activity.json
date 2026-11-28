@@ -15,19 +15,19 @@
       "deviceLabel": "Android Phone · Chrome",
       "telegramId": "",
       "telegramUsername": "",
-      "ip": "196.188.188.99",
+      "ip": "196.189.123.72",
       "blocked": false,
       "blockExpiresAt": null,
       "blockDurationMins": 0,
-      "opens": 3,
-      "adds": 14,
-      "edits": 10,
+      "opens": 4,
+      "adds": 28,
+      "edits": 20,
       "deletes": 0,
-      "activeSeconds": 3108,
+      "activeSeconds": 3268,
       "firstSeen": "2026-11-15T18:30:55.751Z",
-      "lastSeen": "2026-11-27T21:32:58.823Z",
-      "lastAction": "AUTH",
-      "lastBotName": "Workspace"
+      "lastSeen": "2026-11-28T10:25:53.763Z",
+      "lastAction": "ADD",
+      "lastBotName": "Customer Accounts & Ledger"
     },
     {
       "id": "abdulfeta",
@@ -55,6 +55,66 @@
     }
   ],
   "logs": [
+    {
+      "id": "log_1795806856289_rs4q",
+      "timestamp": "2026-11-27T19:14:16.289Z",
+      "actor": "umery1969@gmail.com",
+      "action": "AUTH",
+      "source": "LockScreen",
+      "deviceId": "dev_dezz6x_mwtpfhc0",
+      "deviceLabel": "Android Phone · Chrome",
+      "telegramId": "",
+      "telegramUsername": "",
+      "platform": "Phone",
+      "botId": "",
+      "botName": "Workspace",
+      "summary": "Workspace unlocked with access code"
+    },
+    {
+      "id": "log_1795814520379_pfj1",
+      "timestamp": "2026-11-27T21:22:00.379Z",
+      "actor": "umery1969@gmail.com",
+      "action": "AUTH",
+      "source": "LockScreen",
+      "deviceId": "dev_dezz6x_mwtpfhc0",
+      "deviceLabel": "Android Phone · Chrome",
+      "telegramId": "",
+      "telegramUsername": "",
+      "platform": "Phone",
+      "botId": "",
+      "botName": "Workspace",
+      "summary": "Workspace unlocked with access code"
+    },
+    {
+      "id": "log_1795818134846_rkvp",
+      "timestamp": "2026-11-27T22:22:14.846Z",
+      "actor": "umery1969@gmail.com",
+      "action": "AUTH",
+      "source": "LockScreen",
+      "deviceId": "dev_dezz6x_mwtpfhc0",
+      "deviceLabel": "Android Phone · Chrome",
+      "telegramId": "",
+      "telegramUsername": "",
+      "platform": "Phone",
+      "botId": "",
+      "botName": "Workspace",
+      "summary": "Workspace unlocked with access code"
+    },
+    {
+      "id": "log_1795819232668_c1j1",
+      "timestamp": "2026-11-27T22:40:32.668Z",
+      "actor": "umery1969@gmail.com",
+      "action": "AUTH",
+      "source": "LockScreen",
+      "deviceId": "dev_dezz6x_mwtpfhc0",
+      "deviceLabel": "Android Phone · Chrome",
+      "telegramId": "",
+      "telegramUsername": "",
+      "platform": "Phone",
+      "botId": "",
+      "botName": "Workspace",
+      "summary": "Workspace unlocked with access code"
+    },
     {
       "id": "log_1795681090017_jpyn",
       "timestamp": "2026-11-26T08:18:10.017Z",
@@ -506,5 +566,5 @@
       "summary": "Workspace unlocked with access code"
     }
   ],
-  "updatedAt": "2026-11-27T21:32:58.823Z"
+  "updatedAt": "2026-11-28T10:25:53.763Z"
 }
